@@ -1,6 +1,6 @@
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
+import { deleteSessionItem, getSessionItem } from "./sessionStorage";
 
 /**
  * In Expo Go (physical device), use the machine's local IP so the phone
@@ -32,7 +32,7 @@ export const api = axios.create({
 
 // Request interceptor — attach JWT token automatically
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync("auth_token");
+  const token = await getSessionItem("auth_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -44,7 +44,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await SecureStore.deleteItemAsync("auth_token");
+      await deleteSessionItem("auth_token");
     }
     return Promise.reject(error);
   }

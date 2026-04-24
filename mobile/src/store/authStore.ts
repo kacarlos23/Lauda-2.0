@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import * as SecureStore from "expo-secure-store";
 import { api } from "../services/api";
+import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
 import { AuthUser } from "../types";
 
 interface AuthState {
@@ -21,8 +21,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loadSession: async () => {
     try {
-      const token = await SecureStore.getItemAsync("auth_token");
-      const userJson = await SecureStore.getItemAsync("auth_user");
+      const token = await getSessionItem("auth_token");
+      const userJson = await getSessionItem("auth_user");
       if (token && userJson) {
         set({ token, user: JSON.parse(userJson), isLoading: false });
       } else {
@@ -36,22 +36,22 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     const response = await api.post("/auth/login", { email, password });
     const { token, user } = response.data.data;
-    await SecureStore.setItemAsync("auth_token", token);
-    await SecureStore.setItemAsync("auth_user", JSON.stringify(user));
+    await setSessionItem("auth_token", token);
+    await setSessionItem("auth_user", JSON.stringify(user));
     set({ token, user });
   },
 
   register: async (churchName, name, email, password) => {
     const response = await api.post("/auth/register", { churchName, name, email, password });
     const { token, user } = response.data.data;
-    await SecureStore.setItemAsync("auth_token", token);
-    await SecureStore.setItemAsync("auth_user", JSON.stringify(user));
+    await setSessionItem("auth_token", token);
+    await setSessionItem("auth_user", JSON.stringify(user));
     set({ token, user });
   },
 
   logout: async () => {
-    await SecureStore.deleteItemAsync("auth_token");
-    await SecureStore.deleteItemAsync("auth_user");
+    await deleteSessionItem("auth_token");
+    await deleteSessionItem("auth_user");
     set({ user: null, token: null });
   },
 }));
