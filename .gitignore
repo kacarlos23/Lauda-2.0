@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+mobile/node_modules/
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Build output
+dist/
+build/
+web-build/
+mobile/dist/
+mobile/build/
+mobile/web-build/
+
+# Prisma generated client/output
+generated/
+/generated/prisma/
+
+# Expo / React Native
+mobile/.expo/
+mobile/expo-env.d.ts
+mobile/.metro-health-check*
+mobile/ios/
+mobile/android/
+mobile/.kotlin/
+
+# Native app signing keys and certificates
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Logs
+logs/
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.orig.*
