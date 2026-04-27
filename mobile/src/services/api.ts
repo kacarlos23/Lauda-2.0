@@ -50,13 +50,23 @@ const refreshApi = axios.create({
 
 let refreshPromise: Promise<string> | null = null;
 
+/**
+ * Clears all locally persisted authentication state.
+ *
+ * @returns A promise that resolves after session keys are removed.
+ */
 async function clearStoredSession(): Promise<void> {
   await deleteSessionItem("auth_token");
   await deleteSessionItem("refresh_token");
   await deleteSessionItem("auth_user");
 }
 
-async function refreshAccessToken(): Promise<string> {
+/**
+ * Uses the stored refresh token to request a new access token.
+ *
+ * @returns The new access token.
+ */
+export async function refreshAccessToken(): Promise<string> {
   const refreshToken = await getSessionItem("refresh_token");
   if (!refreshToken) {
     throw new Error("Refresh token missing");

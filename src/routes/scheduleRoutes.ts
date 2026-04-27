@@ -7,6 +7,7 @@ const ctrl = new ScheduleController();
 
 router.use(authMiddleware);
 
+router.get("/", (req, res) => ctrl.list(req, res));
 router.post("/", (req, res) => ctrl.create(req, res));
 
 export default router;
