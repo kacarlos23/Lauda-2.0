@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/authRoutes";
 import ministryRoutes from "./routes/ministryRoutes";
 import memberRoutes from "./routes/memberRoutes";
+import scheduleRoutes from "./routes/scheduleRoutes";
 
 const app = express();
 
@@ -18,5 +19,6 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/ministries", ministryRoutes);
 app.use("/api/members", memberRoutes);
+app.use("/api/schedules", scheduleRoutes);
 
 export default app;

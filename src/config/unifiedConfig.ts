@@ -6,6 +6,11 @@ export const config = {
   auth: {
     jwtSecret: process.env.JWT_SECRET || "default_super_secret_for_dev_only",
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
+    refreshJwtSecret:
+      process.env.REFRESH_JWT_SECRET ||
+      process.env.JWT_SECRET ||
+      "default_refresh_super_secret_for_dev_only",
+    refreshJwtExpiresIn: process.env.REFRESH_JWT_EXPIRES_IN || "7d",
   },
   db: {
     url: process.env.DATABASE_URL,

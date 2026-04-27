@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getTenantContext } from "../context/tenantContext";
 
@@ -32,18 +32,38 @@ const whereOperations = new Set([
 ]);
 
 const createOperations = new Set(["create", "createMany", "createManyAndReturn"]);
+const uniqueWhereOperations = new Set(["findUnique", "findUniqueOrThrow", "update", "delete"]);
 
-function addTenantToWhere(args: unknown, tenantId: string) {
-  const scopedArgs = (args ?? {}) as { where?: Record<string, unknown> };
-  scopedArgs.where = { ...(scopedArgs.where ?? {}), tenantId };
+type QueryArgs = Record<string, unknown>;
+
+function asQueryArgs(args: unknown): QueryArgs {
+  return { ...((args as QueryArgs | undefined) ?? {}) };
+}
+
+function addTenantToWhere(args: unknown, tenantId: string, keepUniqueFieldsAtTopLevel = false) {
+  const scopedArgs = asQueryArgs(args);
+  const currentWhere = (scopedArgs.where as Record<string, unknown> | undefined) ?? {};
+
+  if (keepUniqueFieldsAtTopLevel) {
+    scopedArgs.where = { ...currentWhere, tenantId };
+    return scopedArgs;
+  }
+
+  scopedArgs.where = {
+    AND: [currentWhere, { tenantId }],
+  };
+
   return scopedArgs;
 }
 
 function addTenantToCreate(args: unknown, tenantId: string) {
-  const scopedArgs = (args ?? {}) as { data?: unknown };
+  const scopedArgs = asQueryArgs(args);
 
   if (Array.isArray(scopedArgs.data)) {
-    scopedArgs.data = scopedArgs.data.map((entry) => ({ ...entry, tenantId }));
+    scopedArgs.data = scopedArgs.data.map((entry) => ({
+      ...((entry as Record<string, unknown>) ?? {}),
+      tenantId,
+    }));
     return scopedArgs;
   }
 
@@ -52,19 +72,16 @@ function addTenantToCreate(args: unknown, tenantId: string) {
 }
 
 function addTenantToUpsert(args: unknown, tenantId: string) {
-  const scopedArgs = (args ?? {}) as {
-    where?: Record<string, unknown>;
-    create?: Record<string, unknown>;
-  };
+  const scopedArgs = addTenantToWhere(args, tenantId, true);
+  const currentCreate = (scopedArgs.create as Record<string, unknown> | undefined) ?? {};
 
-  scopedArgs.where = { ...(scopedArgs.where ?? {}), tenantId };
-  scopedArgs.create = { ...(scopedArgs.create ?? {}), tenantId };
+  scopedArgs.create = { ...currentCreate, tenantId };
   return scopedArgs;
 }
 
 const basePrisma = new PrismaClient({ adapter });
 
-export const prisma = basePrisma.$extends({
+const tenantIsolationExtension = Prisma.defineExtension({
   name: "tenantIsolation",
   query: {
     $allModels: {
@@ -76,7 +93,9 @@ export const prisma = basePrisma.$extends({
         }
 
         if (whereOperations.has(operation)) {
-          return query(addTenantToWhere(args, context.tenantId) as typeof args);
+          return query(
+            addTenantToWhere(args, context.tenantId, uniqueWhereOperations.has(operation)) as typeof args
+          );
         }
 
         if (createOperations.has(operation)) {
@@ -92,3 +111,5 @@ export const prisma = basePrisma.$extends({
     },
   },
 });
+
+export const prisma = basePrisma.$extends(tenantIsolationExtension);

@@ -1,7 +1,11 @@
 import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { AuthService } from "../services/authService";
-import { registerSchema, loginSchema } from "../validators/auth.schema";
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+} from "../validators/auth.schema";
 
 const authService = new AuthService();
 
@@ -30,6 +34,20 @@ export class AuthController extends BaseController {
         this.handleBadRequest(res, error.message);
       } else {
         this.handleError(error, res, "AuthController.login");
+      }
+    }
+  }
+
+  async refresh(req: Request, res: Response): Promise<void> {
+    try {
+      const input = refreshTokenSchema.parse(req.body);
+      const result = await authService.refresh(input);
+      this.handleSuccess(res, result);
+    } catch (error) {
+      if (error instanceof Error) {
+        this.handleUnauthorized(res, error.message);
+      } else {
+        this.handleError(error, res, "AuthController.refresh");
       }
     }
   }

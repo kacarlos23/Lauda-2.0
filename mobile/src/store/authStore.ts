@@ -35,22 +35,25 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (email, password) => {
     const response = await api.post("/auth/login", { email, password });
-    const { token, user } = response.data.data;
+    const { token, refreshToken, user } = response.data.data;
     await setSessionItem("auth_token", token);
+    await setSessionItem("refresh_token", refreshToken);
     await setSessionItem("auth_user", JSON.stringify(user));
     set({ token, user });
   },
 
   register: async (churchName, name, email, password) => {
     const response = await api.post("/auth/register", { churchName, name, email, password });
-    const { token, user } = response.data.data;
+    const { token, refreshToken, user } = response.data.data;
     await setSessionItem("auth_token", token);
+    await setSessionItem("refresh_token", refreshToken);
     await setSessionItem("auth_user", JSON.stringify(user));
     set({ token, user });
   },
 
   logout: async () => {
     await deleteSessionItem("auth_token");
+    await deleteSessionItem("refresh_token");
     await deleteSessionItem("auth_user");
     set({ user: null, token: null, isLoading: false });
   },

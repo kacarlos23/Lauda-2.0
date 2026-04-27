@@ -50,6 +50,7 @@ pnpm-debug.*
 # Test and coverage output
 coverage/
 .nyc_output/
+.agent-browser-screenshots/
 
 # OS and editor files
 .DS_Store

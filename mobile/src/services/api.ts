@@ -1,6 +1,18 @@
-import axios from "axios";
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import Constants from "expo-constants";
-import { deleteSessionItem, getSessionItem } from "./sessionStorage";
+import { deleteSessionItem, getSessionItem, setSessionItem } from "./sessionStorage";
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+type RefreshResponse = {
+  success: boolean;
+  data: {
+    token: string;
+    refreshToken: string;
+  };
+};
 
 /**
  * In Expo Go (physical device), use the machine's local IP so the phone
@@ -30,7 +42,42 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Request interceptor — attach JWT token automatically
+const refreshApi = axios.create({
+  baseURL: getBaseUrl(),
+  timeout: 10000,
+  headers: { "Content-Type": "application/json" },
+});
+
+let refreshPromise: Promise<string> | null = null;
+
+async function clearStoredSession(): Promise<void> {
+  await deleteSessionItem("auth_token");
+  await deleteSessionItem("refresh_token");
+  await deleteSessionItem("auth_user");
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = await getSessionItem("refresh_token");
+  if (!refreshToken) {
+    throw new Error("Refresh token missing");
+  }
+
+  const response = await refreshApi.post<RefreshResponse>("/auth/refresh", {
+    refreshToken,
+  });
+
+  const { token, refreshToken: nextRefreshToken } = response.data.data;
+  await setSessionItem("auth_token", token);
+  await setSessionItem("refresh_token", nextRefreshToken);
+
+  // Use require to avoid a static import cycle between api.ts and authStore.ts.
+  const { useAuthStore } = require("../store/authStore");
+  useAuthStore.setState({ token });
+
+  return token;
+}
+
+// Request interceptor: attach JWT token automatically.
 api.interceptors.request.use(async (config) => {
   const token = await getSessionItem("auth_token");
   if (token) {
@@ -39,16 +86,41 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor — handle 401 globally
+// Response interceptor: refresh once for concurrent 401s, then retry once.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Usamos 'require' para evitar dependência circular entre api.ts e authStore.ts
-      const { useAuthStore } = require("../store/authStore");
-      const logout = useAuthStore.getState().logout;
-      await logout();
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry ||
+      originalRequest.url?.includes("/auth/refresh")
+    ) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    originalRequest._retry = true;
+
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      const token = await refreshPromise;
+      originalRequest.headers.Authorization = `Bearer ${token}`;
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      await clearStoredSession();
+
+      const { useAuthStore } = require("../store/authStore");
+      useAuthStore.setState({ user: null, token: null, isLoading: false });
+
+      return Promise.reject(refreshError);
+    }
   }
 );
