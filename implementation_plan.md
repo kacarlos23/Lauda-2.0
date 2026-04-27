@@ -102,11 +102,15 @@ model MinistryMember {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   isLeader   Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   @@unique([userId, ministryId])
   @@index([ministryId])
+  @@index([tenantId])
 }
 
 model Schedule {
@@ -138,11 +142,15 @@ model ScheduleAssignment {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   role       String   // ex: "Guitarrista", "Bateria", "Recepção"
   status     AssignmentStatus @default(PENDING)
   createdAt  DateTime @default(now())
 
   @@unique([scheduleId, userId])
+  @@index([tenantId])
 }
 
 model Song {
@@ -171,17 +179,21 @@ model MinistrySong {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@unique([songId, ministryId])
+  @@index([tenantId])
 }
 ```
 
 #### 3. Isolamento Multi-Tenant (Segurança Backend)
 - Implementar Middleware de Autenticação para validar o JWT e disponibilizar `req.user` (contendo `id`, `role` e `tenantId`).
-- Os **Repositories** sempre receberão o `tenantId` nos métodos e aplicarão a cláusula `{ where: { tenantId } }` obrigatoriamente para evitar acesso a dados de outras igrejas.
+- Implementar **Prisma Client Extensions** (`prisma.$extends`) para injetar automaticamente a cláusula `{ where: { tenantId } }` em todas as queries. Isso mitiga falhas humanas nos Repositories e garante isolamento absoluto.
 
 #### 4. API Core e Validadores
 - Criar schemas de validação Zod para todas as requisições (`UserSchema`, `MinistrySchema`).
-- Implementar `AuthController`: login e registro (com geração do tenant).
+- Implementar `AuthController`: login e registro (com geração do tenant, emissão de Access Token e Refresh Token).
 - Implementar endpoints para gerenciar Membros, Ministérios e Escalas.
 
 ---
@@ -193,8 +205,8 @@ model MinistrySong {
 - Instalar dependências: `axios`, `zustand`, `expo-secure-store`.
 
 #### 2. Estado Global e Comunicação
-- Criar o *store* do Zustand (`store/authStore.ts`) para gerenciar o token e as permissões do usuário.
-- Configurar interceptors do Axios para anexar automaticamente o token do SecureStore em todos os *Requests*.
+- Criar o *store* do Zustand (`store/authStore.ts`) para gerenciar o estado da sessão (Access Token, Refresh Token) e as permissões do usuário.
+- Configurar interceptors do Axios para anexar o Access Token automaticamente, e lidar com erros 401 realizando a renovação silenciosa da sessão usando o Refresh Token no SecureStore.
 
 #### 3. Telas Iniciais (Views)
 - **Autenticação:** Tela de Login.

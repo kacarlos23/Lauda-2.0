@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
+import { runWithTenantContext } from "../context/tenantContext";
 
 interface JwtPayload {
   id: string;
@@ -26,14 +27,16 @@ export const authMiddleware = (
   try {
     const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
     
-    // Inject user info into the request
     req.user = {
       id: decoded.id,
       role: decoded.role,
       tenantId: decoded.tenantId,
     };
-    
-    next();
+
+    runWithTenantContext(
+      { userId: decoded.id, role: decoded.role, tenantId: decoded.tenantId },
+      () => next()
+    );
   } catch (error) {
     res.status(401).json({ error: "Unauthorized: Invalid token" });
   }

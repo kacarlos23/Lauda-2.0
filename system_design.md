@@ -11,7 +11,7 @@
 
 ## 2. Premissas Assumidas
 *   **Escala e Tráfego:** Projetado para milhares de usuários. Arquitetura robusta em Node.js com TypeScript.
-*   **Segurança de Sessão:** JWT (SecureStore no mobile, HttpOnly Cookies/Session no Web).
+*   **Segurança de Sessão:** Estratégia JWT dupla com Access Token (vida curta) e Refresh Token (vida longa), armazenados com segurança (SecureStore no mobile, HttpOnly Cookies no Web).
 
 ## 3. Log de Decisões (Decision Log)
 
@@ -40,5 +40,5 @@
 
 ### 4.2 Frontend (React Native + Expo)
 *   **Roteamento:** Expo Router.
-*   **Comunicação com a API:** Instância do Axios com Interceptors injetando o JWT salvo no SecureStore. Tratamento automático de erro 401.
+*   **Comunicação com a API:** Instância do Axios com Interceptors injetando o Access Token salvo no SecureStore. Tratamento automático de erro 401 para renovar a sessão transparentemente usando o Refresh Token antes de redirecionar para o Login.
 *   **Interface Adaptativa:** O estado global no Zustand armazenará a `Role` do usuário logado. Funcionalidades e abas de administração só serão visíveis se o usuário tiver a permissão adequada.

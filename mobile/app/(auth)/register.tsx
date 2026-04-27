@@ -1,18 +1,20 @@
 import { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { ArrowLeft, Church } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 export default function RegisterScreen() {
   const { register } = useAuthStore();
@@ -42,6 +44,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(churchName.trim(), name.trim(), email.trim().toLowerCase(), password);
+      router.replace("/(tabs)");
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Erro ao criar conta. Tente novamente.";
       Alert.alert("Erro", msg);
@@ -55,111 +58,152 @@ export default function RegisterScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.inner} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Text style={styles.backText}>← Voltar</Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.inner}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.back} testID="register-back">
+            <ArrowLeft color={colors.primary} size={18} strokeWidth={2.4} />
+            <Text style={styles.backText}>Voltar</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.title}>Nova Igreja</Text>
-        <Text style={styles.subtitle}>Crie a conta da sua instituição</Text>
+          <View style={styles.brandMark}>
+            <Church color={colors.surface} size={26} strokeWidth={2.6} />
+          </View>
+          <Text style={styles.title}>Nova igreja</Text>
+          <Text style={styles.subtitle}>Configure a instituição e o primeiro administrador.</Text>
 
-        <Text style={styles.label}>Nome da Igreja *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Igreja Batista Central"
-          placeholderTextColor="#555"
-          value={churchName}
-          onChangeText={setChurchName}
-        />
+          <Text style={styles.label}>Nome da igreja *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Igreja Batista Central"
+            placeholderTextColor={colors.muted}
+            value={churchName}
+            onChangeText={setChurchName}
+            testID="register-church"
+          />
 
-        <Text style={styles.label}>Seu nome *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Nome completo do administrador"
-          placeholderTextColor="#555"
-          value={name}
-          onChangeText={setName}
-        />
+          <Text style={styles.label}>Seu nome *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nome completo do administrador"
+            placeholderTextColor={colors.muted}
+            value={name}
+            onChangeText={setName}
+            testID="register-name"
+          />
 
-        <Text style={styles.label}>E-mail *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="admin@suaigreja.com"
-          placeholderTextColor="#555"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
+          <Text style={styles.label}>E-mail *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="admin@suaigreja.com"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+            testID="register-email"
+          />
 
-        <Text style={styles.label}>Senha *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Mínimo 6 caracteres"
-          placeholderTextColor="#555"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <Text style={styles.label}>Senha *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Mínimo 6 caracteres"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            testID="register-password"
+          />
 
-        <Text style={styles.label}>Confirmar senha *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Repita a senha"
-          placeholderTextColor="#555"
-          secureTextEntry
-          value={confirm}
-          onChangeText={setConfirm}
-        />
+          <Text style={styles.label}>Confirmar senha *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Repita a senha"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            value={confirm}
+            onChangeText={setConfirm}
+            testID="register-confirm"
+          />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Criar Conta</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+            testID="register-submit"
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.surface} />
+            ) : (
+              <Text style={styles.buttonText}>Criar conta</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a1a2e" },
-  inner: { paddingHorizontal: 32, paddingTop: 60, paddingBottom: 40 },
-  back: { marginBottom: 32 },
-  backText: { color: "#888", fontSize: 15 },
-  title: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#e94560",
-    marginBottom: 4,
-    letterSpacing: 1,
+  container: { flex: 1, backgroundColor: colors.background },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: spacing.xl,
   },
-  subtitle: { fontSize: 14, color: "#888", marginBottom: 36 },
-  label: { color: "#aaa", fontSize: 13, fontWeight: "600", marginBottom: 6, marginTop: 4 },
-  input: {
-    backgroundColor: "#16213e",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    color: "#fff",
-    fontSize: 15,
-    marginBottom: 12,
+  inner: {
+    width: "100%",
+    maxWidth: screen.maxWidth,
+    alignSelf: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
     borderWidth: 1,
-    borderColor: "#0f3460",
+    borderColor: colors.line,
+    ...shadow,
+  },
+  back: {
+    marginBottom: spacing.xl,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  backText: { color: colors.primary, fontSize: 15, fontWeight: "700" },
+  brandMark: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: colors.ink,
+    marginBottom: spacing.xs,
+  },
+  subtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginBottom: spacing.xl },
+  label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
+  input: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    color: colors.ink,
+    fontSize: 15,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   button: {
-    backgroundColor: "#e94560",
+    backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radii.sm,
     alignItems: "center",
-    marginTop: 16,
+    marginTop: spacing.sm,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 1 },
+  buttonText: { color: colors.surface, fontSize: 16, fontWeight: "700" },
 });

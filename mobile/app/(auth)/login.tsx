@@ -1,17 +1,19 @@
 import { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { LogIn } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 export default function LoginScreen() {
   const { login } = useAuthStore();
@@ -25,9 +27,11 @@ export default function LoginScreen() {
       Alert.alert("Atenção", "Preencha todos os campos");
       return;
     }
+
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
+      router.replace("/(tabs)");
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Erro ao fazer login. Tente novamente.";
       Alert.alert("Erro", msg);
@@ -42,35 +46,43 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
+        <View style={styles.brandMark}>
+          <LogIn color={colors.surface} size={26} strokeWidth={2.6} />
+        </View>
         <Text style={styles.title}>Lauda</Text>
-        <Text style={styles.subtitle}>Gestão de Ministérios</Text>
+        <Text style={styles.subtitle}>Gestão simples para ministérios, escalas e equipes.</Text>
 
+        <Text style={styles.label}>E-mail</Text>
         <TextInput
           style={styles.input}
           placeholder="E-mail"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.muted}
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
+          testID="login-email"
         />
 
+        <Text style={styles.label}>Senha</Text>
         <TextInput
           style={styles.input}
           placeholder="Senha"
-          placeholderTextColor="#888"
+          placeholderTextColor={colors.muted}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          testID="login-password"
         />
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
           disabled={loading}
+          testID="login-submit"
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.surface} />
           ) : (
             <Text style={styles.buttonText}>Entrar</Text>
           )}
@@ -79,10 +91,10 @@ export default function LoginScreen() {
         <TouchableOpacity
           style={styles.registerLink}
           onPress={() => router.push("/(auth)/register")}
+          testID="go-register"
         >
           <Text style={styles.registerText}>
-            Não tem conta?{" "}
-            <Text style={styles.registerHighlight}>Cadastre sua Igreja</Text>
+            Não tem conta? <Text style={styles.registerHighlight}>Cadastre sua igreja</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -93,64 +105,85 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a2e",
+    backgroundColor: colors.background,
     justifyContent: "center",
+    padding: spacing.xl,
   },
   inner: {
-    paddingHorizontal: 32,
+    width: "100%",
+    maxWidth: screen.maxWidth,
+    alignSelf: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.line,
+    ...shadow,
+  },
+  brandMark: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 42,
+    fontSize: 34,
     fontWeight: "800",
-    color: "#e94560",
-    textAlign: "center",
-    marginBottom: 4,
-    letterSpacing: 2,
+    color: colors.ink,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#888",
-    textAlign: "center",
-    marginBottom: 48,
-    letterSpacing: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.muted,
+    marginBottom: spacing.xl,
+  },
+  label: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: spacing.sm,
   },
   input: {
-    backgroundColor: "#16213e",
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    color: "#fff",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    paddingVertical: 15,
+    paddingHorizontal: spacing.lg,
+    color: colors.ink,
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: "#0f3460",
+    borderColor: colors.line,
   },
   button: {
-    backgroundColor: "#e94560",
+    backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: radii.sm,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
+    color: colors.surface,
     fontSize: 16,
     fontWeight: "700",
-    letterSpacing: 1,
   },
   registerLink: {
-    marginTop: 24,
+    marginTop: spacing.xl,
     alignItems: "center",
   },
   registerText: {
-    color: "#888",
+    color: colors.muted,
     fontSize: 14,
+    textAlign: "center",
   },
   registerHighlight: {
-    color: "#e94560",
+    color: colors.primary,
     fontWeight: "700",
   },
 });

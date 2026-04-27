@@ -30,6 +30,10 @@ model Tenant {
   ministries Ministry[]
   schedules  Schedule[]
   songs      Song[]
+
+  ministryMembers     MinistryMember[]
+  scheduleAssignments ScheduleAssignment[]
+  ministrySongs       MinistrySong[]
 }
 
 model User {
@@ -79,11 +83,15 @@ model MinistryMember {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   isLeader  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([userId, ministryId])
   @@index([ministryId])
+  @@index([tenantId])
 }
 
 model Schedule {
@@ -115,11 +123,15 @@ model ScheduleAssignment {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  role      String // ex: "Guitarrista", "Bateria", "Recepção"
+  role     String // ex: "Guitarrista", "Bateria", "Recepção"
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   status    AssignmentStatus @default(PENDING)
   createdAt DateTime         @default(now())
 
   @@unique([scheduleId, userId])
+  @@index([tenantId])
 }
 
 model Song {
@@ -148,5 +160,9 @@ model MinistrySong {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@unique([songId, ministryId])
+  @@index([tenantId])
 }

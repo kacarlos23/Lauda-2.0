@@ -44,7 +44,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await deleteSessionItem("auth_token");
+      // Usamos 'require' para evitar dependência circular entre api.ts e authStore.ts
+      const { useAuthStore } = require("../store/authStore");
+      const logout = useAuthStore.getState().logout;
+      await logout();
     }
     return Promise.reject(error);
   }

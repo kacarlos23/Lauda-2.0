@@ -1,44 +1,78 @@
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import type { ComponentType } from "react";
+import { Church, Home, User, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { colors } from "../../src/theme";
+
+type TabIconProps = {
+  color?: string;
+  size?: number;
+  strokeWidth?: number;
+};
+
+const tabIcon = (Icon: ComponentType<TabIconProps>, color: string) => (
+  <Icon color={color} size={22} strokeWidth={2.4} />
+);
 
 export default function TabsLayout() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
 
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: "#16213e",
-          borderTopColor: "#0f3460",
-          paddingBottom: 4,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.line,
+          height: 64,
+          paddingTop: 6,
+          paddingBottom: 8,
         },
-        tabBarActiveTintColor: "#e94560",
-        tabBarInactiveTintColor: "#888",
-        headerStyle: { backgroundColor: "#1a1a2e" },
-        headerTintColor: "#fff",
-        headerTitleStyle: { fontWeight: "700" },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
+        headerTintColor: colors.ink,
+        headerTitleStyle: { fontWeight: "800" },
       }}
     >
       <Tabs.Screen
         name="index"
-        options={{ title: "Dashboard", tabBarLabel: "Início" }}
+        options={{
+          title: "Início",
+          tabBarLabel: "Início",
+          tabBarIcon: ({ color }) => tabIcon(Home, color),
+        }}
       />
       <Tabs.Screen
         name="ministries"
-        options={{ title: "Ministérios", tabBarLabel: "Ministérios" }}
+        options={{
+          title: "Ministérios",
+          tabBarLabel: "Ministérios",
+          tabBarIcon: ({ color }) => tabIcon(Church, color),
+        }}
       />
       <Tabs.Screen
         name="members"
         options={{
           title: "Membros",
           tabBarLabel: "Membros",
-          href: isAdmin ? "/members" : null, // hidden for non-admins
+          tabBarIcon: ({ color }) => tabIcon(Users, color),
+          href: isAdmin ? "/members" : null,
         }}
       />
       <Tabs.Screen
         name="profile"
-        options={{ title: "Perfil", tabBarLabel: "Perfil" }}
+        options={{
+          title: "Perfil",
+          tabBarLabel: "Perfil",
+          tabBarIcon: ({ color }) => tabIcon(User, color),
+        }}
       />
     </Tabs>
   );

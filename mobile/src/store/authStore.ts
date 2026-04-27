@@ -52,6 +52,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     await deleteSessionItem("auth_token");
     await deleteSessionItem("auth_user");
-    set({ user: null, token: null });
+    set({ user: null, token: null, isLoading: false });
   },
 }));
