@@ -6,7 +6,7 @@ import memberRoutes from "./routes/memberRoutes";
 import scheduleRoutes from "./routes/scheduleRoutes";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenApiDocument } from "./docs/openapi";
-import { errorMiddleware } from "./middlewares/errorMiddleware";
+import { errorHandler } from "./middlewares/errorHandler";
 
 const app = express();
 
@@ -28,6 +28,6 @@ if (process.env.NODE_ENV !== "production") {
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(generateOpenApiDocument()));
 }
 
-app.use(errorMiddleware);
+app.use(errorHandler);
 
 export default app;

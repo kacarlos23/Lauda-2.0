@@ -2,6 +2,7 @@ import { prisma } from "../repositories/prismaClient";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
+import { ValidationError, UnauthorizedError } from "../errors/AppError";
 import {
   RegisterInput,
   LoginInput,
@@ -19,7 +20,7 @@ export class AuthService {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      throw new Error("E-mail já está em uso");
+      throw new ValidationError("E-mail já está em uso");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -54,12 +55,12 @@ export class AuthService {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      throw new Error("Credenciais inválidas");
+      throw new UnauthorizedError("Credenciais inválidas");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new Error("Credenciais inválidas");
+      throw new UnauthorizedError("Credenciais inválidas");
     }
 
     return {
@@ -70,18 +71,23 @@ export class AuthService {
   }
 
   async refresh(input: RefreshTokenInput) {
-    const decoded = jwt.verify(
-      input.refreshToken,
-      config.auth.refreshJwtSecret
-    ) as RefreshTokenPayload;
+    let decoded;
+    try {
+      decoded = jwt.verify(
+        input.refreshToken,
+        config.auth.refreshJwtSecret
+      ) as RefreshTokenPayload;
+    } catch {
+      throw new UnauthorizedError("Refresh token inválido");
+    }
 
     if (decoded.type !== "refresh") {
-      throw new Error("Refresh token inválido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
     if (!user) {
-      throw new Error("Usuário não encontrado");
+      throw new UnauthorizedError("Usuário não encontrado");
     }
 
     return {
