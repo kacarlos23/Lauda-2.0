@@ -13,5 +13,7 @@ router.get("/:id", (req, res) => ctrl.getOne(req, res));
 router.post("/", (req, res) => ctrl.create(req, res));
 router.put("/:id", (req, res) => ctrl.update(req, res));
 router.delete("/:id", (req, res) => ctrl.remove(req, res));
+router.post("/:id/members", (req, res) => ctrl.addMember(req, res));
+router.delete("/:id/members/:userId", (req, res) => ctrl.removeMember(req, res));
 
 export default router;

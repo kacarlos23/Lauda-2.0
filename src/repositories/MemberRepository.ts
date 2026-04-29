@@ -70,24 +70,4 @@ export class MemberRepository {
     });
   }
 
-  async addToMinistry(userId: string, ministryId: string, isLeader = false) {
-    const ministry = await prisma.ministry.findFirst({
-      where: { id: ministryId, tenantId: this.tenantId },
-      select: { id: true },
-    });
-
-    if (!ministry) {
-      throw new Error("Ministerio nao encontrado");
-    }
-
-    return prisma.ministryMember.create({
-      data: { userId, ministryId, tenantId: this.tenantId, isLeader },
-    });
-  }
-
-  removeFromMinistry(userId: string, ministryId: string) {
-    return prisma.ministryMember.deleteMany({
-      where: { userId, ministryId, tenantId: this.tenantId },
-    });
-  }
 }

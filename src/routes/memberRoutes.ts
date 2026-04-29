@@ -18,7 +18,5 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 router.get("/", requireAdmin, (req, res) => ctrl.list(req, res));
 router.get("/:id", requireAdmin, (req, res) => ctrl.getOne(req, res));
 router.post("/", requireAdmin, (req, res) => ctrl.create(req, res));
-router.post("/:id/ministries", requireAdmin, (req, res) => ctrl.addToMinistry(req, res));
-router.delete("/:id/ministries", requireAdmin, (req, res) => ctrl.removeFromMinistry(req, res));
 
 export default router;
