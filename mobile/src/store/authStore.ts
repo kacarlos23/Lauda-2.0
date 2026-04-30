@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { api } from "../services/api";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
-import { AuthUser } from "../types";
+import { User } from "../types";
 
 interface AuthState {
-  user: AuthUser | null;
+  user: User | null;
   token: string | null;
   isLoading: boolean;
 
