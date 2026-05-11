@@ -1,4 +1,5 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "./sessionStorage";
 
@@ -9,30 +10,34 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
 type RefreshResponse = {
   success: boolean;
   data: {
-    token: string;
+    accessToken?: string;
+    token?: string;
     refreshToken: string;
   };
 };
 
-/**
- * In Expo Go (physical device), use the machine's local IP so the phone
- * can reach the backend on the same WiFi network.
- *
- * Options:
- *   - Development (Expo Go):  http://192.168.18.245:3000/api
- *   - Android emulator:       http://10.0.2.2:3000/api
- *   - iOS simulator:          http://localhost:3000/api
- *
- * Expo automatically exposes the dev machine's IP via Constants.expoConfig.hostUri
- * (format: "192.168.x.x:8081"). We extract just the host to build our API URL.
- */
+type QueueItem = {
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+};
+
+const failedQueue: QueueItem[] = [];
+let isRefreshing = false;
+
 function getBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
-    const host = hostUri.split(":")[0]; // strip Metro port
+    const host = hostUri.split(":")[0];
     return `http://${host}:3000/api`;
   }
-  // Fallback for simulators / web
+
+  if (Platform.OS === "android") {
+    return "http://10.0.2.2:3000/api";
+  }
+
   return "http://localhost:3000/api";
 }
 
@@ -48,17 +53,26 @@ const refreshApi = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-let refreshPromise: Promise<string> | null = null;
+function processQueue(error: unknown, token: string | null): void {
+  failedQueue.splice(0).forEach((request) => {
+    if (error || !token) {
+      request.reject(error);
+      return;
+    }
 
-/**
- * Clears all locally persisted authentication state.
- *
- * @returns A promise that resolves after session keys are removed.
- */
+    request.resolve(token);
+  });
+}
+
 async function clearStoredSession(): Promise<void> {
   await deleteSessionItem("auth_token");
   await deleteSessionItem("refresh_token");
   await deleteSessionItem("auth_user");
+}
+
+async function logoutAfterRefreshFailure(): Promise<void> {
+  const { useAuthStore } = require("../store/authStore");
+  await useAuthStore.getState().logout();
 }
 
 /**
@@ -69,25 +83,27 @@ async function clearStoredSession(): Promise<void> {
 export async function refreshAccessToken(): Promise<string> {
   const refreshToken = await getSessionItem("refresh_token");
   if (!refreshToken) {
-    throw new Error("Refresh token missing");
+    throw new Error("Refresh token ausente");
   }
 
   const response = await refreshApi.post<RefreshResponse>("/auth/refresh", {
     refreshToken,
   });
 
-  const { token, refreshToken: nextRefreshToken } = response.data.data;
-  await setSessionItem("auth_token", token);
-  await setSessionItem("refresh_token", nextRefreshToken);
+  const accessToken = response.data.data.accessToken ?? response.data.data.token;
+  if (!accessToken) {
+    throw new Error("Access token ausente na renovacao");
+  }
 
-  // Use require to avoid a static import cycle between api.ts and authStore.ts.
+  await setSessionItem("auth_token", accessToken);
+  await setSessionItem("refresh_token", response.data.data.refreshToken);
+
   const { useAuthStore } = require("../store/authStore");
-  useAuthStore.setState({ token });
+  useAuthStore.setState({ accessToken, token: accessToken });
 
-  return token;
+  return accessToken;
 }
 
-// Request interceptor: attach JWT token automatically.
 api.interceptors.request.use(async (config) => {
   const token = await getSessionItem("auth_token");
   if (token) {
@@ -96,9 +112,8 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Response interceptor: refresh once for concurrent 401s, then retry once.
 api.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
@@ -106,31 +121,37 @@ api.interceptors.response.use(
       error.response?.status !== 401 ||
       !originalRequest ||
       originalRequest._retry ||
-      originalRequest.url?.includes("/auth/refresh")
+      originalRequest.url?.includes("/auth/refresh") ||
+      originalRequest.url?.includes("/auth/login")
     ) {
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
 
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then((token) => {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      });
+    }
+
+    isRefreshing = true;
+
     try {
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-      }
-
-      const token = await refreshPromise;
+      const token = await refreshAccessToken();
+      processQueue(null, token);
       originalRequest.headers.Authorization = `Bearer ${token}`;
-
       return api(originalRequest);
     } catch (refreshError) {
+      processQueue(refreshError, null);
       await clearStoredSession();
-
-      const { useAuthStore } = require("../store/authStore");
-      useAuthStore.setState({ user: null, token: null, isLoading: false });
-
+      await logoutAfterRefreshFailure();
       return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
     }
   }
 );

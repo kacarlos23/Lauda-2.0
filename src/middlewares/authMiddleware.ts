@@ -5,7 +5,9 @@ import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
 
 interface JwtPayload {
-  id: string;
+  id?: string;
+  userId?: string;
+  email?: string;
   role: Role;
   tenantId: string;
 }
@@ -38,18 +40,24 @@ export const authMiddleware = (
       res.status(401).json({ error: "Unauthorized: Tenant missing" });
       return;
     }
-    
+
+    const userId = decoded.userId ?? decoded.id;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized: User missing" });
+      return;
+    }
+
     req.user = {
-      id: decoded.id,
+      id: userId,
       role: decoded.role,
       tenantId: decoded.tenantId,
     };
 
     runWithTenantContext(
-      { userId: decoded.id, role: decoded.role, tenantId: decoded.tenantId },
+      { userId, role: decoded.role, tenantId: decoded.tenantId },
       () => next()
     );
-  } catch (error) {
+  } catch {
     res.status(401).json({ error: "Unauthorized: Invalid token" });
   }
 };

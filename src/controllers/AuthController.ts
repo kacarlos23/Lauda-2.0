@@ -5,6 +5,8 @@ import {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "../validators/auth.schema";
 
 const authService = new AuthService();
@@ -46,6 +48,24 @@ export class AuthController extends BaseController {
   async refresh(req: Request, res: Response): Promise<void> {
     const input = refreshTokenSchema.parse(req.body);
     const result = await authService.refresh(input);
+    this.handleSuccess(res, result);
+  }
+
+  /**
+   * Requests a password reset PIN.
+   */
+  async forgotPassword(req: Request, res: Response): Promise<void> {
+    const input = forgotPasswordSchema.parse(req.body);
+    const result = await authService.requestPasswordReset(input);
+    this.handleSuccess(res, result);
+  }
+
+  /**
+   * Resets the user's password with the PIN.
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    const input = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPassword(input);
     this.handleSuccess(res, result);
   }
 }

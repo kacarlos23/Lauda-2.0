@@ -1,22 +1,15 @@
 import request from "supertest";
-import { app } from "../../app"; // Ajuste o caminho se necessário
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import app from "../../app"; // Ajuste o caminho se necessário
 
 // Token mock ou gerado para os testes
 const mockToken = (role: string, tenantId: string) => {
   // Isso deve ser adaptado para usar o gerador JWT do sistema
-  return "Bearer mock_token"; 
+  return "Bearer mock_token";
 };
 
 describe("Ministry Integration Tests", () => {
   beforeAll(async () => {
     // Inicializar DB, limpar tabelas, etc.
-  });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
   });
 
   describe("POST /ministries", () => {

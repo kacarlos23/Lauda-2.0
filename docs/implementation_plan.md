@@ -1,55 +1,84 @@
-# Implementar CRUD de Ministérios no Mobile
+# Implementação da Recuperação de Senha
 
-Este plano detalha a implementação da camada mobile para o CRUD de Ministérios do Lauda 2.0, baseando-se no documento `lauda_melhorias.md`.
+Este documento descreve a abordagem técnica para implementar o fluxo de "Esqueci minha senha" (Forgot Password) na plataforma Lauda 2.0.
+
+## User Review Required
+
+> [!IMPORTANT]
+> O envio de e-mails reais exige integração com serviços como Resend, SendGrid ou AWS SES. Como atualmente o projeto não possui uma dependência de envio de e-mails listada no `package.json`, o envio do código de recuperação será **simulado através de logs no console do backend**. Confirme se esta abordagem simulada é suficiente para esta etapa ou se devemos instalar e configurar um serviço real de envio de e-mails.
+>
+> Além disso, no fluxo mobile (Expo), a abordagem mais robusta sem lidar com deep links complexos é gerar um **código PIN de 6 dígitos** (ex: 123456) ao invés de um link. O usuário preenche o e-mail, recebe o PIN, e na próxima tela preenche o PIN e a nova senha. Confirme se essa abordagem está alinhada com a UX desejada.
 
 ## Open Questions
-- A tipagem `AuthUser` atual em `types/index.ts` não possui `tenantId`. A nova interface `User` pede `tenantId`. Posso estender `AuthUser` ou criar uma nova interface `User` para atender à necessidade?
-- Posso usar a biblioteca `lucide-react-native` (já instalada) para os ícones e botões de ação e `react-native-reanimated` se já estiver disponível, senão usarei animações padrão do React Native?
+
+- Você tem preferência por algum provedor de e-mail (ex: NodeMailer com SMTP próprio, Resend, SendGrid) caso queiramos implementar o envio real agora?
 
 ## Proposed Changes
 
-### Types
-Serão adicionados/atualizados os tipos necessários.
+---
 
-#### [MODIFY] [index.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/src/types/index.ts)
-- Adicionar interface `MinistryMember`.
-- Adicionar/Atualizar a interface `User` contendo as propriedades solicitadas, incluindo `tenantId`.
+### Database Schema (Prisma)
+
+Atualização do modelo `User` para suportar o armazenamento seguro de tokens de recuperação temporários.
+
+#### [MODIFY] [schema.prisma](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/prisma/schema.prisma)
+- Adicionar campo `resetPasswordToken String?`
+- Adicionar campo `resetPasswordExpires DateTime?`
 
 ---
-### API Layer
-Criação do serviço de chamadas HTTP.
 
-#### [NEW] [ministryApi.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/src/services/ministryApi.ts)
-- Implementar as funções de requisição (GET, POST, PUT, DELETE) usando a instância do Axios `api`.
-- Definir parâmetros e retorno tipados de acordo com os types acima.
+### Backend (Node.js/Express)
+
+Implementação das rotas, validações e lógicas de serviço para gerar e validar o código de recuperação.
+
+#### [NEW] [auth.schema.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/validators/auth.schema.ts) (Modification)
+- Adicionar `forgotPasswordSchema` (valida email).
+- Adicionar `resetPasswordSchema` (valida email, token/pin, nova senha).
+
+#### [MODIFY] [authRepository.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/repositories/authRepository.ts)
+- Adicionar método `savePasswordResetToken(userId, token, expiry)`.
+- Adicionar método `updatePassword(userId, newHashedPassword)`.
+
+#### [MODIFY] [authService.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/services/authService.ts)
+- Criar método `requestPasswordReset(email)`: Gera um PIN seguro de 6 dígitos, salva no banco com validade de 15 a 30 minutos e simula o envio por e-mail (console.log).
+- Criar método `resetPassword(email, token, newPassword)`: Verifica se o PIN existe, se não está expirado, atualiza a senha (usando `bcrypt`) e limpa os campos de reset.
+
+#### [MODIFY] [AuthController.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/controllers/AuthController.ts)
+- Adicionar método `forgotPassword(req, res)`.
+- Adicionar método `resetPassword(req, res)`.
+
+#### [MODIFY] [auth.routes.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/routes/auth.routes.ts)
+- Expor a rota `POST /api/auth/forgot-password`.
+- Expor a rota `POST /api/auth/reset-password`.
 
 ---
-### Global State
-Criação do state manager para os ministérios.
 
-#### [NEW] [ministryStore.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/src/store/ministryStore.ts)
-- Configurar store Zustand com loading, error, array `ministries` e objeto `currentMinistry`.
-- Implementar os métodos assíncronos (`fetchMinistries`, `fetchMinistry`, `createMinistry`, `updateMinistry`, `deleteMinistry`, `addMember`, `removeMember`) encapsulando `ministryApi` e tratando erros.
+### Frontend Mobile (Expo / React Native)
 
----
-### UI Components & Screens
-As telas e o componente BottomSheet.
+Criação das telas de recuperação de senha e integração com os novos endpoints da API.
 
-#### [NEW] [BottomSheet.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/src/components/BottomSheet.tsx)
-- Criar o Modal usando a API do React Native com animações para surgir por baixo, servindo como base para os forms de criação e edição.
+#### [MODIFY] [login.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/login.tsx)
+- Adicionar o botão "Esqueci minha senha" abaixo do formulário de login, redirecionando para a nova tela.
 
-#### [NEW] [index.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/%28tabs%29/ministries/index.tsx)
-- Tela de listagem com FlatList, suporte a Pull-to-refresh, Empty State e Skeletons.
-- Validação de regras RBAC para exibir ou não o botão Floating Action Button (FAB) de adicionar ministério.
+#### [NEW] [forgot-password.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/forgot-password.tsx)
+- Tela para o usuário inserir seu e-mail registrado.
+- Botão "Enviar código de recuperação".
+- Ao obter sucesso (200 OK), redireciona o usuário para a tela `reset-password.tsx` passando o e-mail como parâmetro.
 
-#### [NEW] [[id].tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/%28tabs%29/ministries/[id].tsx)
-- Tela de detalhes do Ministério, mostrando Header, Lista de Membros e o BottomSheet para edição ou adição de membros.
-- Validações de RBAC locais (se é líder do ministério ou admin) para disponibilizar ações.
+#### [NEW] [reset-password.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/reset-password.tsx)
+- Tela contendo três campos:
+  - O Código recebido por e-mail (PIN).
+  - A nova senha.
+  - Confirmação da nova senha.
+- Após o reset com sucesso, redirecionar de volta para a tela de Login com uma mensagem de sucesso.
 
 ## Verification Plan
 
+### Automated Tests
+- Criar teste de integração backend para solicitar o reset e para atualizar a senha com sucesso, verificando erros quando o token expira ou é inválido.
+
 ### Manual Verification
-- Fazer login com 2 contas de tenants diferentes para confirmar o Tenant Isolation.
-- Acessar a tela com usuário `TENANT_ADMIN` e confirmar presença de todos botões CRUD.
-- Acessar a tela com usuário `MEMBER` e confirmar a não existência dos botões.
-- Acessar a tela com usuário marcado como `isLeader: true` de um ministério para atestar que os botões do ministério correspondente estão ativos e exibe a label "Líder".
+- Rodar migração do Prisma (`npx prisma migrate dev`).
+- Testar a tela `forgot-password.tsx` digitando um e-mail válido.
+- Pegar o PIN de 6 dígitos gerado no console do backend.
+- Preencher a tela `reset-password.tsx` e validar se a troca de senha afeta o próximo login no aplicativo.

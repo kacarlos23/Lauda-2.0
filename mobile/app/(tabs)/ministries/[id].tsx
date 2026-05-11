@@ -11,10 +11,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
-import { useMinistryStore } from "../../../../src/store/ministryStore";
-import { useAuthStore } from "../../../../src/store/authStore";
-import { colors, radii, shadow, spacing } from "../../../../src/theme";
-import { BottomSheet } from "../../../../src/components/BottomSheet";
+import { useMinistryStore } from "../../../src/store/ministryStore";
+import { useAuthStore } from "../../../src/store/authStore";
+import { colors, radii, shadow, spacing } from "../../../src/theme";
+import { BottomSheet } from "../../../src/components/BottomSheet";
 
 export default function MinistryDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

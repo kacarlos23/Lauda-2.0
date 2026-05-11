@@ -144,7 +144,7 @@ describe("POST /api/auth/login", () => {
 
     await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin-login-fail@example.com", password: "wrong" })
+      .send({ email: "admin-login-fail@example.com", password: "wrong123" })
       .expect(401);
   });
 });

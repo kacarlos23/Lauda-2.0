@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import authRoutes from "./routes/authRoutes";
+import authRoutes from "./routes/auth.routes";
 import ministryRoutes from "./routes/ministryRoutes";
 import memberRoutes from "./routes/memberRoutes";
 import scheduleRoutes from "./routes/scheduleRoutes";
