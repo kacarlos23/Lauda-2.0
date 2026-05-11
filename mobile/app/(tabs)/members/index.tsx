@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Redirect, useRouter } from "expo-router";
 import { Copy, RefreshCw, Plus, Users } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
 import { MemberInvite, memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member } from "../../../src/types";
@@ -85,19 +86,24 @@ export default function MembersScreen() {
     setRefreshing(false);
   }, [loadInvite, loadMembers]);
 
-  const inviteLink = invite ? `lauda://member-register?code=${invite.code}` : "";
+  const inviteLink = invite?.inviteLink ?? (invite ? `lauda://member-register?code=${invite.code}` : "");
+
+  const handleCopyText = async (value: string, title: string, message: string) => {
+    if (!value) return;
+    await Clipboard.setStringAsync(value);
+    Alert.alert(title, message);
+  };
 
   const handleCopyInvite = async () => {
     if (!inviteLink) return;
 
-    const clipboard = globalThis.navigator?.clipboard;
-    if (clipboard?.writeText) {
-      await clipboard.writeText(inviteLink);
-      Alert.alert("Link copiado", "O link de cadastro foi copiado.");
-      return;
-    }
+    await handleCopyText(inviteLink, "Link copiado", "O link de cadastro foi copiado.");
+  };
 
-    Alert.alert("Link de cadastro", inviteLink);
+  const handleCopyCode = async () => {
+    if (!invite?.code) return;
+
+    await handleCopyText(invite.code, "Codigo copiado", "O codigo de cadastro foi copiado.");
   };
 
   const handleRegenerateInvite = () => {
@@ -166,13 +172,21 @@ export default function MembersScreen() {
               <View style={styles.inviteHeader}>
                 <View style={styles.inviteTitleGroup}>
                   <Text style={styles.inviteTitle}>Link de cadastro de membros</Text>
-                  <Text style={styles.inviteText}>
-                    {inviteLoading && !invite
-                      ? "Carregando convite..."
-                      : inviteLink || "Convite indisponivel"}
-                  </Text>
+                  <Text style={styles.inviteText}>Ao regenerar, o link anterior deixa de funcionar.</Text>
                 </View>
                 {inviteLoading ? <ActivityIndicator color={colors.primary} /> : null}
+              </View>
+              <View style={styles.inviteField}>
+                <Text style={styles.inviteLabel}>Link</Text>
+                <Text style={styles.inviteValue} selectable>
+                  {inviteLoading && !invite ? "Carregando convite..." : inviteLink || "Convite indisponivel"}
+                </Text>
+              </View>
+              <View style={styles.inviteField}>
+                <Text style={styles.inviteLabel}>Codigo</Text>
+                <Text style={styles.inviteValue} selectable>
+                  {invite?.code ?? "Convite indisponivel"}
+                </Text>
               </View>
               <View style={styles.inviteActions}>
                 <TouchableOpacity
@@ -183,7 +197,17 @@ export default function MembersScreen() {
                   accessibilityLabel="Copiar link de cadastro"
                 >
                   <Copy color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Copiar</Text>
+                  <Text style={styles.secondaryButtonText}>Copiar link</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleCopyCode}
+                  disabled={!invite?.code}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copiar codigo de cadastro"
+                >
+                  <Copy color={colors.primary} size={16} strokeWidth={2.4} />
+                  <Text style={styles.secondaryButtonText}>Copiar codigo</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryButton}
@@ -193,7 +217,7 @@ export default function MembersScreen() {
                   accessibilityLabel="Regenerar link de cadastro"
                 >
                   <RefreshCw color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Regenerar</Text>
+                  <Text style={styles.secondaryButtonText}>Regenerar link</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -288,6 +312,22 @@ const styles = StyleSheet.create({
   inviteTitleGroup: { flex: 1 },
   inviteTitle: { color: colors.ink, fontSize: 16, fontWeight: "800", marginBottom: spacing.xs },
   inviteText: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  inviteField: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  inviteLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+  },
+  inviteValue: { color: colors.ink, fontSize: 13, lineHeight: 19 },
   inviteActions: {
     flexDirection: "row",
     gap: spacing.sm,

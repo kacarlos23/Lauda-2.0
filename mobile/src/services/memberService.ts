@@ -26,6 +26,7 @@ export type MemberInvite = {
   active: boolean;
   expiresAt?: string | null;
   createdAt: string;
+  inviteLink: string;
 };
 
 function handleApiError(error: unknown): never {

@@ -15,4 +15,6 @@ export const config = {
   db: {
     url: process.env.DATABASE_URL,
   },
+  memberInviteBaseUrl:
+    process.env.MEMBER_INVITE_BASE_URL || "lauda://member-register",
 };

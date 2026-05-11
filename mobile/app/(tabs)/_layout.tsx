@@ -50,15 +50,23 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="ministries"
+        name="ministries/index"
         options={{
           title: "Ministérios",
           tabBarLabel: "Ministérios",
           tabBarIcon: ({ color }) => tabIcon(Church, color),
+          href: "/ministries",
         }}
       />
       <Tabs.Screen
-        name="members"
+        name="ministries/[id]"
+        options={{
+          title: "Ministério",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="members/index"
         options={{
           title: "Membros",
           tabBarLabel: "Membros",
