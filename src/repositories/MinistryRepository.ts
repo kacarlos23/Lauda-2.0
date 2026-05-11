@@ -43,4 +43,18 @@ export class MinistryRepository {
       where: { id, tenantId: this.tenantId },
     });
   }
+
+  addMember(ministryId: string, userId: string, isLeader: boolean) {
+    return prisma.ministryMember.upsert({
+      where: { userId_ministryId: { userId, ministryId } },
+      update: { isLeader, tenantId: this.tenantId },
+      create: { userId, ministryId, isLeader, tenantId: this.tenantId },
+    });
+  }
+
+  removeMember(ministryId: string, userId: string) {
+    return prisma.ministryMember.deleteMany({
+      where: { userId, ministryId, tenantId: this.tenantId },
+    });
+  }
 }

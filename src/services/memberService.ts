@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { MemberRepository } from "../repositories/MemberRepository";
 import { CreateMemberInput } from "../validators/member.schema";
+import { NotFoundError, ValidationError } from "../errors/AppError";
 
 export class MemberService {
   constructor(private readonly memberRepository: MemberRepository) {}
@@ -12,7 +13,7 @@ export class MemberService {
   async getById(id: string) {
     const member = await this.memberRepository.findById(id);
     if (!member) {
-      throw new Error("Membro não encontrado");
+      throw new NotFoundError("Membro não encontrado");
     }
     return member;
   }
@@ -20,18 +21,23 @@ export class MemberService {
   async create(input: CreateMemberInput) {
     const existing = await this.memberRepository.findByEmail(input.email);
     if (existing) {
-      throw new Error("Já existe um usuário com este e-mail");
+      throw new ValidationError("Já existe um usuário com este e-mail");
     }
     const password = await bcrypt.hash(input.password, 10);
     return this.memberRepository.create({ ...input, password });
   }
 
-  async addToMinistry(userId: string, ministryId: string, isLeader = false) {
-    await this.getById(userId); // validates member belongs to same tenant
-    return this.memberRepository.addToMinistry(userId, ministryId, isLeader);
-  }
+  async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {
+    const member = await this.memberRepository.findById(memberId);
+    if (!member) {
+      throw new NotFoundError("Membro nÃ£o encontrado");
+    }
 
-  async removeFromMinistry(userId: string, ministryId: string) {
-    return this.memberRepository.removeFromMinistry(userId, ministryId);
+    const ministry = await this.memberRepository.findMinistryById(ministryId);
+    if (!ministry) {
+      throw new NotFoundError("MinistÃ©rio nÃ£o encontrado");
+    }
+
+    return this.memberRepository.addMinistry(memberId, ministryId, isLeader);
   }
 }

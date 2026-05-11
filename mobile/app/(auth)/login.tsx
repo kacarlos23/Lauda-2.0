@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -11,32 +10,53 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { LogIn } from "lucide-react-native";
+import { Lock, LogIn, Mail } from "lucide-react-native";
+import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as { error?: string } | undefined;
+    return data?.error ?? "Erro ao fazer login. Tente novamente.";
+  }
+
+  return "Erro ao fazer login. Tente novamente.";
+}
+
 export default function LoginScreen() {
-  const { login } = useAuthStore();
+  const { login, loading, error } = useAuthStore();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const currentError = localError ?? error;
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Atenção", "Preencha todos os campos");
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!isValidEmail(normalizedEmail)) {
+      setLocalError("Informe um e-mail válido.");
       return;
     }
 
-    setLoading(true);
+    if (password.length < 6) {
+      setLocalError("A senha deve ter ao menos 6 caracteres.");
+      return;
+    }
+
+    setLocalError(null);
+
     try {
-      await login(email.trim().toLowerCase(), password);
+      await login(normalizedEmail, password);
       router.replace("/(tabs)");
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || "Erro ao fazer login. Tente novamente.";
-      Alert.alert("Erro", msg);
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      setLocalError(getErrorMessage(err));
     }
   };
 
@@ -52,45 +72,98 @@ export default function LoginScreen() {
         <Text style={styles.title}>Lauda</Text>
         <Text style={styles.subtitle}>Gestão simples para ministérios, escalas e equipes.</Text>
 
+        {currentError ? (
+          <Text style={styles.error} accessibilityRole="alert" testID="login-error">
+            {currentError}
+          </Text>
+        ) : null}
+
         <Text style={styles.label}>E-mail</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="E-mail"
-          placeholderTextColor={colors.muted}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-          testID="login-email"
-        />
+        <View style={styles.inputGroup}>
+          <Mail color={colors.muted} size={18} strokeWidth={2.2} />
+          <TextInput
+            style={styles.input}
+            placeholder="E-mail"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            value={email}
+            onChangeText={(value) => {
+              setEmail(value);
+              setLocalError(null);
+            }}
+            accessibilityLabel="E-mail"
+            testID="login-email"
+          />
+        </View>
 
         <Text style={styles.label}>Senha</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor={colors.muted}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          testID="login-password"
-        />
+        <View style={styles.inputGroup}>
+          <Lock color={colors.muted} size={18} strokeWidth={2.2} />
+          <TextInput
+            style={styles.input}
+            placeholder="Senha"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            textContentType="password"
+            value={password}
+            onChangeText={(value) => {
+              setPassword(value);
+              setLocalError(null);
+            }}
+            accessibilityLabel="Senha"
+            testID="login-password"
+          />
+        </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
           disabled={loading}
+          accessibilityLabel="Entrar"
+          accessibilityRole="button"
           testID="login-submit"
         >
           {loading ? (
             <ActivityIndicator color={colors.surface} />
           ) : (
-            <Text style={styles.buttonText}>Entrar</Text>
+            <>
+              <LogIn color={colors.surface} size={18} strokeWidth={2.4} />
+              <Text style={styles.buttonText}>Entrar</Text>
+            </>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.forgotPasswordLink}
+          onPress={() => router.push("/(auth)/forgot-password")}
+          accessibilityLabel="Esqueci minha senha"
+          accessibilityRole="button"
+          testID="forgot-password"
+        >
+          <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.memberRegisterLink}
+          onPress={() => router.push("/(auth)/member-register")}
+          accessibilityLabel="Cadastrar como membro"
+          accessibilityRole="button"
+          testID="go-member-register"
+        >
+          <Text style={styles.registerText}>
+            Sou membro? <Text style={styles.registerHighlight}>Cadastre-se com link</Text>
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.registerLink}
           onPress={() => router.push("/(auth)/register")}
+          accessibilityLabel="Cadastrar igreja"
+          accessibilityRole="button"
           testID="go-register"
         >
           <Text style={styles.registerText}>
@@ -141,28 +214,51 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: spacing.xl,
   },
+  error: {
+    backgroundColor: "#FDECEC",
+    borderColor: "#F0B8B8",
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+  },
   label: {
     color: colors.text,
     fontSize: 13,
     fontWeight: "700",
     marginBottom: spacing.sm,
   },
-  input: {
+  inputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.sm,
-    paddingVertical: 15,
     paddingHorizontal: spacing.lg,
-    color: colors.ink,
-    fontSize: 16,
     marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.line,
   },
+  input: {
+    flex: 1,
+    paddingVertical: 15,
+    paddingLeft: spacing.md,
+    color: colors.ink,
+    fontSize: 16,
+  },
   button: {
+    minHeight: 52,
     backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: radii.sm,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
     marginTop: spacing.sm,
   },
   buttonDisabled: {
@@ -175,6 +271,19 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     marginTop: spacing.xl,
+    alignItems: "center",
+  },
+  forgotPasswordLink: {
+    marginTop: spacing.md,
+    alignItems: "center",
+  },
+  forgotPasswordText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  memberRegisterLink: {
+    marginTop: spacing.lg,
     alignItems: "center",
   },
   registerText: {

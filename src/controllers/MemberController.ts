@@ -2,13 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { MemberService } from "../services/memberService";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { createMemberSchema } from "../validators/member.schema";
-import { z } from "zod";
-
-const addToMinistrySchema = z.object({
-  ministryId: z.string().uuid("ID do ministério inválido"),
-  isLeader: z.boolean().optional().default(false),
-});
+import { addMemberMinistrySchema, createMemberSchema } from "../validators/member.schema";
 
 export class MemberController extends BaseController {
   private buildService(req: Request) {
@@ -32,19 +26,13 @@ export class MemberController extends BaseController {
     this.handleSuccess(res, member, 201);
   }
 
-  async addToMinistry(req: Request, res: Response): Promise<void> {
-    const { ministryId, isLeader } = addToMinistrySchema.parse(req.body);
-    const assignment = await this.buildService(req).addToMinistry(
+  async addMinistry(req: Request, res: Response): Promise<void> {
+    const input = addMemberMinistrySchema.parse(req.body);
+    const assignment = await this.buildService(req).addMinistry(
       String(req.params.id),
-      ministryId,
-      isLeader,
+      input.ministryId,
+      input.isLeader
     );
     this.handleSuccess(res, assignment, 201);
-  }
-
-  async removeFromMinistry(req: Request, res: Response): Promise<void> {
-    const { ministryId } = z.object({ ministryId: z.string().uuid() }).parse(req.body);
-    await this.buildService(req).removeFromMinistry(String(req.params.id), ministryId);
-    this.handleSuccess(res, { message: "Membro removido do ministério" });
   }
 }

@@ -3,9 +3,12 @@ import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
+import { UnauthorizedError } from "../errors/AppError";
 
 interface JwtPayload {
-  id: string;
+  id?: string;
+  userId?: string;
+  email?: string;
   role: Role;
   tenantId: string;
 }
@@ -26,7 +29,7 @@ export const authMiddleware = (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized: Token missing" });
+    next(new UnauthorizedError("Token de autenticação ausente"));
     return;
   }
 
@@ -35,21 +38,27 @@ export const authMiddleware = (
   try {
     const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
     if (!decoded.tenantId) {
-      res.status(401).json({ error: "Unauthorized: Tenant missing" });
+      next(new UnauthorizedError("Tenant ausente no token"));
       return;
     }
-    
+
+    const userId = decoded.userId ?? decoded.id;
+    if (!userId) {
+      next(new UnauthorizedError("Usuário ausente no token"));
+      return;
+    }
+
     req.user = {
-      id: decoded.id,
+      id: userId,
       role: decoded.role,
       tenantId: decoded.tenantId,
     };
 
     runWithTenantContext(
-      { userId: decoded.id, role: decoded.role, tenantId: decoded.tenantId },
+      { userId, role: decoded.role, tenantId: decoded.tenantId },
       () => next()
     );
-  } catch (error) {
-    res.status(401).json({ error: "Unauthorized: Invalid token" });
+  } catch {
+    next(new UnauthorizedError("Token inválido"));
   }
 };

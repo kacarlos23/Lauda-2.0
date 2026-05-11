@@ -9,6 +9,7 @@ const tenantScopedModels = new Set(
   [
     "User",
     "Ministry",
+    "MemberInvite",
     "MinistryMember",
     "Schedule",
     "ScheduleAssignment",

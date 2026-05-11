@@ -48,6 +48,13 @@ export class MemberRepository {
     return prisma.user.findUnique({ where: { email } });
   }
 
+  findMinistryById(ministryId: string) {
+    return prisma.ministry.findFirst({
+      where: { id: ministryId, tenantId: this.tenantId },
+      select: { id: true },
+    });
+  }
+
   create(data: CreateMemberInput & { password: string }) {
     const { name, email, phone, role, password } = data;
     return prisma.user.create({
@@ -70,24 +77,14 @@ export class MemberRepository {
     });
   }
 
-  async addToMinistry(userId: string, ministryId: string, isLeader = false) {
-    const ministry = await prisma.ministry.findFirst({
-      where: { id: ministryId, tenantId: this.tenantId },
-      select: { id: true },
-    });
-
-    if (!ministry) {
-      throw new Error("Ministerio nao encontrado");
-    }
-
-    return prisma.ministryMember.create({
-      data: { userId, ministryId, tenantId: this.tenantId, isLeader },
-    });
-  }
-
-  removeFromMinistry(userId: string, ministryId: string) {
-    return prisma.ministryMember.deleteMany({
-      where: { userId, ministryId, tenantId: this.tenantId },
+  addMinistry(userId: string, ministryId: string, isLeader: boolean) {
+    return prisma.ministryMember.upsert({
+      where: { userId_ministryId: { userId, ministryId } },
+      update: { isLeader, tenantId: this.tenantId },
+      create: { userId, ministryId, isLeader, tenantId: this.tenantId },
+      include: {
+        ministry: { select: { id: true, name: true } },
+      },
     });
   }
 }

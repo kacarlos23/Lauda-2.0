@@ -16,6 +16,9 @@ mobile/dist/
 mobile/build/
 mobile/web-build/
 
+# Documentation
+docs/
+
 # Prisma generated client/output
 generated/
 /generated/prisma/

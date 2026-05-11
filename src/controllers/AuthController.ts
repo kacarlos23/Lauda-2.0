@@ -5,6 +5,9 @@ import {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  publicMemberRegisterSchema,
 } from "../validators/auth.schema";
 
 const authService = new AuthService();
@@ -20,6 +23,12 @@ export class AuthController extends BaseController {
   async register(req: Request, res: Response): Promise<void> {
     const input = registerSchema.parse(req.body);
     const result = await authService.register(input);
+    this.handleSuccess(res, result, 201);
+  }
+
+  async registerPublicMember(req: Request, res: Response): Promise<void> {
+    const input = publicMemberRegisterSchema.parse(req.body);
+    const result = await authService.registerPublicMember(input);
     this.handleSuccess(res, result, 201);
   }
 
@@ -47,5 +56,33 @@ export class AuthController extends BaseController {
     const input = refreshTokenSchema.parse(req.body);
     const result = await authService.refresh(input);
     this.handleSuccess(res, result);
+  }
+
+  /**
+   * Requests a password reset PIN.
+   */
+  async forgotPassword(req: Request, res: Response): Promise<void> {
+    const input = forgotPasswordSchema.parse(req.body);
+    const result = await authService.requestPasswordReset(input);
+    this.handleSuccess(res, result);
+  }
+
+  /**
+   * Resets the user's password with the PIN.
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    const input = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPassword(input);
+    this.handleSuccess(res, result);
+  }
+
+  async getMemberInvite(req: Request, res: Response): Promise<void> {
+    const result = await authService.getMemberInvite(req.user!.tenantId);
+    this.handleSuccess(res, result);
+  }
+
+  async regenerateMemberInvite(req: Request, res: Response): Promise<void> {
+    const result = await authService.regenerateMemberInvite(req.user!.tenantId);
+    this.handleSuccess(res, result, 201);
   }
 }

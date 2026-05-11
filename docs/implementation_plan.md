@@ -1,222 +1,84 @@
-# Plano de Implementação: App de Gerenciamento de Ministérios (Node.js)
+# Implementação da Recuperação de Senha
 
-Este plano detalha os passos técnicos exatos para construir o MVP com a arquitetura de Node.js + Prisma validada.
+Este documento descreve a abordagem técnica para implementar o fluxo de "Esqueci minha senha" (Forgot Password) na plataforma Lauda 2.0.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> A estrutura do banco de dados (Schema Prisma) foi criada e está disponível na seção abaixo. Por favor, valide os modelos, os relacionamentos e os níveis de acesso (Enums) antes de iniciarmos a geração do código.
+> O envio de e-mails reais exige integração com serviços como Resend, SendGrid ou AWS SES. Como atualmente o projeto não possui uma dependência de envio de e-mails listada no `package.json`, o envio do código de recuperação será **simulado através de logs no console do backend**. Confirme se esta abordagem simulada é suficiente para esta etapa ou se devemos instalar e configurar um serviço real de envio de e-mails.
+>
+> Além disso, no fluxo mobile (Expo), a abordagem mais robusta sem lidar com deep links complexos é gerar um **código PIN de 6 dígitos** (ex: 123456) ao invés de um link. O usuário preenche o e-mail, recebe o PIN, e na próxima tela preenche o PIN e a nova senha. Confirme se essa abordagem está alinhada com a UX desejada.
+
+## Open Questions
+
+- Você tem preferência por algum provedor de e-mail (ex: NodeMailer com SMTP próprio, Resend, SendGrid) caso queiramos implementar o envio real agora?
 
 ## Proposed Changes
 
-### Backend (Node.js + TypeScript + Express + Prisma)
+---
 
-#### 1. Setup Inicial e Camadas
-- Inicializar projeto Node.js com TypeScript.
-- Configurar pastas seguindo a arquitetura estrita: `src/routes`, `src/controllers`, `src/services`, `src/repositories`, `src/middlewares`, `src/validators`.
-- Instalar dependências core: Express, Prisma, Zod, jsonwebtoken, bcryptjs.
+### Database Schema (Prisma)
 
-#### 2. Modelagem de Dados (Estrutura do Banco de Dados Completa)
-Criar o arquivo principal `prisma/schema.prisma` com a seguinte estrutura:
+Atualização do modelo `User` para suportar o armazenamento seguro de tokens de recuperação temporários.
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum Role {
-  GLOBAL_ADMIN
-  TENANT_ADMIN
-  MINISTRY_LEADER
-  MEMBER
-}
-
-enum AssignmentStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-}
-
-model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  domain    String?  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users      User[]
-  ministries Ministry[]
-  schedules  Schedule[]
-  songs      Song[]
-}
-
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  phone     String?
-  role      Role     @default(MEMBER)
-  
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  ministries MinistryMember[]
-  schedules  ScheduleAssignment[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([tenantId])
-}
-
-model Ministry {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  members     MinistryMember[]
-  schedules   Schedule[]
-  songs       MinistrySong[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([tenantId])
-}
-
-model MinistryMember {
-  id         String   @id @default(uuid())
-  
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  ministryId String
-  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  isLeader   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-
-  @@unique([userId, ministryId])
-  @@index([ministryId])
-  @@index([tenantId])
-}
-
-model Schedule {
-  id          String   @id @default(uuid())
-  title       String
-  date        DateTime
-  
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  ministryId  String
-  ministry    Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-
-  assignments ScheduleAssignment[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([tenantId])
-  @@index([ministryId])
-}
-
-model ScheduleAssignment {
-  id         String   @id @default(uuid())
-  
-  scheduleId String
-  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  role       String   // ex: "Guitarrista", "Bateria", "Recepção"
-  status     AssignmentStatus @default(PENDING)
-  createdAt  DateTime @default(now())
-
-  @@unique([scheduleId, userId])
-  @@index([tenantId])
-}
-
-model Song {
-  id        String   @id @default(uuid())
-  title     String
-  artist    String?
-  bpm       Int?
-  
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  ministries MinistrySong[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([tenantId])
-}
-
-model MinistrySong {
-  id         String   @id @default(uuid())
-  
-  songId     String
-  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
-  
-  ministryId String
-  ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
-
-  tenantId   String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([songId, ministryId])
-  @@index([tenantId])
-}
-```
-
-#### 3. Isolamento Multi-Tenant (Segurança Backend)
-- Implementar Middleware de Autenticação para validar o JWT e disponibilizar `req.user` (contendo `id`, `role` e `tenantId`).
-- Implementar **Prisma Client Extensions** (`prisma.$extends`) para injetar automaticamente a cláusula `{ where: { tenantId } }` em todas as queries. Isso mitiga falhas humanas nos Repositories e garante isolamento absoluto.
-
-#### 4. API Core e Validadores
-- Criar schemas de validação Zod para todas as requisições (`UserSchema`, `MinistrySchema`).
-- Implementar `AuthController`: login e registro (com geração do tenant, emissão de Access Token e Refresh Token).
-- Implementar endpoints para gerenciar Membros, Ministérios e Escalas.
+#### [MODIFY] [schema.prisma](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/prisma/schema.prisma)
+- Adicionar campo `resetPasswordToken String?`
+- Adicionar campo `resetPasswordExpires DateTime?`
 
 ---
 
-### Frontend (React Native + Expo)
+### Backend (Node.js/Express)
 
-#### 1. Setup Inicial
-- Inicializar projeto Expo com Expo Router (`app/`).
-- Instalar dependências: `axios`, `zustand`, `expo-secure-store`.
+Implementação das rotas, validações e lógicas de serviço para gerar e validar o código de recuperação.
 
-#### 2. Estado Global e Comunicação
-- Criar o *store* do Zustand (`store/authStore.ts`) para gerenciar o estado da sessão (Access Token, Refresh Token) e as permissões do usuário.
-- Configurar interceptors do Axios para anexar o Access Token automaticamente, e lidar com erros 401 realizando a renovação silenciosa da sessão usando o Refresh Token no SecureStore.
+#### [NEW] [auth.schema.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/validators/auth.schema.ts) (Modification)
+- Adicionar `forgotPasswordSchema` (valida email).
+- Adicionar `resetPasswordSchema` (valida email, token/pin, nova senha).
 
-#### 3. Telas Iniciais (Views)
-- **Autenticação:** Tela de Login.
-- **Navegação Principal:** Layout de abas tabulares responsivas à role do usuário.
-- **Telas Dinâmicas:** 
-  - Diretório de Membros (Visualização vs Edição).
-  - Gestão e Visualização de Escalas.
+#### [MODIFY] [authRepository.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/repositories/authRepository.ts)
+- Adicionar método `savePasswordResetToken(userId, token, expiry)`.
+- Adicionar método `updatePassword(userId, newHashedPassword)`.
+
+#### [MODIFY] [authService.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/services/authService.ts)
+- Criar método `requestPasswordReset(email)`: Gera um PIN seguro de 6 dígitos, salva no banco com validade de 15 a 30 minutos e simula o envio por e-mail (console.log).
+- Criar método `resetPassword(email, token, newPassword)`: Verifica se o PIN existe, se não está expirado, atualiza a senha (usando `bcrypt`) e limpa os campos de reset.
+
+#### [MODIFY] [AuthController.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/controllers/AuthController.ts)
+- Adicionar método `forgotPassword(req, res)`.
+- Adicionar método `resetPassword(req, res)`.
+
+#### [MODIFY] [auth.routes.ts](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/src/routes/auth.routes.ts)
+- Expor a rota `POST /api/auth/forgot-password`.
+- Expor a rota `POST /api/auth/reset-password`.
+
+---
+
+### Frontend Mobile (Expo / React Native)
+
+Criação das telas de recuperação de senha e integração com os novos endpoints da API.
+
+#### [MODIFY] [login.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/login.tsx)
+- Adicionar o botão "Esqueci minha senha" abaixo do formulário de login, redirecionando para a nova tela.
+
+#### [NEW] [forgot-password.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/forgot-password.tsx)
+- Tela para o usuário inserir seu e-mail registrado.
+- Botão "Enviar código de recuperação".
+- Ao obter sucesso (200 OK), redireciona o usuário para a tela `reset-password.tsx` passando o e-mail como parâmetro.
+
+#### [NEW] [reset-password.tsx](file:///c:/Users/092687/Documents/Dev/SaaS/Lauda%202.0/mobile/app/(auth)/reset-password.tsx)
+- Tela contendo três campos:
+  - O Código recebido por e-mail (PIN).
+  - A nova senha.
+  - Confirmação da nova senha.
+- Após o reset com sucesso, redirecionar de volta para a tela de Login com uma mensagem de sucesso.
 
 ## Verification Plan
 
-### Testes Automatizados
-- Executar `npx prisma migrate dev` para assegurar que a criação do banco de dados não gere erros no schema.
-- Criar testes de integração verificando se requisições sem o token JWT ou requisitando dados de um *Tenant* diferente são bloqueadas (Erro 403 Forbidden).
+### Automated Tests
+- Criar teste de integração backend para solicitar o reset e para atualizar a senha com sucesso, verificando erros quando o token expira ou é inválido.
+
+### Manual Verification
+- Rodar migração do Prisma (`npx prisma migrate dev`).
+- Testar a tela `forgot-password.tsx` digitando um e-mail válido.
+- Pegar o PIN de 6 dígitos gerado no console do backend.
+- Preencher a tela `reset-password.tsx` e validar se a troca de senha afeta o próximo login no aplicativo.

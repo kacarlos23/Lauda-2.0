@@ -67,6 +67,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="members/new"
+        options={{
+          title: "Novo membro",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",

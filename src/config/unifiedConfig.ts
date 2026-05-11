@@ -5,7 +5,7 @@ export const config = {
   port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
   auth: {
     jwtSecret: process.env.JWT_SECRET || "default_super_secret_for_dev_only",
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
     refreshJwtSecret:
       process.env.REFRESH_JWT_SECRET ||
       process.env.JWT_SECRET ||
