@@ -26,8 +26,17 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, "A nova senha deve ter no minimo 6 caracteres"),
 });
 
+export const publicMemberRegisterSchema = z.object({
+  inviteCode: z.string().min(8, "Codigo de convite e obrigatorio"),
+  name: z.string().min(2, "Nome e obrigatorio"),
+  email: z.string().email("E-mail invalido"),
+  phone: z.string().optional(),
+  password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type PublicMemberRegisterInput = z.infer<typeof publicMemberRegisterSchema>;

@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { NotFoundError, UnauthorizedError, ValidationError } from "../errors/AppError";
@@ -9,6 +10,7 @@ import {
   RefreshTokenInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  PublicMemberRegisterInput,
 } from "../validators/auth.schema";
 
 interface RefreshTokenPayload {
@@ -25,8 +27,26 @@ interface AccessTokenPayload {
 }
 
 const authRepository = new AuthRepository();
+const INVITE_CODE_BYTES = 24;
 
 export class AuthService {
+  private buildAuthResponse(user: { id: string; name: string; email: string; role: string; tenantId: string }) {
+    const accessToken = this.generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId,
+    });
+    const refreshToken = this.generateRefreshToken(user.id);
+
+    return {
+      accessToken,
+      token: accessToken,
+      refreshToken,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
+    };
+  }
+
   /**
    * Registers a tenant and its first administrator.
    *
@@ -51,20 +71,37 @@ export class AuthService {
     });
 
     const user = tenant.users[0];
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: tenant.id,
-    });
-    const refreshToken = this.generateRefreshToken(user.id);
+    const auth = this.buildAuthResponse({ ...user, tenantId: tenant.id });
 
     return {
-      accessToken,
-      token: accessToken,
-      refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: tenant.id },
+      ...auth,
       tenant: { id: tenant.id, name: tenant.name },
+    };
+  }
+
+  async registerPublicMember(input: PublicMemberRegisterInput) {
+    const invite = await authRepository.findActiveMemberInviteByCode(input.inviteCode);
+    if (!invite) {
+      throw new ValidationError("Convite invalido ou expirado");
+    }
+
+    const existing = await authRepository.findUserByEmail(input.email);
+    if (existing) {
+      throw new ValidationError("E-mail ja esta em uso");
+    }
+
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+    const user = await authRepository.createPublicMember({
+      tenantId: invite.tenantId,
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      hashedPassword,
+    });
+
+    return {
+      ...this.buildAuthResponse(user),
+      tenant: invite.tenant,
     };
   }
 
@@ -87,20 +124,7 @@ export class AuthService {
       throw new UnauthorizedError("Credenciais invalidas");
     }
 
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-    });
-    const refreshToken = this.generateRefreshToken(user.id);
-
-    return {
-      accessToken,
-      token: accessToken,
-      refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
-    };
+    return this.buildAuthResponse(user);
   }
 
   /**
@@ -134,20 +158,19 @@ export class AuthService {
       throw new UnauthorizedError("Usuario nao encontrado");
     }
 
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-    });
-    const refreshToken = this.generateRefreshToken(user.id);
+    return this.buildAuthResponse(user);
+  }
 
-    return {
-      accessToken,
-      token: accessToken,
-      refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
-    };
+  async getMemberInvite(tenantId: string) {
+    const invite = await authRepository.findCurrentMemberInvite(tenantId);
+    if (invite) return invite;
+
+    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+  }
+
+  async regenerateMemberInvite(tenantId: string) {
+    await authRepository.deactivateMemberInvites(tenantId);
+    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
   }
 
   /**
@@ -212,5 +235,9 @@ export class AuthService {
       config.auth.refreshJwtSecret,
       { expiresIn: config.auth.refreshJwtExpiresIn } as jwt.SignOptions
     );
+  }
+
+  private generateInviteCode(): string {
+    return crypto.randomBytes(INVITE_CODE_BYTES).toString("base64url");
   }
 }

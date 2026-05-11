@@ -33,6 +33,13 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<void>;
   register: (churchName: string, name: string, email: string, password: string) => Promise<void>;
+  memberRegister: (input: {
+    inviteCode: string;
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
 }
@@ -167,6 +174,27 @@ export const useAuthStore = create<AuthState>((set) => ({
         email,
         password,
       });
+      const accessToken = await persistSession(response.data.data);
+      set({
+        user: response.data.data.user,
+        accessToken,
+        token: accessToken,
+        loading: false,
+        isLoading: false,
+        error: null,
+      });
+    } catch (error) {
+      const message = extractAuthError(error);
+      set({ loading: false, isLoading: false, error: message });
+      throw error;
+    }
+  },
+
+  memberRegister: async (input) => {
+    set({ loading: true, error: null });
+
+    try {
+      const response = await api.post<AuthResponse>("/auth/member-register", input);
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,

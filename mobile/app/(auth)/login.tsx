@@ -148,6 +148,18 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.memberRegisterLink}
+          onPress={() => router.push("/(auth)/member-register")}
+          accessibilityLabel="Cadastrar como membro"
+          accessibilityRole="button"
+          testID="go-member-register"
+        >
+          <Text style={styles.registerText}>
+            Sou membro? <Text style={styles.registerHighlight}>Cadastre-se com link</Text>
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.registerLink}
           onPress={() => router.push("/(auth)/register")}
           accessibilityLabel="Cadastrar igreja"
@@ -269,6 +281,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: "600",
+  },
+  memberRegisterLink: {
+    marginTop: spacing.lg,
+    alignItems: "center",
   },
   registerText: {
     color: colors.muted,

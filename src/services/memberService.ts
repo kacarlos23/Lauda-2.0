@@ -26,4 +26,18 @@ export class MemberService {
     const password = await bcrypt.hash(input.password, 10);
     return this.memberRepository.create({ ...input, password });
   }
+
+  async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {
+    const member = await this.memberRepository.findById(memberId);
+    if (!member) {
+      throw new NotFoundError("Membro nÃ£o encontrado");
+    }
+
+    const ministry = await this.memberRepository.findMinistryById(ministryId);
+    if (!ministry) {
+      throw new NotFoundError("MinistÃ©rio nÃ£o encontrado");
+    }
+
+    return this.memberRepository.addMinistry(memberId, ministryId, isLeader);
+  }
 }

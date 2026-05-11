@@ -2,8 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { MemberService } from "../services/memberService";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { createMemberSchema } from "../validators/member.schema";
-import { z } from "zod";
+import { addMemberMinistrySchema, createMemberSchema } from "../validators/member.schema";
 
 export class MemberController extends BaseController {
   private buildService(req: Request) {
@@ -25,5 +24,15 @@ export class MemberController extends BaseController {
     const input = createMemberSchema.parse(req.body);
     const member = await this.buildService(req).create(input);
     this.handleSuccess(res, member, 201);
+  }
+
+  async addMinistry(req: Request, res: Response): Promise<void> {
+    const input = addMemberMinistrySchema.parse(req.body);
+    const assignment = await this.buildService(req).addMinistry(
+      String(req.params.id),
+      input.ministryId,
+      input.isLeader
+    );
+    this.handleSuccess(res, assignment, 201);
   }
 }

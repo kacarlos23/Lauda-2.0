@@ -72,6 +72,80 @@ export class AuthRepository {
     });
   }
 
+  async findActiveMemberInviteByCode(code: string) {
+    return prisma.memberInvite.findFirst({
+      where: {
+        code,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      include: {
+        tenant: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async findCurrentMemberInvite(tenantId: string) {
+    return prisma.memberInvite.findFirst({
+      where: { tenantId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        code: true,
+        active: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async createMemberInvite(tenantId: string, code: string) {
+    return prisma.memberInvite.create({
+      data: { tenantId, code },
+      select: {
+        id: true,
+        code: true,
+        active: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async deactivateMemberInvites(tenantId: string) {
+    return prisma.memberInvite.updateMany({
+      where: { tenantId, active: true },
+      data: { active: false },
+    });
+  }
+
+  async createPublicMember(data: {
+    tenantId: string;
+    name: string;
+    email: string;
+    phone?: string;
+    hashedPassword: string;
+  }): Promise<AuthUser> {
+    return prisma.user.create({
+      data: {
+        tenantId: data.tenantId,
+        name: data.name,
+        email: data.email,
+        phone: data.phone ?? null,
+        password: data.hashedPassword,
+        role: "MEMBER",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        password: true,
+        role: true,
+        tenantId: true,
+      },
+    });
+  }
+
   /**
    * Saves a password reset token for a user.
    */

@@ -10,4 +10,10 @@ export const createMemberSchema = z.object({
     .default("MEMBER"),
 });
 
+export const addMemberMinistrySchema = z.object({
+  ministryId: z.string().uuid("ID do ministério inválido"),
+  isLeader: z.boolean().optional().default(false),
+});
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+export type AddMemberMinistryInput = z.infer<typeof addMemberMinistrySchema>;

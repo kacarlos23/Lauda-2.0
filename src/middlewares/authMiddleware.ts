@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
+import { UnauthorizedError } from "../errors/AppError";
 
 interface JwtPayload {
   id?: string;
@@ -28,7 +29,7 @@ export const authMiddleware = (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized: Token missing" });
+    next(new UnauthorizedError("Token de autenticação ausente"));
     return;
   }
 
@@ -37,13 +38,13 @@ export const authMiddleware = (
   try {
     const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
     if (!decoded.tenantId) {
-      res.status(401).json({ error: "Unauthorized: Tenant missing" });
+      next(new UnauthorizedError("Tenant ausente no token"));
       return;
     }
 
     const userId = decoded.userId ?? decoded.id;
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized: User missing" });
+      next(new UnauthorizedError("Usuário ausente no token"));
       return;
     }
 
@@ -58,6 +59,6 @@ export const authMiddleware = (
       () => next()
     );
   } catch {
-    res.status(401).json({ error: "Unauthorized: Invalid token" });
+    next(new UnauthorizedError("Token inválido"));
   }
 };
