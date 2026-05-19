@@ -4,6 +4,11 @@ import { BaseController } from "./BaseController";
 import { MinistryService } from "../services/ministryService";
 import { MinistryRepository } from "../repositories/MinistryRepository";
 import { createMinistrySchema, updateMinistrySchema } from "../validators/ministry.schema";
+import {
+  assignMemberToMinistrySchema,
+  listMinistryMembersSchema,
+  updateMemberAssignmentSchema,
+} from "../validators/member.schema";
 
 const addMemberSchema = z.object({
   userId: z.string().uuid("ID do usuario invalido"),
@@ -68,5 +73,62 @@ export class MinistryController extends BaseController {
       role: req.user!.role,
     });
     this.handleSuccess(res, { message: "Membro removido do ministerio" });
+  }
+
+  async assignMember(req: Request, res: Response): Promise<void> {
+    const input = assignMemberToMinistrySchema.parse(req.body);
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    const assignment = await service.assignMember(input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, assignment, 201);
+  }
+
+  async updateAssignment(req: Request, res: Response): Promise<void> {
+    const input = updateMemberAssignmentSchema.parse(req.body);
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    const assignment = await service.updateAssignment(input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, assignment);
+  }
+
+  async removeAssignment(req: Request, res: Response): Promise<void> {
+    const assignmentId = z.string().uuid().parse(req.params.assignmentId);
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    await service.removeAssignment(assignmentId, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, { message: "Atribuicao removida do ministerio" });
+  }
+
+  async listMembers(req: Request, res: Response): Promise<void> {
+    const ministryId = z.string().uuid().parse(req.params.id);
+    const filters = listMinistryMembersSchema.parse(req.query);
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    const members = await service.listMinistryMembers(ministryId, filters);
+
+    this.handleSuccess(res, members);
+  }
+
+  async getMyAssignments(req: Request, res: Response): Promise<void> {
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    const assignments = await service.getMyAssignments({
+      id: req.user!.id,
+      tenantId: req.user!.tenantId,
+    });
+
+    this.handleSuccess(res, assignments);
   }
 }

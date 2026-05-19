@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
-import { UnauthorizedError } from "../errors/AppError";
+import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
 
 interface JwtPayload {
   id?: string;
@@ -62,3 +62,19 @@ export const authMiddleware = (
     next(new UnauthorizedError("Token inválido"));
   }
 };
+
+export const requireRole =
+  (...roles: Role[]) =>
+  (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      next(new UnauthorizedError("Token de autenticacao ausente"));
+      return;
+    }
+
+    if (!roles.includes(req.user.role)) {
+      next(new ForbiddenError("Perfil sem permissao para esta rota"));
+      return;
+    }
+
+    next();
+  };

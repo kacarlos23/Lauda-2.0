@@ -165,6 +165,13 @@ export default function MinistryDetailsScreen() {
 
             <View style={styles.membersHeader}>
               <Text style={styles.membersTitle}>Membros ({members.length})</Text>
+              <TouchableOpacity
+                style={styles.membersLink}
+                onPress={() => router.push(`/ministries/${id}/members` as never)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.membersLinkText}>Ver lista</Text>
+              </TouchableOpacity>
             </View>
           </View>
         }
@@ -195,7 +202,7 @@ export default function MinistryDetailsScreen() {
         <TouchableOpacity
           style={styles.fab}
           activeOpacity={0.8}
-          onPress={() => setShowAddMember(true)}
+          onPress={() => router.push(`/ministries/assign?ministryId=${id}` as never)}
           accessibilityRole="button"
         >
           <Plus color={colors.surface} size={24} />
@@ -249,7 +256,7 @@ export default function MinistryDetailsScreen() {
 
       <BottomSheet isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Adicionar membro">
         <View style={styles.form}>
-          <Text style={styles.mutedText}>A busca e inclusão manual de membros será ligada ao diretório na próxima etapa.</Text>
+          <Text style={styles.mutedText}>Use a tela de atribuicao para informar usuario, cargo, habilidades e status.</Text>
         </View>
       </BottomSheet>
     </SafeAreaView>
@@ -312,6 +319,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: colors.ink,
+  },
+  membersLink: {
+    minHeight: 34,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  membersLinkText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
   },
   memberCard: {
     flexDirection: "row",
