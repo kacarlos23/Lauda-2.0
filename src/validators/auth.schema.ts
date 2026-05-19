@@ -10,6 +10,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email("E-mail invalido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+  inviteCode: z.string().trim().min(16, "Codigo de convite e obrigatorio").optional(),
 });
 
 export const refreshTokenSchema = z.object({
@@ -34,9 +35,19 @@ export const publicMemberRegisterSchema = z.object({
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
 });
 
+export const memberInviteQuerySchema = z.object({
+  ministryId: z.string().uuid("ID do ministerio invalido").optional(),
+});
+
+export const memberInviteBodySchema = z.object({
+  ministryId: z.string().uuid("ID do ministerio invalido").optional(),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type PublicMemberRegisterInput = z.infer<typeof publicMemberRegisterSchema>;
+export type MemberInviteQueryInput = z.infer<typeof memberInviteQuerySchema>;
+export type MemberInviteBodyInput = z.infer<typeof memberInviteBodySchema>;

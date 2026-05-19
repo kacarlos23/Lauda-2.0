@@ -43,6 +43,9 @@ model MemberInvite {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  ministryId String?
+  ministry   Ministry? @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
   code      String    @unique
   active    Boolean   @default(true)
   expiresAt DateTime?
@@ -50,6 +53,7 @@ model MemberInvite {
   updatedAt DateTime  @updatedAt
 
   @@index([tenantId])
+  @@index([ministryId])
   @@index([active])
 }
 
@@ -85,6 +89,7 @@ model Ministry {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   members   MinistryMember[]
+  memberInvites MemberInvite[]
   schedules Schedule[]
   songs     MinistrySong[]
 

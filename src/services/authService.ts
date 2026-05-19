@@ -37,6 +37,8 @@ type MemberInviteView = {
   active: boolean;
   expiresAt: Date | string | null;
   createdAt: Date | string;
+  ministryId?: string | null;
+  ministry?: { id: string; name: string } | null;
 };
 
 export class AuthService {
@@ -112,6 +114,7 @@ export class AuthService {
       email,
       phone,
       hashedPassword,
+      ministryId: invite.ministryId,
     });
 
     return {
@@ -137,6 +140,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedError("Credenciais invalidas");
+    }
+
+    if (input.inviteCode) {
+      await this.applyInviteToExistingUser(input.inviteCode, user);
     }
 
     return this.buildAuthResponse(user);
@@ -176,16 +183,24 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async getMemberInvite(tenantId: string) {
-    const invite = await authRepository.findCurrentMemberInvite(tenantId);
+  async getMemberInvite(tenantId: string, ministryId?: string) {
+    if (ministryId) {
+      await this.ensureMinistryBelongsToTenant(tenantId, ministryId);
+    }
+
+    const invite = await authRepository.findCurrentMemberInvite(tenantId, ministryId);
     if (invite) return this.formatMemberInvite(invite);
 
-    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId));
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId, ministryId));
   }
 
-  async regenerateMemberInvite(tenantId: string) {
-    await authRepository.deactivateMemberInvites(tenantId);
-    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId));
+  async regenerateMemberInvite(tenantId: string, ministryId?: string) {
+    if (ministryId) {
+      await this.ensureMinistryBelongsToTenant(tenantId, ministryId);
+    }
+
+    await authRepository.deactivateMemberInvites(tenantId, ministryId);
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId, ministryId));
   }
 
   /**
@@ -256,10 +271,10 @@ export class AuthService {
     return crypto.randomBytes(INVITE_CODE_BYTES).toString("base64url");
   }
 
-  private async createMemberInviteWithRetry(tenantId: string): Promise<MemberInviteView> {
+  private async createMemberInviteWithRetry(tenantId: string, ministryId?: string): Promise<MemberInviteView> {
     for (let attempt = 1; attempt <= INVITE_CODE_CREATE_ATTEMPTS; attempt += 1) {
       try {
-        return await authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+        return await authRepository.createMemberInvite(tenantId, this.generateInviteCode(), ministryId);
       } catch (error) {
         if (!this.isUniqueConstraintError(error)) {
           throw error;
@@ -281,8 +296,38 @@ export class AuthService {
       active: invite.active,
       expiresAt: invite.expiresAt ? new Date(invite.expiresAt).toISOString() : null,
       createdAt: new Date(invite.createdAt).toISOString(),
+      ministryId: invite.ministryId ?? null,
+      ministry: invite.ministry ?? null,
       inviteLink: `${baseUrl}${separator}code=${encodeURIComponent(code)}`,
     };
+  }
+
+  private async ensureMinistryBelongsToTenant(tenantId: string, ministryId: string) {
+    const ministry = await authRepository.findMinistryById(tenantId, ministryId);
+    if (!ministry) {
+      throw new ValidationError("Ministerio nao encontrado");
+    }
+
+    return ministry;
+  }
+
+  private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string }) {
+    const invite = await authRepository.findActiveMemberInviteByCode(inviteCode.trim());
+    if (!invite) {
+      throw new ValidationError("Convite invalido ou expirado");
+    }
+
+    if (invite.tenantId !== user.tenantId) {
+      throw new ValidationError("Convite invalido para este usuario");
+    }
+
+    if (invite.ministryId) {
+      await authRepository.addUserToMinistry({
+        tenantId: user.tenantId,
+        userId: user.id,
+        ministryId: invite.ministryId,
+      });
+    }
   }
 
   private isUniqueConstraintError(error: unknown): boolean {

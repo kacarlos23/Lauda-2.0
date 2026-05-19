@@ -6,23 +6,30 @@ import { Role } from "@prisma/client";
 export class MinistryService {
   constructor(private readonly ministryRepository: MinistryRepository) {}
 
-  async listAll() {
-    return this.ministryRepository.findAll();
+  private checkAdmin(role: string) {
+    if (role === Role.GLOBAL_ADMIN || role === Role.TENANT_ADMIN) return;
+    throw new ForbiddenError("Apenas administradores podem gerenciar ministérios");
   }
 
-  async getById(id: string) {
-    const ministry = await this.ministryRepository.findById(id);
+  async listAll(user?: { id: string; role: string }) {
+    return this.ministryRepository.findAll(user);
+  }
+
+  async getById(id: string, user?: { id: string; role: string }) {
+    const ministry = await this.ministryRepository.findById(id, user);
     if (!ministry) {
       throw new NotFoundError("Ministério não encontrado");
     }
     return ministry;
   }
 
-  async create(data: CreateMinistryInput) {
+  async create(data: CreateMinistryInput, user: { role: string }) {
+    this.checkAdmin(user.role);
     return this.ministryRepository.create(data);
   }
 
-  async update(id: string, data: UpdateMinistryInput) {
+  async update(id: string, data: UpdateMinistryInput, user: { role: string }) {
+    this.checkAdmin(user.role);
     await this.getById(id); // validates ownership + existence
     const result = await this.ministryRepository.update(id, data);
     if (result.count === 0) {
@@ -31,7 +38,8 @@ export class MinistryService {
     return this.ministryRepository.findById(id);
   }
 
-  async delete(id: string) {
+  async delete(id: string, user: { role: string }) {
+    this.checkAdmin(user.role);
     await this.getById(id); // validates ownership + existence
     const result = await this.ministryRepository.delete(id);
     if (result.count === 0) {

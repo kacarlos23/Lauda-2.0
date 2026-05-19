@@ -27,6 +27,7 @@ async function cleanDatabase(): Promise<void> {
   await prisma.ministryMember.deleteMany();
   await prisma.ministrySong.deleteMany();
   await prisma.song.deleteMany();
+  await prisma.memberInvite.deleteMany();
   await prisma.ministry.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
@@ -152,7 +153,40 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .send({ name: "Hacked Ministry" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("Apenas administradores podem criar ministérios");
+    expect(res.body.error).toBe("Apenas administradores podem gerenciar ministérios");
+  });
+
+  it("PUT e DELETE /api/ministries permitem CRUD completo para admin do tenant", async () => {
+    const tenant = await registerTenant("tenant-crud-ministry");
+
+    const created = await request(app)
+      .post("/api/ministries")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Diaconia", description: "Equipe inicial" })
+      .expect(201);
+
+    const updated = await request(app)
+      .put(`/api/ministries/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Diaconia e Apoio", description: "Equipe de recepcao e apoio" })
+      .expect(200);
+
+    expect(updated.body.data).toMatchObject({
+      id: created.body.data.id,
+      name: "Diaconia e Apoio",
+      description: "Equipe de recepcao e apoio",
+      tenantId: tenant.user.tenantId,
+    });
+
+    await request(app)
+      .delete(`/api/ministries/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    await request(app)
+      .get(`/api/ministries/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(404);
   });
 
   it("POST /api/ministries/:id/members › deve validar RBAC e adicionar/remover membro", async () => {
@@ -207,5 +241,92 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .delete(`/api/ministries/${ministryId}/members/${user2Id}`)
       .set("Authorization", `Bearer ${leaderToken}`)
       .expect(200);
+  });
+
+  it("GET /api/ministries retorna para MEMBER apenas seus ministerios e seus respectivos membros", async () => {
+    const tenant = await registerTenant("tenant-member-visible-ministries");
+
+    const louvor = await request(app)
+      .post("/api/ministries")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Louvor Visivel" })
+      .expect(201);
+
+    const recepcao = await request(app)
+      .post("/api/ministries")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Recepcao Oculta" })
+      .expect(201);
+
+    await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Membro Vinculado", email: "member-visible@example.com", password: "secretpassword", role: "MEMBER" })
+      .expect(201);
+
+    await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Colega Louvor", email: "colleague-visible@example.com", password: "secretpassword", role: "MEMBER" })
+      .expect(201);
+
+    await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Outro Ministerio", email: "other-ministry@example.com", password: "secretpassword", role: "MEMBER" })
+      .expect(201);
+
+    const memberLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "member-visible@example.com", password: "secretpassword" })
+      .expect(200);
+    const colleagueLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "colleague-visible@example.com", password: "secretpassword" })
+      .expect(200);
+    const otherLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "other-ministry@example.com", password: "secretpassword" })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/ministries/${louvor.body.data.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: memberLogin.body.data.user.id, isLeader: false })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/ministries/${louvor.body.data.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: colleagueLogin.body.data.user.id, isLeader: false })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/ministries/${recepcao.body.data.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: otherLogin.body.data.user.id, isLeader: false })
+      .expect(201);
+
+    const memberMinistries = await request(app)
+      .get("/api/ministries")
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .expect(200);
+
+    expect(memberMinistries.body.data.map((item: { name: string }) => item.name)).toEqual(["Louvor Visivel"]);
+
+    const visibleDetail = await request(app)
+      .get(`/api/ministries/${louvor.body.data.id}`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .expect(200);
+
+    expect(visibleDetail.body.data.members.map((item: { user: { email: string } }) => item.user.email)).toEqual([
+      "colleague-visible@example.com",
+      "member-visible@example.com",
+    ]);
+
+    await request(app)
+      .get(`/api/ministries/${recepcao.body.data.id}`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .expect(404);
   });
 });
