@@ -70,7 +70,7 @@ export class AuthService {
 
     const existing = await authRepository.findUserByEmail(email);
     if (existing) {
-      throw new ValidationError("E-mail ja esta em uso");
+      throw new ValidationError("E-mail já está em uso");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -99,12 +99,12 @@ export class AuthService {
 
     const invite = await authRepository.findActiveMemberInviteByCode(inviteCode);
     if (!invite) {
-      throw new ValidationError("Convite invalido ou expirado");
+      throw new ValidationError("Convite inválido ou expirado");
     }
 
     const existing = await authRepository.findUserByEmail(email);
     if (existing) {
-      throw new ValidationError("E-mail ja esta em uso");
+      throw new ValidationError("E-mail já está em uso");
     }
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
@@ -134,12 +134,12 @@ export class AuthService {
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) {
-      throw new NotFoundError("Usuario nao encontrado");
+      throw new NotFoundError("Usuário não encontrado");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedError("Credenciais invalidas");
+      throw new UnauthorizedError("Credenciais inválidas");
     }
 
     if (input.inviteCode) {
@@ -163,21 +163,21 @@ export class AuthService {
         config.auth.refreshJwtSecret
       ) as RefreshTokenPayload;
     } catch {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     if (decoded.type !== "refresh") {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     const refreshUserId = decoded.userId ?? decoded.id;
     if (!refreshUserId) {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     const user = await authRepository.findUserById(refreshUserId);
     if (!user) {
-      throw new UnauthorizedError("Usuario nao encontrado");
+      throw new UnauthorizedError("Usuário não encontrado");
     }
 
     return this.buildAuthResponse(user);
@@ -210,7 +210,7 @@ export class AuthService {
     const user = await authRepository.findUserByEmail(input.email);
     if (!user) {
       // Return generic success message to prevent email enumeration
-      return { success: true, message: "Se o e-mail existir, um codigo foi enviado." };
+      return { success: true, message: "Se o e-mail existir, um código foi enviado." };
     }
 
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
@@ -221,12 +221,12 @@ export class AuthService {
 
     console.log(`\n[EMAIL SIMULADO] ==========================`);
     console.log(`Para: ${user.email}`);
-    console.log(`Assunto: Recuperacao de Senha`);
-    console.log(`Seu codigo PIN e: ${pin}`);
-    console.log(`Valido por 15 minutos.`);
+    console.log(`Assunto: Recuperação de Senha`);
+    console.log(`Seu código PIN é: ${pin}`);
+    console.log(`Válido por 15 minutos.`);
     console.log(`===========================================\n`);
 
-    return { success: true, message: "Se o e-mail existir, um codigo foi enviado." };
+    return { success: true, message: "Se o e-mail existir, um código foi enviado." };
   }
 
   /**
@@ -238,11 +238,11 @@ export class AuthService {
     const user = await authRepository.findUserByResetToken(token);
 
     if (!user || user.email !== email || !user.resetPasswordExpires) {
-      throw new ValidationError("PIN invalido ou expirado.");
+      throw new ValidationError("PIN inválido ou expirado.");
     }
 
     if (new Date() > user.resetPasswordExpires) {
-      throw new ValidationError("PIN expirado. Solicite um novo codigo.");
+      throw new ValidationError("PIN expirado. Solicite um novo código.");
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -282,7 +282,7 @@ export class AuthService {
       }
     }
 
-    throw new ValidationError("Nao foi possivel gerar um convite unico. Tente novamente.");
+    throw new ValidationError("Não foi possível gerar um convite único. Tente novamente.");
   }
 
   private formatMemberInvite(invite: MemberInviteView) {
@@ -305,7 +305,7 @@ export class AuthService {
   private async ensureMinistryBelongsToTenant(tenantId: string, ministryId: string) {
     const ministry = await authRepository.findMinistryById(tenantId, ministryId);
     if (!ministry) {
-      throw new ValidationError("Ministerio nao encontrado");
+      throw new ValidationError("Ministério não encontrado");
     }
 
     return ministry;
@@ -314,11 +314,11 @@ export class AuthService {
   private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string }) {
     const invite = await authRepository.findActiveMemberInviteByCode(inviteCode.trim());
     if (!invite) {
-      throw new ValidationError("Convite invalido ou expirado");
+      throw new ValidationError("Convite inválido ou expirado");
     }
 
     if (invite.tenantId !== user.tenantId) {
-      throw new ValidationError("Convite invalido para este usuario");
+      throw new ValidationError("Convite inválido para este usuário");
     }
 
     if (invite.ministryId) {

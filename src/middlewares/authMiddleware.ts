@@ -67,12 +67,12 @@ export const requireRole =
   (...roles: Role[]) =>
   (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
-      next(new UnauthorizedError("Token de autenticacao ausente"));
+      next(new UnauthorizedError("Token de autenticação ausente"));
       return;
     }
 
     if (!roles.includes(req.user.role)) {
-      next(new ForbiddenError("Perfil sem permissao para esta rota"));
+      next(new ForbiddenError("Perfil sem permissão para esta rota"));
       return;
     }
 

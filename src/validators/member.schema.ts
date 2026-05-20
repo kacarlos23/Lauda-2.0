@@ -2,23 +2,23 @@ import { z } from "zod";
 
 export const createMemberSchema = z.object({
   name: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
-  email: z.string().email("E-mail invalido"),
+  email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
   phone: z.string().optional(),
   role: z.enum(["MEMBER", "MINISTRY_LEADER"]).default("MEMBER"),
 });
 
 export const addMemberMinistrySchema = z.object({
-  ministryId: z.string().uuid("ID do ministerio invalido"),
+  ministryId: z.string().uuid("ID do ministério inválido"),
   isLeader: z.boolean().optional().default(false),
 });
 
 export const memberStatusSchema = z.enum(["PENDING", "ACTIVE", "INACTIVE"]);
 
 const assignmentFieldsSchema = z.object({
-  userId: z.string().uuid("ID do usuario invalido"),
-  ministryId: z.string().uuid("ID do ministerio invalido"),
-  roleId: z.string().uuid("ID do cargo invalido").optional().nullable(),
+  userId: z.string().uuid("ID do usuário inválido"),
+  ministryId: z.string().uuid("ID do ministério inválido"),
+  roleId: z.string().uuid("ID do cargo inválido").optional().nullable(),
   role: z.string().trim().min(2, "Cargo deve ter ao menos 2 caracteres").max(80).optional().nullable(),
   skills: z.array(z.string().trim().min(1).max(40)).max(20).optional().default([]),
   status: memberStatusSchema.optional().default("PENDING"),
@@ -32,7 +32,7 @@ export const updateMemberAssignmentSchema = assignmentFieldsSchema
   .omit({ userId: true, ministryId: true })
   .partial()
   .extend({
-    assignmentId: z.string().uuid("ID da atribuicao invalido"),
+    assignmentId: z.string().uuid("ID da atribuição inválido"),
   });
 
 export const listMinistryMembersSchema = z.object({

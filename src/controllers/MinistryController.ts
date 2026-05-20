@@ -11,7 +11,7 @@ import {
 } from "../validators/member.schema";
 
 const addMemberSchema = z.object({
-  userId: z.string().uuid("ID do usuario invalido"),
+  userId: z.string().uuid("ID do usuário inválido"),
   isLeader: z.boolean().optional().default(false),
 });
 
@@ -50,7 +50,7 @@ export class MinistryController extends BaseController {
     const repo = new MinistryRepository(req.user!.tenantId);
     const service = new MinistryService(repo);
     await service.delete(String(req.params.id), { role: req.user!.role });
-    this.handleSuccess(res, { message: "Ministerio removido com sucesso" });
+    this.handleSuccess(res, { message: "Ministério removido com sucesso" });
   }
 
   async addMember(req: Request, res: Response): Promise<void> {
@@ -72,7 +72,7 @@ export class MinistryController extends BaseController {
       id: req.user!.id,
       role: req.user!.role,
     });
-    this.handleSuccess(res, { message: "Membro removido do ministerio" });
+    this.handleSuccess(res, { message: "Membro removido do ministério" });
   }
 
   async assignMember(req: Request, res: Response): Promise<void> {
@@ -108,7 +108,7 @@ export class MinistryController extends BaseController {
       role: req.user!.role,
     });
 
-    this.handleSuccess(res, { message: "Atribuicao removida do ministerio" });
+    this.handleSuccess(res, { message: "Atribuição removida do ministério" });
   }
 
   async listMembers(req: Request, res: Response): Promise<void> {

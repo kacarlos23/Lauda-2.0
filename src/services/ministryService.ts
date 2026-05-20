@@ -25,7 +25,7 @@ export class MinistryService {
   async getById(id: string, user?: { id: string; role: string }) {
     const ministry = await this.ministryRepository.findById(id, user);
     if (!ministry) {
-      throw new NotFoundError("Ministerio nao encontrado");
+      throw new NotFoundError("Ministério não encontrado");
     }
     return ministry;
   }
@@ -40,7 +40,7 @@ export class MinistryService {
     await this.getById(id);
     const result = await this.ministryRepository.update(id, data);
     if (result.count === 0) {
-      throw new NotFoundError("Ministerio nao encontrado");
+      throw new NotFoundError("Ministério não encontrado");
     }
     return this.ministryRepository.findById(id);
   }
@@ -50,7 +50,7 @@ export class MinistryService {
     await this.getById(id);
     const result = await this.ministryRepository.delete(id);
     if (result.count === 0) {
-      throw new NotFoundError("Ministerio nao encontrado");
+      throw new NotFoundError("Ministério não encontrado");
     }
   }
 
@@ -69,7 +69,7 @@ export class MinistryService {
 
   private async ensureCanManageMinistry(ministryId: string, user: RequestUser) {
     if (!this.canAssign(user.role)) {
-      throw new ForbiddenError("Voce nao tem permissao para gerenciar membros de ministerios");
+      throw new ForbiddenError("Você não tem permissão para gerenciar membros de ministérios");
     }
 
     const ministry = await this.getById(ministryId);
@@ -80,6 +80,11 @@ export class MinistryService {
   async addMember(ministryId: string, targetUserId: string, isLeader: boolean, reqUser: RequestUser) {
     const ministry = await this.getById(ministryId);
     this.checkLeadership(ministry, reqUser.id, reqUser.role);
+
+    const targetUser = await this.ministryRepository.findUserById(targetUserId);
+    if (!targetUser) {
+      throw new NotFoundError("Usuário não encontrado neste tenant");
+    }
 
     return this.ministryRepository.addMember(ministryId, targetUserId, isLeader);
   }
@@ -96,12 +101,12 @@ export class MinistryService {
 
     const targetUser = await this.ministryRepository.findUserById(input.userId);
     if (!targetUser) {
-      throw new NotFoundError("Usuario nao encontrado neste tenant");
+      throw new NotFoundError("Usuário não encontrado neste tenant");
     }
 
     const existing = await this.ministryRepository.findAssignmentByUserAndMinistry(input.userId, input.ministryId);
     if (existing) {
-      throw new ValidationError("Usuario ja esta atribuido a este ministerio");
+      throw new ValidationError("Usuário já está atribuído a este ministério");
     }
 
     return this.ministryRepository.assignMemberToMinistry(input);
@@ -110,7 +115,7 @@ export class MinistryService {
   async updateAssignment(input: UpdateMemberAssignmentInput, reqUser: RequestUser) {
     const assignment = await this.ministryRepository.findAssignmentById(input.assignmentId);
     if (!assignment) {
-      throw new NotFoundError("Atribuicao nao encontrada");
+      throw new NotFoundError("Atribuição não encontrada");
     }
 
     await this.ensureCanManageMinistry(assignment.ministryId, reqUser);
@@ -131,13 +136,13 @@ export class MinistryService {
   async removeAssignment(assignmentId: string, reqUser: RequestUser) {
     const assignment = await this.ministryRepository.findAssignmentById(assignmentId);
     if (!assignment) {
-      throw new NotFoundError("Atribuicao nao encontrada");
+      throw new NotFoundError("Atribuição não encontrada");
     }
 
     await this.ensureCanManageMinistry(assignment.ministryId, reqUser);
     const result = await this.ministryRepository.removeMemberFromMinistry(assignmentId);
     if (result.count === 0) {
-      throw new NotFoundError("Atribuicao nao encontrada");
+      throw new NotFoundError("Atribuição não encontrada");
     }
   }
 }

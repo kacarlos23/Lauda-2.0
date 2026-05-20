@@ -380,7 +380,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Convite invalido ou expirado");
+    expect(response.body.error).toBe("Convite inválido ou expirado");
   });
 
   it("POST /api/auth/member-register bloqueia email duplicado", async () => {
@@ -410,7 +410,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("E-mail ja esta em uso");
+    expect(response.body.error).toBe("E-mail já está em uso");
   });
 
   it("cadastro publico ignora role e cria sempre MEMBER sem criar tenant", async () => {

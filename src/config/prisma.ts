@@ -1,7 +1,8 @@
 import "dotenv/config";
-import { Prisma, PrismaClient, Role } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getTenantContext } from "../context/tenantContext";
+import { UnauthorizedError } from "../errors/AppError";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 
@@ -90,11 +91,7 @@ export function withTenantIsolation(baseClient: PrismaClient) {
             }
 
             if (!context.tenantId) {
-              throw new Error("TenantId ausente no contexto autenticado");
-            }
-
-            if (context.role === Role.GLOBAL_ADMIN) {
-              return query(args);
+              throw new UnauthorizedError("TenantId ausente no contexto autenticado");
             }
 
             if (whereOperations.has(operation)) {
