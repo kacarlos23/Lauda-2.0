@@ -86,6 +86,29 @@ async function createMinistry(token: string, name: string) {
   return response.body.data as { id: string; tenantId: string; name: string };
 }
 
+async function createUserAndLogin(seed: string, tenantId: string, role: "MEMBER" | "MINISTRY_LEADER" = "MEMBER") {
+  const password = await bcrypt.hash("secret123", 10);
+  const user = await prisma.user.create({
+    data: {
+      name: `Usuário ${seed}`,
+      email: `${seed}@example.com`,
+      password,
+      role,
+      tenantId,
+    },
+  });
+
+  const login = await request(app)
+    .post("/api/auth/login")
+    .send({ email: user.email, password: "secret123" })
+    .expect(200);
+
+  return {
+    user,
+    token: login.body.data.token as string,
+  };
+}
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
@@ -218,5 +241,161 @@ describe("POST /api/schedules", () => {
         ministryId: ministry.id,
       })
       .expect(403);
+  });
+
+  it("permite TENANT_ADMIN criar escala", async () => {
+    const tenant = await registerTenant("admin-create");
+    const ministry = await createMinistry(tenant.token, "Louvor Admin");
+
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto admin",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+  });
+
+  it("permite lider criar escala somente no ministerio que lidera", async () => {
+    const tenant = await registerTenant("leader-own");
+    const ownMinistry = await createMinistry(tenant.token, "Louvor liderado");
+    const otherMinistry = await createMinistry(tenant.token, "Dança");
+    const leader = await createUserAndLogin("leader-own", tenant.tenant.id, "MINISTRY_LEADER");
+
+    await prisma.ministryMember.create({
+      data: {
+        tenantId: tenant.tenant.id,
+        userId: leader.user.id,
+        ministryId: ownMinistry.id,
+        isLeader: true,
+        status: "ACTIVE",
+      },
+    });
+
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${leader.token}`)
+      .send({
+        title: "Culto liderado",
+        date: "2026-05-06T13:00:00.000Z",
+        ministryId: ownMinistry.id,
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${leader.token}`)
+      .send({
+        title: "Culto bloqueado",
+        date: "2026-05-07T13:00:00.000Z",
+        ministryId: otherMinistry.id,
+      })
+      .expect(403);
+  });
+});
+
+describe("Schedule assignments", () => {
+  it("permite membro aceitar e recusar a propria escala e bloqueia assignment de outro membro", async () => {
+    const tenant = await registerTenant("assignment-status");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const memberA = await createUserAndLogin("assignment-member-a", tenant.tenant.id);
+    const memberB = await createUserAndLogin("assignment-member-b", tenant.tenant.id);
+
+    const scheduleResponse = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto com escala",
+        date: "2026-05-08T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+
+    const scheduleId = scheduleResponse.body.data.id as string;
+
+    const assignmentResponse = await request(app)
+      .post(`/api/schedules/${scheduleId}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        userId: memberA.user.id,
+        role: "Vocal",
+      })
+      .expect(201);
+
+    const assignmentId = assignmentResponse.body.data.id as string;
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
+      .set("Authorization", `Bearer ${memberA.token}`)
+      .send({ status: "ACCEPTED" })
+      .expect(200);
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
+      .set("Authorization", `Bearer ${memberA.token}`)
+      .send({ status: "DECLINED" })
+      .expect(200);
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
+      .set("Authorization", `Bearer ${memberB.token}`)
+      .send({ status: "ACCEPTED" })
+      .expect(403);
+  });
+
+  it("GET /api/schedules/me retorna apenas escalas do usuario autenticado", async () => {
+    const tenant = await registerTenant("my-schedules");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const memberA = await createUserAndLogin("my-schedules-a", tenant.tenant.id);
+    const memberB = await createUserAndLogin("my-schedules-b", tenant.tenant.id);
+
+    const scheduleA = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala A",
+        date: "2026-05-09T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+
+    const scheduleB = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala B",
+        date: "2026-05-10T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/schedules/${scheduleA.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: memberA.user.id, role: "Vocal" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/schedules/${scheduleB.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: memberB.user.id, role: "Violão" })
+      .expect(201);
+
+    const response = await request(app)
+      .get("/api/schedules/me")
+      .set("Authorization", `Bearer ${memberA.token}`)
+      .expect(200);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]).toMatchObject({
+      userId: memberA.user.id,
+      status: "PENDING",
+      schedule: {
+        title: "Escala A",
+        ministry: { id: ministry.id, name: "Louvor" },
+      },
+    });
   });
 });

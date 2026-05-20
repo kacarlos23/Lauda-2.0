@@ -5,21 +5,21 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
-import { useMinistryStore } from "../../../src/store/ministryStore";
-import { useAuthStore } from "../../../src/store/authStore";
-import { colors, radii, shadow, spacing } from "../../../src/theme";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { useAuthStore } from "../../../src/store/authStore";
+import { useMinistryStore } from "../../../src/store/ministryStore";
+import { colors, radii, shadow, spacing } from "../../../src/theme";
 
 export default function MinistryDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  
   const { user } = useAuthStore();
   const {
     currentMinistry: ministry,
@@ -27,11 +27,18 @@ export default function MinistryDetailsScreen() {
     loading,
     error,
     fetchMinistry,
+    updateMinistry,
     deleteMinistry,
+    clearError,
   } = useMinistryStore();
 
   const [showEdit, setShowEdit] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,14 +49,53 @@ export default function MinistryDetailsScreen() {
   );
 
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
-  const isMinistryLeader = members.some((m) => m.userId === user?.id && m.isLeader);
-  
+  const isMinistryLeader = members.some((member) => member.userId === user?.id && member.isLeader);
   const canManageMinistry = isAdmin;
   const canManageMembers = isAdmin || isMinistryLeader;
 
+  const openEdit = () => {
+    if (!ministry) return;
+    clearError();
+    setFormError(null);
+    setEditName(ministry.name);
+    setEditDescription(ministry.description ?? "");
+    setShowEdit(true);
+  };
+
+  const closeEdit = () => {
+    if (submitting) return;
+    setShowEdit(false);
+  };
+
+  const handleUpdate = async () => {
+    if (!id) return;
+
+    const trimmedName = editName.trim();
+    const trimmedDescription = editDescription.trim();
+
+    if (trimmedName.length < 2) {
+      setFormError("Informe um nome com ao menos 2 caracteres.");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+    await updateMinistry(id, {
+      name: trimmedName,
+      description: trimmedDescription || undefined,
+    });
+    setSubmitting(false);
+
+    if (!useMinistryStore.getState().error) {
+      setShowEdit(false);
+    }
+  };
+
   const handleDelete = () => {
+    if (!id || deleting) return;
+
     Alert.alert(
-      "Excluir Ministério",
+      "Excluir ministério",
       "Tem certeza que deseja excluir este ministério? Esta ação não pode ser desfeita.",
       [
         { text: "Cancelar", style: "cancel" },
@@ -57,8 +103,11 @@ export default function MinistryDetailsScreen() {
           text: "Excluir",
           style: "destructive",
           onPress: async () => {
-            if (id) {
-              await deleteMinistry(id);
+            setDeleting(true);
+            await deleteMinistry(id);
+            const deleteError = useMinistryStore.getState().error;
+            setDeleting(false);
+            if (!deleteError) {
               router.back();
             }
           },
@@ -88,22 +137,21 @@ export default function MinistryDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      {/* Header */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
           <ArrowLeft color={colors.ink} size={24} />
         </TouchableOpacity>
-        
-        {canManageMinistry && (
+
+        {canManageMinistry ? (
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={() => setShowEdit(true)} style={styles.iconBtn}>
+            <TouchableOpacity onPress={openEdit} style={styles.iconBtn} accessibilityRole="button">
               <Edit2 color={colors.primary} size={20} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDelete} style={styles.iconBtn}>
-              <Trash2 color={colors.danger} size={20} />
+            <TouchableOpacity onPress={handleDelete} style={styles.iconBtn} disabled={deleting} accessibilityRole="button">
+              {deleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={20} />}
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
       </View>
 
       <FlatList
@@ -113,12 +161,17 @@ export default function MinistryDetailsScreen() {
         ListHeaderComponent={
           <View style={styles.ministryInfo}>
             <Text style={styles.title}>{ministry.name}</Text>
-            {ministry.description ? (
-              <Text style={styles.description}>{ministry.description}</Text>
-            ) : null}
-            
+            {ministry.description ? <Text style={styles.description}>{ministry.description}</Text> : null}
+
             <View style={styles.membersHeader}>
               <Text style={styles.membersTitle}>Membros ({members.length})</Text>
+              <TouchableOpacity
+                style={styles.membersLink}
+                onPress={() => router.push(`/ministries/${id}/members` as never)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.membersLinkText}>Ver lista</Text>
+              </TouchableOpacity>
             </View>
           </View>
         }
@@ -131,11 +184,11 @@ export default function MinistryDetailsScreen() {
               <Text style={styles.memberName}>{item.user.name}</Text>
               <Text style={styles.memberEmail}>{item.user.email}</Text>
             </View>
-            {item.isLeader && (
+            {item.isLeader ? (
               <View style={styles.leaderBadge}>
-                <Text style={styles.leaderText}>👑 Líder</Text>
+                <Text style={styles.leaderText}>Líder</Text>
               </View>
-            )}
+            ) : null}
           </View>
         )}
         ListEmptyComponent={
@@ -145,35 +198,65 @@ export default function MinistryDetailsScreen() {
         }
       />
 
-      {canManageMembers && (
-        <TouchableOpacity 
-          style={styles.fab} 
+      {canManageMembers ? (
+        <TouchableOpacity
+          style={styles.fab}
           activeOpacity={0.8}
-          onPress={() => setShowAddMember(true)}
+          onPress={() => router.push(`/ministries/assign?ministryId=${id}` as never)}
+          accessibilityRole="button"
         >
           <Plus color={colors.surface} size={24} />
         </TouchableOpacity>
-      )}
+      ) : null}
 
-      {/* Edit Ministry BottomSheet */}
-      <BottomSheet 
-        isOpen={showEdit} 
-        onClose={() => setShowEdit(false)} 
-        title="Editar Ministério"
+      <BottomSheet
+        isOpen={showEdit}
+        onClose={closeEdit}
+        title="Editar ministério"
+        footer={
+          <View style={styles.sheetActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={closeEdit} disabled={submitting}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, submitting && styles.buttonDisabled]}
+              onPress={handleUpdate}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar</Text>}
+            </TouchableOpacity>
+          </View>
+        }
       >
-        <View style={{ padding: spacing.xl }}>
-          <Text style={{ color: colors.text }}>Formulário de edição virá aqui</Text>
+        <View style={styles.form}>
+          {formError || error ? <Text style={styles.formError}>{formError ?? error}</Text> : null}
+          <Text style={styles.label}>Nome *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Louvor"
+            placeholderTextColor={colors.muted}
+            value={editName}
+            onChangeText={(value) => {
+              setEditName(value);
+              setFormError(null);
+            }}
+          />
+          <Text style={styles.label}>Descrição</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Descreva o objetivo deste ministério"
+            placeholderTextColor={colors.muted}
+            value={editDescription}
+            onChangeText={setEditDescription}
+            multiline
+            textAlignVertical="top"
+          />
         </View>
       </BottomSheet>
 
-      {/* Add Member BottomSheet */}
-      <BottomSheet 
-        isOpen={showAddMember} 
-        onClose={() => setShowAddMember(false)} 
-        title="Adicionar Membro"
-      >
-        <View style={{ padding: spacing.xl }}>
-          <Text style={{ color: colors.text }}>Busca de membros virá aqui</Text>
+      <BottomSheet isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Adicionar membro">
+        <View style={styles.form}>
+          <Text style={styles.mutedText}>Use a tela de atribuicao para informar usuario, cargo, habilidades e status.</Text>
         </View>
       </BottomSheet>
     </SafeAreaView>
@@ -187,6 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
+    padding: spacing.xl,
   },
   topBar: {
     flexDirection: "row",
@@ -235,6 +319,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: colors.ink,
+  },
+  membersLink: {
+    minHeight: 34,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  membersLinkText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
   },
   memberCard: {
     flexDirection: "row",
@@ -288,6 +385,7 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 16,
     marginBottom: spacing.lg,
+    textAlign: "center",
   },
   backBtn: {
     backgroundColor: colors.primary,
@@ -311,4 +409,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...shadow,
   },
+  form: { padding: spacing.xl },
+  formError: {
+    backgroundColor: "#FDECEC",
+    borderColor: "#F0B8B8",
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  input: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    color: colors.ink,
+    fontSize: 15,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: spacing.lg,
+  },
+  textArea: { minHeight: 104 },
+  sheetActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "flex-end",
+  },
+  cancelButton: {
+    minHeight: 44,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  saveButton: {
+    minHeight: 44,
+    minWidth: 96,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  saveButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  buttonDisabled: { opacity: 0.6 },
+  mutedText: { color: colors.muted, fontSize: 15, lineHeight: 22 },
 });

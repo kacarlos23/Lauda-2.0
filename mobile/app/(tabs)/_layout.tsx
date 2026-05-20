@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { Church, Home, User, Users } from "lucide-react-native";
+import { Church, Home, User, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
 
@@ -63,6 +63,29 @@ export default function TabsLayout() {
         options={{
           title: "Ministério",
           href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/[id]/members"
+        options={{
+          title: "Membros do ministerio",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/assign"
+        options={{
+          title: "Atribuir membro",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/my-assignments"
+        options={{
+          title: "Meus ministerios",
+          tabBarLabel: "Meus",
+          tabBarIcon: ({ color }) => tabIcon(UserCheck, color),
+          href: "/ministries/my-assignments",
         }}
       />
       <Tabs.Screen

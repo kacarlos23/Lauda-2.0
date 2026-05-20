@@ -1,37 +1,46 @@
 import { z } from "zod";
 
 export const registerSchema = z.object({
-  churchName: z.string().min(2, "Nome da igreja e obrigatorio"),
-  name: z.string().min(2, "Nome e obrigatorio"),
-  email: z.string().email("E-mail invalido"),
+  churchName: z.string().min(2, "Nome da igreja é obrigatório"),
+  name: z.string().min(2, "Nome é obrigatório"),
+  email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email("E-mail invalido"),
+  email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+  inviteCode: z.string().trim().min(16, "Código de convite é obrigatório").optional(),
 });
 
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, "Refresh token e obrigatorio"),
+  refreshToken: z.string().min(1, "Refresh token é obrigatório"),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("E-mail invalido"),
+  email: z.string().email("E-mail inválido"),
 });
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email("E-mail invalido"),
-  token: z.string().length(6, "PIN deve ter exatamente 6 digitos"),
-  newPassword: z.string().min(6, "A nova senha deve ter no minimo 6 caracteres"),
+  email: z.string().email("E-mail inválido"),
+  token: z.string().length(6, "PIN deve ter exatamente 6 dígitos"),
+  newPassword: z.string().min(6, "A nova senha deve ter no mínimo 6 caracteres"),
 });
 
 export const publicMemberRegisterSchema = z.object({
-  inviteCode: z.string().trim().min(16, "Codigo de convite e obrigatorio"),
-  name: z.string().trim().min(2, "Nome e obrigatorio"),
-  email: z.string().trim().toLowerCase().email("E-mail invalido"),
+  inviteCode: z.string().trim().min(16, "Código de convite é obrigatório"),
+  name: z.string().trim().min(2, "Nome é obrigatório"),
+  email: z.string().trim().toLowerCase().email("E-mail inválido"),
   phone: z.string().trim().optional(),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+});
+
+export const memberInviteQuerySchema = z.object({
+  ministryId: z.string().uuid("ID do ministério inválido").optional(),
+});
+
+export const memberInviteBodySchema = z.object({
+  ministryId: z.string().uuid("ID do ministério inválido").optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -40,3 +49,5 @@ export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type PublicMemberRegisterInput = z.infer<typeof publicMemberRegisterSchema>;
+export type MemberInviteQueryInput = z.infer<typeof memberInviteQuerySchema>;
+export type MemberInviteBodyInput = z.infer<typeof memberInviteBodySchema>;

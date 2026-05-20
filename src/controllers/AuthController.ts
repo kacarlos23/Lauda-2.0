@@ -8,6 +8,8 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   publicMemberRegisterSchema,
+  memberInviteBodySchema,
+  memberInviteQuerySchema,
 } from "../validators/auth.schema";
 
 const authService = new AuthService();
@@ -77,12 +79,14 @@ export class AuthController extends BaseController {
   }
 
   async getMemberInvite(req: Request, res: Response): Promise<void> {
-    const result = await authService.getMemberInvite(req.user!.tenantId);
+    const input = memberInviteQuerySchema.parse(req.query);
+    const result = await authService.getMemberInvite(req.user!.tenantId, input.ministryId);
     this.handleSuccess(res, result);
   }
 
   async regenerateMemberInvite(req: Request, res: Response): Promise<void> {
-    const result = await authService.regenerateMemberInvite(req.user!.tenantId);
+    const input = memberInviteBodySchema.parse(req.body ?? {});
+    const result = await authService.regenerateMemberInvite(req.user!.tenantId, input.ministryId);
     this.handleSuccess(res, result, 201);
   }
 }

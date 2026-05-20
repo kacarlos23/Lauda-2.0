@@ -19,6 +19,12 @@ enum AssignmentStatus {
   DECLINED
 }
 
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
 model Tenant {
   id        String   @id @default(uuid())
   name      String
@@ -43,6 +49,9 @@ model MemberInvite {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  ministryId String?
+  ministry   Ministry? @relation(fields: [ministryId], references: [id], onDelete: Cascade)
+
   code      String    @unique
   active    Boolean   @default(true)
   expiresAt DateTime?
@@ -50,6 +59,7 @@ model MemberInvite {
   updatedAt DateTime  @updatedAt
 
   @@index([tenantId])
+  @@index([ministryId])
   @@index([active])
 }
 
@@ -85,6 +95,7 @@ model Ministry {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   members   MinistryMember[]
+  memberInvites MemberInvite[]
   schedules Schedule[]
   songs     MinistrySong[]
 
@@ -106,11 +117,18 @@ model MinistryMember {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  roleId    String?
+  role      String?
+  skills    String[]     @default([])
+  status    MemberStatus @default(PENDING)
+  joinedAt  DateTime     @default(now())
+  notes     String?
   isLeader  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([userId, ministryId])
   @@index([ministryId])
+  @@index([ministryId, status])
   @@index([tenantId])
 }
 

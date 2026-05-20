@@ -16,12 +16,12 @@ Lauda 2.0 is a SaaS project for managing church ministries, members, schedules, 
 
 ```text
 .
-├── src/                 # Backend API
-├── prisma/              # Prisma schema and migrations
-├── mobile/              # Expo/React Native app
-├── docker-compose.yml   # Local PostgreSQL service
-├── package.json         # Backend scripts and dependencies
-└── README.md
+|-- src/                 # Backend API
+|-- prisma/              # Prisma schema and migrations
+|-- mobile/              # Expo/React Native app
+|-- docker-compose.yml   # Local PostgreSQL service
+|-- package.json         # Backend scripts and dependencies
+`-- README.md
 ```
 
 ## Requirements
@@ -78,6 +78,85 @@ Build and run the compiled API:
 npm run build
 npm start
 ```
+
+Run automated tests:
+
+```bash
+npm test
+```
+
+The integration tests use Testcontainers and require Docker to be running.
+
+## Schedule API
+
+All schedule endpoints require `Authorization: Bearer <token>` and are scoped by the authenticated user's `tenantId`.
+
+### Endpoints
+
+`GET /api/schedules`
+
+Lists schedules from the authenticated tenant only.
+
+`POST /api/schedules`
+
+Creates a schedule.
+
+```json
+{
+  "title": "Culto de domingo",
+  "date": "2026-05-24T13:00:00.000Z",
+  "ministryId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+`POST /api/schedules/:id/assignments`
+
+Adds a member to a schedule.
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "role": "Vocal",
+  "status": "PENDING"
+}
+```
+
+`PATCH /api/schedules/:id/assignments/:assignmentId/status`
+
+Accepts, declines, or resets an assignment status.
+
+```json
+{
+  "status": "ACCEPTED"
+}
+```
+
+Allowed statuses: `PENDING`, `ACCEPTED`, `DECLINED`.
+
+`DELETE /api/schedules/:id/assignments/:assignmentId`
+
+Removes an assignment from a schedule.
+
+`GET /api/schedules/me`
+
+Lists only assignments and schedules for the authenticated user, including schedule, ministry, role, and status.
+
+### Permission Rules
+
+- `GLOBAL_ADMIN` and `TENANT_ADMIN` can create schedules and manage assignments for any ministry in their own tenant.
+- `MINISTRY_LEADER` can create schedules and manage assignments only for ministries where the user has a `MinistryMember` record with `isLeader = true`.
+- `MEMBER` cannot create schedules or manage assignments.
+- A member can update only their own schedule assignment status.
+- Cross-tenant access returns `404` for missing tenant-owned resources or `403` for forbidden actions.
+
+### Recommended Flow
+
+1. Admin creates a ministry with `POST /api/ministries`.
+2. Admin adds members to the tenant and ministries.
+3. Admin or ministry leader creates a schedule with `POST /api/schedules`.
+4. Admin or ministry leader adds assignments with `POST /api/schedules/:id/assignments`.
+5. Member accepts or declines with `PATCH /api/schedules/:id/assignments/:assignmentId/status`.
+6. Member views upcoming schedules with `GET /api/schedules/me`.
 
 ## Mobile Setup
 

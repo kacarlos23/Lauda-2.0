@@ -74,6 +74,16 @@ function createMemberWithRole(token: string, email: string, role: "MEMBER" | "MI
     });
 }
 
+async function createMinistry(token: string, name: string) {
+  const response = await request(app)
+    .post("/api/ministries")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ name, description: `Ministerio ${name}` })
+    .expect(201);
+
+  return response.body.data;
+}
+
 function expectInvitePayload(data: Record<string, unknown>) {
   expect(data).toMatchObject({
     id: expect.any(String),
@@ -282,6 +292,83 @@ describe("Members API", () => {
     expect(response.body.data.user.password).toBeUndefined();
   });
 
+  it("convite de ministerio cadastra membro e vincula automaticamente ao ministerio", async () => {
+    const tenant = await registerTenant("public-member-ministry-invite");
+    const ministry = await createMinistry(tenant.token, "Louvor Convite");
+
+    const invite = await request(app)
+      .get("/api/auth/member-invite")
+      .query({ ministryId: ministry.id })
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    expectInvitePayload(invite.body.data);
+    expect(invite.body.data).toMatchObject({
+      ministryId: ministry.id,
+      ministry: { id: ministry.id, name: "Louvor Convite" },
+    });
+
+    const response = await request(app)
+      .post("/api/auth/member-register")
+      .send({
+        inviteCode: invite.body.data.code,
+        name: "Membro Ministerio",
+        email: "public-ministry-invite@example.com",
+        password: "public123",
+      })
+      .expect(201);
+
+    const membership = await prisma.ministryMember.findUnique({
+      where: {
+        userId_ministryId: {
+          userId: response.body.data.user.id,
+          ministryId: ministry.id,
+        },
+      },
+    });
+
+    expect(membership).toMatchObject({
+      tenantId: tenant.user.tenantId,
+      isLeader: false,
+    });
+  });
+
+  it("login com codigo de convite vincula usuario existente ao ministerio", async () => {
+    const tenant = await registerTenant("login-member-ministry-invite");
+    const ministry = await createMinistry(tenant.token, "Recepcao Convite");
+    const createdMember = await createMember(tenant.token, "existing-ministry-invite@example.com");
+    expect(createdMember.status).toBe(201);
+
+    const invite = await request(app)
+      .get("/api/auth/member-invite")
+      .query({ ministryId: ministry.id })
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "existing-ministry-invite@example.com",
+        password: "member123",
+        inviteCode: invite.body.data.code,
+      })
+      .expect(200);
+
+    const membership = await prisma.ministryMember.findUnique({
+      where: {
+        userId_ministryId: {
+          userId: login.body.data.user.id,
+          ministryId: ministry.id,
+        },
+      },
+    });
+
+    expect(membership).toMatchObject({
+      tenantId: tenant.user.tenantId,
+      isLeader: false,
+    });
+  });
+
   it("POST /api/auth/member-register rejeita convite invalido", async () => {
     const response = await request(app)
       .post("/api/auth/member-register")
@@ -293,7 +380,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Convite invalido ou expirado");
+    expect(response.body.error).toBe("Convite inválido ou expirado");
   });
 
   it("POST /api/auth/member-register bloqueia email duplicado", async () => {
@@ -323,7 +410,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("E-mail ja esta em uso");
+    expect(response.body.error).toBe("E-mail já está em uso");
   });
 
   it("cadastro publico ignora role e cria sempre MEMBER sem criar tenant", async () => {

@@ -1,4 +1,5 @@
 export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
+export type MemberStatus = "PENDING" | "ACTIVE" | "INACTIVE";
 
 export interface User {
   id: string;
@@ -22,8 +23,25 @@ export interface MinistryMember {
   userId: string;
   user: Pick<User, 'id' | 'name' | 'email'>;
   ministryId: string;
+  ministry?: Pick<Ministry, "id" | "name" | "tenantId">;
+  roleId?: string | null;
+  role?: string | null;
+  skills: string[];
+  status: MemberStatus;
+  joinedAt: string;
+  notes?: string | null;
   isLeader: boolean;
   createdAt: string;
+}
+
+export interface PaginatedMinistryMembers {
+  items: MinistryMember[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface Member {

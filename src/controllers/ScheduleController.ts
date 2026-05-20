@@ -1,12 +1,21 @@
 import { Request, Response } from "express";
-import { ForbiddenError } from "../errors/AppError";
 import { BaseController } from "./BaseController";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
 import { ScheduleService } from "../services/scheduleService";
-import { createScheduleSchema } from "../validators/schedule.validator";
-import { Role } from "@prisma/client";
+import {
+  assignmentParamsSchema,
+  createAssignmentSchema,
+  createScheduleSchema,
+  updateAssignmentStatusSchema,
+  uuidParamSchema,
+} from "../validators/schedule.validator";
 
 export class ScheduleController extends BaseController {
+  private buildService(req: Request) {
+    const repo = new ScheduleRepository(req.user!.tenantId);
+    return new ScheduleService(repo);
+  }
+
   /**
    * Lists schedules for the authenticated tenant.
    *
@@ -15,9 +24,7 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async list(req: Request, res: Response): Promise<void> {
-    const repo = new ScheduleRepository(req.user!.tenantId);
-    const service = new ScheduleService(repo);
-    const schedules = await service.listAll();
+    const schedules = await this.buildService(req).listAll();
 
     this.handleSuccess(res, schedules);
   }
@@ -30,15 +37,54 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async create(req: Request, res: Response): Promise<void> {
-    if (req.user!.role !== Role.TENANT_ADMIN && req.user!.role !== Role.MINISTRY_LEADER) {
-      throw new ForbiddenError("Apenas administradores ou lideres de ministerio podem criar escalas");
-    }
-
     const input = createScheduleSchema.parse(req.body);
-    const repo = new ScheduleRepository(req.user!.tenantId);
-    const service = new ScheduleService(repo);
-    const schedule = await service.create(input);
+    const schedule = await this.buildService(req).createForUser(input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
 
     this.handleSuccess(res, schedule, 201);
+  }
+
+  async addAssignment(req: Request, res: Response): Promise<void> {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = createAssignmentSchema.parse(req.body);
+    const assignment = await this.buildService(req).addAssignment(id, input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, assignment, 201);
+  }
+
+  async updateAssignmentStatus(req: Request, res: Response): Promise<void> {
+    const params = assignmentParamsSchema.parse(req.params);
+    const input = updateAssignmentStatusSchema.parse(req.body);
+    const assignment = await this.buildService(req).updateAssignmentStatus(
+      params.id,
+      params.assignmentId,
+      input,
+      {
+        id: req.user!.id,
+        role: req.user!.role,
+      }
+    );
+
+    this.handleSuccess(res, assignment);
+  }
+
+  async removeAssignment(req: Request, res: Response): Promise<void> {
+    const params = assignmentParamsSchema.parse(req.params);
+    await this.buildService(req).removeAssignment(params.id, params.assignmentId, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, { message: "Atribuição removida da escala" });
+  }
+
+  async listMine(req: Request, res: Response): Promise<void> {
+    const schedules = await this.buildService(req).listMine(req.user!.id);
+    this.handleSuccess(res, schedules);
   }
 }

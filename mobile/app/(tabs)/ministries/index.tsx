@@ -2,26 +2,40 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
-  View,
+  TextInput,
   TouchableOpacity,
-  RefreshControl,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
-import { useMinistryStore } from "../../../src/store/ministryStore";
-import { useAuthStore } from "../../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { useAuthStore } from "../../../src/store/authStore";
+import { useMinistryStore } from "../../../src/store/ministryStore";
+import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 
 export default function MinistriesScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { ministries, loading, error, fetchMinistries, refreshing, setRefreshing } = useMinistryStore();
-  
+  const {
+    ministries,
+    loading,
+    error,
+    fetchMinistries,
+    refreshing,
+    setRefreshing,
+    createMinistry,
+    clearError,
+  } = useMinistryStore();
+
   const [showCreate, setShowCreate] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
 
@@ -34,6 +48,43 @@ export default function MinistriesScreen() {
     await fetchMinistries();
     setRefreshing(false);
   }, [fetchMinistries, setRefreshing]);
+
+  const openCreate = () => {
+    clearError();
+    setFormError(null);
+    setName("");
+    setDescription("");
+    setShowCreate(true);
+  };
+
+  const closeCreate = () => {
+    if (submitting) return;
+    setShowCreate(false);
+  };
+
+  const handleCreate = async () => {
+    const trimmedName = name.trim();
+    const trimmedDescription = description.trim();
+
+    if (trimmedName.length < 2) {
+      setFormError("Informe um nome com ao menos 2 caracteres.");
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError(null);
+    await createMinistry({
+      name: trimmedName,
+      description: trimmedDescription || undefined,
+    });
+    setSubmitting(false);
+
+    if (!useMinistryStore.getState().error) {
+      setShowCreate(false);
+      setName("");
+      setDescription("");
+    }
+  };
 
   if (loading && ministries.length === 0) {
     return (
@@ -49,27 +100,34 @@ export default function MinistriesScreen() {
         data={ministries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>Ministérios</Text>
             <Text style={styles.subtitle}>{ministries.length} grupo(s) ativo(s)</Text>
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTitle}>Nenhum ministério cadastrado</Text>
-            <Text style={styles.emptyText}>Crie ministérios para organizar equipes e escalas.</Text>
+            <Text style={styles.emptyText}>
+              {isAdmin
+                ? "Crie o primeiro ministério para organizar equipes e escalas."
+                : "Você ainda não está vinculado a nenhum ministério."}
+            </Text>
+            {isAdmin ? (
+              <TouchableOpacity style={styles.emptyButton} onPress={openCreate} accessibilityRole="button">
+                <Text style={styles.emptyButtonText}>Criar ministério</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.card} 
-            activeOpacity={0.7}
-            onPress={() => router.push(`/ministries/${item.id}` as any)}
+          <TouchableOpacity
+            style={styles.card}
+            activeOpacity={0.75}
+            onPress={() => router.push(`/ministries/${item.id}` as never)}
           >
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{item.name}</Text>
@@ -87,24 +145,55 @@ export default function MinistriesScreen() {
         )}
       />
 
-      {isAdmin && (
-        <TouchableOpacity 
-          style={styles.fab} 
-          activeOpacity={0.8}
-          onPress={() => setShowCreate(true)}
-        >
+      {isAdmin ? (
+        <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={openCreate} accessibilityRole="button">
           <Plus color={colors.surface} size={24} />
         </TouchableOpacity>
-      )}
+      ) : null}
 
-      {/* Exemplo de uso do BottomSheet - a ser implementado */}
-      <BottomSheet 
-        isOpen={showCreate} 
-        onClose={() => setShowCreate(false)} 
-        title="Novo Ministério"
+      <BottomSheet
+        isOpen={showCreate}
+        onClose={closeCreate}
+        title="Novo ministério"
+        footer={
+          <View style={styles.sheetActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={closeCreate} disabled={submitting}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, submitting && styles.buttonDisabled]}
+              onPress={handleCreate}
+              disabled={submitting}
+            >
+              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Criar</Text>}
+            </TouchableOpacity>
+          </View>
+        }
       >
-        <View style={{ padding: spacing.xl }}>
-          <Text style={{ color: colors.text }}>Formulário de criação virá aqui</Text>
+        <View style={styles.form}>
+          {formError || error ? <Text style={styles.formError}>{formError ?? error}</Text> : null}
+          <Text style={styles.label}>Nome *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex: Louvor"
+            placeholderTextColor={colors.muted}
+            value={name}
+            onChangeText={(value) => {
+              setName(value);
+              setFormError(null);
+            }}
+            autoFocus
+          />
+          <Text style={styles.label}>Descrição</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Descreva o objetivo deste ministério"
+            placeholderTextColor={colors.muted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            textAlignVertical="top"
+          />
         </View>
       </BottomSheet>
     </SafeAreaView>
@@ -124,7 +213,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 100, // Espaço para não cobrir o último item com o FAB
+    paddingBottom: 100,
   },
   header: { marginBottom: spacing.lg },
   title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
@@ -139,6 +228,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.sm },
   emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  emptyButton: {
+    alignSelf: "flex-start",
+    marginTop: spacing.lg,
+    minHeight: 42,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
@@ -179,4 +279,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...shadow,
   },
+  form: { padding: spacing.xl },
+  formError: {
+    backgroundColor: "#FDECEC",
+    borderColor: "#F0B8B8",
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  input: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    color: colors.ink,
+    fontSize: 15,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: spacing.lg,
+  },
+  textArea: { minHeight: 104 },
+  sheetActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    justifyContent: "flex-end",
+  },
+  cancelButton: {
+    minHeight: 44,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  saveButton: {
+    minHeight: 44,
+    minWidth: 96,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  saveButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  buttonDisabled: { opacity: 0.6 },
 });
