@@ -46,3 +46,21 @@ export interface Member {
     isLeader: boolean;
   }>;
 }
+
+export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+
+export interface MySchedule {
+  assignmentId: string;
+  status: AssignmentStatus;
+  role: string;
+  schedule: {
+    id: string;
+    title: string;
+    date: string;
+    ministryId: string;
+    ministry: {
+      id: string;
+      name: string;
+    };
+  };
+}

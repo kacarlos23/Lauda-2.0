@@ -69,7 +69,7 @@ export default function NewMemberScreen() {
 
   const validate = () => {
     if (!form.name.trim()) return "Informe o nome do membro.";
-    if (!isValidEmail(form.email.trim().toLowerCase())) return "Informe um e-mail valido.";
+    if (!isValidEmail(form.email.trim().toLowerCase())) return "Informe um e-mail válido.";
     if (form.password.length < 6) return "A senha provisória deve ter ao menos 6 caracteres.";
     return null;
   };

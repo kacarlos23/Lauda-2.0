@@ -280,6 +280,50 @@ O app salva o `tenant` no estado global de autenticação. A Home e o Perfil exi
 - `MINISTRY_LEADER`: Líder de ministério
 - `MEMBER`: Membro
 
+### Mobile — Minhas escalas
+
+O app mobile possui a aba **Escalas**, onde o membro autenticado vê suas próprias escalas da igreja atual. A tela mostra título da escala, data, ministério, função e status em português.
+
+O carregamento usa o service mobile de schedules para consumir:
+
+```http
+GET /api/schedules/me
+```
+
+A API deve responder no formato padrão:
+
+```json
+{
+  "success": true,
+  "data": []
+}
+```
+
+Quando uma escala está pendente, o app mostra as ações **Aceitar** e **Recusar**. Essas ações chamam:
+
+```http
+PATCH /api/schedules/:id/assignments/:assignmentId/status
+```
+
+com `status` igual a `ACCEPTED` ou `DECLINED`.
+
+Os status técnicos são exibidos ao usuário como:
+
+- `PENDING`: Pendente
+- `ACCEPTED`: Aceita
+- `DECLINED`: Recusada
+
+A Home também usa o mesmo estado de schedules para resumir as próximas escalas, mostrar a quantidade de pendências e oferecer o botão **Ver minhas escalas**.
+
+Comandos de validação do fluxo mobile:
+
+```bash
+cd mobile
+npm test
+npx tsc --noEmit
+npm run test:e2e
+```
+
 ## Verificação
 
 ```bash
