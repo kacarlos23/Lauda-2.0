@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 100, // Espaço para não cobrir o último item com o FAB
+    paddingBottom: 100, // Espaço para não cobrir o Ãºltimo item com o FAB
   },
   header: { marginBottom: spacing.lg },
   title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },

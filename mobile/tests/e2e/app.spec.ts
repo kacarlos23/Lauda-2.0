@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request } from "@playwright/test";
+﻿import { expect, test, type Page, type Request } from "@playwright/test";
 
 const adminUser = {
   id: "user-1",
@@ -8,7 +8,13 @@ const adminUser = {
   tenantId: "tenant-1",
 };
 
+const tenant = {
+  id: "tenant-1",
+  name: "Igreja Central",
+};
+
 const token = "test.jwt.token";
+const refreshToken = "test.refresh.token";
 
 async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
   await page.route("**/api/auth/login", async (route) => {
@@ -17,7 +23,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       await route.fulfill({
         status: 400,
         contentType: "application/json",
-        body: JSON.stringify({ error: "Credenciais invalidas" }),
+        body: JSON.stringify({ error: "Credenciais inválidas" }),
       });
       return;
     }
@@ -25,7 +31,9 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { token, user: { ...adminUser, email: body.email } } }),
+      body: JSON.stringify({
+        data: { token, accessToken: token, refreshToken, user: { ...adminUser, email: body.email }, tenant },
+      }),
     });
   });
 
@@ -37,7 +45,10 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       body: JSON.stringify({
         data: {
           token,
+          accessToken: token,
+          refreshToken,
           user: { ...adminUser, name: body.name ?? adminUser.name, email: body.email ?? adminUser.email },
+          tenant,
         },
       }),
     });
@@ -81,7 +92,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("redireciona usuario anonimo para login e bloqueia area autenticada", async ({ page }) => {
+test("redireciona usuário anonimo para login e bloqueia area autenticada", async ({ page }) => {
   await page.goto("/members");
 
   await expect(page.getByTestId("login-email")).toBeVisible();
@@ -100,14 +111,14 @@ test("valida campos obrigatorios no login antes de chamar a API", async ({ page 
   await expect(page.getByTestId("login-email")).toBeVisible();
 });
 
-test("faz login, envia token em requisicoes protegidas e nao persiste senha", async ({ page }) => {
+test("faz login, envia token em requisicoes protegidas e não persiste senha", async ({ page }) => {
   let ministriesRequest: Request | undefined;
   page.on("request", (request) => {
     if (request.url().includes("/api/ministries")) ministriesRequest = request;
   });
 
   await login(page);
-  await page.goto("/ministries");
+  await page.getByRole("tab", { name: /Ministérios/ }).click();
 
   await expect(page.getByText("Louvor")).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+﻿import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type express from "express";
 import request from "supertest";
@@ -81,7 +81,7 @@ afterAll(async () => {
 });
 
 describe("Ministries API - Isolamento Multi-Tenant", () => {
-  it("GET /api/ministries › deve retornar apenas ministérios do próprio tenant", async () => {
+  it("GET /api/ministries â€º deve retornar apenas ministérios do próprio tenant", async () => {
     // Registra Tenant A e Tenant B
     const tenantA = await registerTenant("tenant-a-min");
     const tenantB = await registerTenant("tenant-b-min");
@@ -119,7 +119,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     expect(resB.body.data[0].name).toBe("Ministry B1");
   });
 
-  it("POST /api/ministries › deve ser bloqueado para usuários com role MEMBER", async () => {
+  it("POST /api/ministries â€º deve ser bloqueado para usuários com role MEMBER", async () => {
     const tenantA = await registerTenant("tenant-member-test");
 
     // Cria um membro comum usando o token de admin
@@ -155,7 +155,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     expect(res.body.error).toBe("Apenas administradores podem criar ministérios");
   });
 
-  it("POST /api/ministries/:id/members › deve validar RBAC e adicionar/remover membro", async () => {
+  it("POST /api/ministries/:id/members â€º deve validar RBAC e adicionar/remover membro", async () => {
     const tenantA = await registerTenant("tenant-rbac-test");
 
     // Cria o ministério
@@ -167,7 +167,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     
     const ministryId = minRes.body.data.id;
 
-    // Cria 2 membros: um que será lider e outro comum
+    // Cria 2 membros: um que será líder e outro comum
     await request(app).post("/api/members").set("Authorization", `Bearer ${tenantA.token}`).send({ name: "Leader", email: "leader@example.com", password: "secretpassword", role: "MEMBER" }).expect(201);
     await request(app).post("/api/members").set("Authorization", `Bearer ${tenantA.token}`).send({ name: "User2", email: "user2@example.com", password: "secretpassword", role: "MEMBER" }).expect(201);
 
@@ -188,14 +188,14 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     expect(failRes.status).toBe(403);
     expect(failRes.body.error).toBe("Apenas o líder do ministério ou administradores podem gerenciar membros");
 
-    // Admin adiciona Leader como lider
+    // Admin adiciona Leader como líder
     await request(app)
       .post(`/api/ministries/${ministryId}/members`)
       .set("Authorization", `Bearer ${tenantA.token}`)
       .send({ userId: leaderId, isLeader: true })
       .expect(201);
 
-    // Leader adiciona User2 (deve funcionar pq Leader é lider)
+    // Leader adiciona User2 (deve funcionar pq Leader é líder)
     await request(app)
       .post(`/api/ministries/${ministryId}/members`)
       .set("Authorization", `Bearer ${leaderToken}`)

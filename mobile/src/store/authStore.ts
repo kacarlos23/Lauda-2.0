@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { AxiosError } from "axios";
 import { api } from "../services/api";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
-import { Role, User } from "../types";
+import { Role, Tenant, User } from "../types";
 
 type AuthResponse = {
   success: boolean;
@@ -12,6 +12,7 @@ type AuthResponse = {
     token?: string;
     refreshToken: string;
     user: User;
+    tenant: Tenant;
   };
 };
 
@@ -25,6 +26,7 @@ type JwtUserPayload = {
 
 interface AuthState {
   user: User | null;
+  tenant: Tenant | null;
   accessToken: string | null;
   token: string | null;
   loading: boolean;
@@ -39,7 +41,7 @@ interface AuthState {
     email: string;
     phone?: string;
     password: string;
-  }) => Promise<void>;
+  }) => Promise<Tenant>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
 }
@@ -92,6 +94,7 @@ async function persistSession(data: AuthResponse["data"]): Promise<string> {
   await setSessionItem("auth_token", accessToken);
   await setSessionItem("refresh_token", data.refreshToken);
   await setSessionItem("auth_user", JSON.stringify(data.user));
+  await setSessionItem("auth_tenant", JSON.stringify(data.tenant));
 
   return accessToken;
 }
@@ -100,10 +103,12 @@ async function clearSession(): Promise<void> {
   await deleteSessionItem("auth_token");
   await deleteSessionItem("refresh_token");
   await deleteSessionItem("auth_user");
+  await deleteSessionItem("auth_tenant");
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
+  tenant: null,
   accessToken: null,
   token: null,
   loading: false,
@@ -116,15 +121,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const storedToken = await getSessionItem("auth_token");
       const storedUser = await getSessionItem("auth_user");
+      const storedTenant = await getSessionItem("auth_tenant");
 
       if (!storedToken) {
-        set({ user: null, accessToken: null, token: null, loading: false, isLoading: false });
+        set({ user: null, tenant: null, accessToken: null, token: null, loading: false, isLoading: false });
         return;
       }
 
       const user = storedUser ? (JSON.parse(storedUser) as User) : userFromToken(storedToken);
+      const tenant = storedTenant ? (JSON.parse(storedTenant) as Tenant) : null;
       set({
         user,
+        tenant,
         accessToken: storedToken,
         token: storedToken,
         loading: false,
@@ -134,6 +142,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await clearSession();
       set({
         user: null,
+        tenant: null,
         accessToken: null,
         token: null,
         loading: false,
@@ -151,6 +160,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
+        tenant: response.data.data.tenant,
         accessToken,
         token: accessToken,
         loading: false,
@@ -177,6 +187,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
+        tenant: response.data.data.tenant,
         accessToken,
         token: accessToken,
         loading: false,
@@ -198,12 +209,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
+        tenant: response.data.data.tenant,
         accessToken,
         token: accessToken,
         loading: false,
         isLoading: false,
         error: null,
       });
+      return response.data.data.tenant;
     } catch (error) {
       const message = extractAuthError(error);
       set({ loading: false, isLoading: false, error: message });
@@ -215,6 +228,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     await clearSession();
     set({
       user: null,
+      tenant: null,
       accessToken: null,
       token: null,
       loading: false,

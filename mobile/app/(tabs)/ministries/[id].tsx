@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+﻿import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -133,7 +133,7 @@ export default function MinistryDetailsScreen() {
             </View>
             {item.isLeader && (
               <View style={styles.leaderBadge}>
-                <Text style={styles.leaderText}>👑 Líder</Text>
+                <Text style={styles.leaderText}>ðŸ‘‘ Líder</Text>
               </View>
             )}
           </View>

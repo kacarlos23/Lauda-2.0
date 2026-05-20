@@ -1,10 +1,14 @@
 import { Request, Response } from "express";
-import { ForbiddenError } from "../errors/AppError";
 import { BaseController } from "./BaseController";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
-import { ScheduleService } from "../services/scheduleService";
-import { createScheduleSchema } from "../validators/schedule.validator";
-import { Role } from "@prisma/client";
+import { AuthenticatedUser, ScheduleService } from "../services/scheduleService";
+import {
+  assignmentParamsSchema,
+  createAssignmentSchema,
+  createScheduleSchema,
+  updateAssignmentStatusSchema,
+  uuidParamsSchema,
+} from "../validators/schedule.validator";
 
 export class ScheduleController extends BaseController {
   /**
@@ -15,8 +19,7 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async list(req: Request, res: Response): Promise<void> {
-    const repo = new ScheduleRepository(req.user!.tenantId);
-    const service = new ScheduleService(repo);
+    const service = this.buildService(req);
     const schedules = await service.listAll();
 
     this.handleSuccess(res, schedules);
@@ -30,15 +33,60 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async create(req: Request, res: Response): Promise<void> {
-    if (req.user!.role !== Role.TENANT_ADMIN && req.user!.role !== Role.MINISTRY_LEADER) {
-      throw new ForbiddenError("Apenas administradores ou lideres de ministerio podem criar escalas");
-    }
-
     const input = createScheduleSchema.parse(req.body);
-    const repo = new ScheduleRepository(req.user!.tenantId);
-    const service = new ScheduleService(repo);
-    const schedule = await service.create(input);
+    const service = this.buildService(req);
+    const schedule = await service.create(input, this.getAuthenticatedUser(req));
 
     this.handleSuccess(res, schedule, 201);
+  }
+
+  async addAssignment(req: Request, res: Response): Promise<void> {
+    const { id } = uuidParamsSchema.parse(req.params);
+    const input = createAssignmentSchema.parse(req.body);
+    const service = this.buildService(req);
+    const assignment = await service.addAssignment(id, input, this.getAuthenticatedUser(req));
+
+    this.handleSuccess(res, assignment, 201);
+  }
+
+  async updateAssignmentStatus(req: Request, res: Response): Promise<void> {
+    const { id, assignmentId } = assignmentParamsSchema.parse(req.params);
+    const input = updateAssignmentStatusSchema.parse(req.body);
+    const service = this.buildService(req);
+    const assignment = await service.updateAssignmentStatus(
+      id,
+      assignmentId,
+      input,
+      this.getAuthenticatedUser(req)
+    );
+
+    this.handleSuccess(res, assignment);
+  }
+
+  async removeAssignment(req: Request, res: Response): Promise<void> {
+    const { id, assignmentId } = assignmentParamsSchema.parse(req.params);
+    const service = this.buildService(req);
+    await service.removeAssignment(id, assignmentId, this.getAuthenticatedUser(req));
+
+    this.handleSuccess(res, { deleted: true });
+  }
+
+  async listMine(req: Request, res: Response): Promise<void> {
+    const service = this.buildService(req);
+    const schedules = await service.listMine(this.getAuthenticatedUser(req));
+
+    this.handleSuccess(res, schedules);
+  }
+
+  private buildService(req: Request): ScheduleService {
+    return new ScheduleService(new ScheduleRepository(req.user!.tenantId));
+  }
+
+  private getAuthenticatedUser(req: Request): AuthenticatedUser {
+    return {
+      userId: req.user!.id,
+      role: req.user!.role,
+      tenantId: req.user!.tenantId,
+    };
   }
 }

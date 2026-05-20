@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+﻿import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../../context/tenantContext";
 import { prisma } from "../../config/prisma";
 
@@ -7,7 +7,7 @@ describe("Prisma tenant isolation extension", () => {
     await prisma.$disconnect();
   });
 
-  it("lança erro quando uma query autenticada nao possui tenantId no contexto", async () => {
+  it("lança erro quando uma query autenticada não possui tenantId no contexto", async () => {
     await expect(
       runWithTenantContext(
         { userId: "user-1", role: Role.TENANT_ADMIN, tenantId: "" },

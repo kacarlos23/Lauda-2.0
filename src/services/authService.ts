@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
@@ -30,7 +30,14 @@ const authRepository = new AuthRepository();
 const INVITE_CODE_BYTES = 24;
 
 export class AuthService {
-  private buildAuthResponse(user: { id: string; name: string; email: string; role: string; tenantId: string }) {
+  private buildAuthResponse(user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    tenantId: string;
+    tenant: { id: string; name: string };
+  }) {
     const accessToken = this.generateAccessToken({
       userId: user.id,
       email: user.email,
@@ -44,6 +51,7 @@ export class AuthService {
       token: accessToken,
       refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
+      tenant: user.tenant,
     };
   }
 
@@ -58,7 +66,7 @@ export class AuthService {
 
     const existing = await authRepository.findUserByEmail(email);
     if (existing) {
-      throw new ValidationError("E-mail ja esta em uso");
+      throw new ValidationError("E-mail já está em uso");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -71,23 +79,22 @@ export class AuthService {
     });
 
     const user = tenant.users[0];
-    const auth = this.buildAuthResponse({ ...user, tenantId: tenant.id });
-
-    return {
-      ...auth,
+    return this.buildAuthResponse({
+      ...user,
+      tenantId: tenant.id,
       tenant: { id: tenant.id, name: tenant.name },
-    };
+    });
   }
 
   async registerPublicMember(input: PublicMemberRegisterInput) {
     const invite = await authRepository.findActiveMemberInviteByCode(input.inviteCode);
     if (!invite) {
-      throw new ValidationError("Convite invalido ou expirado");
+      throw new ValidationError("Convite inválido ou expirado");
     }
 
     const existing = await authRepository.findUserByEmail(input.email);
     if (existing) {
-      throw new ValidationError("E-mail ja esta em uso");
+      throw new ValidationError("E-mail já está em uso");
     }
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
@@ -100,8 +107,7 @@ export class AuthService {
     });
 
     return {
-      ...this.buildAuthResponse(user),
-      tenant: invite.tenant,
+      ...this.buildAuthResponse({ ...user, tenant: invite.tenant }),
     };
   }
 
@@ -116,12 +122,12 @@ export class AuthService {
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) {
-      throw new NotFoundError("Usuario nao encontrado");
+      throw new NotFoundError("Usuário não encontrado");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedError("Credenciais invalidas");
+      throw new UnauthorizedError("Credenciais inválidas");
     }
 
     return this.buildAuthResponse(user);
@@ -141,21 +147,21 @@ export class AuthService {
         config.auth.refreshJwtSecret
       ) as RefreshTokenPayload;
     } catch {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     if (decoded.type !== "refresh") {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     const refreshUserId = decoded.userId ?? decoded.id;
     if (!refreshUserId) {
-      throw new UnauthorizedError("Refresh token invalido");
+      throw new UnauthorizedError("Refresh token inválido");
     }
 
     const user = await authRepository.findUserById(refreshUserId);
     if (!user) {
-      throw new UnauthorizedError("Usuario nao encontrado");
+      throw new UnauthorizedError("Usuário não encontrado");
     }
 
     return this.buildAuthResponse(user);
@@ -180,7 +186,7 @@ export class AuthService {
     const user = await authRepository.findUserByEmail(input.email);
     if (!user) {
       // Return generic success message to prevent email enumeration
-      return { success: true, message: "Se o e-mail existir, um codigo foi enviado." };
+      return { success: true, message: "Se o e-mail existir, um código foi enviado." };
     }
 
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
@@ -191,12 +197,12 @@ export class AuthService {
 
     console.log(`\n[EMAIL SIMULADO] ==========================`);
     console.log(`Para: ${user.email}`);
-    console.log(`Assunto: Recuperacao de Senha`);
-    console.log(`Seu codigo PIN e: ${pin}`);
-    console.log(`Valido por 15 minutos.`);
+    console.log(`Assunto: Recuperação de senha`);
+    console.log(`Seu código PIN é: ${pin}`);
+    console.log(`Válido por 15 minutos.`);
     console.log(`===========================================\n`);
 
-    return { success: true, message: "Se o e-mail existir, um codigo foi enviado." };
+    return { success: true, message: "Se o e-mail existir, um código foi enviado." };
   }
 
   /**
@@ -208,11 +214,11 @@ export class AuthService {
     const user = await authRepository.findUserByResetToken(token);
 
     if (!user || user.email !== email || !user.resetPasswordExpires) {
-      throw new ValidationError("PIN invalido ou expirado.");
+      throw new ValidationError("PIN inválido ou expirado.");
     }
 
     if (new Date() > user.resetPasswordExpires) {
-      throw new ValidationError("PIN expirado. Solicite um novo codigo.");
+      throw new ValidationError("PIN expirado. Solicite um novo código.");
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);

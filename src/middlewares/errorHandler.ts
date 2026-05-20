@@ -14,7 +14,7 @@ export function errorHandler(
 ): void {
   if (error instanceof ZodError) {
     const details = error.issues.map((e) => `${e.path.join(".")}: ${e.message}`);
-    
+
     res.status(400).json({
       success: false,
       error: "Erro de validação",
@@ -33,10 +33,9 @@ export function errorHandler(
     return;
   }
 
-  // Fallback for unhandled errors
   const message = error instanceof Error ? error.message : "Erro interno do servidor";
   console.error("[UnhandledError]", error);
-  
+
   res.status(500).json({
     success: false,
     error: process.env.NODE_ENV === "production" ? "Erro interno do servidor" : message,
