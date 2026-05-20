@@ -1,11 +1,11 @@
-```markdown
-# 🎯 Contexto do Projeto | Lauda-2.0
+﻿```markdown
+# ðŸŽ¯ Contexto do Projeto | Lauda-2.0
 
 Você é um engenheiro full-stack sênior especializado em SaaS multi-tenant com React Native + Node.js.
 
 **Objetivo imediato:** Implementar a camada mobile para o CRUD de Ministérios, conectando-se ao backend já existente.
 
-## 📦 Stack & Arquitetura
+## ðŸ“¦ Stack & Arquitetura
 
 | Camada | Tecnologias |
 |--------|------------|
@@ -14,42 +14,42 @@ Você é um engenheiro full-stack sênior especializado em SaaS multi-tenant com
 | **Auth** | JWT duplo (Access 15min + Refresh 7d) com renovação silenciosa |
 | **Multi-tenant** | Isolamento lógico via `tenantId` injetado no Prisma + RBAC |
 
-## 🗂️ Estrutura de Pastas (Mobile)
+## ðŸ—‚ï¸ Estrutura de Pastas (Mobile)
 
 mobile/
-├── app/(tabs)/
-│   ├── ministries/
-│   │   ├── index.tsx          # [TO-DO] Lista de ministérios
-│   │   └── [id].tsx           # [TO-DO] Detalhes + membros + ações
-│   └── _layout.tsx            # [EXISTENTE] Tabs navigation
-├── src/
-│   ├── services/
-│   │   ├── api.ts             # [EXISTENTE] Axios com interceptors
-│   │   └── ministryApi.ts     # [TO-DO] Chamadas específicas /ministries
-│   ├── store/
-│   │   ├── authStore.ts       # [EXISTENTE] Zustand auth + SecureStore
-│   │   └── ministryStore.ts   # [TO-DO] Estado reativo de ministérios
-│   ├── components/
-│   │   └── BottomSheet.tsx    # [OPTIONAL] Componente reutilizável
-│   ├── types/
-│   │   └── index.ts           # [TO-DO] Tipagem TypeScript compartilhada
-│   └── theme.ts               # [EXISTENTE] Design system com cores
+â”œâ”€â”€ app/(tabs)/
+â”‚   â”œâ”€â”€ ministries/
+â”‚   â”‚   â”œâ”€â”€ index.tsx          # [TO-DO] Lista de ministérios
+â”‚   â”‚   â””â”€â”€ [id].tsx           # [TO-DO] Detalhes + membros + ações
+â”‚   â””â”€â”€ _layout.tsx            # [EXISTENTE] Tabs navigation
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ services/
+â”‚   â”‚   â”œâ”€â”€ api.ts             # [EXISTENTE] Axios com interceptors
+â”‚   â”‚   â””â”€â”€ ministryApi.ts     # [TO-DO] Chamadas específicas /ministries
+â”‚   â”œâ”€â”€ store/
+â”‚   â”‚   â”œâ”€â”€ authStore.ts       # [EXISTENTE] Zustand auth + SecureStore
+â”‚   â”‚   â””â”€â”€ ministryStore.ts   # [TO-DO] Estado reativo de ministérios
+â”‚   â”œâ”€â”€ components/
+â”‚   â”‚   â””â”€â”€ BottomSheet.tsx    # [OPTIONAL] Componente reutilizável
+â”‚   â”œâ”€â”€ types/
+â”‚   â”‚   â””â”€â”€ index.ts           # [TO-DO] Tipagem TypeScript compartilhada
+â”‚   â””â”€â”€ theme.ts               # [EXISTENTE] Design system com cores
 
 
-## 🔐 Regras de Negócio Críticas (NÃO IGNORE)
+## Regras de Negócio Críticas (NÃO IGNORE)
 
-1. **Tenant Isolation**: Todas as requisições devem enviar o Access Token no header. O backend filtra automaticamente por `tenantId` — nunca confie no frontend para isso.
+1. **Tenant Isolation**: Todas as requisições devem enviar o Access Token no header. O backend filtra automaticamente por `tenantId` â€” nunca confie no frontend para isso.
 2. **RBAC Visual**: 
-   - Botão "Criar Ministério" → visível APENAS se `user.role === 'TENANT_ADMIN' || 'GLOBAL_ADMIN'`
-   - Botão "Adicionar Membro" → visível APENAS se `isAdmin || (user é líder DO ministério)`
-   - Ações de editar/excluir → mesmas regras acima
+   - Botão "Criar Ministério" â†’ visível APENAS se `user.role === 'TENANT_ADMIN' || 'GLOBAL_ADMIN'`
+   - Botão "Adicionar Membro" â†’ visível APENAS se `isAdmin || (user é líder DO ministério)`
+   - Ações de editar/excluir â†’ mesmas regras acima
 3. **Estados de UI**: Implementar loading skeletons, empty states e snackbars de erro com mensagens do backend (`errorHandler` retorna `{ error, code, details }`).
 
 ---
 
-# 🛠️ Tarefas de Execução (Ordem Obrigatória)
+# ðŸ› ï¸ Tarefas de Execução (Ordem Obrigatória)
 
-## 🔹 Tarefa 1: Tipagem Compartilhada (`mobile/src/types/index.ts`)
+## ðŸ”¹ Tarefa 1: Tipagem Compartilhada (`mobile/src/types/index.ts`)
 **Skill:** `@modern-javascript-patterns`
 
 > Defina interfaces TypeScript para `Ministry`, `MinistryMember` e `User` alinhadas ao schema Prisma.
@@ -85,10 +85,10 @@ export interface User {
 
 ---
 
-## 🔹 Tarefa 2: Camada de API (`mobile/src/services/ministryApi.ts`)
+## ðŸ”¹ Tarefa 2: Camada de API (`mobile/src/services/ministryApi.ts`)
 **Skill:** `@react-best-practices` + `@native-data-fetching`
 
-> Crie um módulo com funções tipadas para todas as rotas de ministérios, usando a instância Axios configurada.
+> Crie um módulo com funções tipadas para todas as rotas de ministérios, usando a instÃ¢ncia Axios configurada.
 
 ```typescript
 // Rotas obrigatórias:
@@ -101,14 +101,14 @@ export interface User {
 // DELETE /ministries/:id/members/:userId
 
 // Requisitos:
-// - Usar a instância `api` já configurada com interceptors de auth
+// - Usar a instÃ¢ncia `api` já configurada com interceptors de auth
 // - Tipar requests/responses com as interfaces de types/index.ts
 // - Lançar erros com mensagem legível para o usuário final
 ```
 
 ---
 
-## 🔹 Tarefa 3: Estado Global (`mobile/src/store/ministryStore.ts`)
+## ðŸ”¹ Tarefa 3: Estado Global (`mobile/src/store/ministryStore.ts`)
 **Skill:** `@senior-frontend` + `@react-best-practices`
 
 > Implemente um Zustand store reativo para gerenciar ministérios com loading, error e ações assíncronas.
@@ -137,7 +137,7 @@ export interface User {
 
 ---
 
-## 🔹 Tarefa 4: Tela de Listagem (`mobile/app/(tabs)/ministries/index.tsx`)
+## ðŸ”¹ Tarefa 4: Tela de Listagem (`mobile/app/(tabs)/ministries/index.tsx`)
 **Skill:** `@frontend-design` + `@mobile-design`
 
 > Construa uma lista elegante de cards com FlatList, skeletons, empty state e FAB condicional.
@@ -148,7 +148,7 @@ export interface User {
 - Skeleton loading enquanto busca dados
 - Empty state com ilustração + mensagem amigável + CTA para admin criar
 - FAB (botão flutuante) "+" visível APENAS para TENANT_ADMIN/GLOBAL_ADMIN
-- Toque no card → navega para `/ministries/[id]`
+- Toque no card â†’ navega para `/ministries/[id]`
 - Pull-to-refresh para recarregar lista
 - Snackbar de erro se `ministryStore.error` não for null
 
@@ -160,7 +160,7 @@ export interface User {
 
 ---
 
-## 🔹 Tarefa 5: Tela de Detalhes (`mobile/app/(tabs)/ministries/[id].tsx`)
+## ðŸ”¹ Tarefa 5: Tela de Detalhes (`mobile/app/(tabs)/ministries/[id].tsx`)
 **Skill:** `@frontend-design` + `@auth-implementation-patterns`
 
 > Exiba detalhes do ministério + lista de membros + ações condicionais por RBAC.
@@ -168,14 +168,14 @@ export interface User {
 ```tsx
 // Seções da tela:
 1. Header: Nome do ministério + descrição + botões de ação (editar/excluir)
-2. Lista de membros: avatar/nome + badge "👑 Líder" se `isLeader`
+2. Lista de membros: avatar/nome + badge "ðŸ‘‘ Líder" se `isLeader`
 3. FAB "Adicionar Membro" (visível apenas para isAdmin || isMinistryLeader)
 
 // Comportamentos:
 - Fetch de `ministry + members` ao montar (usar `useFocusEffect` do Expo Router)
-- Botão editar → abre BottomSheet com formulário pré-preenchido
-- Botão excluir → modal de confirmação → chama `deleteMinistry` → volta para lista
-- Toque em membro → (futuro) abre perfil ou opções de gestão
+- Botão editar â†’ abre BottomSheet com formulário pré-preenchido
+- Botão excluir â†’ modal de confirmação â†’ chama `deleteMinistry` â†’ volta para lista
+- Toque em membro â†’ (futuro) abre perfil ou opções de gestão
 - Badge de líder com cor diferenciada (ex: dourado do theme.ts)
 
 // RBAC Visual:
@@ -186,7 +186,7 @@ export interface User {
 
 ---
 
-## 🔹 Tarefa 6: Componente BottomSheet (Opcional, mas Recomendado)
+## ðŸ”¹ Tarefa 6: Componente BottomSheet (Opcional, mas Recomendado)
 **Skill:** `@minimalist-ui` + `@frontend-design`
 
 > Crie um componente reutilizável para formulários deslizantes (criar ministério, buscar membros).
@@ -213,14 +213,14 @@ export interface User {
 
 ---
 
-# 🧪 Critérios de Aceite (Validação Obrigatória)
+# ðŸ§ª Critérios de Aceite (Validação Obrigatória)
 
 ```markdown
 ## Funcional
 - [ ] `GET /ministries` retorna lista filtrada por tenant (validar com 2 usuários de tenants diferentes)
 - [ ] `POST /ministries` cria com `tenantId` correto e retorna 201
 - [ ] FAB "Criar" aparece APENAS para TENANT_ADMIN/GLOBAL_ADMIN
-- [ ] Badge "👑" aparece corretamente para `isLeader: true`
+- [ ] Badge "ðŸ‘‘" aparece corretamente para `isLeader: true`
 - [ ] Snackbar exibe erro do backend com mensagem legível (não "Internal Server Error")
 
 ## UX/UI
@@ -240,20 +240,20 @@ export interface User {
 
 ---
 
-# 🔄 Formato da Resposta Esperada
+# ðŸ”„ Formato da Resposta Esperada
 
 Para **cada tarefa**, forneça:
 
-1. 📄 **Código completo** do arquivo (pronto para copiar/colar)
-2. 🧪 **Exemplo de uso** ou teste manual para validar
-3. ⚠️ **Armadilhas comuns** e como evitá-las (ex: race condition no refresh)
-4. 🔗 **Referência** a docs oficiais quando relevante (Expo Router, Zustand, etc.)
+1. ðŸ“„ **Código completo** do arquivo (pronto para copiar/colar)
+2. ðŸ§ª **Exemplo de uso** ou teste manual para validar
+3. âš ï¸ **Armadilhas comuns** e como evitá-las (ex: race condition no refresh)
+4. ðŸ”— **Referência** a docs oficiais quando relevante (Expo Router, Zustand, etc.)
 
-> 💡 **Priorize clareza e segurança sobre otimização prematura.** Se uma decisão de arquitetura for ambígua, explique as opções e recomende uma com justificativa.
+> ðŸ’¡ **Priorize clareza e segurança sobre otimização prematura.** Se uma decisão de arquitetura for ambígua, explique as opções e recomende uma com justificativa.
 
 ---
 
-# 🚀 Dica de Execução
+# ðŸš€ Dica de Execução
 
 Execute **uma tarefa por vez** e valide antes de avançar:
 

@@ -1,4 +1,4 @@
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+﻿import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Shield, User } from "lucide-react-native";
@@ -6,8 +6,10 @@ import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, tenant, logout } = useAuthStore();
   const router = useRouter();
+  const ministries = user?.ministries ?? [];
+  const leaderMinistries = ministries.filter((item) => item.isLeader);
 
   const performLogout = async () => {
     await logout();
@@ -42,6 +44,7 @@ export default function ProfileScreen() {
 
           <Text style={styles.name}>{user?.name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
+          <Text style={styles.church}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
           <View style={styles.badge}>
             <Shield color={colors.primaryDark} size={14} strokeWidth={2.4} />
             <Text style={styles.badgeText}>{formatRole(user?.role)}</Text>
@@ -59,8 +62,20 @@ export default function ProfileScreen() {
             <Text style={styles.rowValue}>{user?.email}</Text>
           </View>
           <View style={styles.row}>
+            <Text style={styles.rowLabel}>Igreja atual</Text>
+            <Text style={styles.rowValue}>{tenant?.name ?? "Não identificada"}</Text>
+          </View>
+          <View style={styles.row}>
             <Text style={styles.rowLabel}>Permissão</Text>
             <Text style={styles.rowValue}>{formatRole(user?.role)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Ministérios</Text>
+            <Text style={styles.rowValue}>{formatMinistries(ministries)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Líderanças</Text>
+            <Text style={styles.rowValue}>{formatMinistries(leaderMinistries)}</Text>
           </View>
         </View>
 
@@ -76,11 +91,17 @@ export default function ProfileScreen() {
 function formatRole(role?: string) {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Líder da igreja",
+    TENANT_ADMIN: "Administrador da igreja",
     MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };
   return labels[role ?? ""] ?? "";
+}
+
+function formatMinistries(items: Array<{ ministry: { name: string }; isLeader: boolean }>) {
+  if (!items.length) return "Nenhum ministério vinculado";
+
+  return items.map((item) => item.ministry.name).join(", ");
 }
 
 const styles = StyleSheet.create({
@@ -112,7 +133,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   name: { fontSize: 24, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs, textAlign: "center" },
-  email: { fontSize: 14, color: colors.muted, marginBottom: spacing.lg, textAlign: "center" },
+  email: { fontSize: 14, color: colors.muted, marginBottom: spacing.sm, textAlign: "center" },
+  church: { fontSize: 14, color: colors.text, fontWeight: "800", marginBottom: spacing.lg, textAlign: "center" },
   badge: {
     backgroundColor: colors.primarySoft,
     borderRadius: radii.pill,

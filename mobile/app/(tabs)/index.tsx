@@ -1,11 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+﻿import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CalendarClock, ClipboardList, UsersRound } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 export default function DashboardScreen() {
-  const { user } = useAuthStore();
+  const { user, tenant } = useAuthStore();
   const firstName = user?.name?.split(" ")[0] ?? "Usuário";
 
   return (
@@ -14,6 +14,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Hoje</Text>
           <Text style={styles.greeting}>Olá, {firstName}</Text>
+          <Text style={styles.church}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
           <Text style={styles.role}>{formatRole(user?.role)}</Text>
         </View>
 
@@ -58,7 +59,7 @@ export default function DashboardScreen() {
 function formatRole(role?: string) {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Líder da igreja",
+    TENANT_ADMIN: "Administrador da igreja",
     MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };
@@ -87,6 +88,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.ink,
     marginBottom: spacing.sm,
+  },
+  church: {
+    fontSize: 15,
+    color: colors.text,
+    fontWeight: "800",
+    marginBottom: spacing.xs,
   },
   role: {
     fontSize: 15,

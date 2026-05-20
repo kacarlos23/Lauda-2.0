@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import { MemberRepository } from "../repositories/MemberRepository";
 import { CreateMemberInput } from "../validators/member.schema";
 import { NotFoundError, ValidationError } from "../errors/AppError";
@@ -30,12 +30,12 @@ export class MemberService {
   async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {
     const member = await this.memberRepository.findById(memberId);
     if (!member) {
-      throw new NotFoundError("Membro nÃ£o encontrado");
+      throw new NotFoundError("Membro não encontrado");
     }
 
     const ministry = await this.memberRepository.findMinistryById(ministryId);
     if (!ministry) {
-      throw new NotFoundError("MinistÃ©rio nÃ£o encontrado");
+      throw new NotFoundError("Ministério não encontrado");
     }
 
     return this.memberRepository.addMinistry(memberId, ministryId, isLeader);

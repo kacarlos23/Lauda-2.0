@@ -50,7 +50,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="ministries"
+        name="ministries/index"
         options={{
           title: "Ministérios",
           tabBarLabel: "Ministérios",
@@ -58,7 +58,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="members"
+        name="members/index"
         options={{
           title: "Membros",
           tabBarLabel: "Membros",
@@ -81,6 +81,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => tabIcon(User, color),
         }}
       />
+      <Tabs.Screen name="ministries/[id]" options={{ href: null }} />
+      <Tabs.Screen name="ministries/[id]/members" options={{ href: null }} />
+      <Tabs.Screen name="ministries/assign" options={{ href: null }} />
+      <Tabs.Screen name="ministries/my-assignments" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -49,7 +49,7 @@ export default function PublicMemberRegisterScreen() {
     const normalizedCode = inviteCode.trim();
 
     if (!normalizedCode) {
-      setError("Informe o codigo de convite.");
+      setError("Informe o código de convite.");
       return;
     }
 
@@ -69,7 +69,7 @@ export default function PublicMemberRegisterScreen() {
     }
 
     if (password !== confirm) {
-      setError("As senhas nao coincidem.");
+      setError("As senhas não coincidem.");
       return;
     }
 
@@ -77,13 +77,14 @@ export default function PublicMemberRegisterScreen() {
     setError(null);
 
     try {
-      await memberRegister({
+      const tenant = await memberRegister({
         inviteCode: normalizedCode,
         name: name.trim(),
         email: normalizedEmail,
         phone: phone.trim() || undefined,
         password,
       });
+      Alert.alert("Igreja atual", `Você está entrando na igreja: ${tenant.name}`);
       router.replace("/(tabs)");
     } catch (err) {
       const message = getErrorMessage(err);
@@ -110,7 +111,7 @@ export default function PublicMemberRegisterScreen() {
             <UserPlus color={colors.surface} size={26} strokeWidth={2.6} />
           </View>
           <Text style={styles.title}>Cadastro de membro</Text>
-          <Text style={styles.subtitle}>Use o link ou codigo fornecido pela sua igreja.</Text>
+          <Text style={styles.subtitle}>Use o link ou código fornecido pela sua igreja.</Text>
 
           {error ? (
             <Text style={styles.error} accessibilityRole="alert" testID="member-register-error">
@@ -118,12 +119,12 @@ export default function PublicMemberRegisterScreen() {
             </Text>
           ) : null}
 
-          <Text style={styles.label}>Codigo de convite *</Text>
+          <Text style={styles.label}>Código de convite *</Text>
           <View style={styles.inputGroup}>
             <LinkIcon color={colors.muted} size={18} strokeWidth={2.2} />
             <TextInput
               style={styles.groupInput}
-              placeholder="Codigo do convite"
+              placeholder="Código do convite"
               placeholderTextColor={colors.muted}
               autoCapitalize="none"
               value={inviteCode}
@@ -171,7 +172,7 @@ export default function PublicMemberRegisterScreen() {
           <Text style={styles.label}>Senha *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Minimo 6 caracteres"
+            placeholder="Mínimo 6 caracteres"
             placeholderTextColor={colors.muted}
             secureTextEntry
             value={password}

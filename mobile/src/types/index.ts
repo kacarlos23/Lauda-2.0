@@ -1,4 +1,9 @@
-export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
+﻿export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
+
+export interface Tenant {
+  id: string;
+  name: string;
+}
 
 export interface User {
   id: string;
@@ -6,6 +11,10 @@ export interface User {
   email: string;
   role: Role;
   tenantId: string;
+  ministries?: Array<{
+    ministry: { id: string; name: string };
+    isLeader: boolean;
+  }>;
 }
 
 export interface Ministry {

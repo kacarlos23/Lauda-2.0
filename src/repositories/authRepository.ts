@@ -1,7 +1,9 @@
 import { Prisma, User } from "@prisma/client";
 import { prisma } from "./prismaClient";
 
-export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "role" | "tenantId">;
+export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "role" | "tenantId"> & {
+  tenant: { id: string; name: string };
+};
 
 export class AuthRepository {
   /**
@@ -20,6 +22,7 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
+        tenant: { select: { id: true, name: true } },
       },
     });
   }
@@ -40,6 +43,7 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
+        tenant: { select: { id: true, name: true } },
       },
     });
   }
@@ -142,6 +146,7 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
+        tenant: { select: { id: true, name: true } },
       },
     });
   }

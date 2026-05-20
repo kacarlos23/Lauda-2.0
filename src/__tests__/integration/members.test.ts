@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+﻿import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type express from "express";
 import request from "supertest";
@@ -122,7 +122,7 @@ describe("Members API", () => {
     expect(stored?.tenantId).toBe(tenant.user.tenantId);
   });
 
-  it("bloqueia cadastro de membro por usuario sem permissao", async () => {
+  it("bloqueia cadastro de membro por usuário sem permissao", async () => {
     const tenant = await registerTenant("members-forbidden");
     await createMember(tenant.token, "common-forbidden@example.com");
 
@@ -175,7 +175,7 @@ describe("Members API", () => {
     expect(emails).not.toContain("tenant-b-member@example.com");
   });
 
-  it("permite login do usuario recem-criado", async () => {
+  it("permite login do usuário recem-criado", async () => {
     const tenant = await registerTenant("members-login");
     await createMember(tenant.token, "login-member@example.com");
 
@@ -221,7 +221,7 @@ describe("Members API", () => {
     expect(response.body.data.user.password).toBeUndefined();
   });
 
-  it("POST /api/auth/member-register rejeita convite invalido", async () => {
+  it("POST /api/auth/member-register rejeita convite inválido", async () => {
     const response = await request(app)
       .post("/api/auth/member-register")
       .send({
@@ -232,7 +232,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Convite invalido ou expirado");
+    expect(response.body.error).toBe("Convite inválido ou expirado");
   });
 
   it("POST /api/auth/member-register bloqueia email duplicado", async () => {
@@ -262,7 +262,7 @@ describe("Members API", () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("E-mail ja esta em uso");
+    expect(response.body.error).toBe("E-mail já está em uso");
   });
 
   it("cadastro publico ignora role e cria sempre MEMBER sem criar tenant", async () => {
@@ -316,7 +316,7 @@ describe("Members API", () => {
       .expect(200);
   });
 
-  it("endpoint de convite exige admin e regeneracao invalida codigo anterior", async () => {
+  it("endpoint de convite exige admin e regeneração invalida código anterior", async () => {
     const tenant = await registerTenant("public-member-admin");
     await createMember(tenant.token, "invite-common@example.com");
 
@@ -346,7 +346,7 @@ describe("Members API", () => {
       .post("/api/auth/member-register")
       .send({
         inviteCode: first.body.data.code,
-        name: "Codigo Antigo",
+        name: "Código Antigo",
         email: "old-code@example.com",
         password: "public123",
       })
