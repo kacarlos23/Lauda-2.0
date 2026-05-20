@@ -59,7 +59,7 @@ export default function PublicMemberRegisterScreen() {
     }
 
     if (!isValidEmail(normalizedEmail)) {
-      setError("Informe um e-mail valido.");
+      setError("Informe um e-mail válido.");
       return;
     }
 

@@ -74,7 +74,7 @@ export default function ProfileScreen() {
             <Text style={styles.rowValue}>{formatMinistries(ministries)}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Líderanças</Text>
+            <Text style={styles.rowLabel}>Lideranças</Text>
             <Text style={styles.rowValue}>{formatMinistries(leaderMinistries)}</Text>
           </View>
         </View>

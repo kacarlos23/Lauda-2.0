@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { Church, Home, User, Users } from "lucide-react-native";
+import { CalendarClock, Church, Home, User, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
 
@@ -47,6 +47,14 @@ export default function TabsLayout() {
           title: "Início",
           tabBarLabel: "Início",
           tabBarIcon: ({ color }) => tabIcon(Home, color),
+        }}
+      />
+      <Tabs.Screen
+        name="schedules/index"
+        options={{
+          title: "Escalas",
+          tabBarLabel: "Escalas",
+          tabBarIcon: ({ color }) => tabIcon(CalendarClock, color),
         }}
       />
       <Tabs.Screen
