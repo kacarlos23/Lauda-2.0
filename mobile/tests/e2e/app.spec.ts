@@ -107,7 +107,7 @@ test("faz login, envia token em requisicoes protegidas e nao persiste senha", as
   });
 
   await login(page);
-  await page.goto("/ministries");
+  await page.getByText("Ministérios").last().click();
 
   await expect(page.getByText("Louvor")).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);

@@ -27,10 +27,10 @@ export const resetPasswordSchema = z.object({
 });
 
 export const publicMemberRegisterSchema = z.object({
-  inviteCode: z.string().min(8, "Codigo de convite e obrigatorio"),
-  name: z.string().min(2, "Nome e obrigatorio"),
-  email: z.string().email("E-mail invalido"),
-  phone: z.string().optional(),
+  inviteCode: z.string().trim().min(16, "Codigo de convite e obrigatorio"),
+  name: z.string().trim().min(2, "Nome e obrigatorio"),
+  email: z.string().trim().toLowerCase().email("E-mail invalido"),
+  phone: z.string().trim().optional(),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
 });
 

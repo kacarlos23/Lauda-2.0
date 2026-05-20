@@ -62,6 +62,31 @@ async function createMember(token: string, email: string) {
   return response;
 }
 
+function createMemberWithRole(token: string, email: string, role: "MEMBER" | "MINISTRY_LEADER") {
+  return request(app)
+    .post("/api/members")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      name: `Usuario ${role}`,
+      email,
+      password: "member123",
+      role,
+    });
+}
+
+function expectInvitePayload(data: Record<string, unknown>) {
+  expect(data).toMatchObject({
+    id: expect.any(String),
+    code: expect.any(String),
+    active: true,
+    expiresAt: null,
+    createdAt: expect.any(String),
+    inviteLink: expect.any(String),
+  });
+  expect(data.inviteLink).toBe(`lauda://member-register?code=${data.code}`);
+  expect(String(data.code)).toMatch(/^[A-Za-z0-9_-]+$/);
+}
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
@@ -78,6 +103,7 @@ beforeAll(async () => {
   process.env.REFRESH_JWT_SECRET = "test_refresh_secret";
   process.env.JWT_EXPIRES_IN = "15m";
   process.env.REFRESH_JWT_EXPIRES_IN = "7d";
+  process.env.MEMBER_INVITE_BASE_URL = "lauda://member-register";
   process.env.NODE_ENV = "test";
 
   migrate(databaseUrl);
@@ -192,12 +218,47 @@ describe("Members API", () => {
     });
   });
 
+  it("admin obtem convite e GET cria um quando nao existe ativo", async () => {
+    const tenant = await registerTenant("invite-get-create");
+
+    expect(await prisma.memberInvite.count()).toBe(0);
+
+    const response = await request(app)
+      .get("/api/auth/member-invite")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    expectInvitePayload(response.body.data);
+    expect(await prisma.memberInvite.count()).toBe(1);
+  });
+
+  it("admin regenera convite e desativa o convite anterior", async () => {
+    const tenant = await registerTenant("invite-regenerate");
+
+    const first = await request(app)
+      .get("/api/auth/member-invite")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    const second = await request(app)
+      .post("/api/auth/member-invite/regenerate")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(201);
+
+    expectInvitePayload(second.body.data);
+    expect(second.body.data.code).not.toBe(first.body.data.code);
+
+    const oldInvite = await prisma.memberInvite.findUnique({ where: { code: first.body.data.code } });
+    expect(oldInvite?.active).toBe(false);
+  });
+
   it("POST /api/auth/member-register cadastra membro publico com convite valido", async () => {
     const tenant = await registerTenant("public-member-valid");
     const invite = await request(app)
       .get("/api/auth/member-invite")
       .set("Authorization", `Bearer ${tenant.token}`)
       .expect(200);
+    expectInvitePayload(invite.body.data);
 
     const response = await request(app)
       .post("/api/auth/member-register")
@@ -318,27 +379,49 @@ describe("Members API", () => {
 
   it("endpoint de convite exige admin e regeneracao invalida codigo anterior", async () => {
     const tenant = await registerTenant("public-member-admin");
-    await createMember(tenant.token, "invite-common@example.com");
+    await createMemberWithRole(tenant.token, "invite-common@example.com", "MEMBER").expect(201);
+    await createMemberWithRole(tenant.token, "invite-leader@example.com", "MINISTRY_LEADER").expect(201);
 
-    const login = await request(app)
+    const memberLogin = await request(app)
       .post("/api/auth/login")
       .send({ email: "invite-common@example.com", password: "member123" })
+      .expect(200);
+    const leaderLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "invite-leader@example.com", password: "member123" })
       .expect(200);
 
     await request(app)
       .get("/api/auth/member-invite")
-      .set("Authorization", `Bearer ${login.body.data.token}`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .expect(403);
+
+    await request(app)
+      .post("/api/auth/member-invite/regenerate")
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .expect(403);
+
+    await request(app)
+      .get("/api/auth/member-invite")
+      .set("Authorization", `Bearer ${leaderLogin.body.data.token}`)
+      .expect(403);
+
+    await request(app)
+      .post("/api/auth/member-invite/regenerate")
+      .set("Authorization", `Bearer ${leaderLogin.body.data.token}`)
       .expect(403);
 
     const first = await request(app)
       .get("/api/auth/member-invite")
       .set("Authorization", `Bearer ${tenant.token}`)
       .expect(200);
+    expectInvitePayload(first.body.data);
 
     const second = await request(app)
       .post("/api/auth/member-invite/regenerate")
       .set("Authorization", `Bearer ${tenant.token}`)
       .expect(201);
+    expectInvitePayload(second.body.data);
 
     expect(second.body.data.code).not.toBe(first.body.data.code);
 
@@ -351,5 +434,21 @@ describe("Members API", () => {
         password: "public123",
       })
       .expect(400);
+
+    const newInviteRegister = await request(app)
+      .post("/api/auth/member-register")
+      .send({
+        inviteCode: second.body.data.code,
+        name: "Codigo Novo",
+        email: "new-code@example.com",
+        password: "public123",
+      })
+      .expect(201);
+
+    expect(newInviteRegister.body.data.user).toMatchObject({
+      email: "new-code@example.com",
+      role: "MEMBER",
+      tenantId: tenant.user.tenantId,
+    });
   });
 });

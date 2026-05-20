@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
 import { NotFoundError, UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
@@ -28,6 +29,15 @@ interface AccessTokenPayload {
 
 const authRepository = new AuthRepository();
 const INVITE_CODE_BYTES = 24;
+const INVITE_CODE_CREATE_ATTEMPTS = 5;
+
+type MemberInviteView = {
+  id: string;
+  code: string;
+  active: boolean;
+  expiresAt: Date | string | null;
+  createdAt: Date | string;
+};
 
 export class AuthService {
   private buildAuthResponse(user: { id: string; name: string; email: string; role: string; tenantId: string }) {
@@ -80,12 +90,17 @@ export class AuthService {
   }
 
   async registerPublicMember(input: PublicMemberRegisterInput) {
-    const invite = await authRepository.findActiveMemberInviteByCode(input.inviteCode);
+    const inviteCode = input.inviteCode.trim();
+    const email = input.email.trim().toLowerCase();
+    const name = input.name.trim();
+    const phone = input.phone?.trim() || undefined;
+
+    const invite = await authRepository.findActiveMemberInviteByCode(inviteCode);
     if (!invite) {
       throw new ValidationError("Convite invalido ou expirado");
     }
 
-    const existing = await authRepository.findUserByEmail(input.email);
+    const existing = await authRepository.findUserByEmail(email);
     if (existing) {
       throw new ValidationError("E-mail ja esta em uso");
     }
@@ -93,9 +108,9 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(input.password, 10);
     const user = await authRepository.createPublicMember({
       tenantId: invite.tenantId,
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
+      name,
+      email,
+      phone,
       hashedPassword,
     });
 
@@ -163,14 +178,14 @@ export class AuthService {
 
   async getMemberInvite(tenantId: string) {
     const invite = await authRepository.findCurrentMemberInvite(tenantId);
-    if (invite) return invite;
+    if (invite) return this.formatMemberInvite(invite);
 
-    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId));
   }
 
   async regenerateMemberInvite(tenantId: string) {
     await authRepository.deactivateMemberInvites(tenantId);
-    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId));
   }
 
   /**
@@ -239,5 +254,38 @@ export class AuthService {
 
   private generateInviteCode(): string {
     return crypto.randomBytes(INVITE_CODE_BYTES).toString("base64url");
+  }
+
+  private async createMemberInviteWithRetry(tenantId: string): Promise<MemberInviteView> {
+    for (let attempt = 1; attempt <= INVITE_CODE_CREATE_ATTEMPTS; attempt += 1) {
+      try {
+        return await authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ValidationError("Nao foi possivel gerar um convite unico. Tente novamente.");
+  }
+
+  private formatMemberInvite(invite: MemberInviteView) {
+    const code = invite.code;
+    const baseUrl = config.memberInviteBaseUrl;
+    const separator = baseUrl.includes("?") ? "&" : "?";
+
+    return {
+      id: invite.id,
+      code,
+      active: invite.active,
+      expiresAt: invite.expiresAt ? new Date(invite.expiresAt).toISOString() : null,
+      createdAt: new Date(invite.createdAt).toISOString(),
+      inviteLink: `${baseUrl}${separator}code=${encodeURIComponent(code)}`,
+    };
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   }
 }

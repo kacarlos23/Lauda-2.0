@@ -87,7 +87,11 @@ export class AuthRepository {
 
   async findCurrentMemberInvite(tenantId: string) {
     return prisma.memberInvite.findFirst({
-      where: { tenantId, active: true },
+      where: {
+        tenantId,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
