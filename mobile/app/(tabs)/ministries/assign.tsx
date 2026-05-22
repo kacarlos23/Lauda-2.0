@@ -8,7 +8,7 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { MemberStatus, Ministry } from "../../../src/types";
 import { colors, radii, spacing } from "../../../src/theme";
 
-const statuses: MemberStatus[] = ["PENDING", "ACTIVE", "INACTIVE"];
+const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
 
 function canAssign(role?: string): boolean {
   return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
@@ -24,7 +24,7 @@ export default function AssignMemberScreen() {
   const [role, setRole] = useState("");
   const [skillsText, setSkillsText] = useState("");
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<MemberStatus>("PENDING");
+  const [status, setStatus] = useState<MemberStatus>("ACTIVE");
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -140,7 +140,7 @@ export default function AssignMemberScreen() {
           placeholderTextColor={colors.muted}
         />
 
-        <Text style={styles.label}>Status</Text>
+        <Text style={styles.label}>Situacao no ministerio</Text>
         <View style={styles.chips}>
           {statuses.map((item) => (
             <TouchableOpacity

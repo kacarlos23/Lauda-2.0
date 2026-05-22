@@ -81,7 +81,7 @@ export class MemberRepository {
     return prisma.ministryMember.upsert({
       where: { userId_ministryId: { userId, ministryId } },
       update: { isLeader, tenantId: this.tenantId },
-      create: { userId, ministryId, isLeader, tenantId: this.tenantId },
+      create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
       include: {
         ministry: { select: { id: true, name: true } },
       },

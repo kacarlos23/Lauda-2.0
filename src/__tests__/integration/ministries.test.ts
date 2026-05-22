@@ -255,11 +255,12 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .expect(201);
 
     // Leader adiciona User2 (deve funcionar pq Leader é lider)
-    await request(app)
+    const leaderAssignment = await request(app)
       .post(`/api/ministries/${ministryId}/members`)
       .set("Authorization", `Bearer ${leaderToken}`)
       .send({ userId: user2Id, isLeader: false })
       .expect(201);
+    expect(leaderAssignment.body.data.status).toBe("ACTIVE");
 
     // Leader remove User2
     await request(app)
@@ -371,6 +372,11 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       member_id: member.id,
       ministry_id: ministry.id,
     });
+
+    const membership = await prisma.ministryMember.findUnique({
+      where: { userId_ministryId: { userId: member.id, ministryId: ministry.id } },
+    });
+    expect(membership?.status).toBe("ACTIVE");
 
     await request(app)
       .post(`/api/ministries/${ministry.id}/toggle-member`)

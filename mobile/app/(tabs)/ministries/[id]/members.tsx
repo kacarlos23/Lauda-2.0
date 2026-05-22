@@ -8,7 +8,7 @@ import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
 import { colors, radii, spacing } from "../../../../src/theme";
 
-const statuses: Array<MemberStatus | "ALL"> = ["ALL", "PENDING", "ACTIVE", "INACTIVE"];
+const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
 
 function canAssign(role?: string): boolean {
   return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
@@ -17,8 +17,8 @@ function canAssign(role?: string): boolean {
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     ALL: "Todos",
-    PENDING: "Pendente",
-    ACTIVE: "Ativo",
+    PENDING: "Vinculo pendente",
+    ACTIVE: "Vinculado",
     INACTIVE: "Inativo",
   };
   return labels[status] ?? status;

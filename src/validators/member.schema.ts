@@ -38,7 +38,7 @@ const assignmentFieldsSchema = z.object({
   roleId: z.string().uuid("ID do cargo inválido").optional().nullable(),
   role: z.string().trim().min(2, "Cargo deve ter ao menos 2 caracteres").max(80).optional().nullable(),
   skills: z.array(z.string().trim().min(1).max(40)).max(20).optional().default([]),
-  status: memberStatusSchema.optional().default("PENDING"),
+  status: memberStatusSchema.optional().default("ACTIVE"),
   notes: z.string().trim().max(500).optional().nullable(),
   isLeader: z.boolean().optional().default(false),
 });

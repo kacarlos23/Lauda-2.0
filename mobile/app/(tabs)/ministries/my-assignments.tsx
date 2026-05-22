@@ -8,8 +8,8 @@ import { colors, radii, spacing } from "../../../src/theme";
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
-    PENDING: "Pendente",
-    ACTIVE: "Ativo",
+    PENDING: "Vinculo pendente",
+    ACTIVE: "Vinculado",
     INACTIVE: "Inativo",
   };
   return labels[status] ?? status;
