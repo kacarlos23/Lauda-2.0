@@ -1,11 +1,5 @@
 import { prisma } from "./prismaClient";
-import { CreateScheduleInput } from "../validators/schedule.schema";
-
-export type CreateScheduleAssignmentData = {
-  scheduleId: string;
-  userId: string;
-  role: string;
-};
+import { CreateAssignmentInput, CreateScheduleInput, UpdateAssignmentStatusInput } from "../validators/schedule.schema";
 
 export class ScheduleRepository {
   constructor(private readonly tenantId: string) {}
@@ -48,25 +42,23 @@ export class ScheduleRepository {
     });
   }
 
-  findUserById(userId: string) {
+  findTenantUserById(userId: string) {
     return prisma.user.findFirst({
       where: { id: userId, tenantId: this.tenantId },
-      select: { id: true },
+      select: { id: true, name: true, email: true, tenantId: true },
     });
   }
 
-  isUserLeaderOfMinistry(userId: string, ministryId: string) {
-    return prisma.ministryMember
-      .findFirst({
-        where: {
-          userId,
-          ministryId,
-          tenantId: this.tenantId,
-          isLeader: true,
-        },
-        select: { id: true },
-      })
-      .then(Boolean);
+  findMinistryLeadership(ministryId: string, userId: string) {
+    return prisma.ministryMember.findFirst({
+      where: {
+        ministryId,
+        userId,
+        tenantId: this.tenantId,
+        isLeader: true,
+      },
+      select: { id: true },
+    });
   }
 
   /**
@@ -86,22 +78,30 @@ export class ScheduleRepository {
     });
   }
 
-  createAssignment(data: CreateScheduleAssignmentData) {
+  createAssignment(scheduleId: string, data: CreateAssignmentInput) {
     return prisma.scheduleAssignment.create({
       data: {
-        scheduleId: data.scheduleId,
+        scheduleId,
         userId: data.userId,
         role: data.role,
+        status: data.status,
         tenantId: this.tenantId,
-        status: "PENDING",
       },
       include: {
         user: { select: { id: true, name: true, email: true } },
+        schedule: {
+          select: {
+            id: true,
+            title: true,
+            date: true,
+            ministry: { select: { id: true, name: true } },
+          },
+        },
       },
     });
   }
 
-  findAssignmentById(scheduleId: string, assignmentId: string) {
+  findAssignment(scheduleId: string, assignmentId: string) {
     return prisma.scheduleAssignment.findFirst({
       where: {
         id: assignmentId,
@@ -113,18 +113,31 @@ export class ScheduleRepository {
         schedule: {
           select: {
             id: true,
+            title: true,
+            date: true,
             ministryId: true,
-            tenantId: true,
+            ministry: { select: { id: true, name: true } },
           },
         },
+        user: { select: { id: true, name: true, email: true } },
       },
     });
   }
 
-  updateAssignmentStatus(assignmentId: string, status: "PENDING" | "ACCEPTED" | "DECLINED") {
-    return prisma.scheduleAssignment.updateMany({
+  updateAssignmentStatus(assignmentId: string, data: UpdateAssignmentStatusInput) {
+    return prisma.scheduleAssignment.update({
       where: { id: assignmentId, tenantId: this.tenantId },
-      data: { status },
+      data: { status: data.status },
+      include: {
+        schedule: {
+          select: {
+            id: true,
+            title: true,
+            date: true,
+            ministry: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
   }
 

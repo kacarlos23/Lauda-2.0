@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { CalendarClock, Church, Home, User, Users } from "lucide-react-native";
+import { Church, Home, User, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
 
@@ -50,19 +50,42 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="schedules/index"
-        options={{
-          title: "Escalas",
-          tabBarLabel: "Escalas",
-          tabBarIcon: ({ color }) => tabIcon(CalendarClock, color),
-        }}
-      />
-      <Tabs.Screen
         name="ministries/index"
         options={{
           title: "Ministérios",
           tabBarLabel: "Ministérios",
           tabBarIcon: ({ color }) => tabIcon(Church, color),
+          href: "/ministries",
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/[id]"
+        options={{
+          title: "Ministério",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/[id]/members"
+        options={{
+          title: "Membros do ministerio",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/assign"
+        options={{
+          title: "Atribuir membro",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="ministries/my-assignments"
+        options={{
+          title: "Meus ministerios",
+          tabBarLabel: "Meus",
+          tabBarIcon: ({ color }) => tabIcon(UserCheck, color),
+          href: "/ministries/my-assignments",
         }}
       />
       <Tabs.Screen
@@ -89,10 +112,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => tabIcon(User, color),
         }}
       />
-      <Tabs.Screen name="ministries/[id]" options={{ href: null }} />
-      <Tabs.Screen name="ministries/[id]/members" options={{ href: null }} />
-      <Tabs.Screen name="ministries/assign" options={{ href: null }} />
-      <Tabs.Screen name="ministries/my-assignments" options={{ href: null }} />
     </Tabs>
   );
 }

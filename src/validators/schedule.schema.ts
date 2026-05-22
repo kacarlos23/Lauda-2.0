@@ -2,17 +2,11 @@ export {
   AssignmentStatusSchema,
   CreateAssignmentSchema,
   CreateScheduleSchema,
-  UuidParamsSchema,
-  AssignmentParamsSchema,
   UpdateAssignmentStatusSchema,
+  assignmentParamsSchema,
   createAssignmentSchema,
   createScheduleSchema,
   updateAssignmentStatusSchema,
-  uuidParamsSchema,
-  assignmentParamsSchema,
+  uuidParamSchema,
 } from "./schedule.validator";
-export type {
-  CreateAssignmentInput,
-  CreateScheduleInput,
-  UpdateAssignmentStatusInput,
-} from "./schedule.validator";
+export type { CreateAssignmentInput, CreateScheduleInput, UpdateAssignmentStatusInput } from "./schedule.validator";

@@ -1,4 +1,4 @@
-﻿import bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 import { MemberRepository } from "../repositories/MemberRepository";
 import { CreateMemberInput } from "../validators/member.schema";
 import { NotFoundError, ValidationError } from "../errors/AppError";

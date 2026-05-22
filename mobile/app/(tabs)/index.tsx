@@ -1,29 +1,12 @@
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { CalendarClock, ClipboardList, UsersRound } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
-import { useScheduleStore } from "../../src/store/scheduleStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
-import {
-  countPendingSchedules,
-  formatAssignmentStatus,
-  formatScheduleDate,
-  getNextSchedule,
-} from "../../src/utils/scheduleFormat";
 
 export default function DashboardScreen() {
-  const router = useRouter();
-  const { user, tenant } = useAuthStore();
-  const { mySchedules, loadMySchedules } = useScheduleStore();
+  const { user } = useAuthStore();
   const firstName = user?.name?.split(" ")[0] ?? "Usuário";
-  const pendingCount = countPendingSchedules(mySchedules);
-  const nextSchedule = getNextSchedule(mySchedules);
-
-  useEffect(() => {
-    void loadMySchedules();
-  }, [loadMySchedules]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
@@ -31,20 +14,19 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Hoje</Text>
           <Text style={styles.greeting}>Olá, {firstName}</Text>
-          <Text style={styles.church}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
           <Text style={styles.role}>{formatRole(user?.role)}</Text>
         </View>
 
         <View style={styles.summaryRow}>
           <View style={styles.metric}>
             <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{pendingCount}</Text>
-            <Text style={styles.metricLabel}>Escalas pendentes</Text>
+            <Text style={styles.metricValue}>0</Text>
+            <Text style={styles.metricLabel}>Escalas abertas</Text>
           </View>
           <View style={styles.metric}>
             <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{mySchedules.length}</Text>
-            <Text style={styles.metricLabel}>Escalas no app</Text>
+            <Text style={styles.metricValue}>0</Text>
+            <Text style={styles.metricLabel}>Convites pendentes</Text>
           </View>
         </View>
 
@@ -53,27 +35,12 @@ export default function DashboardScreen() {
             <ClipboardList color={colors.primary} size={22} strokeWidth={2.4} />
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardKicker}>Próximas escalas</Text>
-              <Text style={styles.cardTitle}>
-                {nextSchedule ? nextSchedule.schedule.title : "Sem compromissos agendados"}
-              </Text>
+              <Text style={styles.cardTitle}>Sem compromissos agendados</Text>
             </View>
           </View>
-          {nextSchedule ? (
-            <View>
-              <Text style={styles.cardBody}>
-                {nextSchedule.schedule.ministry.name} • {nextSchedule.role}
-              </Text>
-              <Text style={styles.cardMetaLine}>{formatScheduleDate(nextSchedule.schedule.date)}</Text>
-              <Text style={styles.cardMetaLine}>Status: {formatAssignmentStatus(nextSchedule.status)}</Text>
-            </View>
-          ) : (
-            <Text style={styles.cardBody}>
-              Quando uma escala for publicada, ela aparecerá aqui com data, ministério e função.
-            </Text>
-          )}
-          <TouchableOpacity style={styles.linkButton} onPress={() => router.push("/schedules" as never)}>
-            <Text style={styles.linkButtonText}>Ver minhas escalas</Text>
-          </TouchableOpacity>
+          <Text style={styles.cardBody}>
+            Quando uma escala for publicada, ela aparecerá aqui com data, horário e ministério.
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -91,7 +58,7 @@ export default function DashboardScreen() {
 function formatRole(role?: string) {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Administrador da igreja",
+    TENANT_ADMIN: "Líder da igreja",
     MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };
@@ -120,12 +87,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.ink,
     marginBottom: spacing.sm,
-  },
-  church: {
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: "800",
-    marginBottom: spacing.xs,
   },
   role: {
     fontSize: 15,
@@ -182,21 +143,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   cardBody: { fontSize: 15, lineHeight: 22, color: colors.muted },
-  cardMetaLine: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.text,
-    fontWeight: "700",
-    marginTop: spacing.xs,
-  },
-  linkButton: {
-    alignSelf: "flex-start",
-    marginTop: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  linkButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
 });
-

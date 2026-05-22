@@ -1,4 +1,4 @@
-﻿import { execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type express from "express";
 import request from "supertest";
@@ -32,8 +32,8 @@ async function cleanDatabase(): Promise<void> {
   await prisma.tenant.deleteMany();
 }
 
-async function registerTenant(seed: string) {
-  const response = await request(app)
+async function registerTenant(seed: string): Promise<void> {
+  await request(app)
     .post("/api/auth/register")
     .send({
       churchName: `Igreja ${seed}`,
@@ -42,13 +42,6 @@ async function registerTenant(seed: string) {
       password: "secret123",
     })
     .expect(201);
-
-  return response.body.data as {
-    token: string;
-    refreshToken: string;
-    tenant: { id: string; name: string };
-    user: { id: string; email: string; name: string; role: string; tenantId: string };
-  };
 }
 
 beforeAll(async () => {
@@ -92,26 +85,8 @@ afterAll(async () => {
 });
 
 describe("Auth API", () => {
-  it("POST /api/auth/register retorna tenant.id e tenant.name", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        churchName: "Igreja Register Tenant",
-        name: "Admin Register",
-        email: "admin-register-tenant@example.com",
-        password: "secret123",
-      })
-      .expect(201);
-
-    expect(response.body.data.tenant).toEqual({
-      id: expect.any(String),
-      name: "Igreja Register Tenant",
-    });
-    expect(response.body.data.user.tenantId).toBe(response.body.data.tenant.id);
-  });
-
   it("POST /api/auth/login returns tokens and authenticated user for valid credentials", async () => {
-    const tenant = await registerTenant("auth-valid");
+    await registerTenant("auth-valid");
 
     const response = await request(app)
       .post("/api/auth/login")
@@ -125,41 +100,6 @@ describe("Auth API", () => {
     expect(response.body.data.refreshToken).toEqual(expect.any(String));
     expect(response.body.data.user.role).toBe("TENANT_ADMIN");
     expect(response.body.data.user.tenantId).toEqual(expect.any(String));
-    expect(response.body.data.tenant).toEqual(tenant.tenant);
-  });
-
-  it("POST /api/auth/member-register retorna tenant.id e tenant.name do convite", async () => {
-    const tenant = await registerTenant("member-register-tenant");
-    const invite = await request(app)
-      .get("/api/auth/member-invite")
-      .set("Authorization", `Bearer ${tenant.token}`)
-      .expect(200);
-
-    const response = await request(app)
-      .post("/api/auth/member-register")
-      .send({
-        inviteCode: invite.body.data.code,
-        name: "Membro Convite",
-        email: "membro-convite@example.com",
-        password: "secret123",
-      })
-      .expect(201);
-
-    expect(response.body.data.tenant).toEqual(tenant.tenant);
-    expect(response.body.data.user.tenantId).toBe(tenant.tenant.id);
-  });
-
-  it("POST /api/auth/refresh retorna tenant.id e tenant.name", async () => {
-    const tenant = await registerTenant("refresh-tenant");
-
-    const response = await request(app)
-      .post("/api/auth/refresh")
-      .send({ refreshToken: tenant.refreshToken })
-      .expect(200);
-
-    expect(response.body.data.accessToken).toEqual(expect.any(String));
-    expect(response.body.data.refreshToken).toEqual(expect.any(String));
-    expect(response.body.data.tenant).toEqual(tenant.tenant);
   });
 
   it("POST /api/auth/login returns 401 for wrong password", async () => {

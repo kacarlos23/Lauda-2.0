@@ -1,13 +1,14 @@
-﻿import { api } from "./api";
-import { Ministry, MinistryMember } from "../types";
+import { api } from "./api";
+import { MemberStatus, Ministry, MinistryMember, PaginatedMinistryMembers } from "../types";
 import { AxiosError } from "axios";
 
 /**
  * Extracts and throws a user-friendly error from the Axios response, if available.
  */
 function handleApiError(error: unknown): never {
-  if (error instanceof AxiosError) {
-    const message = error.response?.data?.error || error.response?.data?.message || "Erro desconhecido";
+  if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
+    const response = (error as AxiosError<{ error?: string; message?: string }>).response;
+    const message = response?.data?.error || response?.data?.message || "Erro desconhecido";
     throw new Error(message);
   }
   if (error instanceof Error) {
@@ -88,6 +89,78 @@ export const ministryApi = {
   async removeMember(ministryId: string, userId: string): Promise<void> {
     try {
       await api.delete(`/ministries/${ministryId}/members/${userId}`);
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async toggleMinistryMember(
+    ministryId: string,
+    memberId: string
+  ): Promise<{ status: "linked" | "unlinked"; member_id: string; ministry_id: string }> {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { status: "linked" | "unlinked"; member_id: string; ministry_id: string };
+      }>(`/ministries/${ministryId}/toggle-member`, { member_id: memberId });
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async assignMember(data: {
+    ministryId: string;
+    userId: string;
+    role?: string;
+    skills?: string[];
+    status?: MemberStatus;
+    notes?: string;
+    isLeader?: boolean;
+  }): Promise<MinistryMember> {
+    try {
+      const response = await api.post<{ success: boolean; data: MinistryMember }>("/ministries/assign", data);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updateAssignment(data: {
+    assignmentId: string;
+    role?: string | null;
+    skills?: string[];
+    status?: MemberStatus;
+    notes?: string | null;
+    isLeader?: boolean;
+  }): Promise<MinistryMember> {
+    try {
+      const response = await api.patch<{ success: boolean; data: MinistryMember }>("/ministries/assignment", data);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async listMembers(
+    ministryId: string,
+    params?: { status?: MemberStatus; search?: string; page?: number; limit?: number }
+  ): Promise<PaginatedMinistryMembers> {
+    try {
+      const response = await api.get<{ success: boolean; data: PaginatedMinistryMembers }>(
+        `/ministries/${ministryId}/members`,
+        { params }
+      );
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async getMyAssignments(): Promise<MinistryMember[]> {
+    try {
+      const response = await api.get<{ success: boolean; data: MinistryMember[] }>("/members/me/ministries");
+      return response.data.data;
     } catch (error) {
       handleApiError(error);
     }

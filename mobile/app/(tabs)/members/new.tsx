@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -69,8 +69,8 @@ export default function NewMemberScreen() {
 
   const validate = () => {
     if (!form.name.trim()) return "Informe o nome do membro.";
-    if (!isValidEmail(form.email.trim().toLowerCase())) return "Informe um e-mail válido.";
-    if (form.password.length < 6) return "A senha provisória deve ter ao menos 6 caracteres.";
+    if (!isValidEmail(form.email.trim().toLowerCase())) return "Informe um e-mail valido.";
+    if (form.password.length < 6) return "A senha provisoria deve ter ao menos 6 caracteres.";
     return null;
   };
 
@@ -165,17 +165,17 @@ export default function NewMemberScreen() {
             onChangeText={(value) => setField("phone", value)}
           />
 
-          <Text style={styles.label}>Senha provisória *</Text>
+          <Text style={styles.label}>Senha provisoria *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Minimo 6 caracteres"
             placeholderTextColor={colors.muted}
             secureTextEntry
             value={form.password}
             onChangeText={(value) => setField("password", value)}
           />
 
-          <Text style={styles.label}>Tipo de usuário</Text>
+          <Text style={styles.label}>Tipo de usuario</Text>
           <View style={styles.segment}>
             {(["MEMBER", "MINISTRY_LEADER"] as ManagedRole[]).map((role) => {
               const selected = form.role === role;
@@ -186,26 +186,26 @@ export default function NewMemberScreen() {
                   onPress={() => setField("role", role)}
                 >
                   <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
-                    {role === "MEMBER" ? "Membro" : "Líder"}
+                    {role === "MEMBER" ? "Membro" : "Lider"}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <Text style={styles.label}>Ministério vinculado</Text>
+          <Text style={styles.label}>Ministerio vinculado</Text>
           <View style={styles.ministryBox}>
             {ministriesLoading ? (
               <ActivityIndicator color={colors.primary} />
             ) : ministries.length === 0 ? (
-              <Text style={styles.mutedText}>Nenhum ministério cadastrado.</Text>
+              <Text style={styles.mutedText}>Nenhum ministerio cadastrado.</Text>
             ) : (
               <>
                 <TouchableOpacity
                   style={[styles.ministryOption, !form.ministryId && styles.ministryOptionActive]}
                   onPress={() => setField("ministryId", "")}
                 >
-                  <Text style={styles.ministryOptionText}>Sem vínculo inicial</Text>
+                  <Text style={styles.ministryOptionText}>Sem vinculo inicial</Text>
                   {!form.ministryId ? <Check color={colors.primary} size={18} /> : null}
                 </TouchableOpacity>
                 {ministries.map((ministry) => (
@@ -230,7 +230,7 @@ export default function NewMemberScreen() {
               <View style={[styles.checkbox, form.isLeader && styles.checkboxActive]}>
                 {form.isLeader ? <Check color={colors.surface} size={14} strokeWidth={3} /> : null}
               </View>
-              <Text style={styles.checkboxText}>Marcar como líder deste ministério</Text>
+              <Text style={styles.checkboxText}>Marcar como lider deste ministerio</Text>
             </TouchableOpacity>
           ) : null}
 

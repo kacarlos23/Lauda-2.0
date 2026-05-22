@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
@@ -12,9 +12,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Redirect, useRouter } from "expo-router";
 import { Copy, RefreshCw, Plus, Users } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
 import { MemberInvite, memberService } from "../../../src/services/memberService";
+import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
-import { Member } from "../../../src/types";
+import { Member, Ministry } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 
 function canManageMembers(role?: string): boolean {
@@ -23,19 +25,19 @@ function canManageMembers(role?: string): boolean {
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
-    GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Administrador da igreja",
-    MINISTRY_LEADER: "Líder de ministério",
+    GLOBAL_ADMIN: "Admin global",
+    TENANT_ADMIN: "Lider da igreja",
+    MINISTRY_LEADER: "Lider de ministerio",
     MEMBER: "Membro",
   };
   return labels[role] ?? role;
 }
 
 function formatMinistries(member: Member): string {
-  if (!member.ministries?.length) return "Sem ministérios vinculados";
+  if (!member.ministries?.length) return "Sem ministerios vinculados";
 
   return member.ministries
-    .map((item) => `${item.ministry.name}${item.isLeader ? " (líder)" : ""}`)
+    .map((item) => `${item.ministry.name}${item.isLeader ? " (lider)" : ""}`)
     .join(", ");
 }
 
@@ -48,6 +50,8 @@ export default function MembersScreen() {
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<MemberInvite | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [selectedMinistryId, setSelectedMinistryId] = useState<string>("");
 
   const loadMembers = useCallback(async () => {
     try {
@@ -55,49 +59,65 @@ export default function MembersScreen() {
       const data = await memberService.listMembers();
       setMembers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possivel carregar os membros.");
+      setError(err instanceof Error ? err.message : "Nao foi possivel carregar os membros.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadInvite = useCallback(async () => {
+  const loadInvite = useCallback(async (ministryId = selectedMinistryId) => {
     try {
       setInviteLoading(true);
-      const data = await memberService.getMemberInvite();
+      const data = await memberService.getMemberInvite(ministryId || undefined);
       setInvite(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possivel carregar o convite.");
+      setError(err instanceof Error ? err.message : "Nao foi possivel carregar o convite.");
     } finally {
       setInviteLoading(false);
+    }
+  }, [selectedMinistryId]);
+
+  const loadMinistries = useCallback(async () => {
+    try {
+      const data = await ministryApi.getMinistries();
+      setMinistries(data);
+    } catch {
+      setMinistries([]);
     }
   }, []);
 
   useEffect(() => {
     loadMembers();
+    loadMinistries();
     loadInvite();
-  }, [loadInvite, loadMembers]);
+  }, [loadInvite, loadMembers, loadMinistries]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMembers();
+    await loadMinistries();
     await loadInvite();
     setRefreshing(false);
-  }, [loadInvite, loadMembers]);
+  }, [loadInvite, loadMembers, loadMinistries]);
 
-  const inviteLink = invite ? `lauda://member-register?code=${invite.code}` : "";
+  const inviteLink = invite?.inviteLink ?? (invite ? `lauda://member-register?code=${invite.code}` : "");
+
+  const handleCopyText = async (value: string, title: string, message: string) => {
+    if (!value) return;
+    await Clipboard.setStringAsync(value);
+    Alert.alert(title, message);
+  };
 
   const handleCopyInvite = async () => {
     if (!inviteLink) return;
 
-    const clipboard = globalThis.navigator?.clipboard;
-    if (clipboard?.writeText) {
-      await clipboard.writeText(inviteLink);
-      Alert.alert("Link copiado", "O link de cadastro foi copiado.");
-      return;
-    }
+    await handleCopyText(inviteLink, "Link copiado", "O link de cadastro foi copiado.");
+  };
 
-    Alert.alert("Link de cadastro", inviteLink);
+  const handleCopyCode = async () => {
+    if (!invite?.code) return;
+
+    await handleCopyText(invite.code, "Codigo copiado", "O codigo de cadastro foi copiado.");
   };
 
   const handleRegenerateInvite = () => {
@@ -112,10 +132,10 @@ export default function MembersScreen() {
           onPress: async () => {
             try {
               setInviteLoading(true);
-              const data = await memberService.regenerateMemberInvite();
+              const data = await memberService.regenerateMemberInvite(selectedMinistryId || undefined);
               setInvite(data);
             } catch (err) {
-              Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possivel regenerar o link.");
+              Alert.alert("Erro", err instanceof Error ? err.message : "Nao foi possivel regenerar o link.");
             } finally {
               setInviteLoading(false);
             }
@@ -166,13 +186,57 @@ export default function MembersScreen() {
               <View style={styles.inviteHeader}>
                 <View style={styles.inviteTitleGroup}>
                   <Text style={styles.inviteTitle}>Link de cadastro de membros</Text>
-                  <Text style={styles.inviteText}>
-                    {inviteLoading && !invite
-                      ? "Carregando convite..."
-                      : inviteLink || "Convite indisponivel"}
-                  </Text>
+                  <Text style={styles.inviteText}>Escolha um ministerio para que o membro entre nele automaticamente.</Text>
                 </View>
                 {inviteLoading ? <ActivityIndicator color={colors.primary} /> : null}
+              </View>
+              <View style={styles.ministrySelector}>
+                <TouchableOpacity
+                  style={[styles.ministryChip, !selectedMinistryId && styles.ministryChipActive]}
+                  onPress={() => {
+                    setSelectedMinistryId("");
+                    loadInvite("");
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Convite geral"
+                >
+                  <Text style={[styles.ministryChipText, !selectedMinistryId && styles.ministryChipTextActive]}>
+                    Geral
+                  </Text>
+                </TouchableOpacity>
+                {ministries.map((ministry) => (
+                  <TouchableOpacity
+                    key={ministry.id}
+                    style={[styles.ministryChip, selectedMinistryId === ministry.id && styles.ministryChipActive]}
+                    onPress={() => {
+                      setSelectedMinistryId(ministry.id);
+                      loadInvite(ministry.id);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Convite para ${ministry.name}`}
+                  >
+                    <Text
+                      style={[
+                        styles.ministryChipText,
+                        selectedMinistryId === ministry.id && styles.ministryChipTextActive,
+                      ]}
+                    >
+                      {ministry.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.inviteField}>
+                <Text style={styles.inviteLabel}>Link</Text>
+                <Text style={styles.inviteValue} selectable>
+                  {inviteLoading && !invite ? "Carregando convite..." : inviteLink || "Convite indisponivel"}
+                </Text>
+              </View>
+              <View style={styles.inviteField}>
+                <Text style={styles.inviteLabel}>{invite?.ministry ? `Codigo - ${invite.ministry.name}` : "Codigo"}</Text>
+                <Text style={styles.inviteValue} selectable>
+                  {invite?.code ?? "Convite indisponivel"}
+                </Text>
               </View>
               <View style={styles.inviteActions}>
                 <TouchableOpacity
@@ -183,7 +247,17 @@ export default function MembersScreen() {
                   accessibilityLabel="Copiar link de cadastro"
                 >
                   <Copy color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Copiar</Text>
+                  <Text style={styles.secondaryButtonText}>Copiar link</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleCopyCode}
+                  disabled={!invite?.code}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copiar codigo de cadastro"
+                >
+                  <Copy color={colors.primary} size={16} strokeWidth={2.4} />
+                  <Text style={styles.secondaryButtonText}>Copiar codigo</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryButton}
@@ -193,7 +267,7 @@ export default function MembersScreen() {
                   accessibilityLabel="Regenerar link de cadastro"
                 >
                   <RefreshCw color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Regenerar</Text>
+                  <Text style={styles.secondaryButtonText}>Regenerar link</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -203,7 +277,7 @@ export default function MembersScreen() {
           <View style={styles.emptyBox}>
             <Users color={colors.primary} size={28} strokeWidth={2.3} />
             <Text style={styles.emptyTitle}>Nenhum membro cadastrado</Text>
-            <Text style={styles.emptyText}>Cadastre pessoas da igreja para organizar equipes e ministérios.</Text>
+            <Text style={styles.emptyText}>Cadastre pessoas da igreja para organizar equipes e ministerios.</Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -288,6 +362,44 @@ const styles = StyleSheet.create({
   inviteTitleGroup: { flex: 1 },
   inviteTitle: { color: colors.ink, fontSize: 16, fontWeight: "800", marginBottom: spacing.xs },
   inviteText: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  ministrySelector: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  ministryChip: {
+    minHeight: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  ministryChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  ministryChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  ministryChipTextActive: { color: colors.primary },
+  inviteField: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  inviteLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+  },
+  inviteValue: { color: colors.ink, fontSize: 13, lineHeight: 19 },
   inviteActions: {
     flexDirection: "row",
     gap: spacing.sm,

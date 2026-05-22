@@ -1,10 +1,12 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { MemberController } from "../controllers/MemberController";
+import { MinistryController } from "../controllers/MinistryController";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { ForbiddenError } from "../errors/AppError";
 
 const router = Router();
 const ctrl = new MemberController();
+const ministryCtrl = new MinistryController();
 
 // All member routes require authentication
 router.use(authMiddleware);
@@ -16,6 +18,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next(new ForbiddenError("Acesso negado: apenas administradores"));
 }
 
+router.get("/me/ministries", (req, res) => ministryCtrl.getMyAssignments(req, res));
 router.get("/", requireAdmin, (req, res) => ctrl.list(req, res));
 router.get("/:id", requireAdmin, (req, res) => ctrl.getOne(req, res));
 router.post("/", requireAdmin, (req, res) => ctrl.create(req, res));

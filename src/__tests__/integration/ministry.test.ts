@@ -1,4 +1,4 @@
-﻿import request from "supertest";
+import request from "supertest";
 import app from "../../app"; // Ajuste o caminho se necessário
 
 // Token mock ou gerado para os testes
@@ -20,7 +20,7 @@ describe("Ministry Integration Tests", () => {
         .set("Authorization", mockToken("TENANT_ADMIN", "tenant-1"))
         .send({
           name: "Ministério de Louvor",
-          description: "Equipe de mÃºsica",
+          description: "Equipe de música",
         });
 
       // No mundo real, você deve ajustar a lógica de mock da Auth Middleware.

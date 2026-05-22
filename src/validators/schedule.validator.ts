@@ -1,15 +1,14 @@
 import { z } from "zod";
 
 const isoDateTimeMessage = "Data deve estar em formato ISO datetime válido";
-const uuidMessage = "Identificador deve ser um UUID válido";
 
-export const UuidParamsSchema = z.object({
-  id: z.string().uuid(uuidMessage),
+export const uuidParamSchema = z.object({
+  id: z.string().uuid("ID deve ser um UUID válido"),
 });
 
-export const AssignmentParamsSchema = z.object({
-  id: z.string().uuid(uuidMessage),
-  assignmentId: z.string().uuid(uuidMessage),
+export const assignmentParamsSchema = z.object({
+  id: z.string().uuid("ID da escala deve ser um UUID válido"),
+  assignmentId: z.string().uuid("ID da atribuição deve ser um UUID válido"),
 });
 
 export const AssignmentStatusSchema = z.enum(["PENDING", "ACCEPTED", "DECLINED"], {
@@ -35,6 +34,7 @@ export const CreateAssignmentSchema = z.object({
     .string({ error: "Função é obrigatória" })
     .trim()
     .min(2, "Função deve ter ao menos 2 caracteres"),
+  status: AssignmentStatusSchema.default("PENDING"),
 });
 
 export const UpdateAssignmentStatusSchema = z.object({
@@ -48,5 +48,3 @@ export type UpdateAssignmentStatusInput = z.infer<typeof UpdateAssignmentStatusS
 export const createScheduleSchema = CreateScheduleSchema;
 export const createAssignmentSchema = CreateAssignmentSchema;
 export const updateAssignmentStatusSchema = UpdateAssignmentStatusSchema;
-export const uuidParamsSchema = UuidParamsSchema;
-export const assignmentParamsSchema = AssignmentParamsSchema;

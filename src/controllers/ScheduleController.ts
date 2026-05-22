@@ -1,16 +1,21 @@
 import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
-import { AuthenticatedUser, ScheduleService } from "../services/scheduleService";
+import { ScheduleService } from "../services/scheduleService";
 import {
   assignmentParamsSchema,
   createAssignmentSchema,
   createScheduleSchema,
   updateAssignmentStatusSchema,
-  uuidParamsSchema,
+  uuidParamSchema,
 } from "../validators/schedule.validator";
 
 export class ScheduleController extends BaseController {
+  private buildService(req: Request) {
+    const repo = new ScheduleRepository(req.user!.tenantId);
+    return new ScheduleService(repo);
+  }
+
   /**
    * Lists schedules for the authenticated tenant.
    *
@@ -19,8 +24,7 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async list(req: Request, res: Response): Promise<void> {
-    const service = this.buildService(req);
-    const schedules = await service.listAll();
+    const schedules = await this.buildService(req).listAll();
 
     this.handleSuccess(res, schedules);
   }
@@ -34,59 +38,53 @@ export class ScheduleController extends BaseController {
    */
   async create(req: Request, res: Response): Promise<void> {
     const input = createScheduleSchema.parse(req.body);
-    const service = this.buildService(req);
-    const schedule = await service.create(input, this.getAuthenticatedUser(req));
+    const schedule = await this.buildService(req).createForUser(input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
 
     this.handleSuccess(res, schedule, 201);
   }
 
   async addAssignment(req: Request, res: Response): Promise<void> {
-    const { id } = uuidParamsSchema.parse(req.params);
+    const { id } = uuidParamSchema.parse(req.params);
     const input = createAssignmentSchema.parse(req.body);
-    const service = this.buildService(req);
-    const assignment = await service.addAssignment(id, input, this.getAuthenticatedUser(req));
+    const assignment = await this.buildService(req).addAssignment(id, input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
 
     this.handleSuccess(res, assignment, 201);
   }
 
   async updateAssignmentStatus(req: Request, res: Response): Promise<void> {
-    const { id, assignmentId } = assignmentParamsSchema.parse(req.params);
+    const params = assignmentParamsSchema.parse(req.params);
     const input = updateAssignmentStatusSchema.parse(req.body);
-    const service = this.buildService(req);
-    const assignment = await service.updateAssignmentStatus(
-      id,
-      assignmentId,
+    const assignment = await this.buildService(req).updateAssignmentStatus(
+      params.id,
+      params.assignmentId,
       input,
-      this.getAuthenticatedUser(req)
+      {
+        id: req.user!.id,
+        role: req.user!.role,
+      }
     );
 
     this.handleSuccess(res, assignment);
   }
 
   async removeAssignment(req: Request, res: Response): Promise<void> {
-    const { id, assignmentId } = assignmentParamsSchema.parse(req.params);
-    const service = this.buildService(req);
-    await service.removeAssignment(id, assignmentId, this.getAuthenticatedUser(req));
+    const params = assignmentParamsSchema.parse(req.params);
+    await this.buildService(req).removeAssignment(params.id, params.assignmentId, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
 
-    this.handleSuccess(res, { deleted: true });
+    this.handleSuccess(res, { message: "Atribuição removida da escala" });
   }
 
   async listMine(req: Request, res: Response): Promise<void> {
-    const service = this.buildService(req);
-    const schedules = await service.listMine(this.getAuthenticatedUser(req));
-
+    const schedules = await this.buildService(req).listMine(req.user!.id);
     this.handleSuccess(res, schedules);
-  }
-
-  private buildService(req: Request): ScheduleService {
-    return new ScheduleService(new ScheduleRepository(req.user!.tenantId));
-  }
-
-  private getAuthenticatedUser(req: Request): AuthenticatedUser {
-    return {
-      userId: req.user!.id,
-      role: req.user!.role,
-      tenantId: req.user!.tenantId,
-    };
   }
 }

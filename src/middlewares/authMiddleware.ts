@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
-import { UnauthorizedError } from "../errors/AppError";
+import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
 
 interface JwtPayload {
   id?: string;
@@ -61,4 +61,34 @@ export const authMiddleware = (
   } catch {
     next(new UnauthorizedError("Token inválido"));
   }
+};
+
+export const requireRole =
+  (...roles: Role[]) =>
+  (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      next(new UnauthorizedError("Token de autenticação ausente"));
+      return;
+    }
+
+    if (!roles.includes(req.user.role)) {
+      next(new ForbiddenError("Perfil sem permissão para esta rota"));
+      return;
+    }
+
+    next();
+  };
+
+export const requireChurchAdmin = (req: Request, _res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    next(new UnauthorizedError("Token de autenticaÃ§Ã£o ausente"));
+    return;
+  }
+
+  if (req.user.role !== Role.GLOBAL_ADMIN && req.user.role !== Role.TENANT_ADMIN) {
+    next(new ForbiddenError("Apenas administradores da igreja podem gerenciar vÃ­nculos"));
+    return;
+  }
+
+  next();
 };

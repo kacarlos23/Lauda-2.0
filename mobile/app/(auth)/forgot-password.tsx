@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { api } from "../../src/services/api";
@@ -17,7 +17,7 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     try {
       await api.post("/auth/forgot-password", { email });
-      Alert.alert("Sucesso", "Se o e-mail existir, um código foi enviado.");
+      Alert.alert("Sucesso", "Se o e-mail existir, um codigo foi enviado.");
       router.push({ pathname: "/(auth)/reset-password", params: { email } });
     } catch (error: any) {
       const message = error.response?.data?.error || "Erro ao solicitar recuperação de senha.";

@@ -1,6 +1,7 @@
-﻿import bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
 import { NotFoundError, UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
@@ -28,16 +29,20 @@ interface AccessTokenPayload {
 
 const authRepository = new AuthRepository();
 const INVITE_CODE_BYTES = 24;
+const INVITE_CODE_CREATE_ATTEMPTS = 5;
+
+type MemberInviteView = {
+  id: string;
+  code: string;
+  active: boolean;
+  expiresAt: Date | string | null;
+  createdAt: Date | string;
+  ministryId?: string | null;
+  ministry?: { id: string; name: string } | null;
+};
 
 export class AuthService {
-  private buildAuthResponse(user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    tenantId: string;
-    tenant: { id: string; name: string };
-  }) {
+  private buildAuthResponse(user: { id: string; name: string; email: string; role: string; tenantId: string }) {
     const accessToken = this.generateAccessToken({
       userId: user.id,
       email: user.email,
@@ -51,7 +56,6 @@ export class AuthService {
       token: accessToken,
       refreshToken,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
-      tenant: user.tenant,
     };
   }
 
@@ -79,20 +83,26 @@ export class AuthService {
     });
 
     const user = tenant.users[0];
-    return this.buildAuthResponse({
-      ...user,
-      tenantId: tenant.id,
+    const auth = this.buildAuthResponse({ ...user, tenantId: tenant.id });
+
+    return {
+      ...auth,
       tenant: { id: tenant.id, name: tenant.name },
-    });
+    };
   }
 
   async registerPublicMember(input: PublicMemberRegisterInput) {
-    const invite = await authRepository.findActiveMemberInviteByCode(input.inviteCode);
+    const inviteCode = input.inviteCode.trim();
+    const email = input.email.trim().toLowerCase();
+    const name = input.name.trim();
+    const phone = input.phone?.trim() || undefined;
+
+    const invite = await authRepository.findActiveMemberInviteByCode(inviteCode);
     if (!invite) {
       throw new ValidationError("Convite inválido ou expirado");
     }
 
-    const existing = await authRepository.findUserByEmail(input.email);
+    const existing = await authRepository.findUserByEmail(email);
     if (existing) {
       throw new ValidationError("E-mail já está em uso");
     }
@@ -100,14 +110,16 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(input.password, 10);
     const user = await authRepository.createPublicMember({
       tenantId: invite.tenantId,
-      name: input.name,
-      email: input.email,
-      phone: input.phone,
+      name,
+      email,
+      phone,
       hashedPassword,
+      ministryId: invite.ministryId,
     });
 
     return {
-      ...this.buildAuthResponse({ ...user, tenant: invite.tenant }),
+      ...this.buildAuthResponse(user),
+      tenant: invite.tenant,
     };
   }
 
@@ -128,6 +140,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedError("Credenciais inválidas");
+    }
+
+    if (input.inviteCode) {
+      await this.applyInviteToExistingUser(input.inviteCode, user);
     }
 
     return this.buildAuthResponse(user);
@@ -167,16 +183,24 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async getMemberInvite(tenantId: string) {
-    const invite = await authRepository.findCurrentMemberInvite(tenantId);
-    if (invite) return invite;
+  async getMemberInvite(tenantId: string, ministryId?: string) {
+    if (ministryId) {
+      await this.ensureMinistryBelongsToTenant(tenantId, ministryId);
+    }
 
-    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+    const invite = await authRepository.findCurrentMemberInvite(tenantId, ministryId);
+    if (invite) return this.formatMemberInvite(invite);
+
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId, ministryId));
   }
 
-  async regenerateMemberInvite(tenantId: string) {
-    await authRepository.deactivateMemberInvites(tenantId);
-    return authRepository.createMemberInvite(tenantId, this.generateInviteCode());
+  async regenerateMemberInvite(tenantId: string, ministryId?: string) {
+    if (ministryId) {
+      await this.ensureMinistryBelongsToTenant(tenantId, ministryId);
+    }
+
+    await authRepository.deactivateMemberInvites(tenantId, ministryId);
+    return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId, ministryId));
   }
 
   /**
@@ -197,7 +221,7 @@ export class AuthService {
 
     console.log(`\n[EMAIL SIMULADO] ==========================`);
     console.log(`Para: ${user.email}`);
-    console.log(`Assunto: Recuperação de senha`);
+    console.log(`Assunto: Recuperação de Senha`);
     console.log(`Seu código PIN é: ${pin}`);
     console.log(`Válido por 15 minutos.`);
     console.log(`===========================================\n`);
@@ -245,5 +269,68 @@ export class AuthService {
 
   private generateInviteCode(): string {
     return crypto.randomBytes(INVITE_CODE_BYTES).toString("base64url");
+  }
+
+  private async createMemberInviteWithRetry(tenantId: string, ministryId?: string): Promise<MemberInviteView> {
+    for (let attempt = 1; attempt <= INVITE_CODE_CREATE_ATTEMPTS; attempt += 1) {
+      try {
+        return await authRepository.createMemberInvite(tenantId, this.generateInviteCode(), ministryId);
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ValidationError("Não foi possível gerar um convite único. Tente novamente.");
+  }
+
+  private formatMemberInvite(invite: MemberInviteView) {
+    const code = invite.code;
+    const baseUrl = config.memberInviteBaseUrl;
+    const separator = baseUrl.includes("?") ? "&" : "?";
+
+    return {
+      id: invite.id,
+      code,
+      active: invite.active,
+      expiresAt: invite.expiresAt ? new Date(invite.expiresAt).toISOString() : null,
+      createdAt: new Date(invite.createdAt).toISOString(),
+      ministryId: invite.ministryId ?? null,
+      ministry: invite.ministry ?? null,
+      inviteLink: `${baseUrl}${separator}code=${encodeURIComponent(code)}`,
+    };
+  }
+
+  private async ensureMinistryBelongsToTenant(tenantId: string, ministryId: string) {
+    const ministry = await authRepository.findMinistryById(tenantId, ministryId);
+    if (!ministry) {
+      throw new ValidationError("Ministério não encontrado");
+    }
+
+    return ministry;
+  }
+
+  private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string }) {
+    const invite = await authRepository.findActiveMemberInviteByCode(inviteCode.trim());
+    if (!invite) {
+      throw new ValidationError("Convite inválido ou expirado");
+    }
+
+    if (invite.tenantId !== user.tenantId) {
+      throw new ValidationError("Convite inválido para este usuário");
+    }
+
+    if (invite.ministryId) {
+      await authRepository.addUserToMinistry({
+        tenantId: user.tenantId,
+        userId: user.id,
+        ministryId: invite.ministryId,
+      });
+    }
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   }
 }

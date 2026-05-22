@@ -24,8 +24,11 @@ export type MemberInvite = {
   id: string;
   code: string;
   active: boolean;
+  ministryId?: string | null;
+  ministry?: { id: string; name: string } | null;
   expiresAt?: string | null;
   createdAt: string;
+  inviteLink: string;
 };
 
 function handleApiError(error: unknown): never {
@@ -68,18 +71,22 @@ export const memberService = {
     }
   },
 
-  async getMemberInvite(): Promise<MemberInvite> {
+  async getMemberInvite(ministryId?: string): Promise<MemberInvite> {
     try {
-      const response = await api.get<ApiResponse<MemberInvite>>("/auth/member-invite");
+      const response = await api.get<ApiResponse<MemberInvite>>("/auth/member-invite", {
+        params: ministryId ? { ministryId } : undefined,
+      });
       return response.data.data;
     } catch (error) {
       handleApiError(error);
     }
   },
 
-  async regenerateMemberInvite(): Promise<MemberInvite> {
+  async regenerateMemberInvite(ministryId?: string): Promise<MemberInvite> {
     try {
-      const response = await api.post<ApiResponse<MemberInvite>>("/auth/member-invite/regenerate");
+      const response = await api.post<ApiResponse<MemberInvite>>("/auth/member-invite/regenerate", {
+        ministryId,
+      });
       return response.data.data;
     } catch (error) {
       handleApiError(error);

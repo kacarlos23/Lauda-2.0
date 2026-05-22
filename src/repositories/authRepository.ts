@@ -1,9 +1,7 @@
 import { Prisma, User } from "@prisma/client";
 import { prisma } from "./prismaClient";
 
-export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "role" | "tenantId"> & {
-  tenant: { id: string; name: string };
-};
+export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "role" | "tenantId">;
 
 export class AuthRepository {
   /**
@@ -22,7 +20,6 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
-        tenant: { select: { id: true, name: true } },
       },
     });
   }
@@ -43,7 +40,6 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
-        tenant: { select: { id: true, name: true } },
       },
     });
   }
@@ -85,13 +81,19 @@ export class AuthRepository {
       },
       include: {
         tenant: { select: { id: true, name: true } },
+        ministry: { select: { id: true, name: true } },
       },
     });
   }
 
-  async findCurrentMemberInvite(tenantId: string) {
+  async findCurrentMemberInvite(tenantId: string, ministryId?: string) {
     return prisma.memberInvite.findFirst({
-      where: { tenantId, active: true },
+      where: {
+        tenantId,
+        ministryId: ministryId ?? null,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -99,27 +101,38 @@ export class AuthRepository {
         active: true,
         expiresAt: true,
         createdAt: true,
+        ministryId: true,
+        ministry: { select: { id: true, name: true } },
       },
     });
   }
 
-  async createMemberInvite(tenantId: string, code: string) {
+  async createMemberInvite(tenantId: string, code: string, ministryId?: string) {
     return prisma.memberInvite.create({
-      data: { tenantId, code },
+      data: { tenantId, code, ministryId: ministryId ?? null },
       select: {
         id: true,
         code: true,
         active: true,
         expiresAt: true,
         createdAt: true,
+        ministryId: true,
+        ministry: { select: { id: true, name: true } },
       },
     });
   }
 
-  async deactivateMemberInvites(tenantId: string) {
+  async deactivateMemberInvites(tenantId: string, ministryId?: string) {
     return prisma.memberInvite.updateMany({
-      where: { tenantId, active: true },
+      where: { tenantId, ministryId: ministryId ?? null, active: true },
       data: { active: false },
+    });
+  }
+
+  async findMinistryById(tenantId: string, ministryId: string) {
+    return prisma.ministry.findFirst({
+      where: { id: ministryId, tenantId },
+      select: { id: true, name: true },
     });
   }
 
@@ -129,6 +142,7 @@ export class AuthRepository {
     email: string;
     phone?: string;
     hashedPassword: string;
+    ministryId?: string | null;
   }): Promise<AuthUser> {
     return prisma.user.create({
       data: {
@@ -138,6 +152,15 @@ export class AuthRepository {
         phone: data.phone ?? null,
         password: data.hashedPassword,
         role: "MEMBER",
+        ministries: data.ministryId
+          ? {
+              create: {
+                tenantId: data.tenantId,
+                ministryId: data.ministryId,
+                isLeader: false,
+              },
+            }
+          : undefined,
       },
       select: {
         id: true,
@@ -146,7 +169,19 @@ export class AuthRepository {
         password: true,
         role: true,
         tenantId: true,
-        tenant: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async addUserToMinistry(data: { tenantId: string; userId: string; ministryId: string }) {
+    return prisma.ministryMember.upsert({
+      where: { userId_ministryId: { userId: data.userId, ministryId: data.ministryId } },
+      update: {},
+      create: {
+        tenantId: data.tenantId,
+        userId: data.userId,
+        ministryId: data.ministryId,
+        isLeader: false,
       },
     });
   }

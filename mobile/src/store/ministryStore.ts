@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { Ministry, MinistryMember } from "../types";
 import { ministryApi } from "../services/ministryApi";
 
