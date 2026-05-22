@@ -11,7 +11,14 @@ const ministryCtrl = new MinistryController();
 // All member routes require authentication
 router.use(authMiddleware);
 
-// Only admins can create members or view the full directory
+// Admins and ministry leaders can view the member directory.
+function requireDirectoryAccess(req: Request, res: Response, next: NextFunction) {
+  const role = req.user?.role;
+  if (role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN" || role === "MINISTRY_LEADER") return next();
+  next(new ForbiddenError("Acesso negado: apenas lideres e administradores"));
+}
+
+// Only admins can create and manage members.
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const role = req.user?.role;
   if (role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN") return next();
@@ -19,8 +26,9 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 router.get("/me/ministries", (req, res) => ministryCtrl.getMyAssignments(req, res));
-router.get("/", requireAdmin, (req, res) => ctrl.list(req, res));
-router.get("/:id", requireAdmin, (req, res) => ctrl.getOne(req, res));
+router.get("/", requireDirectoryAccess, (req, res) => ctrl.list(req, res));
+router.get("/:id", requireDirectoryAccess, (req, res) => ctrl.getOne(req, res));
+router.patch("/:id/instruments", (req, res) => ctrl.updateInstruments(req, res));
 router.post("/", requireAdmin, (req, res) => ctrl.create(req, res));
 router.post("/:id/ministries", requireAdmin, (req, res) => ctrl.addMinistry(req, res));
 

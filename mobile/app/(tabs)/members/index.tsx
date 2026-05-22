@@ -23,6 +23,10 @@ function canManageMembers(role?: string): boolean {
   return role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN";
 }
 
+function canViewMembers(role?: string): boolean {
+  return canManageMembers(role) || role === "MINISTRY_LEADER";
+}
+
 function formatRole(role: string) {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Admin global",
@@ -39,6 +43,16 @@ function formatMinistries(member: Member): string {
   return member.ministries
     .map((item) => `${item.ministry.name}${item.isLeader ? " (lider)" : ""}`)
     .join(", ");
+}
+
+function readableTextColor(backgroundColor?: string | null): string {
+  if (!backgroundColor || !/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) return colors.primaryDark;
+
+  const red = parseInt(backgroundColor.slice(1, 3), 16);
+  const green = parseInt(backgroundColor.slice(3, 5), 16);
+  const blue = parseInt(backgroundColor.slice(5, 7), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.62 ? colors.ink : colors.surface;
 }
 
 export default function MembersScreen() {
@@ -145,7 +159,9 @@ export default function MembersScreen() {
     );
   };
 
-  if (!canManageMembers(user?.role)) {
+  const canManage = canManageMembers(user?.role);
+
+  if (!canViewMembers(user?.role)) {
     return <Redirect href="/(tabs)" />;
   }
 
@@ -172,17 +188,19 @@ export default function MembersScreen() {
               <Text style={styles.title}>Membros</Text>
               <Text style={styles.subtitle}>{members.length} pessoa(s) cadastrada(s)</Text>
             </View>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => router.push("/members/new" as never)}
-              accessibilityRole="button"
-              accessibilityLabel="Cadastrar membro"
-            >
-              <Plus color={colors.surface} size={18} strokeWidth={2.4} />
-              <Text style={styles.headerButtonText}>Novo</Text>
-            </TouchableOpacity>
+            {canManage ? (
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push("/members/new" as never)}
+                accessibilityRole="button"
+                accessibilityLabel="Cadastrar membro"
+              >
+                <Plus color={colors.surface} size={18} strokeWidth={2.4} />
+                <Text style={styles.headerButtonText}>Novo</Text>
+              </TouchableOpacity>
+            ) : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            <View style={styles.inviteBox}>
+            {canManage ? <View style={styles.inviteBox}>
               <View style={styles.inviteHeader}>
                 <View style={styles.inviteTitleGroup}>
                   <Text style={styles.inviteTitle}>Link de cadastro de membros</Text>
@@ -270,7 +288,7 @@ export default function MembersScreen() {
                   <Text style={styles.secondaryButtonText}>Regenerar link</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </View> : null}
           </View>
         }
         ListEmptyComponent={
@@ -293,6 +311,34 @@ export default function MembersScreen() {
               <Text style={styles.email}>{item.email}</Text>
               {item.phone ? <Text style={styles.phone}>{item.phone}</Text> : null}
               <Text style={styles.ministries}>{formatMinistries(item)}</Text>
+              <View style={styles.instrumentSection}>
+                <Text style={styles.instrumentTitle}>Instrumentos/Cargos</Text>
+                {item.instruments?.length ? (
+                  <View style={styles.instrumentList}>
+                    {item.instruments.map((instrument) => {
+                      const chipColor = instrument.colorHex ?? colors.primarySoft;
+                      return (
+                        <View
+                          key={instrument.id}
+                          style={[
+                            styles.instrumentChip,
+                            {
+                              backgroundColor: chipColor,
+                              borderColor: instrument.colorHex ?? colors.line,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.instrumentChipText, { color: readableTextColor(instrument.colorHex) }]}>
+                            {instrument.name}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.noInstruments}>Nenhum instrumento informado</Text>
+                )}
+              </View>
             </View>
           </View>
         )}
@@ -466,4 +512,32 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   ministries: { fontSize: 13, color: colors.text, lineHeight: 19 },
+  instrumentSection: {
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  instrumentTitle: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  instrumentList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  instrumentChip: {
+    minHeight: 28,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  instrumentChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  noInstruments: { color: colors.muted, fontSize: 12, fontWeight: "600" },
 });

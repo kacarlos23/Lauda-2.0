@@ -37,10 +37,12 @@ model Tenant {
   schedules  Schedule[]
   songs      Song[]
   memberInvites MemberInvite[]
+  instruments Instrument[]
 
   ministryMembers     MinistryMember[]
   scheduleAssignments ScheduleAssignment[]
   ministrySongs       MinistrySong[]
+  userInstruments     UserInstrument[]
 }
 
 model MemberInvite {
@@ -76,6 +78,7 @@ model User {
 
   ministries MinistryMember[]
   schedules  ScheduleAssignment[]
+  instruments UserInstrument[]
 
   resetPasswordToken   String? @unique
   resetPasswordExpires DateTime?
@@ -84,6 +87,42 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+model Instrument {
+  id       String  @id @default(uuid())
+  name     String
+  colorHex String?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  members UserInstrument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model UserInstrument {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, instrumentId])
+  @@index([tenantId])
+  @@index([instrumentId])
 }
 
 model Ministry {

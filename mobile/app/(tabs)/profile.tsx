@@ -1,13 +1,43 @@
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Shield, User } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { instrumentService } from "../../src/services/instrumentService";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { Instrument } from "../../src/types";
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateCurrentUser } = useAuthStore();
   const router = useRouter();
+  const [availableInstruments, setAvailableInstruments] = useState<Instrument[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => user?.instruments?.map((item) => item.id) ?? []);
+  const [instrumentsLoading, setInstrumentsLoading] = useState(true);
+  const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  useEffect(() => {
+    setSelectedIds(user?.instruments?.map((item) => item.id) ?? []);
+  }, [user?.id, user?.instruments]);
+
+  const loadInstruments = async () => {
+    try {
+      setInstrumentsError(null);
+      setInstrumentsLoading(true);
+      const data = await instrumentService.getInstruments();
+      setAvailableInstruments(data);
+    } catch (error) {
+      setInstrumentsError(error instanceof Error ? error.message : "Nao foi possivel carregar instrumentos.");
+    } finally {
+      setInstrumentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadInstruments();
+  }, []);
 
   const performLogout = async () => {
     await logout();
@@ -30,6 +60,30 @@ export default function ProfileScreen() {
         onPress: () => void performLogout(),
       },
     ]);
+  };
+
+  const showInstrumentError = (message: string) => {
+    Alert.alert("Erro", message);
+  };
+
+  const handleToggleInstrument = async (instrumentId: string) => {
+    if (!user) return;
+
+    const previousIds = selectedIds;
+    const nextIds = selectedSet.has(instrumentId)
+      ? selectedIds.filter((id) => id !== instrumentId)
+      : [...selectedIds, instrumentId];
+
+    setSelectedIds(nextIds);
+
+    try {
+      const result = await instrumentService.updateMemberInstruments(user.id, nextIds);
+      setSelectedIds(result.instruments.map((item) => item.id));
+      await updateCurrentUser({ instruments: result.instruments });
+    } catch (error) {
+      setSelectedIds(previousIds);
+      showInstrumentError(error instanceof Error ? error.message : "Nao foi possivel atualizar instrumentos.");
+    }
   };
 
   return (
@@ -62,6 +116,50 @@ export default function ProfileScreen() {
             <Text style={styles.rowLabel}>Permissão</Text>
             <Text style={styles.rowValue}>{formatRole(user?.role)}</Text>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
+          {instrumentsLoading ? (
+            <View style={styles.instrumentLoading}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.instrumentMuted}>Carregando instrumentos...</Text>
+            </View>
+          ) : instrumentsError ? (
+            <View style={styles.instrumentLoading}>
+              <Text style={styles.errorText}>{instrumentsError}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadInstruments} accessibilityRole="button">
+                <Text style={styles.retryButtonText}>Tentar novamente</Text>
+              </TouchableOpacity>
+            </View>
+          ) : availableInstruments.length === 0 ? (
+            <Text style={styles.instrumentMuted}>Nenhum instrumento disponivel</Text>
+          ) : (
+            <View style={styles.instrumentList}>
+              {availableInstruments.map((instrument) => {
+                const selected = selectedSet.has(instrument.id);
+                return (
+                  <TouchableOpacity
+                    key={instrument.id}
+                    style={[
+                      styles.instrumentChip,
+                      selected && {
+                        backgroundColor: instrument.colorHex ?? colors.primary,
+                        borderColor: instrument.colorHex ?? colors.primary,
+                      },
+                    ]}
+                    onPress={() => void handleToggleInstrument(instrument.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${selected ? "Remover" : "Adicionar"} ${instrument.name}`}
+                  >
+                    <Text style={[styles.instrumentChipText, selected && styles.instrumentChipTextSelected]}>
+                      {instrument.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
@@ -139,6 +237,38 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  instrumentLoading: {
+    gap: spacing.sm,
+    alignItems: "flex-start",
+  },
+  instrumentMuted: { color: colors.muted, fontSize: 14, fontWeight: "600" },
+  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  retryButton: {
+    minHeight: 38,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  instrumentList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  instrumentChip: {
+    minHeight: 38,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  instrumentChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  instrumentChipTextSelected: { color: colors.surface },
   logoutBtn: {
     width: "100%",
     backgroundColor: colors.danger,

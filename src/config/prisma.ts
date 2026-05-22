@@ -16,6 +16,8 @@ const tenantScopedModels = new Set(
     "ScheduleAssignment",
     "Song",
     "MinistrySong",
+    "Instrument",
+    "UserInstrument",
   ].map((model) => model.toLowerCase())
 );
 

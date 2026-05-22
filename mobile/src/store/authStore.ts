@@ -40,6 +40,7 @@ interface AuthState {
     phone?: string;
     password: string;
   }) => Promise<void>;
+  updateCurrentUser: (partialUser: Partial<User>) => Promise<void>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
 }
@@ -209,6 +210,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: false, isLoading: false, error: message });
       throw error;
     }
+  },
+
+  updateCurrentUser: async (partialUser) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const nextUser = { ...currentUser, ...partialUser };
+    await setSessionItem("auth_user", JSON.stringify(nextUser));
+    set({ user: nextUser });
   },
 
   logout: async () => {

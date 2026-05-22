@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { MemberService } from "../services/memberService";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { addMemberMinistrySchema, createMemberSchema } from "../validators/member.schema";
+import { addMemberMinistrySchema, createMemberSchema, updateMemberInstrumentsSchema } from "../validators/member.schema";
 
 export class MemberController extends BaseController {
   private buildService(req: Request) {
@@ -34,5 +34,11 @@ export class MemberController extends BaseController {
       input.isLeader
     );
     this.handleSuccess(res, assignment, 201);
+  }
+
+  async updateInstruments(req: Request, res: Response): Promise<void> {
+    const input = updateMemberInstrumentsSchema.parse(req.body);
+    const member = await this.buildService(req).updateInstruments(String(req.params.id), input, req.user!);
+    this.handleSuccess(res, member);
   }
 }

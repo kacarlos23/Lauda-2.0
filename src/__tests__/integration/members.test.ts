@@ -84,6 +84,16 @@ async function createMinistry(token: string, name: string) {
   return response.body.data;
 }
 
+async function createInstrument(token: string, name: string, colorHex = "#2563EB") {
+  const response = await request(app)
+    .post("/api/instruments")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ name, colorHex })
+    .expect(201);
+
+  return response.body.data as { id: string; name: string; colorHex: string | null };
+}
+
 function expectInvitePayload(data: Record<string, unknown>) {
   expect(data).toMatchObject({
     id: expect.any(String),
@@ -209,6 +219,162 @@ describe("Members API", () => {
     const emails = response.body.data.map((member: { email: string }) => member.email);
     expect(emails).toContain("tenant-a-member@example.com");
     expect(emails).not.toContain("tenant-b-member@example.com");
+  });
+
+  it("GET /api/members retorna instrumentos completos e mantem campos existentes", async () => {
+    const tenant = await registerTenant("members-with-instruments");
+    const created = await createMember(tenant.token, "member-instruments@example.com");
+    const keyboard = await createInstrument(tenant.token, "Teclado", "#2563EB");
+
+    await request(app)
+      .patch(`/api/members/${created.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(200);
+
+    const response = await request(app)
+      .get("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    const member = response.body.data.find((item: { email: string }) => item.email === "member-instruments@example.com");
+    expect(member).toMatchObject({
+      id: created.body.data.id,
+      name: "Novo Membro",
+      email: "member-instruments@example.com",
+      phone: "(11) 99999-0000",
+      role: "MEMBER",
+      tenantId: tenant.user.tenantId,
+      instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB" }],
+    });
+    expect(member.ministries).toEqual([]);
+    expect(member.userInstruments).toBeUndefined();
+  });
+
+  it("GET /api/members nao retorna instrumentos de outro tenant e membro sem instrumentos retorna array vazio", async () => {
+    const tenantA = await registerTenant("members-instruments-tenant-a");
+    const tenantB = await registerTenant("members-instruments-tenant-b");
+    const memberA = await createMember(tenantA.token, "member-no-instruments-a@example.com");
+    const memberB = await createMember(tenantB.token, "member-with-instruments-b@example.com");
+    const instrumentB = await createInstrument(tenantB.token, "Bateria");
+
+    await request(app)
+      .patch(`/api/members/${memberB.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .send({ instrumentIds: [instrumentB.id] })
+      .expect(200);
+
+    const response = await request(app)
+      .get("/api/members")
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(200);
+
+    const emails = response.body.data.map((item: { email: string }) => item.email);
+    expect(emails).toContain("member-no-instruments-a@example.com");
+    expect(emails).not.toContain("member-with-instruments-b@example.com");
+
+    const member = response.body.data.find((item: { id: string }) => item.id === memberA.body.data.id);
+    expect(member.instruments).toEqual([]);
+  });
+
+  it("PATCH /api/members/:id/instruments aplica permissoes, tenant e substituicao da lista", async () => {
+    const tenantA = await registerTenant("members-patch-instruments-a");
+    const tenantB = await registerTenant("members-patch-instruments-b");
+    const memberA = await createMember(tenantA.token, "patch-self@example.com");
+    const otherMember = await createMember(tenantA.token, "patch-other@example.com");
+    await createMemberWithRole(tenantA.token, "patch-leader@example.com", "MINISTRY_LEADER").expect(201);
+    const foreignMember = await createMember(tenantB.token, "patch-foreign@example.com");
+    const keyboard = await createInstrument(tenantA.token, "Teclado");
+    const vocal = await createInstrument(tenantA.token, "Vocal");
+    const foreignInstrument = await createInstrument(tenantB.token, "Teclado");
+
+    const memberLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "patch-self@example.com", password: "member123" })
+      .expect(200);
+    const otherLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "patch-other@example.com", password: "member123" })
+      .expect(200);
+    const leaderLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "patch-leader@example.com", password: "member123" })
+      .expect(200);
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({ instrumentIds: [keyboard.id, vocal.id, keyboard.id] })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual({
+          id: memberA.body.data.id,
+          instruments: [
+            { id: keyboard.id, name: "Teclado", colorHex: "#2563EB" },
+            { id: vocal.id, name: "Vocal", colorHex: "#2563EB" },
+          ],
+        });
+      });
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({ instrumentIds: [vocal.id] })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.instruments).toEqual([{ id: vocal.id, name: "Vocal", colorHex: "#2563EB" }]);
+      });
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${otherLogin.body.data.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(403);
+
+    await request(app)
+      .patch(`/api/members/${otherMember.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${leaderLogin.body.data.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(403);
+
+    await request(app)
+      .patch(`/api/members/${otherMember.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(200);
+
+    await request(app)
+      .patch(`/api/members/${foreignMember.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(404);
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({ instrumentIds: [foreignInstrument.id] })
+      .expect(400);
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({ instrumentIds: [] })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.instruments).toEqual([]);
+      });
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({ instrumentIds: ["not-a-uuid"] })
+      .expect(400);
+
+    await request(app)
+      .patch(`/api/members/${memberA.body.data.id}/instruments`)
+      .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
+      .send({})
+      .expect(400);
   });
 
   it("permite login do usuario recem-criado", async () => {

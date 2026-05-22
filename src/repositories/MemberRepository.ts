@@ -1,11 +1,27 @@
 import { prisma } from "./prismaClient";
 import { CreateMemberInput } from "../validators/member.schema";
 
+const userInstrumentInclude = {
+  include: {
+    instrument: { select: { id: true, name: true, colorHex: true } },
+  },
+};
+
+function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }> }>(
+  member: T
+) {
+  const { instruments = [], ...rest } = member;
+  return {
+    ...rest,
+    instruments: instruments.map((item) => item.instrument),
+  };
+}
+
 export class MemberRepository {
   constructor(private readonly tenantId: string) {}
 
-  findAll() {
-    return prisma.user.findMany({
+  async findAll() {
+    const members = await prisma.user.findMany({
       where: { tenantId: this.tenantId },
       select: {
         id: true,
@@ -13,19 +29,23 @@ export class MemberRepository {
         email: true,
         phone: true,
         role: true,
+        tenantId: true,
         createdAt: true,
         ministries: {
           include: {
             ministry: { select: { id: true, name: true } },
           },
         },
+        instruments: userInstrumentInclude,
       },
       orderBy: { name: "asc" },
     });
+
+    return members.map(mapMemberInstruments);
   }
 
-  findById(id: string) {
-    return prisma.user.findFirst({
+  async findById(id: string) {
+    const member = await prisma.user.findFirst({
       where: { id, tenantId: this.tenantId },
       select: {
         id: true,
@@ -33,6 +53,7 @@ export class MemberRepository {
         email: true,
         phone: true,
         role: true,
+        tenantId: true,
         createdAt: true,
         updatedAt: true,
         ministries: {
@@ -40,8 +61,11 @@ export class MemberRepository {
             ministry: { select: { id: true, name: true } },
           },
         },
+        instruments: userInstrumentInclude,
       },
     });
+
+    return member ? mapMemberInstruments(member) : null;
   }
 
   findByEmail(email: string) {
@@ -72,6 +96,7 @@ export class MemberRepository {
         email: true,
         phone: true,
         role: true,
+        tenantId: true,
         createdAt: true,
       },
     });
@@ -86,5 +111,41 @@ export class MemberRepository {
         ministry: { select: { id: true, name: true } },
       },
     });
+  }
+
+  async findInstrumentIds(ids: string[]) {
+    return prisma.instrument.findMany({
+      where: { id: { in: ids }, tenantId: this.tenantId },
+      select: { id: true },
+    });
+  }
+
+  async replaceInstruments(userId: string, instrumentIds: string[]) {
+    const rows = await prisma.$transaction(async (tx) => {
+      await tx.userInstrument.deleteMany({
+        where: { userId, tenantId: this.tenantId },
+      });
+
+      if (instrumentIds.length > 0) {
+        await tx.userInstrument.createMany({
+          data: instrumentIds.map((instrumentId) => ({
+            userId,
+            instrumentId,
+            tenantId: this.tenantId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return tx.userInstrument.findMany({
+        where: { userId, tenantId: this.tenantId },
+        include: {
+          instrument: { select: { id: true, name: true, colorHex: true } },
+        },
+        orderBy: { instrument: { name: "asc" } },
+      });
+    });
+
+    return rows.map((row) => row.instrument);
   }
 }
