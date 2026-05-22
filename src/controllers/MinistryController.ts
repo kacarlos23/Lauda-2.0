@@ -7,6 +7,7 @@ import { createMinistrySchema, updateMinistrySchema } from "../validators/minist
 import {
   assignMemberToMinistrySchema,
   listMinistryMembersSchema,
+  toggleMinistryMemberSchema,
   updateMemberAssignmentSchema,
 } from "../validators/member.schema";
 
@@ -73,6 +74,18 @@ export class MinistryController extends BaseController {
       role: req.user!.role,
     });
     this.handleSuccess(res, { message: "Membro removido do ministério" });
+  }
+
+  async toggleMember(req: Request, res: Response): Promise<void> {
+    const { member_id: memberId } = toggleMinistryMemberSchema.parse(req.body);
+    const repo = new MinistryRepository(req.user!.tenantId);
+    const service = new MinistryService(repo);
+    const result = await service.toggleMember(String(req.params.id), memberId, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, result);
   }
 
   async assignMember(req: Request, res: Response): Promise<void> {

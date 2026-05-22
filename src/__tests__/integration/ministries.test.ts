@@ -47,6 +47,31 @@ async function registerTenant(seed: string) {
   return response.body.data;
 }
 
+async function createMember(token: string, seed: string, name = `Membro ${seed}`) {
+  const response = await request(app)
+    .post("/api/members")
+    .set("Authorization", `Bearer ${token}`)
+    .send({
+      name,
+      email: `${seed}@example.com`,
+      password: "secretpassword",
+      role: "MEMBER",
+    })
+    .expect(201);
+
+  return response.body.data;
+}
+
+async function createMinistry(token: string, name: string) {
+  const response = await request(app)
+    .post("/api/ministries")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ name })
+    .expect(201);
+
+  return response.body.data;
+}
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
@@ -328,5 +353,138 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .get(`/api/ministries/${recepcao.body.data.id}`)
       .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
       .expect(404);
+  });
+
+  it("POST /api/ministries/:id/toggle-member alterna vinculo sem duplicidade", async () => {
+    const tenant = await registerTenant("toggle-link-unlink");
+    const ministry = await createMinistry(tenant.token, "Louvor Toggle");
+    const member = await createMember(tenant.token, "toggle-member", "Ana Toggle");
+
+    const linked = await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: member.id })
+      .expect(200);
+
+    expect(linked.body.data).toEqual({
+      status: "linked",
+      member_id: member.id,
+      ministry_id: ministry.id,
+    });
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: member.id })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.status).toBe("unlinked");
+      });
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: member.id })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.status).toBe("linked");
+      });
+
+    expect(await prisma.ministryMember.count({ where: { userId: member.id, ministryId: ministry.id } })).toBe(1);
+  });
+
+  it("POST /api/ministries/:id/toggle-member exige admin autenticado", async () => {
+    const tenant = await registerTenant("toggle-permission");
+    const ministry = await createMinistry(tenant.token, "Permissao Toggle");
+    const member = await createMember(tenant.token, "toggle-common", "Comum Toggle");
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "toggle-common@example.com", password: "secretpassword" })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .send({ member_id: member.id })
+      .expect(401);
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${login.body.data.token}`)
+      .send({ member_id: member.id })
+      .expect(403);
+  });
+
+  it("POST /api/ministries/:id/toggle-member bloqueia acesso entre tenants", async () => {
+    const tenantA = await registerTenant("toggle-tenant-a");
+    const tenantB = await registerTenant("toggle-tenant-b");
+    const ministryA = await createMinistry(tenantA.token, "Tenant A Toggle");
+    const ministryB = await createMinistry(tenantB.token, "Tenant B Toggle");
+    const memberA = await createMember(tenantA.token, "tenant-a-toggle-member", "Membro Tenant A");
+    const memberB = await createMember(tenantB.token, "tenant-b-toggle-member", "Membro Tenant B");
+
+    await request(app)
+      .post(`/api/ministries/${ministryA.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .send({ member_id: memberB.id })
+      .expect(404);
+
+    await request(app)
+      .post(`/api/ministries/${ministryA.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ member_id: memberB.id })
+      .expect(404);
+
+    await request(app)
+      .post(`/api/ministries/${ministryB.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .send({ member_id: memberB.id })
+      .expect(200);
+
+    expect(await prisma.ministryMember.count({ where: { userId: memberA.id, ministryId: ministryB.id } })).toBe(0);
+  });
+
+  it("POST /api/ministries/:id/toggle-member valida payload e membro inexistente", async () => {
+    const tenant = await registerTenant("toggle-validation");
+    const ministry = await createMinistry(tenant.token, "Validacao Toggle");
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({})
+      .expect(400);
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: "00000000-0000-4000-8000-000000000000" })
+      .expect(404);
+  });
+
+  it("relacao MinistryMember permite multiplos membros e membro em multiplos ministerios no mesmo tenant", async () => {
+    const tenant = await registerTenant("toggle-model-cardinality");
+    const louvor = await createMinistry(tenant.token, "Louvor Cardinalidade");
+    const midia = await createMinistry(tenant.token, "Midia Cardinalidade");
+    const ana = await createMember(tenant.token, "card-ana", "Ana Cardinalidade");
+    const bruno = await createMember(tenant.token, "card-bruno", "Bruno Cardinalidade");
+
+    await request(app)
+      .post(`/api/ministries/${louvor.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: ana.id })
+      .expect(200);
+    await request(app)
+      .post(`/api/ministries/${louvor.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: bruno.id })
+      .expect(200);
+    await request(app)
+      .post(`/api/ministries/${midia.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: ana.id })
+      .expect(200);
+
+    expect(await prisma.ministryMember.count({ where: { ministryId: louvor.id } })).toBe(2);
+    expect(await prisma.ministryMember.count({ where: { userId: ana.id } })).toBe(2);
   });
 });

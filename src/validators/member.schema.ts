@@ -13,6 +13,10 @@ export const addMemberMinistrySchema = z.object({
   isLeader: z.boolean().optional().default(false),
 });
 
+export const toggleMinistryMemberSchema = z.object({
+  member_id: z.string().uuid("ID do membro invalido"),
+});
+
 export const memberStatusSchema = z.enum(["PENDING", "ACTIVE", "INACTIVE"]);
 
 const assignmentFieldsSchema = z.object({
@@ -44,6 +48,7 @@ export const listMinistryMembersSchema = z.object({
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 export type AddMemberMinistryInput = z.infer<typeof addMemberMinistrySchema>;
+export type ToggleMinistryMemberInput = z.infer<typeof toggleMinistryMemberSchema>;
 export type AssignMemberToMinistryInput = z.infer<typeof assignMemberToMinistrySchema>;
 export type UpdateMemberAssignmentInput = z.infer<typeof updateMemberAssignmentSchema>;
 export type ListMinistryMembersInput = z.infer<typeof listMinistryMembersSchema>;

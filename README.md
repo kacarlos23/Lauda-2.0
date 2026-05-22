@@ -158,6 +158,57 @@ Lists only assignments and schedules for the authenticated user, including sched
 5. Member accepts or declines with `PATCH /api/schedules/:id/assignments/:assignmentId/status`.
 6. Member views upcoming schedules with `GET /api/schedules/me`.
 
+## Ministry Member Toggle API
+
+Stack audit for this feature: the project is not Django/DRF + React web. It is Node.js/Express with Prisma/PostgreSQL and an Expo/React Native mobile app, so the requested flow was adapted to the existing backend and mobile frontend.
+
+`POST /api/ministries/:id/toggle-member`
+
+Payload:
+
+```json
+{
+  "member_id": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+The API follows the existing response envelope (`{ "success": true, "data": ... }`). The `data` payload when linking is:
+
+```json
+{
+  "status": "linked",
+  "member_id": "00000000-0000-0000-0000-000000000000",
+  "ministry_id": "11111111-1111-1111-1111-111111111111"
+}
+```
+
+The `data` payload when unlinking is:
+
+```json
+{
+  "status": "unlinked",
+  "member_id": "00000000-0000-0000-0000-000000000000",
+  "ministry_id": "11111111-1111-1111-1111-111111111111"
+}
+```
+
+Permission: only church admins (`TENANT_ADMIN` or `GLOBAL_ADMIN`) can use this endpoint. Anonymous requests receive `401`; authenticated non-admin users receive `403`.
+
+Multi-tenant rules:
+
+- The ministry must belong to the authenticated tenant.
+- The member must belong to the authenticated tenant.
+- Cross-tenant ministry or member IDs return `404` where appropriate.
+- `MinistryMember` keeps one membership per user/ministry pair and preserves metadata such as `isLeader`.
+
+Mobile flow:
+
+1. Admin opens a ministry detail screen.
+2. The "Adicionar membros" section lists all tenant members.
+3. Admin taps once to link or unlink a member.
+4. The UI updates optimistically while the request runs.
+5. On API failure, the previous state is restored and an error message is shown.
+
 ## Mobile Setup
 
 Install mobile dependencies:

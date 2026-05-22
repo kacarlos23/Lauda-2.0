@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
 import { MinistryController } from "../controllers/MinistryController";
-import { authMiddleware, requireRole } from "../middlewares/authMiddleware";
+import { authMiddleware, requireChurchAdmin, requireRole } from "../middlewares/authMiddleware";
 
 const router = Router();
 const ctrl = new MinistryController();
@@ -27,6 +27,7 @@ router.delete(
 
 router.get("/", (req, res) => ctrl.list(req, res));
 router.get("/:id", (req, res) => ctrl.getOne(req, res));
+router.post("/:id/toggle-member", requireChurchAdmin, (req, res) => ctrl.toggleMember(req, res));
 router.get("/:id/members", (req, res) => ctrl.listMembers(req, res));
 router.post("/", (req, res) => ctrl.create(req, res));
 router.put("/:id", (req, res) => ctrl.update(req, res));

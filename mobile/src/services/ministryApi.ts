@@ -6,8 +6,9 @@ import { AxiosError } from "axios";
  * Extracts and throws a user-friendly error from the Axios response, if available.
  */
 function handleApiError(error: unknown): never {
-  if (error instanceof AxiosError) {
-    const message = error.response?.data?.error || error.response?.data?.message || "Erro desconhecido";
+  if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
+    const response = (error as AxiosError<{ error?: string; message?: string }>).response;
+    const message = response?.data?.error || response?.data?.message || "Erro desconhecido";
     throw new Error(message);
   }
   if (error instanceof Error) {
@@ -88,6 +89,21 @@ export const ministryApi = {
   async removeMember(ministryId: string, userId: string): Promise<void> {
     try {
       await api.delete(`/ministries/${ministryId}/members/${userId}`);
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async toggleMinistryMember(
+    ministryId: string,
+    memberId: string
+  ): Promise<{ status: "linked" | "unlinked"; member_id: string; ministry_id: string }> {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { status: "linked" | "unlinked"; member_id: string; ministry_id: string };
+      }>(`/ministries/${ministryId}/toggle-member`, { member_id: memberId });
+      return response.data.data;
     } catch (error) {
       handleApiError(error);
     }

@@ -107,6 +107,18 @@ export class MinistryRepository {
     });
   }
 
+  createMembership(ministryId: string, userId: string) {
+    return prisma.ministryMember.create({
+      data: {
+        userId,
+        ministryId,
+        tenantId: this.tenantId,
+        isLeader: false,
+      },
+      include: ministryMemberInclude,
+    });
+  }
+
   assignMemberToMinistry(data: AssignMemberToMinistryInput) {
     const { userId, ministryId, roleId, role, skills, status, notes, isLeader } = data;
 

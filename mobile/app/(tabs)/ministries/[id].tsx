@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,11 +11,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
+import { ArrowLeft, CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { ministryApi } from "../../../src/services/ministryApi";
+import { memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { colors, radii, shadow, spacing } from "../../../src/theme";
+import { colors, radii, spacing } from "../../../src/theme";
+import { Member } from "../../../src/types";
+import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
+import { isChurchAdmin } from "../../../src/utils/permissions";
 
 export default function MinistryDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,25 +38,58 @@ export default function MinistryDetailsScreen() {
   } = useMinistryStore();
 
   const [showEdit, setShowEdit] = useState(false);
-  const [showAddMember, setShowAddMember] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [linkedMemberIds, setLinkedMemberIds] = useState<string[]>([]);
+  const [pendingMemberIds, setPendingMemberIds] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const isAdmin = isChurchAdmin(user);
+  const canManageMinistry = isAdmin;
+
+  const loadAllMembers = useCallback(async () => {
+    if (!isAdmin) {
+      setAllMembers([]);
+      return;
+    }
+
+    try {
+      const tenantMembers = await memberService.listMembers();
+      setAllMembers(tenantMembers);
+    } catch (error) {
+      setToggleError(error instanceof Error ? error.message : "Nao foi possivel carregar os membros.");
+    }
+  }, [isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
       if (id) {
         fetchMinistry(id);
+        loadAllMembers();
       }
-    }, [id, fetchMinistry])
+    }, [id, fetchMinistry, loadAllMembers])
   );
 
-  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
-  const isMinistryLeader = members.some((member) => member.userId === user?.id && member.isLeader);
-  const canManageMinistry = isAdmin;
-  const canManageMembers = isAdmin || isMinistryLeader;
+  useEffect(() => {
+    setLinkedMemberIds(members.map((member) => member.userId));
+  }, [members]);
+
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    const visible = query
+      ? allMembers.filter((member) => {
+          const haystack = `${member.name} ${member.email} ${member.phone ?? ""}`.toLowerCase();
+          return haystack.includes(query);
+        })
+      : allMembers;
+
+    return sortMembersForToggle(visible, linkedMemberIds);
+  }, [allMembers, linkedMemberIds, memberSearch]);
 
   const openEdit = () => {
     if (!ministry) return;
@@ -116,6 +154,38 @@ export default function MinistryDetailsScreen() {
     );
   };
 
+  const handleToggleMember = async (memberId: string) => {
+    if (!id || pendingMemberIds.includes(memberId)) return;
+
+    const previousIds = linkedMemberIds;
+    const wasLinked = previousIds.includes(memberId);
+    const nextIds = toggleLinkedMemberIds(previousIds, memberId);
+    setToggleError(null);
+    setLinkedMemberIds(nextIds);
+    setPendingMemberIds((current) => [...current, memberId]);
+
+    try {
+      const response = await ministryApi.toggleMinistryMember(id, memberId);
+      setLinkedMemberIds((current) => {
+        const hasMember = current.includes(memberId);
+        if (response.status === "linked" && !hasMember) return [...current, memberId];
+        if (response.status === "unlinked" && hasMember) return current.filter((currentId) => currentId !== memberId);
+        return current;
+      });
+      await fetchMinistry(id);
+    } catch {
+      setLinkedMemberIds((current) => {
+        const currentlyLinked = current.includes(memberId);
+        if (wasLinked && !currentlyLinked) return [...current, memberId];
+        if (!wasLinked && currentlyLinked) return current.filter((currentId) => currentId !== memberId);
+        return current;
+      });
+      setToggleError("Nao foi possivel atualizar o vinculo. Tente novamente.");
+    } finally {
+      setPendingMemberIds((current) => current.filter((currentId) => currentId !== memberId));
+    }
+  };
+
   if (loading && !ministry) {
     return (
       <View style={styles.center}>
@@ -175,6 +245,61 @@ export default function MinistryDetailsScreen() {
             </View>
           </View>
         }
+        ListFooterComponent={
+          isAdmin ? (
+            <View style={styles.managementSection}>
+              <Text style={styles.managementTitle}>Adicionar membros</Text>
+              {toggleError ? <Text style={styles.toggleError}>{toggleError}</Text> : null}
+
+              <Text style={styles.sectionLabel}>Todos os Membros</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar por nome, e-mail ou telefone"
+                placeholderTextColor={colors.muted}
+                value={memberSearch}
+                onChangeText={setMemberSearch}
+              />
+
+              {filteredMembers.map((member) => {
+                const linked = linkedMemberIds.includes(member.id);
+                const pending = pendingMemberIds.includes(member.id);
+
+                return (
+                  <View key={member.id} style={styles.toggleRow}>
+                    <View style={styles.memberAvatar}>
+                      <UserIcon color={linked ? colors.primary : colors.muted} size={20} />
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{member.name}</Text>
+                      <Text style={styles.memberEmail}>{member.email}</Text>
+                      {member.phone ? <Text style={styles.memberPhone}>{member.phone}</Text> : null}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggleButton, linked ? styles.toggleButtonLinked : styles.toggleButtonUnlinked]}
+                      onPress={() => handleToggleMember(member.id)}
+                      disabled={pending}
+                      accessibilityRole="button"
+                    >
+                      {pending ? (
+                        <ActivityIndicator color={linked ? colors.primary : colors.surface} />
+                      ) : linked ? (
+                        <>
+                          <CheckCircle2 color={colors.primary} size={16} />
+                          <Text style={styles.toggleButtonLinkedText}>Vinculado</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Plus color={colors.surface} size={16} />
+                          <Text style={styles.toggleButtonText}>Vincular</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => (
           <View style={styles.memberCard}>
             <View style={styles.memberAvatar}>
@@ -197,17 +322,6 @@ export default function MinistryDetailsScreen() {
           </View>
         }
       />
-
-      {canManageMembers ? (
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.8}
-          onPress={() => router.push(`/ministries/assign?ministryId=${id}` as never)}
-          accessibilityRole="button"
-        >
-          <Plus color={colors.surface} size={24} />
-        </TouchableOpacity>
-      ) : null}
 
       <BottomSheet
         isOpen={showEdit}
@@ -251,12 +365,6 @@ export default function MinistryDetailsScreen() {
             multiline
             textAlignVertical="top"
           />
-        </View>
-      </BottomSheet>
-
-      <BottomSheet isOpen={showAddMember} onClose={() => setShowAddMember(false)} title="Adicionar membro">
-        <View style={styles.form}>
-          <Text style={styles.mutedText}>Use a tela de atribuicao para informar usuario, cargo, habilidades e status.</Text>
         </View>
       </BottomSheet>
     </SafeAreaView>
@@ -362,6 +470,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 2,
   },
+  memberPhone: {
+    fontSize: 13,
+    color: colors.muted,
+    marginTop: 2,
+  },
   leaderBadge: {
     backgroundColor: "#FCEBAA",
     paddingHorizontal: spacing.sm,
@@ -397,17 +510,81 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontWeight: "800",
   },
-  fab: {
-    position: "absolute",
-    bottom: spacing.xxl,
-    right: spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
+  managementSection: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  managementTitle: {
+    color: colors.ink,
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: spacing.md,
+  },
+  sectionLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+    textTransform: "uppercase",
+  },
+  searchInput: {
+    minHeight: 46,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    color: colors.ink,
+    fontSize: 15,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  toggleRow: {
+    flexDirection: "row",
     alignItems: "center",
-    ...shadow,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  toggleButton: {
+    minHeight: 38,
+    minWidth: 112,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  toggleButtonUnlinked: {
+    backgroundColor: colors.primary,
+  },
+  toggleButtonLinked: {
+    backgroundColor: colors.primarySoft,
+  },
+  toggleButtonText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  toggleButtonLinkedText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  toggleError: {
+    backgroundColor: "#FDECEC",
+    borderColor: "#F0B8B8",
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
   },
   form: { padding: spacing.xl },
   formError: {

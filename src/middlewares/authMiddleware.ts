@@ -78,3 +78,17 @@ export const requireRole =
 
     next();
   };
+
+export const requireChurchAdmin = (req: Request, _res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    next(new UnauthorizedError("Token de autenticaÃ§Ã£o ausente"));
+    return;
+  }
+
+  if (req.user.role !== Role.GLOBAL_ADMIN && req.user.role !== Role.TENANT_ADMIN) {
+    next(new ForbiddenError("Apenas administradores da igreja podem gerenciar vÃ­nculos"));
+    return;
+  }
+
+  next();
+};

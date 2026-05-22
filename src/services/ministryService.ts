@@ -96,6 +96,34 @@ export class MinistryService {
     return this.ministryRepository.removeMember(ministryId, targetUserId);
   }
 
+  async toggleMember(ministryId: string, targetUserId: string, reqUser: RequestUser) {
+    this.checkAdmin(reqUser.role);
+
+    await this.getById(ministryId);
+
+    const targetUser = await this.ministryRepository.findUserById(targetUserId);
+    if (!targetUser) {
+      throw new NotFoundError("Membro nÃ£o encontrado neste tenant");
+    }
+
+    const existing = await this.ministryRepository.findAssignmentByUserAndMinistry(targetUserId, ministryId);
+    if (existing) {
+      await this.ministryRepository.removeMember(ministryId, targetUserId);
+      return {
+        status: "unlinked" as const,
+        member_id: targetUserId,
+        ministry_id: ministryId,
+      };
+    }
+
+    await this.ministryRepository.createMembership(ministryId, targetUserId);
+    return {
+      status: "linked" as const,
+      member_id: targetUserId,
+      ministry_id: ministryId,
+    };
+  }
+
   async assignMember(input: AssignMemberToMinistryInput, reqUser: RequestUser) {
     await this.ensureCanManageMinistry(input.ministryId, reqUser);
 
