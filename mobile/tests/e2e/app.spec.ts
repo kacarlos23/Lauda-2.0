@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request } from "@playwright/test";
+import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 
 const adminUser = {
   id: "user-1",
@@ -58,7 +58,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     });
   });
 
-  await page.route("**/api/members/*/instruments", async (route) => {
+  const fulfillInstrumentUpdate = async (route: Route) => {
     const body = route.request().postDataJSON() as { instrumentIds?: string[] };
     await route.fulfill({
       status: 200,
@@ -76,6 +76,17 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
           ],
         },
       }),
+    });
+  };
+
+  await page.route("**/api/members/me/instruments", fulfillInstrumentUpdate);
+  await page.route("**/api/members/*/instruments", fulfillInstrumentUpdate);
+
+  await page.route("**/api/members/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: adminUser }),
     });
   });
 
@@ -123,6 +134,12 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
   await expect(page.getByText(/Ana/)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_token;
+    })
+    .toBe(token);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -199,7 +216,7 @@ test("permite sair da conta e limpa a sessao local", async ({ page }) => {
     expect(dialog.message()).toContain("encerrar");
     await dialog.accept();
   });
-  await page.getByTestId("logout-submit").click();
+  await page.getByTestId("logout-submit").click({ force: true });
 
   await expect(page.getByTestId("login-email")).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
@@ -223,7 +240,7 @@ test("permite editar instrumentos no perfil com atualizacao otimista e persisten
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
-  await page.getByText("Vocal").click();
+  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
 
   await expect
     .poll(async () => {

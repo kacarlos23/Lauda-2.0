@@ -36,6 +36,19 @@ describe("instrumentService", () => {
     });
   });
 
+  it("updateMyInstruments usa endpoint do usuario autenticado", async () => {
+    const response = {
+      id: "member-1",
+      instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
+    };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: response } });
+
+    await expect(instrumentService.updateMyInstruments(["instrument-1"])).resolves.toEqual(response);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/members/me/instruments", {
+      instrumentIds: ["instrument-1"],
+    });
+  });
+
   it("converte erro da API em mensagem amigavel", async () => {
     mockedApi.get.mockRejectedValueOnce({
       response: { data: { error: "Instrumento invalido ou nao encontrado" } },

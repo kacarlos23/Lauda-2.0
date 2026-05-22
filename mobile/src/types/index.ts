@@ -57,6 +57,7 @@ export interface Member {
   email: string;
   phone?: string | null;
   role: Role;
+  tenantId: string;
   instruments?: Instrument[];
   ministries: Array<{
     ministry: { id: string; name: string };

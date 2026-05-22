@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Shield, User } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
+import { memberService } from "../../src/services/memberService";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
@@ -26,8 +27,20 @@ export default function ProfileScreen() {
     try {
       setInstrumentsError(null);
       setInstrumentsLoading(true);
-      const data = await instrumentService.getInstruments();
-      setAvailableInstruments(data);
+      const [instruments, currentMember] = await Promise.all([
+        instrumentService.getInstruments(),
+        memberService.getCurrentMember(),
+      ]);
+      setAvailableInstruments(instruments);
+      setSelectedIds(currentMember.instruments?.map((item) => item.id) ?? []);
+      await updateCurrentUser({
+        id: currentMember.id,
+        name: currentMember.name,
+        email: currentMember.email,
+        role: currentMember.role,
+        tenantId: currentMember.tenantId,
+        instruments: currentMember.instruments ?? [],
+      });
     } catch (error) {
       setInstrumentsError(error instanceof Error ? error.message : "Nao foi possivel carregar instrumentos.");
     } finally {
@@ -67,8 +80,6 @@ export default function ProfileScreen() {
   };
 
   const handleToggleInstrument = async (instrumentId: string) => {
-    if (!user) return;
-
     const previousIds = selectedIds;
     const nextIds = selectedSet.has(instrumentId)
       ? selectedIds.filter((id) => id !== instrumentId)
@@ -77,7 +88,7 @@ export default function ProfileScreen() {
     setSelectedIds(nextIds);
 
     try {
-      const result = await instrumentService.updateMemberInstruments(user.id, nextIds);
+      const result = await instrumentService.updateMyInstruments(nextIds);
       setSelectedIds(result.instruments.map((item) => item.id));
       await updateCurrentUser({ instruments: result.instruments });
     } catch (error) {
@@ -151,6 +162,7 @@ export default function ProfileScreen() {
                     onPress={() => void handleToggleInstrument(instrument.id)}
                     accessibilityRole="button"
                     accessibilityLabel={`${selected ? "Remover" : "Adicionar"} ${instrument.name}`}
+                    testID={`instrument-toggle-${instrument.id}`}
                   >
                     <Text style={[styles.instrumentChipText, selected && styles.instrumentChipTextSelected]}>
                       {instrument.name}

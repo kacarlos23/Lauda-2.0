@@ -377,6 +377,42 @@ describe("Members API", () => {
       .expect(400);
   });
 
+  it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuario autenticado", async () => {
+    const tenant = await registerTenant("members-me-instruments");
+    const member = await createMember(tenant.token, "members-me@example.com");
+    const keyboard = await createInstrument(tenant.token, "Teclado");
+
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "members-me@example.com", password: "member123" })
+      .expect(200);
+
+    await request(app)
+      .get("/api/members/me")
+      .set("Authorization", `Bearer ${login.body.data.token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          id: member.body.data.id,
+          email: "members-me@example.com",
+          tenantId: tenant.user.tenantId,
+          instruments: [],
+        });
+      });
+
+    await request(app)
+      .patch("/api/members/me/instruments")
+      .set("Authorization", `Bearer ${login.body.data.token}`)
+      .send({ instrumentIds: [keyboard.id] })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual({
+          id: member.body.data.id,
+          instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB" }],
+        });
+      });
+  });
+
   it("permite login do usuario recem-criado", async () => {
     const tenant = await registerTenant("members-login");
     await createMember(tenant.token, "login-member@example.com");

@@ -46,4 +46,15 @@ export const instrumentService = {
       handleApiError(error);
     }
   },
+
+  async updateMyInstruments(instrumentIds: string[]): Promise<UpdateMemberInstrumentsResponse> {
+    try {
+      const response = await api.patch<ApiResponse<UpdateMemberInstrumentsResponse>>("/members/me/instruments", {
+        instrumentIds,
+      });
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
 };

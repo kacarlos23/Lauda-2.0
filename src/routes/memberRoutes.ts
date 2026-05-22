@@ -26,6 +26,8 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 router.get("/me/ministries", (req, res) => ministryCtrl.getMyAssignments(req, res));
+router.get("/me", (req, res) => ctrl.getMe(req, res));
+router.patch("/me/instruments", (req, res) => ctrl.updateMyInstruments(req, res));
 router.get("/", requireDirectoryAccess, (req, res) => ctrl.list(req, res));
 router.get("/:id", requireDirectoryAccess, (req, res) => ctrl.getOne(req, res));
 router.patch("/:id/instruments", (req, res) => ctrl.updateInstruments(req, res));
