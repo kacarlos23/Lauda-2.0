@@ -209,6 +209,64 @@ Mobile flow:
 4. The UI updates optimistically while the request runs.
 5. On API failure, the previous state is restored and an error message is shown.
 
+## Instrumentos/Cargos dos membros
+
+Stack audit for this feature: the implementation uses the real project stack, Node.js/Express/TypeScript, Prisma/PostgreSQL, and Expo/React Native. No Django, DRF, React web, or Material UI code was introduced.
+
+Members can keep their own instruments/cargos updated in the profile. Church admins and ministry leaders can see instrument badges in the member list, which helps identify skills for future schedule assignment flows.
+
+### Backend
+
+Prisma models:
+
+- `Instrument`: tenant-scoped catalog item with `name`, optional `colorHex`, and `@@unique([tenantId, name])`.
+- `UserInstrument`: join model between `User` and `Instrument`, also carrying `tenantId`; each user/instrument pair is unique.
+- `User.instruments`, `Tenant.instruments`, and `Tenant.userInstruments` expose the relations.
+
+Endpoints:
+
+- `GET /api/instruments`: authenticated users list instruments from their own tenant.
+- `POST /api/instruments`: `TENANT_ADMIN` or `GLOBAL_ADMIN` creates a tenant instrument.
+- `PATCH /api/instruments/:id`: `TENANT_ADMIN` or `GLOBAL_ADMIN` updates name/color for a tenant instrument.
+- `DELETE /api/instruments/:id`: `TENANT_ADMIN` or `GLOBAL_ADMIN` deletes a tenant instrument. Existing user links are removed by cascade.
+- `PATCH /api/members/:id/instruments`: replaces the member instrument list and returns complete instruments.
+
+Permissions and isolation:
+
+- Any authenticated user can list available instruments for their tenant.
+- A user can update only their own instruments.
+- `TENANT_ADMIN` and `GLOBAL_ADMIN` can update instruments for members in their own tenant.
+- `MEMBER` and `MINISTRY_LEADER` cannot update another member's instruments by default.
+- Instrument IDs from another tenant are rejected.
+- Member list/detail responses expose `instruments: [{ id, name, colorHex }]`, not raw Prisma join rows.
+
+### Mobile
+
+- `mobile/src/services/instrumentService.ts` wraps `GET /instruments` and `PATCH /members/:id/instruments`.
+- `mobile/app/(tabs)/members/index.tsx` renders instrument badges and a fallback when no instrument is informed.
+- `mobile/app/(tabs)/profile.tsx` lets the signed-in user toggle multiple instruments/cargos with optimistic UI and rollback on error.
+- `authStore` persists updated `user.instruments` in `auth_user`, so session restore keeps the local profile consistent.
+
+### Validation
+
+Backend:
+
+```bash
+npm test
+npm run build
+```
+
+Mobile:
+
+```bash
+cd mobile
+npm test
+npx tsc --noEmit
+npm run test:e2e
+```
+
+Recommended next step: use instruments to sort or filter members in schedule assignment dropdowns, for example placing members with the matching instrument/cargo at the top while still allowing any member to be selected.
+
 ## Mobile Setup
 
 Install mobile dependencies:

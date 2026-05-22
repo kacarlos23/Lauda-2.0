@@ -1,7 +1,13 @@
 import bcrypt from "bcryptjs";
+import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { CreateMemberInput } from "../validators/member.schema";
-import { NotFoundError, ValidationError } from "../errors/AppError";
+import { CreateMemberInput, UpdateMemberInstrumentsInput } from "../validators/member.schema";
+import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
+
+type RequestUser = {
+  id: string;
+  role: Role;
+};
 
 export class MemberService {
   constructor(private readonly memberRepository: MemberRepository) {}
@@ -39,5 +45,29 @@ export class MemberService {
     }
 
     return this.memberRepository.addMinistry(memberId, ministryId, isLeader);
+  }
+
+  async updateInstruments(memberId: string, input: UpdateMemberInstrumentsInput, user: RequestUser) {
+    const member = await this.memberRepository.findById(memberId);
+    if (!member) {
+      throw new NotFoundError("Membro nÃ£o encontrado");
+    }
+
+    const isSelf = user.id === memberId;
+    const isAdmin = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenError("Apenas o proprio membro ou administradores podem alterar instrumentos");
+    }
+
+    const instrumentIds = Array.from(new Set(input.instrumentIds));
+    if (instrumentIds.length > 0) {
+      const found = await this.memberRepository.findInstrumentIds(instrumentIds);
+      if (found.length !== instrumentIds.length) {
+        throw new ValidationError("Instrumento invalido ou nao encontrado");
+      }
+    }
+
+    const instruments = await this.memberRepository.replaceInstruments(memberId, instrumentIds);
+    return { id: memberId, instruments };
   }
 }

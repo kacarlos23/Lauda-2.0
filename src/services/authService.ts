@@ -42,7 +42,14 @@ type MemberInviteView = {
 };
 
 export class AuthService {
-  private buildAuthResponse(user: { id: string; name: string; email: string; role: string; tenantId: string }) {
+  private buildAuthResponse(user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    tenantId: string;
+    instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
+  }) {
     const accessToken = this.generateAccessToken({
       userId: user.id,
       email: user.email,
@@ -55,7 +62,14 @@ export class AuthService {
       accessToken,
       token: accessToken,
       refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId,
+        instruments: user.instruments?.map((item) => item.instrument) ?? [],
+      },
     };
   }
 

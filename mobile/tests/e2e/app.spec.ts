@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request } from "@playwright/test";
+import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 
 const adminUser = {
   id: "user-1",
@@ -6,6 +6,7 @@ const adminUser = {
   email: "ana@example.com",
   role: "TENANT_ADMIN",
   tenantId: "tenant-1",
+  instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
 const token = "test.jwt.token";
@@ -25,7 +26,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: { token, user: { ...adminUser, email: body.email } } }),
+          body: JSON.stringify({ data: { token, refreshToken: "refresh-token", user: { ...adminUser, email: body.email } } }),
     });
   });
 
@@ -37,9 +38,55 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       body: JSON.stringify({
         data: {
           token,
+          refreshToken: "refresh-token",
           user: { ...adminUser, name: body.name ?? adminUser.name, email: body.email ?? adminUser.email },
         },
       }),
+    });
+  });
+
+  await page.route("**/api/instruments", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
+          { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
+        ],
+      }),
+    });
+  });
+
+  const fulfillInstrumentUpdate = async (route: Route) => {
+    const body = route.request().postDataJSON() as { instrumentIds?: string[] };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          id: adminUser.id,
+          instruments: [
+            ...(body.instrumentIds?.includes("instrument-1")
+              ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
+              : []),
+            ...(body.instrumentIds?.includes("instrument-2")
+              ? [{ id: "instrument-2", name: "Vocal", colorHex: "#10B981" }]
+              : []),
+          ],
+        },
+      }),
+    });
+  };
+
+  await page.route("**/api/members/me/instruments", fulfillInstrumentUpdate);
+  await page.route("**/api/members/*/instruments", fulfillInstrumentUpdate);
+
+  await page.route("**/api/members/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: adminUser }),
     });
   });
 
@@ -64,7 +111,20 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: [adminUser] }),
+      body: JSON.stringify({
+        data: [
+          adminUser,
+          {
+            id: "user-2",
+            name: "Bruno Membro",
+            email: "bruno@example.com",
+            role: "MEMBER",
+            tenantId: "tenant-1",
+            instruments: [],
+            ministries: [],
+          },
+        ],
+      }),
     });
   });
 }
@@ -74,6 +134,12 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
   await expect(page.getByText(/Ana/)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_token;
+    })
+    .toBe(token);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -150,10 +216,37 @@ test("permite sair da conta e limpa a sessao local", async ({ page }) => {
     expect(dialog.message()).toContain("encerrar");
     await dialog.accept();
   });
-  await page.getByTestId("logout-submit").click();
+  await page.getByTestId("logout-submit").click({ force: true });
 
   await expect(page.getByTestId("login-email")).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(storage.auth_token).toBeUndefined();
   expect(storage.auth_user).toBeUndefined();
+});
+
+test("mostra badges de instrumentos na lista de membros sem expor ids", async ({ page }) => {
+  await login(page);
+  await page.getByText("Membros").last().click();
+
+  await expect(page.getByText("Instrumentos/Cargos").first()).toBeVisible();
+  await expect(page.getByText("Teclado").first()).toBeVisible();
+  await expect(page.getByText("Nenhum instrumento informado")).toBeVisible();
+  await expect(page.getByText("instrument-1")).not.toBeVisible();
+});
+
+test("permite editar instrumentos no perfil com atualizacao otimista e persistencia local", async ({ page }) => {
+  await login(page);
+  await page.getByText("Perfil").last().click();
+
+  await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByText("Teclado")).toBeVisible();
+  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
+
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_user ?? "";
+    })
+    .toContain("Vocal");
+  await expect(page.getByText("instrument-2")).not.toBeVisible();
 });

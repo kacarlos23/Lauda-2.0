@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { MemberService } from "../services/memberService";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { addMemberMinistrySchema, createMemberSchema } from "../validators/member.schema";
+import { addMemberMinistrySchema, createMemberSchema, updateMemberInstrumentsSchema } from "../validators/member.schema";
 
 export class MemberController extends BaseController {
   private buildService(req: Request) {
@@ -20,6 +20,11 @@ export class MemberController extends BaseController {
     this.handleSuccess(res, member);
   }
 
+  async getMe(req: Request, res: Response): Promise<void> {
+    const member = await this.buildService(req).getById(req.user!.id);
+    this.handleSuccess(res, member);
+  }
+
   async create(req: Request, res: Response): Promise<void> {
     const input = createMemberSchema.parse(req.body);
     const member = await this.buildService(req).create(input);
@@ -34,5 +39,17 @@ export class MemberController extends BaseController {
       input.isLeader
     );
     this.handleSuccess(res, assignment, 201);
+  }
+
+  async updateInstruments(req: Request, res: Response): Promise<void> {
+    const input = updateMemberInstrumentsSchema.parse(req.body);
+    const member = await this.buildService(req).updateInstruments(String(req.params.id), input, req.user!);
+    this.handleSuccess(res, member);
+  }
+
+  async updateMyInstruments(req: Request, res: Response): Promise<void> {
+    const input = updateMemberInstrumentsSchema.parse(req.body);
+    const member = await this.buildService(req).updateInstruments(req.user!.id, input, req.user!);
+    this.handleSuccess(res, member);
   }
 }

@@ -63,6 +63,15 @@ export const memberService = {
     }
   },
 
+  async getCurrentMember(): Promise<Member> {
+    try {
+      const response = await api.get<ApiResponse<Member>>("/members/me");
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
   async addMinistry(memberId: string, payload: LinkMemberMinistryPayload): Promise<void> {
     try {
       await api.post(`/members/${memberId}/ministries`, payload);

@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import ministryRoutes from "./routes/ministryRoutes";
 import memberRoutes from "./routes/memberRoutes";
+import instrumentRoutes from "./routes/instrumentRoutes";
 import scheduleRoutes from "./routes/scheduleRoutes";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenApiDocument } from "./docs/openapi";
@@ -22,6 +23,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/ministries", ministryRoutes);
 app.use("/api/members", memberRoutes);
+app.use("/api/instruments", instrumentRoutes);
 app.use("/api/schedules", scheduleRoutes);
 
 if (process.env.NODE_ENV !== "production") {
