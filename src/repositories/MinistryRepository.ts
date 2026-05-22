@@ -67,8 +67,26 @@ export class MinistryRepository {
   }
 
   delete(id: string) {
-    return prisma.ministry.deleteMany({
-      where: { id, tenantId: this.tenantId },
+    return prisma.$transaction(async (tx) => {
+      await tx.scheduleAssignment.deleteMany({
+        where: { tenantId: this.tenantId, schedule: { ministryId: id, tenantId: this.tenantId } },
+      });
+      await tx.schedule.deleteMany({
+        where: { ministryId: id, tenantId: this.tenantId },
+      });
+      await tx.ministryMember.deleteMany({
+        where: { ministryId: id, tenantId: this.tenantId },
+      });
+      await tx.ministrySong.deleteMany({
+        where: { ministryId: id, tenantId: this.tenantId },
+      });
+      await tx.memberInvite.deleteMany({
+        where: { ministryId: id, tenantId: this.tenantId },
+      });
+
+      return tx.ministry.deleteMany({
+        where: { id, tenantId: this.tenantId },
+      });
     });
   }
 

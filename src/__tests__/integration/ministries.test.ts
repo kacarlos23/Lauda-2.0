@@ -393,6 +393,25 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     expect(await prisma.ministryMember.count({ where: { userId: member.id, ministryId: ministry.id } })).toBe(1);
   });
 
+  it("POST /api/ministries/:id/toggle-member aceita payload camelCase do app", async () => {
+    const tenant = await registerTenant("toggle-camel-case");
+    const ministry = await createMinistry(tenant.token, "Payload Camel");
+    const member = await createMember(tenant.token, "toggle-camel-member", "Camel Toggle");
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ memberId: member.id })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          status: "linked",
+          member_id: member.id,
+          ministry_id: ministry.id,
+        });
+      });
+  });
+
   it("POST /api/ministries/:id/toggle-member exige admin autenticado", async () => {
     const tenant = await registerTenant("toggle-permission");
     const ministry = await createMinistry(tenant.token, "Permissao Toggle");
@@ -486,5 +505,52 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
 
     expect(await prisma.ministryMember.count({ where: { ministryId: louvor.id } })).toBe(2);
     expect(await prisma.ministryMember.count({ where: { userId: ana.id } })).toBe(2);
+  });
+
+  it("DELETE /api/ministries/:id remove ministerio existente com vinculos dependentes", async () => {
+    const tenant = await registerTenant("delete-ministry-dependencies");
+    const ministry = await createMinistry(tenant.token, "Ministerio com dependencias");
+    const member = await createMember(tenant.token, "delete-dependency-member", "Membro Dependencia");
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/toggle-member`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ member_id: member.id })
+      .expect(200);
+
+    const schedule = await prisma.schedule.create({
+      data: {
+        title: "Escala dependente",
+        date: new Date("2026-06-01T10:00:00.000Z"),
+        tenantId: tenant.user.tenantId,
+        ministryId: ministry.id,
+      },
+    });
+    await prisma.scheduleAssignment.create({
+      data: {
+        scheduleId: schedule.id,
+        userId: member.id,
+        role: "Vocal",
+        tenantId: tenant.user.tenantId,
+      },
+    });
+    await prisma.memberInvite.create({
+      data: {
+        tenantId: tenant.user.tenantId,
+        ministryId: ministry.id,
+        code: "delete-dependency-code",
+      },
+    });
+
+    await request(app)
+      .delete(`/api/ministries/${ministry.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    expect(await prisma.ministry.findUnique({ where: { id: ministry.id } })).toBeNull();
+    expect(await prisma.ministryMember.count({ where: { ministryId: ministry.id } })).toBe(0);
+    expect(await prisma.schedule.count({ where: { ministryId: ministry.id } })).toBe(0);
+    expect(await prisma.scheduleAssignment.count({ where: { scheduleId: schedule.id } })).toBe(0);
+    expect(await prisma.memberInvite.count({ where: { ministryId: ministry.id } })).toBe(0);
   });
 });
