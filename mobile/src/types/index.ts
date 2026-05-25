@@ -1,6 +1,11 @@
 export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
 export type MemberStatus = "PENDING" | "ACTIVE" | "INACTIVE";
 
+export interface Tenant {
+  id: string;
+  name: string;
+}
+
 export interface Instrument {
   id: string;
   name: string;
@@ -63,4 +68,22 @@ export interface Member {
     ministry: { id: string; name: string };
     isLeader: boolean;
   }>;
+}
+
+export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+
+export interface MySchedule {
+  assignmentId: string;
+  status: AssignmentStatus;
+  role: string;
+  schedule: {
+    id: string;
+    title: string;
+    date: string;
+    ministryId: string;
+    ministry: {
+      id: string;
+      name: string;
+    };
+  };
 }
