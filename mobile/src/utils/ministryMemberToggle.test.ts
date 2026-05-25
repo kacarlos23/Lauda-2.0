@@ -2,7 +2,7 @@ import { sortMembersForToggle, toggleLinkedMemberIds } from "./ministryMemberTog
 import { isChurchAdmin } from "./permissions";
 
 describe("ministry member toggle helpers", () => {
-  it("adiciona membro nao vinculado de forma otimista", () => {
+  it("adiciona membro não vinculado de forma otimista", () => {
     expect(toggleLinkedMemberIds(["member-1"], "member-2")).toEqual(["member-1", "member-2"]);
   });
 

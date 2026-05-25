@@ -14,25 +14,27 @@ export const addMemberMinistrySchema = z.object({
 });
 
 export const updateMemberInstrumentsSchema = z.object({
-  instrumentIds: z.array(z.string().uuid("ID do instrumento invalido")),
+  instrumentIds: z.array(z.string().uuid("ID do instrumento inválido")),
 });
 
-export const toggleMinistryMemberSchema = z.object({
-  member_id: z.string().uuid("ID do membro invalido").optional(),
-  memberId: z.string().uuid("ID do membro invalido").optional(),
-}).transform((input, ctx) => {
-  const memberId = input.member_id ?? input.memberId;
-  if (!memberId) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["member_id"],
-      message: "ID do membro e obrigatorio",
-    });
-    return z.NEVER;
-  }
+export const toggleMinistryMemberSchema = z
+  .object({
+    member_id: z.string().uuid("ID do membro inválido").optional(),
+    memberId: z.string().uuid("ID do membro inválido").optional(),
+  })
+  .transform((input, ctx) => {
+    const memberId = input.member_id ?? input.memberId;
+    if (!memberId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["member_id"],
+        message: "ID do membro é obrigatório",
+      });
+      return z.NEVER;
+    }
 
-  return { member_id: memberId };
-});
+    return { member_id: memberId };
+  });
 
 export const memberStatusSchema = z.enum(["PENDING", "ACTIVE", "INACTIVE"]);
 

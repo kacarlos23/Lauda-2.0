@@ -42,7 +42,7 @@ export default function ProfileScreen() {
         instruments: currentMember.instruments ?? [],
       });
     } catch (error) {
-      setInstrumentsError(error instanceof Error ? error.message : "Nao foi possivel carregar instrumentos.");
+      setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
     } finally {
       setInstrumentsLoading(false);
     }
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
       await updateCurrentUser({ instruments: result.instruments });
     } catch (error) {
       setSelectedIds(previousIds);
-      showInstrumentError(error instanceof Error ? error.message : "Nao foi possivel atualizar instrumentos.");
+      showInstrumentError(error instanceof Error ? error.message : "Não foi possível atualizar instrumentos.");
     }
   };
 
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           ) : availableInstruments.length === 0 ? (
-            <Text style={styles.instrumentMuted}>Nenhum instrumento disponivel</Text>
+            <Text style={styles.instrumentMuted}>Nenhum instrumento disponível</Text>
           ) : (
             <View style={styles.instrumentList}>
               {availableInstruments.map((instrument) => {

@@ -8,7 +8,7 @@ import { colors, radii, spacing } from "../../../src/theme";
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
-    PENDING: "Vinculo pendente",
+    PENDING: "Vínculo pendente",
     ACTIVE: "Vinculado",
     INACTIVE: "Inativo",
   };
@@ -27,7 +27,7 @@ export default function MyAssignmentsScreen() {
       const data = await ministryApi.getMyAssignments();
       setAssignments(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel carregar suas atribuicoes.");
+      setError(err instanceof Error ? err.message : "Não foi possível carregar suas atribuições.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,8 +60,8 @@ export default function MyAssignmentsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.title}>Meus ministerios</Text>
-            <Text style={styles.subtitle}>{assignments.length} participacao(oes)</Text>
+            <Text style={styles.title}>Meus ministérios</Text>
+            <Text style={styles.subtitle}>{assignments.length} participação(ões)</Text>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         }
@@ -72,19 +72,19 @@ export default function MyAssignmentsScreen() {
             </View>
             <View style={styles.info}>
               <View style={styles.row}>
-                <Text style={styles.name}>{item.ministry?.name ?? "Ministerio"}</Text>
+                <Text style={styles.name}>{item.ministry?.name ?? "Ministério"}</Text>
                 <Text style={styles.status}>{statusLabel(item.status)}</Text>
               </View>
               {item.role ? <Text style={styles.role}>{item.role}</Text> : null}
               {item.skills.length ? <Text style={styles.skills}>{item.skills.join(", ")}</Text> : null}
-              {item.isLeader ? <Text style={styles.leader}>Lider</Text> : null}
+              {item.isLeader ? <Text style={styles.leader}>Líder</Text> : null}
             </View>
           </View>
         )}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>Sem ministerios vinculados</Text>
-            <Text style={styles.emptyText}>Suas participacoes aparecerao aqui quando um lider atribuir voce.</Text>
+            <Text style={styles.emptyTitle}>Sem ministérios vinculados</Text>
+            <Text style={styles.emptyText}>Suas participações aparecerão aqui quando um líder atribuir você.</Text>
           </View>
         }
       />

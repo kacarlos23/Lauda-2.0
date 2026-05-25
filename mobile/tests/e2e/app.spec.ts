@@ -9,16 +9,60 @@ const adminUser = {
   instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
+const leaderUser = {
+  ...adminUser,
+  id: "leader-1",
+  name: "Lia Líder",
+  email: "lia@example.com",
+  role: "MINISTRY_LEADER",
+};
+
+const memberUser = {
+  ...adminUser,
+  id: "member-1",
+  name: "Bruno Membro",
+  email: "bruno@example.com",
+  role: "MEMBER",
+};
+
+const tenant = { id: "tenant-1", name: "Igreja Central" };
 const token = "test.jwt.token";
 
-async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
+function defaultSchedules(userId: string) {
+  return [
+    {
+      id: "assignment-1",
+      scheduleId: "schedule-1",
+      userId,
+      role: "Vocal",
+      status: "PENDING",
+      tenantId: tenant.id,
+      schedule: {
+        id: "schedule-1",
+        title: "Culto de domingo",
+        date: "2099-01-01T12:00:00.000Z",
+        ministryId: "ministry-1",
+        tenantId: tenant.id,
+        ministry: { id: "ministry-1", name: "Louvor" },
+      },
+    },
+  ];
+}
+
+async function mockApi(
+  page: Page,
+  options: { loginFails?: boolean; user?: typeof adminUser; schedules?: ReturnType<typeof defaultSchedules> } = {}
+) {
+  const currentUser = options.user ?? adminUser;
+  const schedules = options.schedules ?? defaultSchedules(currentUser.id);
+
   await page.route("**/api/auth/login", async (route) => {
     const body = route.request().postDataJSON() as { email?: string; password?: string };
     if (options.loginFails || body.password === "wrongpass") {
       await route.fulfill({
         status: 400,
         contentType: "application/json",
-        body: JSON.stringify({ error: "Credenciais invalidas" }),
+        body: JSON.stringify({ error: "Credenciais inválidas" }),
       });
       return;
     }
@@ -26,7 +70,9 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-          body: JSON.stringify({ data: { token, refreshToken: "refresh-token", user: { ...adminUser, email: body.email } } }),
+      body: JSON.stringify({
+        data: { token, refreshToken: "refresh-token", user: { ...currentUser, email: body.email }, tenant },
+      }),
     });
   });
 
@@ -40,6 +86,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
           token,
           refreshToken: "refresh-token",
           user: { ...adminUser, name: body.name ?? adminUser.name, email: body.email ?? adminUser.email },
+          tenant,
         },
       }),
     });
@@ -65,7 +112,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          id: adminUser.id,
+          id: currentUser.id,
           instruments: [
             ...(body.instrumentIds?.includes("instrument-1")
               ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
@@ -86,7 +133,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: adminUser }),
+      body: JSON.stringify({ data: currentUser }),
     });
   });
 
@@ -113,7 +160,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       contentType: "application/json",
       body: JSON.stringify({
         data: [
-          adminUser,
+          currentUser,
           {
             id: "user-2",
             name: "Bruno Membro",
@@ -127,13 +174,30 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       }),
     });
   });
+
+  await page.route("**/api/schedules/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: schedules }),
+    });
+  });
+
+  await page.route("**/api/schedules/*/assignments/*/status", async (route) => {
+    const body = route.request().postDataJSON() as { status?: string };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { ...schedules[0], status: body.status ?? "ACCEPTED" } }),
+    });
+  });
 }
 
 async function login(page: Page, email = "ana@example.com", password = "secret123") {
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
-  await expect(page.getByText(/Ana/)).toBeVisible();
+  await expect(page.getByText(/Ana|Lia|Bruno/)).toBeVisible();
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
@@ -147,14 +211,14 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("redireciona usuario anonimo para login e bloqueia area autenticada", async ({ page }) => {
+test("redireciona usuário anônimo para login e bloqueia área autenticada", async ({ page }) => {
   await page.goto("/members");
 
   await expect(page.getByTestId("login-email")).toBeVisible();
   await expect(page.getByTestId("login-password")).toBeVisible();
 });
 
-test("valida campos obrigatorios no login antes de chamar a API", async ({ page }) => {
+test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {
   let loginRequests = 0;
   page.on("request", (request) => {
     if (request.url().includes("/api/auth/login")) loginRequests += 1;
@@ -166,7 +230,7 @@ test("valida campos obrigatorios no login antes de chamar a API", async ({ page 
   await expect(page.getByTestId("login-email")).toBeVisible();
 });
 
-test("faz login, envia token em requisicoes protegidas e nao persiste senha", async ({ page }) => {
+test("faz login, envia token em requisições protegidas e não persiste senha", async ({ page }) => {
   let ministriesRequest: Request | undefined;
   page.on("request", (request) => {
     if (request.url().includes("/api/ministries")) ministriesRequest = request;
@@ -175,12 +239,13 @@ test("faz login, envia token em requisicoes protegidas e nao persiste senha", as
   await login(page);
   await page.getByText("Ministérios").last().click();
 
-  await expect(page.getByText("Louvor")).toBeVisible();
+  await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);
 
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
   expect(storage.auth_token).toBe(token);
+  expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
@@ -206,9 +271,82 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   await expect(page.getByText(/Maria/)).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
+  expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
-test("permite sair da conta e limpa a sessao local", async ({ page }) => {
+test("Home mostra igreja atual, pendentes e próxima escala real", async ({ page }) => {
+  await login(page);
+
+  await expect(page.getByText("Igreja atual: Igreja Central").last()).toBeVisible();
+  await expect(page.getByText("Escalas pendentes")).toBeVisible();
+  await expect(page.getByText("Culto de domingo")).toBeVisible();
+  await expect(page.getByText("Ministério: Louvor")).toBeVisible();
+  await expect(page.getByText("Função: Vocal")).toBeVisible();
+  await expect(page.getByText("Status: Pendente")).toBeVisible();
+  await expect(page.getByText("schedule-1")).not.toBeVisible();
+});
+
+test("Home mostra empty state quando não há escala", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/schedules/me").catch(() => undefined);
+  await mockApi(page, { schedules: [] });
+  await page.goto("/");
+
+  await login(page);
+
+  await expect(page.getByText("Sem compromissos agendados")).toBeVisible();
+});
+
+test("aba Escalas lista escalas e permite aceitar ou recusar pendentes", async ({ page }) => {
+  let statusRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/api/schedules/schedule-1/assignments/assignment-1/status")) statusRequests += 1;
+  });
+
+  await login(page);
+  await page.getByText("Escalas").last().click();
+
+  await expect(page.getByText("Igreja atual: Igreja Central").last()).toBeVisible();
+  await expect(page.getByText("Culto de domingo").last()).toBeVisible();
+  await expect(page.getByText("Louvor").last()).toBeVisible();
+  await expect(page.getByText("Vocal").last()).toBeVisible();
+
+  await page.getByRole("button", { name: "Aceitar Culto de domingo" }).click();
+  await expect.poll(() => statusRequests).toBe(1);
+
+  await page.evaluate(() => window.localStorage.clear());
+  await page.unroute("**/api/schedules/me").catch(() => undefined);
+  await page.route("**/api/schedules/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: defaultSchedules(adminUser.id) }),
+    });
+  });
+  await page.goto("/");
+  await login(page);
+  await page.getByText("Escalas").last().click();
+  await page.getByRole("button", { name: "Recusar Culto de domingo" }).click();
+  await expect.poll(() => statusRequests).toBe(2);
+});
+
+test("botões de escala aparecem apenas para PENDING", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/schedules/me").catch(() => undefined);
+  await mockApi(page, {
+    schedules: [{ ...defaultSchedules(adminUser.id)[0], status: "ACCEPTED" }],
+  });
+  await page.goto("/");
+
+  await login(page);
+  await page.getByText("Escalas").last().click();
+
+  await expect(page.getByText("Aceita", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Aceitar Culto de domingo" })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Recusar Culto de domingo" })).not.toBeVisible();
+});
+
+test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
@@ -222,6 +360,7 @@ test("permite sair da conta e limpa a sessao local", async ({ page }) => {
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(storage.auth_token).toBeUndefined();
   expect(storage.auth_user).toBeUndefined();
+  expect(storage.auth_tenant).toBeUndefined();
 });
 
 test("mostra badges de instrumentos na lista de membros sem expor ids", async ({ page }) => {
@@ -234,7 +373,35 @@ test("mostra badges de instrumentos na lista de membros sem expor ids", async ({
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
-test("permite editar instrumentos no perfil com atualizacao otimista e persistencia local", async ({ page }) => {
+test("líder vê Membros, lista e badges, sem ações administrativas", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await page.unroute("**/api/members").catch(() => undefined);
+  await mockApi(page, { user: leaderUser });
+  await page.goto("/");
+
+  await login(page, "lia@example.com");
+  await page.getByText("Membros").last().click();
+
+  await expect(page.getByText("Instrumentos/Cargos").first()).toBeVisible();
+  await expect(page.getByText("Teclado").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cadastrar membro" })).not.toBeVisible();
+  await expect(page.getByText("Link de cadastro de membros")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Regenerar link de cadastro" })).not.toBeVisible();
+});
+
+test("membro comum não vê aba Membros", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: memberUser });
+  await page.goto("/");
+
+  await login(page, "bruno@example.com");
+
+  await expect(page.getByText("Membros", { exact: true })).not.toBeVisible();
+});
+
+test("permite editar instrumentos no perfil com atualização otimista e persistência local", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
