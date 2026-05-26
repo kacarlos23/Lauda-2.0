@@ -301,15 +301,36 @@ test("mostra badges de instrumentos na lista de membros sem expor ids", async ({
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
-test("permite editar instrumentos no perfil com atualização otimista e persistência local", async ({ page }) => {
+test("abre modal e permite cancelar alteração de instrumentos", async ({ page }) => {
+  await login(page);
+  await page.getByText("Perfil").last().click();
+
+  await page.getByTestId("edit-instruments-button").click();
+  await expect(page.getByTestId("instrument-selection-modal")).toBeVisible();
+  await expect(page.getByText("Escolha seus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByText("🎹")).toBeVisible();
+  await expect(page.getByText("🎤")).toBeVisible();
+
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await expect(page.getByText("Selecionado").nth(1)).toBeVisible();
+  await page.getByTestId("cancel-instruments-selection").click();
+  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
+
+  const storage = await page.evaluate(() => ({ ...window.localStorage }));
+  expect(storage.auth_user).not.toContain("Vocal");
+});
+
+test("permite editar instrumentos no perfil por modal com seleção múltipla", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
   await expect(page.getByText("Selecionados")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
-  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
-  await expect(page.getByText("Salvando...")).toBeVisible();
+
+  await page.getByTestId("edit-instruments-button").click();
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await page.getByTestId("save-instruments-selection").click();
 
   await expect
     .poll(async () => {
@@ -317,10 +338,11 @@ test("permite editar instrumentos no perfil com atualização otimista e persist
       return storage.auth_user ?? "";
     })
     .toContain("Vocal");
+  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
   await expect(page.getByText("instrument-2")).not.toBeVisible();
 });
 
-test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }) => {
+test("membro comum edita os próprios instrumentos pelo modal do Perfil", async ({ page }) => {
   let updateRequests = 0;
   let lastPayload: { instrumentIds?: string[] } | undefined;
 
@@ -353,7 +375,9 @@ test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }
 
   await expect(page.getByText("Membro").first()).toBeVisible();
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
-  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
+  await page.getByTestId("edit-instruments-button").click();
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await page.getByTestId("save-instruments-selection").click();
 
   await expect.poll(() => updateRequests).toBe(1);
   expect(lastPayload?.instrumentIds).toEqual(["instrument-1", "instrument-2"]);
