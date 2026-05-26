@@ -113,6 +113,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="instruments/index"
+        options={{
+          title: "Instrumentos/Cargos",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",

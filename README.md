@@ -247,6 +247,28 @@ Permissions and isolation:
 - `mobile/app/(tabs)/profile.tsx` lets the signed-in user toggle multiple instruments/cargos with optimistic UI and rollback on error.
 - `authStore` persists updated `user.instruments` in `auth_user`, so session restore keeps the local profile consistent.
 
+### Mobile - Catálogo de instrumentos/cargos
+
+Admin users can manage the tenant instrument catalog in `mobile/app/(tabs)/instruments/index.tsx`. The route is hidden from the tab bar and is opened from the Profile button "Gerenciar instrumentos/cargos", visible only to `TENANT_ADMIN` and `GLOBAL_ADMIN`.
+
+Audit for the admin catalog:
+
+- Available endpoints: `GET /api/instruments`, `POST /api/instruments`, `PATCH /api/instruments/:id`, and `DELETE /api/instruments/:id`.
+- Backend permissions: all authenticated users can list instruments; only `TENANT_ADMIN` and `GLOBAL_ADMIN` can create, update, or delete.
+- Mobile route: `/(tabs)/instruments/index`, navigated as `/instruments`.
+- Mobile service/store: `mobile/src/services/instrumentService.ts` exposes catalog CRUD and member instrument updates; `mobile/src/store/instrumentStore.ts` keeps the screen from calling the API directly.
+- Delete behavior: deleting an instrument removes existing member links by cascade and the mobile UI confirms this before sending the request.
+
+Manual test flow:
+
+1. Sign in as a church admin.
+2. Open Profile and tap "Gerenciar instrumentos/cargos".
+3. Create an instrument with a name of at least two characters and an optional `#RRGGBB` color.
+4. Edit the instrument name and color.
+5. Delete the instrument and confirm that the item is removed.
+6. Sign in as a `MEMBER` or `MINISTRY_LEADER` and confirm the management button is not shown and direct access redirects to Profile.
+7. Confirm Profile still lets users edit their own instruments, the Members list still shows badges, and schedule flows still open normally.
+
 ### Validation
 
 Backend:
