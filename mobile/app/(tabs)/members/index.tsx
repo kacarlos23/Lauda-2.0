@@ -22,8 +22,8 @@ import { canManageMembers, canViewMembers } from "../../../src/utils/permissions
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
-    GLOBAL_ADMIN: "Admin global",
-    TENANT_ADMIN: "Líder da igreja",
+    GLOBAL_ADMIN: "Administrador global",
+    TENANT_ADMIN: "Administrador da igreja",
     MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };

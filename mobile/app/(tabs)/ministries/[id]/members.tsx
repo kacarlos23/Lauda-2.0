@@ -17,7 +17,7 @@ function canAssign(role?: string): boolean {
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     ALL: "Todos",
-    PENDING: "Vinculo pendente",
+    PENDING: "Vínculo pendente",
     ACTIVE: "Vinculado",
     INACTIVE: "Inativo",
   };

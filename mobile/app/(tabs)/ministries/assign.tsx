@@ -136,7 +136,7 @@ export default function AssignMemberScreen() {
           style={styles.input}
           value={skillsText}
           onChangeText={setSkillsText}
-          placeholder="violao, vocal, bateria"
+          placeholder="violão, vocal, bateria"
           placeholderTextColor={colors.muted}
         />
 
@@ -166,7 +166,7 @@ export default function AssignMemberScreen() {
           style={[styles.input, styles.textArea]}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Observacoes internas"
+          placeholder="Observações internas"
           placeholderTextColor={colors.muted}
           multiline
           textAlignVertical="top"

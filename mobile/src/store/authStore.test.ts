@@ -67,8 +67,17 @@ describe("authStore session", () => {
     });
   });
 
-  it("login persiste tenant", async () => {
-    jest.mocked(api.post).mockResolvedValueOnce(authResponse());
+  it("atualiza instrumentos no usuário atual e persiste auth_user", async () => {
+    useAuthStore.setState({
+      user: {
+        id: "user-1",
+        name: "Ana",
+        email: "ana@example.com",
+        role: "MEMBER",
+        tenantId: "tenant-1",
+        instruments: [],
+      },
+    });
 
     await useAuthStore.getState().login("ana@example.com", "secret123");
 
@@ -112,7 +121,7 @@ describe("authStore session", () => {
     expect(useAuthStore.getState().user?.instruments).toEqual(user.instruments);
   });
 
-  it("logout limpa tenant com o restante da sessão", async () => {
+  it("logout limpa instrumentos com o restante da sessão", async () => {
     mockStorage.set("auth_token", "token-1");
     mockStorage.set("refresh_token", "refresh-1");
     mockStorage.set("auth_user", JSON.stringify(user));

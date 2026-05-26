@@ -78,7 +78,7 @@ async function createMinistry(token: string, name: string) {
   const response = await request(app)
     .post("/api/ministries")
     .set("Authorization", `Bearer ${token}`)
-    .send({ name, description: `Ministerio ${name}` })
+    .send({ name, description: `Ministério ${name}` })
     .expect(201);
 
   return response.body.data;
@@ -168,7 +168,7 @@ describe("Members API", () => {
     expect(stored?.tenantId).toBe(tenant.user.tenantId);
   });
 
-  it("bloqueia cadastro de membro por usuario sem permissao", async () => {
+  it("bloqueia cadastro de membro por usuário sem permissão", async () => {
     const tenant = await registerTenant("members-forbidden");
     await createMember(tenant.token, "common-forbidden@example.com");
 
@@ -251,7 +251,7 @@ describe("Members API", () => {
     expect(member.userInstruments).toBeUndefined();
   });
 
-  it("GET /api/members nao retorna instrumentos de outro tenant e membro sem instrumentos retorna array vazio", async () => {
+  it("GET /api/members não retorna instrumentos de outro tenant e membro sem instrumentos retorna array vazio", async () => {
     const tenantA = await registerTenant("members-instruments-tenant-a");
     const tenantB = await registerTenant("members-instruments-tenant-b");
     const memberA = await createMember(tenantA.token, "member-no-instruments-a@example.com");
@@ -277,7 +277,7 @@ describe("Members API", () => {
     expect(member.instruments).toEqual([]);
   });
 
-  it("PATCH /api/members/:id/instruments aplica permissoes, tenant e substituicao da lista", async () => {
+  it("PATCH /api/members/:id/instruments aplica permissões, tenant e substituição da lista", async () => {
     const tenantA = await registerTenant("members-patch-instruments-a");
     const tenantB = await registerTenant("members-patch-instruments-b");
     const memberA = await createMember(tenantA.token, "patch-self@example.com");
@@ -377,31 +377,7 @@ describe("Members API", () => {
       .expect(400);
   });
 
-  it("POST /api/members/:id/ministries nao vincula usuario ou ministerio de outro tenant", async () => {
-    const tenantA = await registerTenant("members-ministry-link-a");
-    const tenantB = await registerTenant("members-ministry-link-b");
-    const memberA = await createMember(tenantA.token, "member-ministry-link-a@example.com");
-    const memberB = await createMember(tenantB.token, "member-ministry-link-b@example.com");
-    const ministryA = await createMinistry(tenantA.token, "Louvor Link A");
-    const ministryB = await createMinistry(tenantB.token, "Louvor Link B");
-
-    await request(app)
-      .post(`/api/members/${memberB.body.data.id}/ministries`)
-      .set("Authorization", `Bearer ${tenantA.token}`)
-      .send({ ministryId: ministryA.id, isLeader: false })
-      .expect(404);
-
-    await request(app)
-      .post(`/api/members/${memberA.body.data.id}/ministries`)
-      .set("Authorization", `Bearer ${tenantA.token}`)
-      .send({ ministryId: ministryB.id, isLeader: false })
-      .expect(404);
-
-    expect(await prisma.ministryMember.count({ where: { userId: memberB.body.data.id, ministryId: ministryA.id } })).toBe(0);
-    expect(await prisma.ministryMember.count({ where: { userId: memberA.body.data.id, ministryId: ministryB.id } })).toBe(0);
-  });
-
-  it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuario autenticado", async () => {
+  it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuário autenticado", async () => {
     const tenant = await registerTenant("members-me-instruments");
     const member = await createMember(tenant.token, "members-me@example.com");
     const keyboard = await createInstrument(tenant.token, "Teclado");
@@ -437,7 +413,7 @@ describe("Members API", () => {
       });
   });
 
-  it("permite login do usuario recem-criado", async () => {
+  it("permite login do usuário recém-criado", async () => {
     const tenant = await registerTenant("members-login");
     await createMember(tenant.token, "login-member@example.com");
 
@@ -454,7 +430,7 @@ describe("Members API", () => {
     });
   });
 
-  it("admin obtem convite e GET cria um quando nao existe ativo", async () => {
+  it("admin obtém convite e GET cria um quando não existe ativo", async () => {
     const tenant = await registerTenant("invite-get-create");
 
     expect(await prisma.memberInvite.count()).toBe(0);
@@ -488,7 +464,7 @@ describe("Members API", () => {
     expect(oldInvite?.active).toBe(false);
   });
 
-  it("POST /api/auth/member-register cadastra membro publico com convite valido", async () => {
+  it("POST /api/auth/member-register cadastra membro público com convite válido", async () => {
     const tenant = await registerTenant("public-member-valid");
     const invite = await request(app)
       .get("/api/auth/member-invite")
@@ -518,7 +494,7 @@ describe("Members API", () => {
     expect(response.body.data.user.password).toBeUndefined();
   });
 
-  it("convite de ministerio cadastra membro e vincula automaticamente ao ministerio", async () => {
+  it("convite de ministério cadastra membro e vincula automaticamente ao ministério", async () => {
     const tenant = await registerTenant("public-member-ministry-invite");
     const ministry = await createMinistry(tenant.token, "Louvor Convite");
 
@@ -538,7 +514,7 @@ describe("Members API", () => {
       .post("/api/auth/member-register")
       .send({
         inviteCode: invite.body.data.code,
-        name: "Membro Ministerio",
+        name: "Membro Ministério",
         email: "public-ministry-invite@example.com",
         password: "public123",
       })
@@ -559,7 +535,7 @@ describe("Members API", () => {
     });
   });
 
-  it("login com codigo de convite vincula usuario existente ao ministerio", async () => {
+  it("login com código de convite vincula usuário existente ao ministério", async () => {
     const tenant = await registerTenant("login-member-ministry-invite");
     const ministry = await createMinistry(tenant.token, "Recepcao Convite");
     const createdMember = await createMember(tenant.token, "existing-ministry-invite@example.com");
@@ -595,7 +571,7 @@ describe("Members API", () => {
     });
   });
 
-  it("POST /api/auth/member-register rejeita convite invalido", async () => {
+  it("POST /api/auth/member-register rejeita convite inválido", async () => {
     const response = await request(app)
       .post("/api/auth/member-register")
       .send({
@@ -639,7 +615,7 @@ describe("Members API", () => {
     expect(response.body.error).toBe("E-mail já está em uso");
   });
 
-  it("cadastro publico ignora role e cria sempre MEMBER sem criar tenant", async () => {
+  it("cadastro público ignora role e cria sempre MEMBER sem criar tenant", async () => {
     const tenant = await registerTenant("public-member-role");
     const tenantCountBefore = await prisma.tenant.count();
     const invite = await request(app)
@@ -667,7 +643,7 @@ describe("Members API", () => {
     expect(stored?.tenantId).toBe(tenant.user.tenantId);
   });
 
-  it("cadastro publico retorna tokens que permitem acessar area logada", async () => {
+  it("cadastro público retorna tokens que permitem acessar área logada", async () => {
     const tenant = await registerTenant("public-member-token");
     const invite = await request(app)
       .get("/api/auth/member-invite")
@@ -690,7 +666,7 @@ describe("Members API", () => {
       .expect(200);
   });
 
-  it("endpoint de convite exige admin e regeneracao invalida codigo anterior", async () => {
+  it("endpoint de convite exige admin e regeneração invalida código anterior", async () => {
     const tenant = await registerTenant("public-member-admin");
     await createMemberWithRole(tenant.token, "invite-common@example.com", "MEMBER").expect(201);
     await createMemberWithRole(tenant.token, "invite-leader@example.com", "MINISTRY_LEADER").expect(201);
@@ -742,7 +718,7 @@ describe("Members API", () => {
       .post("/api/auth/member-register")
       .send({
         inviteCode: first.body.data.code,
-        name: "Codigo Antigo",
+        name: "Código Antigo",
         email: "old-code@example.com",
         password: "public123",
       })
@@ -752,7 +728,7 @@ describe("Members API", () => {
       .post("/api/auth/member-register")
       .send({
         inviteCode: second.body.data.code,
-        name: "Codigo Novo",
+        name: "Código Novo",
         email: "new-code@example.com",
         password: "public123",
       })

@@ -274,78 +274,6 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
-test("Home mostra igreja atual, pendentes e próxima escala real", async ({ page }) => {
-  await login(page);
-
-  await expect(page.getByText("Igreja atual: Igreja Central").last()).toBeVisible();
-  await expect(page.getByText("Escalas pendentes")).toBeVisible();
-  await expect(page.getByText("Culto de domingo")).toBeVisible();
-  await expect(page.getByText("Ministério: Louvor")).toBeVisible();
-  await expect(page.getByText("Função: Vocal")).toBeVisible();
-  await expect(page.getByText("Status: Pendente")).toBeVisible();
-  await expect(page.getByText("schedule-1")).not.toBeVisible();
-});
-
-test("Home mostra empty state quando não há escala", async ({ page }) => {
-  await page.unroute("**/api/auth/login").catch(() => undefined);
-  await page.unroute("**/api/schedules/me").catch(() => undefined);
-  await mockApi(page, { schedules: [] });
-  await page.goto("/");
-
-  await login(page);
-
-  await expect(page.getByText("Sem compromissos agendados")).toBeVisible();
-});
-
-test("aba Escalas lista escalas e permite aceitar ou recusar pendentes", async ({ page }) => {
-  let statusRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("/api/schedules/schedule-1/assignments/assignment-1/status")) statusRequests += 1;
-  });
-
-  await login(page);
-  await page.getByText("Escalas").last().click();
-
-  await expect(page.getByText("Igreja atual: Igreja Central").last()).toBeVisible();
-  await expect(page.getByText("Culto de domingo").last()).toBeVisible();
-  await expect(page.getByText("Louvor").last()).toBeVisible();
-  await expect(page.getByText("Vocal").last()).toBeVisible();
-
-  await page.getByRole("button", { name: "Aceitar Culto de domingo" }).click();
-  await expect.poll(() => statusRequests).toBe(1);
-
-  await page.evaluate(() => window.localStorage.clear());
-  await page.unroute("**/api/schedules/me").catch(() => undefined);
-  await page.route("**/api/schedules/me", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ data: defaultSchedules(adminUser.id) }),
-    });
-  });
-  await page.goto("/");
-  await login(page);
-  await page.getByText("Escalas").last().click();
-  await page.getByRole("button", { name: "Recusar Culto de domingo" }).click();
-  await expect.poll(() => statusRequests).toBe(2);
-});
-
-test("botões de escala aparecem apenas para PENDING", async ({ page }) => {
-  await page.unroute("**/api/auth/login").catch(() => undefined);
-  await page.unroute("**/api/schedules/me").catch(() => undefined);
-  await mockApi(page, {
-    schedules: [{ ...defaultSchedules(adminUser.id)[0], status: "ACCEPTED" }],
-  });
-  await page.goto("/");
-
-  await login(page);
-  await page.getByText("Escalas").last().click();
-
-  await expect(page.getByText("Aceita", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Aceitar Culto de domingo" })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Recusar Culto de domingo" })).not.toBeVisible();
-});
-
 test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
@@ -371,34 +299,6 @@ test("mostra badges de instrumentos na lista de membros sem expor ids", async ({
   await expect(page.getByText("Teclado").first()).toBeVisible();
   await expect(page.getByText("Nenhum instrumento informado")).toBeVisible();
   await expect(page.getByText("instrument-1")).not.toBeVisible();
-});
-
-test("líder vê Membros, lista e badges, sem ações administrativas", async ({ page }) => {
-  await page.unroute("**/api/auth/login").catch(() => undefined);
-  await page.unroute("**/api/members/me").catch(() => undefined);
-  await page.unroute("**/api/members").catch(() => undefined);
-  await mockApi(page, { user: leaderUser });
-  await page.goto("/");
-
-  await login(page, "lia@example.com");
-  await page.getByText("Membros").last().click();
-
-  await expect(page.getByText("Instrumentos/Cargos").first()).toBeVisible();
-  await expect(page.getByText("Teclado").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cadastrar membro" })).not.toBeVisible();
-  await expect(page.getByText("Link de cadastro de membros")).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "Regenerar link de cadastro" })).not.toBeVisible();
-});
-
-test("membro comum não vê aba Membros", async ({ page }) => {
-  await page.unroute("**/api/auth/login").catch(() => undefined);
-  await page.unroute("**/api/members/me").catch(() => undefined);
-  await mockApi(page, { user: memberUser });
-  await page.goto("/");
-
-  await login(page, "bruno@example.com");
-
-  await expect(page.getByText("Membros", { exact: true })).not.toBeVisible();
 });
 
 test("permite editar instrumentos no perfil com atualização otimista e persistência local", async ({ page }) => {

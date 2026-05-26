@@ -64,7 +64,7 @@ describe("instrumentService", () => {
     });
   });
 
-  it("updateMyInstruments usa endpoint do usuario autenticado", async () => {
+  it("updateMyInstruments usa endpoint do usuário autenticado", async () => {
     const response = {
       id: "member-1",
       instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
@@ -79,9 +79,9 @@ describe("instrumentService", () => {
 
   it("converte erro da API em mensagem amigavel", async () => {
     mockedApi.get.mockRejectedValueOnce({
-      response: { data: { error: "Instrumento inválido ou não encontrado." } },
+      response: { data: { error: "Instrumento inválido ou não encontrado" } },
     });
 
-    await expect(instrumentService.getInstruments()).rejects.toThrow("Instrumento inválido ou não encontrado.");
+    await expect(instrumentService.getInstruments()).rejects.toThrow("Instrumento inválido ou não encontrado");
   });
 });

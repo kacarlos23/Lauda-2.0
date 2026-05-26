@@ -138,7 +138,7 @@ describe("Instruments API", () => {
     expect(response.body.data).toEqual([{ id: expect.any(String), name: "Teclado", colorHex: "#2563EB" }]);
   });
 
-  it("TENANT_ADMIN cria instrumento, MEMBER nao cria, e validacao rejeita payload invalido", async () => {
+  it("TENANT_ADMIN cria instrumento, MEMBER não cria, e validação rejeita payload inválido", async () => {
     const tenant = await registerTenant("instruments-create");
     const member = await createMember(tenant.token, "instrument-create-member");
 
@@ -147,7 +147,7 @@ describe("Instruments API", () => {
     await request(app)
       .post("/api/instruments")
       .set("Authorization", `Bearer ${member.token}`)
-      .send({ name: "Violao", colorHex: "#F59E0B" })
+      .send({ name: "Violão", colorHex: "#F59E0B" })
       .expect(403);
 
     await request(app)
@@ -179,11 +179,11 @@ describe("Instruments API", () => {
     expect(duplicate.body.error).toBe("Já existe um instrumento com este nome");
   });
 
-  it("PATCH e DELETE respeitam tenant e nao alteram instrumento de outro tenant", async () => {
+  it("PATCH e DELETE respeitam tenant e não alteram instrumento de outro tenant", async () => {
     const tenantA = await registerTenant("instruments-update-a");
     const tenantB = await registerTenant("instruments-update-b");
     const instrumentA = await createInstrument(tenantA.token, "Som");
-    const instrumentB = await createInstrument(tenantB.token, "Midia");
+    const instrumentB = await createInstrument(tenantB.token, "Mídia");
 
     await request(app)
       .patch(`/api/instruments/${instrumentB.id}`)
@@ -226,7 +226,7 @@ describe("Instruments API", () => {
       });
   });
 
-  it("suporta multiplos instrumentos por usuario, multiplos usuarios por instrumento e nao duplica vinculos", async () => {
+  it("suporta múltiplos instrumentos por usuário, múltiplos usuários por instrumento e não duplica vínculos", async () => {
     const tenant = await registerTenant("instrument-cardinality");
     const memberA = await createMember(tenant.token, "instrument-card-a");
     const memberB = await createMember(tenant.token, "instrument-card-b");

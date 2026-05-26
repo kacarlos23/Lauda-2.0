@@ -51,7 +51,7 @@ describe("POST /api/schedules", () => {
     await prisma.$disconnect();
   });
 
-  it("exige autenticacao", async () => {
+  it("exige autenticação", async () => {
     await request(app)
       .post("/api/schedules")
       .send({
@@ -62,7 +62,7 @@ describe("POST /api/schedules", () => {
       .expect(401);
   });
 
-  it("impede criar escala usando ministerio de outro tenant", async () => {
+  it("impede criar escala usando ministério de outro tenant", async () => {
     const tenantA = await registerTenant("tenant-a");
     const tenantB = await registerTenant("tenant-b");
     const ministryB = await createMinistry(tenantB.token, "Louvor B");

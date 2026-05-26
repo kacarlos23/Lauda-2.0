@@ -100,7 +100,7 @@ export default function DashboardScreen() {
 function formatRole(role?: string) {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Líder da igreja",
+    TENANT_ADMIN: "Administrador da igreja",
     MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };

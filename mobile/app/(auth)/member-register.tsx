@@ -49,7 +49,7 @@ export default function PublicMemberRegisterScreen() {
     const normalizedCode = inviteCode.trim();
 
     if (!normalizedCode) {
-      setError("Informe o codigo de convite.");
+      setError("Informe o código de convite.");
       return;
     }
 
@@ -59,7 +59,7 @@ export default function PublicMemberRegisterScreen() {
     }
 
     if (!isValidEmail(normalizedEmail)) {
-      setError("Informe um e-mail valido.");
+      setError("Informe um e-mail válido.");
       return;
     }
 
@@ -110,7 +110,7 @@ export default function PublicMemberRegisterScreen() {
             <UserPlus color={colors.surface} size={26} strokeWidth={2.6} />
           </View>
           <Text style={styles.title}>Cadastro de membro</Text>
-          <Text style={styles.subtitle}>Use o link ou codigo fornecido pela sua igreja.</Text>
+          <Text style={styles.subtitle}>Use o link ou código fornecido pela sua igreja.</Text>
 
           {error ? (
             <Text style={styles.error} accessibilityRole="alert" testID="member-register-error">
