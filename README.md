@@ -1,5 +1,8 @@
 # Lauda 2.0
 
+[![Backend CI](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/backend.yml/badge.svg)](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/backend.yml)
+[![Mobile CI](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/mobile.yml/badge.svg)](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/mobile.yml)
+
 Lauda 2.0 is a SaaS project for managing church ministries, members, schedules, assignments, and songs. The repository contains a Node.js API, a PostgreSQL database modeled with Prisma, and an Expo/React Native mobile app.
 
 ## Stack
@@ -249,6 +252,8 @@ Permissions and isolation:
 
 ### Validation
 
+GitHub Actions runs backend and mobile validation on pull requests and pushes to `main`.
+
 Backend:
 
 ```bash
@@ -264,6 +269,8 @@ npm test
 npx tsc --noEmit
 npm run test:e2e
 ```
+
+Backend integration tests use Testcontainers with PostgreSQL, so Docker must be available locally and in CI. Mobile E2E tests use Playwright; the CI job installs browsers before running `npm run test:e2e`, and Playwright starts Expo web through the configured `webServer`.
 
 Recommended next step: use instruments to sort or filter members in schedule assignment dropdowns, for example placing members with the matching instrument/cargo at the top while still allowing any member to be selected.
 
