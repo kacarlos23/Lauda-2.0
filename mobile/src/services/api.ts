@@ -68,6 +68,7 @@ async function clearStoredSession(): Promise<void> {
   await deleteSessionItem("auth_token");
   await deleteSessionItem("refresh_token");
   await deleteSessionItem("auth_user");
+  await deleteSessionItem("auth_tenant");
 }
 
 async function logoutAfterRefreshFailure(): Promise<void> {
@@ -92,7 +93,7 @@ export async function refreshAccessToken(): Promise<string> {
 
   const accessToken = response.data.data.accessToken ?? response.data.data.token;
   if (!accessToken) {
-    throw new Error("Access token ausente na renovacao");
+    throw new Error("Access token ausente na renovação");
   }
 
   await setSessionItem("auth_token", accessToken);

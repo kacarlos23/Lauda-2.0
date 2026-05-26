@@ -176,7 +176,7 @@ describe("Instruments API", () => {
       .send({ name: "Baixo" });
 
     expect(duplicate.status).toBe(400);
-    expect(duplicate.body.error).toBe("Ja existe um instrumento com este nome");
+    expect(duplicate.body.error).toBe("Já existe um instrumento com este nome");
   });
 
   it("PATCH e DELETE respeitam tenant e nao alteram instrumento de outro tenant", async () => {

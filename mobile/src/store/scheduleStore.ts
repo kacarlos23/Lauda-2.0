@@ -1,93 +1,50 @@
 import { create } from "zustand";
-import { AssignmentStatus, MySchedule } from "../types";
-import { getMySchedules, updateAssignmentStatus } from "../services/scheduleService";
-import { sortSchedulesByDate } from "../utils/scheduleFormat";
+import { AssignmentStatus, ScheduleAssignment } from "../types";
+import { scheduleService } from "../services/scheduleService";
 
 interface ScheduleState {
-  mySchedules: MySchedule[];
+  schedules: ScheduleAssignment[];
   loading: boolean;
-  refreshing: boolean;
   error: string | null;
   loadMySchedules: () => Promise<void>;
-  refreshMySchedules: () => Promise<void>;
-  acceptAssignment: (scheduleId: string, assignmentId: string) => Promise<void>;
-  declineAssignment: (scheduleId: string, assignmentId: string) => Promise<void>;
-  clearError: () => void;
-}
-
-function friendlyError(error: unknown): string {
-  return error instanceof Error ? error.message : "Não foi possível atualizar suas escalas.";
-}
-
-function updateLocalStatus(
-  schedules: MySchedule[],
-  assignmentId: string,
-  status: AssignmentStatus
-): MySchedule[] {
-  return schedules.map((item) =>
-    item.assignmentId === assignmentId ? { ...item, status } : item
-  );
-}
-
-async function changeAssignmentStatus(
-  get: () => ScheduleState,
-  set: (state: Partial<ScheduleState>) => void,
-  scheduleId: string,
-  assignmentId: string,
-  status: AssignmentStatus
-) {
-  const previousSchedules = get().mySchedules;
-  set({
-    mySchedules: updateLocalStatus(previousSchedules, assignmentId, status),
-    error: null,
-  });
-
-  try {
-    await updateAssignmentStatus(scheduleId, assignmentId, status);
-  } catch (error) {
-    set({
-      mySchedules: previousSchedules,
-      error: friendlyError(error),
-    });
-  }
+  updateScheduleStatus: (
+    scheduleId: string,
+    assignmentId: string,
+    status: AssignmentStatus
+  ) => Promise<void>;
 }
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
-  mySchedules: [],
+  schedules: [],
   loading: false,
-  refreshing: false,
   error: null,
-
-  clearError: () => set({ error: null }),
 
   loadMySchedules: async () => {
     set({ loading: true, error: null });
-
     try {
-      const schedules = await getMySchedules();
-      set({ mySchedules: sortSchedulesByDate(schedules), loading: false });
+      const schedules = await scheduleService.getMySchedules();
+      set({ schedules, loading: false, error: null });
     } catch (error) {
-      set({ error: friendlyError(error), loading: false });
+      set({
+        loading: false,
+        error: error instanceof Error ? error.message : "Não foi possível carregar escalas.",
+      });
     }
   },
 
-  refreshMySchedules: async () => {
-    set({ refreshing: true, error: null });
-
+  updateScheduleStatus: async (scheduleId, assignmentId, status) => {
+    set({ error: null });
     try {
-      const schedules = await getMySchedules();
-      set({ mySchedules: sortSchedulesByDate(schedules), refreshing: false });
+      const updated = await scheduleService.updateAssignmentStatus(scheduleId, assignmentId, status);
+      set({
+        schedules: get().schedules.map((item) =>
+          item.id === assignmentId ? { ...item, ...updated, schedule: updated.schedule ?? item.schedule } : item
+        ),
+      });
     } catch (error) {
-      set({ error: friendlyError(error), refreshing: false });
+      const message = error instanceof Error ? error.message : "Não foi possível atualizar escala.";
+      set({ error: message });
+      throw error;
     }
-  },
-
-  acceptAssignment: async (scheduleId, assignmentId) => {
-    await changeAssignmentStatus(get, set, scheduleId, assignmentId, "ACCEPTED");
-  },
-
-  declineAssignment: async (scheduleId, assignmentId) => {
-    await changeAssignmentStatus(get, set, scheduleId, assignmentId, "DECLINED");
   },
 }));
-

@@ -51,9 +51,9 @@ describe("instrumentService", () => {
 
   it("converte erro da API em mensagem amigavel", async () => {
     mockedApi.get.mockRejectedValueOnce({
-      response: { data: { error: "Instrumento invalido ou nao encontrado" } },
+      response: { data: { error: "Instrumento inválido ou não encontrado." } },
     });
 
-    await expect(instrumentService.getInstruments()).rejects.toThrow("Instrumento invalido ou nao encontrado");
+    await expect(instrumentService.getInstruments()).rejects.toThrow("Instrumento inválido ou não encontrado.");
   });
 });

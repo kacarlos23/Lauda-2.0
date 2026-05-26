@@ -103,7 +103,7 @@ export class MinistryService {
 
     const targetUser = await this.ministryRepository.findUserById(targetUserId);
     if (!targetUser) {
-      throw new NotFoundError("Membro nÃ£o encontrado neste tenant");
+      throw new NotFoundError("Membro não encontrado neste tenant");
     }
 
     const existing = await this.ministryRepository.findAssignmentByUserAndMinistry(targetUserId, ministryId);

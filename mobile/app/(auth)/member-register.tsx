@@ -69,7 +69,7 @@ export default function PublicMemberRegisterScreen() {
     }
 
     if (password !== confirm) {
-      setError("As senhas nao coincidem.");
+      setError("As senhas não coincidem.");
       return;
     }
 
@@ -118,12 +118,12 @@ export default function PublicMemberRegisterScreen() {
             </Text>
           ) : null}
 
-          <Text style={styles.label}>Codigo de convite *</Text>
+          <Text style={styles.label}>Código de convite *</Text>
           <View style={styles.inputGroup}>
             <LinkIcon color={colors.muted} size={18} strokeWidth={2.2} />
             <TextInput
               style={styles.groupInput}
-              placeholder="Codigo do convite"
+              placeholder="Código do convite"
               placeholderTextColor={colors.muted}
               autoCapitalize="none"
               value={inviteCode}
@@ -171,7 +171,7 @@ export default function PublicMemberRegisterScreen() {
           <Text style={styles.label}>Senha *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Minimo 6 caracteres"
+            placeholder="Mínimo 6 caracteres"
             placeholderTextColor={colors.muted}
             secureTextEntry
             value={password}

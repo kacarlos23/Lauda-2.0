@@ -42,11 +42,11 @@ describe("ministryApi.toggleMinistryMember", () => {
 
   it("converte erro da API em mensagem amigavel", async () => {
     mockedApi.post.mockRejectedValueOnce({
-      response: { data: { error: "Apenas administradores da igreja podem gerenciar vinculos" } },
+      response: { data: { error: "Apenas administradores da igreja podem gerenciar vínculos" } },
     });
 
     await expect(ministryApi.toggleMinistryMember("ministry-1", "member-1")).rejects.toThrow(
-      "Apenas administradores da igreja podem gerenciar vinculos"
+      "Apenas administradores da igreja podem gerenciar vínculos"
     );
   });
 });
