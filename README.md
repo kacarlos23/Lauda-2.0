@@ -296,6 +296,20 @@ Backend integration tests use Testcontainers with PostgreSQL, so Docker must be 
 
 Recommended next step: use instruments to sort or filter members in schedule assignment dropdowns, for example placing members with the matching instrument/cargo at the top while still allowing any member to be selected.
 
+## Priorizacao de membros em escalas por instrumento
+
+O app mobile possui um utilitario reutilizavel para ordenar membros durante a escolha de assignments de escala:
+
+- `mobile/src/utils/memberInstrumentPriority.ts` compara a funcao/cargo digitada com os instrumentos do membro.
+- Membros compativeis aparecem no topo, mas todos continuam selecionaveis.
+- A lista continua ordenada por nome dentro dos grupos compativeis e nao compativeis.
+- Exemplos: "Teclado" prioriza membros com instrumento Teclado; "Baterista" prioriza membros com Bateria.
+- O componente `mobile/src/components/MemberPickerWithInstrumentPriority.tsx` renderiza membros nessa ordem, mostra badges de instrumentos e destaca membros compativeis.
+
+Nao foi criado endpoint novo para isso. O fluxo usa `GET /api/members`, que ja retorna `instruments`; se performance virar problema no futuro, uma extensao possivel seria `GET /api/members?instrument=Teclado`.
+
+A tela mobile atual de escalas lista as escalas do usuario e permite aceitar/recusar convites. Ela ainda nao possui uma tela visual de lider/admin para criar assignments, entao a integracao visual completa deve ser feita quando essa tela de gestao de escala existir.
+
 ## Mobile Setup
 
 Install mobile dependencies:
