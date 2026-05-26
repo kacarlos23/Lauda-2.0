@@ -48,6 +48,7 @@ export class AuthService {
     email: string;
     role: string;
     tenantId: string;
+    tenant?: { id: string; name: string };
     instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
   }) {
     const accessToken = this.generateAccessToken({
@@ -70,6 +71,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
       },
+      tenant: user.tenant,
     };
   }
 

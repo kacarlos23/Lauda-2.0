@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import { CalendarClock, Church, Home, User, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
+import { canViewMembers } from "../../src/utils/permissions";
 
 type TabIconProps = {
   color?: string;
@@ -16,7 +17,6 @@ const tabIcon = (Icon: ComponentType<TabIconProps>, color: string) => (
 
 export default function TabsLayout() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -55,6 +55,7 @@ export default function TabsLayout() {
           title: "Escalas",
           tabBarLabel: "Escalas",
           tabBarIcon: ({ color }) => tabIcon(CalendarClock, color),
+          href: "/schedules" as never,
         }}
       />
       <Tabs.Screen
@@ -76,7 +77,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="ministries/[id]/members"
         options={{
-          title: "Membros do ministerio",
+          title: "Membros do ministério",
           href: null,
         }}
       />
@@ -90,7 +91,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="ministries/my-assignments"
         options={{
-          title: "Meus ministerios",
+          title: "Meus ministérios",
           tabBarLabel: "Meus",
           tabBarIcon: ({ color }) => tabIcon(UserCheck, color),
           href: "/ministries/my-assignments",
@@ -102,13 +103,20 @@ export default function TabsLayout() {
           title: "Membros",
           tabBarLabel: "Membros",
           tabBarIcon: ({ color }) => tabIcon(Users, color),
-          href: isAdmin ? "/members" : null,
+          href: canViewMembers(user?.role) ? "/members" : null,
         }}
       />
       <Tabs.Screen
         name="members/new"
         options={{
           title: "Novo membro",
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="instruments/index"
+        options={{
+          title: "Instrumentos/Cargos",
           href: null,
         }}
       />

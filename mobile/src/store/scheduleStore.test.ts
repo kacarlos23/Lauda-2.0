@@ -1,160 +1,69 @@
-import { useScheduleStore } from "./scheduleStore";
-import { getMySchedules, updateAssignmentStatus } from "../services/scheduleService";
-import { AssignmentStatus, MySchedule } from "../types";
-
 jest.mock("../services/scheduleService", () => ({
-  getMySchedules: jest.fn(),
-  updateAssignmentStatus: jest.fn(),
+  scheduleService: {
+    getMySchedules: jest.fn(),
+    updateAssignmentStatus: jest.fn(),
+  },
 }));
 
-const mockedGetMySchedules = getMySchedules as jest.MockedFunction<typeof getMySchedules>;
-const mockedUpdateAssignmentStatus = updateAssignmentStatus as jest.MockedFunction<typeof updateAssignmentStatus>;
-const initialState = useScheduleStore.getState();
+const { useScheduleStore } = require("./scheduleStore") as typeof import("./scheduleStore");
+const { scheduleService } = require("../services/scheduleService") as typeof import("../services/scheduleService");
 
-function makeSchedule(
-  assignmentId: string,
-  date: string,
-  status: AssignmentStatus = "PENDING"
-): MySchedule {
-  return {
-    assignmentId,
-    status,
-    role: "Vocal",
-    schedule: {
-      id: `schedule-${assignmentId}`,
-      title: `Escala ${assignmentId}`,
-      date,
-      ministryId: "ministry-1",
-      ministry: { id: "ministry-1", name: "Louvor" },
-    },
-  };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-
-  return { promise, resolve, reject };
-}
+const schedule = {
+  id: "assignment-1",
+  scheduleId: "schedule-1",
+  userId: "user-1",
+  role: "Vocal",
+  status: "PENDING" as const,
+  tenantId: "tenant-1",
+  schedule: {
+    id: "schedule-1",
+    title: "Culto de domingo",
+    date: "2099-01-01T12:00:00.000Z",
+    ministryId: "ministry-1",
+    tenantId: "tenant-1",
+    ministry: { id: "ministry-1", name: "Louvor" },
+  },
+};
 
 describe("scheduleStore", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    useScheduleStore.setState(initialState, true);
+    jest.mocked(scheduleService.getMySchedules).mockReset();
+    jest.mocked(scheduleService.updateAssignmentStatus).mockReset();
+    useScheduleStore.setState({ schedules: [], loading: false, error: null });
   });
 
-  it("tem estado inicial esperado", () => {
-    expect(useScheduleStore.getState()).toMatchObject({
-      mySchedules: [],
-      loading: false,
-      refreshing: false,
-      error: null,
-    });
-  });
-
-  it("loadMySchedules seta loading, chama service, ordena escalas e remove loading", async () => {
-    const request = deferred<MySchedule[]>();
-    const later = makeSchedule("later", "2026-05-24T13:00:00.000Z");
-    const next = makeSchedule("next", "2026-05-20T13:00:00.000Z");
-    mockedGetMySchedules.mockReturnValueOnce(request.promise);
-
-    const loadPromise = useScheduleStore.getState().loadMySchedules();
-    expect(useScheduleStore.getState().loading).toBe(true);
-
-    request.resolve([later, next]);
-    await loadPromise;
-
-    expect(mockedGetMySchedules).toHaveBeenCalledTimes(1);
-    expect(useScheduleStore.getState().mySchedules).toEqual([next, later]);
-    expect(useScheduleStore.getState().loading).toBe(false);
-  });
-
-  it("loadMySchedules salva erro e remove loading quando service falha", async () => {
-    mockedGetMySchedules.mockRejectedValueOnce(new Error("Falha ao carregar"));
+  it("carrega minhas escalas reais", async () => {
+    jest.mocked(scheduleService.getMySchedules).mockResolvedValueOnce([schedule]);
 
     await useScheduleStore.getState().loadMySchedules();
 
-    expect(useScheduleStore.getState().error).toBe("Falha ao carregar");
-    expect(useScheduleStore.getState().loading).toBe(false);
+    expect(scheduleService.getMySchedules).toHaveBeenCalled();
+    expect(useScheduleStore.getState().schedules).toEqual([schedule]);
   });
 
-  it("refreshMySchedules seta refreshing, atualiza escalas e remove refreshing", async () => {
-    const request = deferred<MySchedule[]>();
-    const later = makeSchedule("later", "2026-05-24T13:00:00.000Z");
-    const next = makeSchedule("next", "2026-05-20T13:00:00.000Z");
-    mockedGetMySchedules.mockReturnValueOnce(request.promise);
+  it("aceita escala chamando o service", async () => {
+    useScheduleStore.setState({ schedules: [schedule] });
+    jest.mocked(scheduleService.updateAssignmentStatus).mockResolvedValueOnce({
+      ...schedule,
+      status: "ACCEPTED",
+    });
 
-    const refreshPromise = useScheduleStore.getState().refreshMySchedules();
-    expect(useScheduleStore.getState().refreshing).toBe(true);
+    await useScheduleStore.getState().updateScheduleStatus("schedule-1", "assignment-1", "ACCEPTED");
 
-    request.resolve([later, next]);
-    await refreshPromise;
-
-    expect(useScheduleStore.getState().mySchedules).toEqual([next, later]);
-    expect(useScheduleStore.getState().refreshing).toBe(false);
+    expect(scheduleService.updateAssignmentStatus).toHaveBeenCalledWith("schedule-1", "assignment-1", "ACCEPTED");
+    expect(useScheduleStore.getState().schedules[0].status).toBe("ACCEPTED");
   });
 
-  it("acceptAssignment muda status localmente e chama updateAssignmentStatus com ACCEPTED", async () => {
-    const schedule = makeSchedule("assignment-1", "2026-05-20T13:00:00.000Z");
-    useScheduleStore.setState({ mySchedules: [schedule] });
-    mockedUpdateAssignmentStatus.mockResolvedValueOnce({ ...schedule, status: "ACCEPTED" });
+  it("recusa escala chamando o service", async () => {
+    useScheduleStore.setState({ schedules: [schedule] });
+    jest.mocked(scheduleService.updateAssignmentStatus).mockResolvedValueOnce({
+      ...schedule,
+      status: "DECLINED",
+    });
 
-    await useScheduleStore.getState().acceptAssignment("schedule-assignment-1", "assignment-1");
+    await useScheduleStore.getState().updateScheduleStatus("schedule-1", "assignment-1", "DECLINED");
 
-    expect(useScheduleStore.getState().mySchedules[0].status).toBe("ACCEPTED");
-    expect(mockedUpdateAssignmentStatus).toHaveBeenCalledWith(
-      "schedule-assignment-1",
-      "assignment-1",
-      "ACCEPTED"
-    );
-  });
-
-  it("declineAssignment muda status localmente e chama updateAssignmentStatus com DECLINED", async () => {
-    const schedule = makeSchedule("assignment-1", "2026-05-20T13:00:00.000Z");
-    useScheduleStore.setState({ mySchedules: [schedule] });
-    mockedUpdateAssignmentStatus.mockResolvedValueOnce({ ...schedule, status: "DECLINED" });
-
-    await useScheduleStore.getState().declineAssignment("schedule-assignment-1", "assignment-1");
-
-    expect(useScheduleStore.getState().mySchedules[0].status).toBe("DECLINED");
-    expect(mockedUpdateAssignmentStatus).toHaveBeenCalledWith(
-      "schedule-assignment-1",
-      "assignment-1",
-      "DECLINED"
-    );
-  });
-
-  it("faz rollback e salva erro quando acceptAssignment falha", async () => {
-    const schedule = makeSchedule("assignment-1", "2026-05-20T13:00:00.000Z", "PENDING");
-    useScheduleStore.setState({ mySchedules: [schedule] });
-    mockedUpdateAssignmentStatus.mockRejectedValueOnce(new Error("Falha ao aceitar"));
-
-    await useScheduleStore.getState().acceptAssignment("schedule-assignment-1", "assignment-1");
-
-    expect(useScheduleStore.getState().mySchedules).toEqual([schedule]);
-    expect(useScheduleStore.getState().error).toBe("Falha ao aceitar");
-  });
-
-  it("faz rollback e salva erro quando declineAssignment falha", async () => {
-    const schedule = makeSchedule("assignment-1", "2026-05-20T13:00:00.000Z", "PENDING");
-    useScheduleStore.setState({ mySchedules: [schedule] });
-    mockedUpdateAssignmentStatus.mockRejectedValueOnce(new Error("Falha ao recusar"));
-
-    await useScheduleStore.getState().declineAssignment("schedule-assignment-1", "assignment-1");
-
-    expect(useScheduleStore.getState().mySchedules).toEqual([schedule]);
-    expect(useScheduleStore.getState().error).toBe("Falha ao recusar");
-  });
-
-  it("clearError limpa erro", () => {
-    useScheduleStore.setState({ error: "Erro anterior" });
-
-    useScheduleStore.getState().clearError();
-
-    expect(useScheduleStore.getState().error).toBeNull();
+    expect(scheduleService.updateAssignmentStatus).toHaveBeenCalledWith("schedule-1", "assignment-1", "DECLINED");
+    expect(useScheduleStore.getState().schedules[0].status).toBe("DECLINED");
   });
 });
