@@ -7,6 +7,11 @@ export interface Tenant {
   name: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string;
+}
+
 export interface Instrument {
   id: string;
   name: string;
