@@ -306,8 +306,10 @@ test("permite editar instrumentos no perfil com atualização otimista e persist
   await page.getByText("Perfil").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByText("Selecionados")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
   await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
+  await expect(page.getByText("Salvando...")).toBeVisible();
 
   await expect
     .poll(async () => {
@@ -316,4 +318,49 @@ test("permite editar instrumentos no perfil com atualização otimista e persist
     })
     .toContain("Vocal");
   await expect(page.getByText("instrument-2")).not.toBeVisible();
+});
+
+test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }) => {
+  let updateRequests = 0;
+  let lastPayload: { instrumentIds?: string[] } | undefined;
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await page.unroute("**/api/members/me/instruments").catch(() => undefined);
+  await page.unroute("**/api/members/*/instruments").catch(() => undefined);
+  await mockApi(page, { user: memberUser });
+  await page.route("**/api/members/me/instruments", async (route) => {
+    updateRequests += 1;
+    lastPayload = route.request().postDataJSON() as { instrumentIds?: string[] };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          id: memberUser.id,
+          instruments: [
+            { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
+            { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
+          ],
+        },
+      }),
+    });
+  });
+  await page.goto("/");
+
+  await login(page, "bruno@example.com");
+  await page.getByText("Perfil").last().click();
+
+  await expect(page.getByText("Membro").first()).toBeVisible();
+  await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
+  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
+
+  await expect.poll(() => updateRequests).toBe(1);
+  expect(lastPayload?.instrumentIds).toEqual(["instrument-1", "instrument-2"]);
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_user ?? "";
+    })
+    .toContain("Vocal");
 });
