@@ -14,11 +14,12 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Edit3, LogOut, Settings2, Shield, User } from "lucide-react-native";
+import { Check, Edit3, LogOut, Settings2, Shield, User } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
 import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
+import { getInstrumentColor, getInstrumentDisplayName, renderInstrumentIcon } from "../../src/utils/instrumentVisual";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
@@ -30,24 +31,6 @@ function getSelectedInstruments(ids: string[], availableInstruments: Instrument[
   return ids
     .map((id) => availableInstruments.find((instrument) => instrument.id === id) ?? previousInstruments.find((instrument) => instrument.id === id))
     .filter((instrument): instrument is Instrument => Boolean(instrument));
-}
-
-function normalizeInstrumentName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function getInstrumentIcon(name: string): string {
-  const normalized = normalizeInstrumentName(name);
-  if (normalized.includes("bateria") || normalized.includes("percuss")) return "🥁";
-  if (normalized.includes("teclado") || normalized.includes("piano")) return "🎹";
-  if (normalized.includes("vocal") || normalized.includes("voz") || normalized.includes("cant")) return "🎤";
-  if (normalized.includes("guitarra") || normalized.includes("violao") || normalized.includes("baixo")) return "🎸";
-  if (normalized.includes("midia") || normalized.includes("som") || normalized.includes("audio")) return "🎧";
-  if (normalized.includes("recepc")) return "🤝";
-  return "🎵";
 }
 
 export default function ProfileScreen() {
@@ -246,12 +229,15 @@ export default function ProfileScreen() {
                     style={[
                       styles.selectedChip,
                       {
-                        backgroundColor: instrument.colorHex ?? colors.primary,
-                        borderColor: instrument.colorHex ?? colors.primary,
+                        backgroundColor: getInstrumentColor(instrument),
+                        borderColor: getInstrumentColor(instrument),
                       },
                     ]}
                   >
-                    <Text style={styles.instrumentChipTextSelected}>{getInstrumentIcon(instrument.name)} {instrument.name}</Text>
+                    <View style={styles.selectedChipIcon} testID={`selected-instrument-icon-${instrument.id}`}>
+                      {renderInstrumentIcon(instrument.name, true, 14)}
+                    </View>
+                    <Text style={styles.instrumentChipTextSelected}>{getInstrumentDisplayName(instrument.name)}</Text>
                   </View>
                 ))}
               </View>
@@ -316,30 +302,35 @@ export default function ProfileScreen() {
             >
               {availableInstruments.map((instrument) => {
                 const selected = draftSet.has(instrument.id);
+                const instrumentColor = getInstrumentColor(instrument);
+                const displayName = getInstrumentDisplayName(instrument.name);
                 return (
                   <TouchableOpacity
                     key={instrument.id}
                     style={[
                       styles.instrumentOption,
                       selected && {
-                        borderColor: instrument.colorHex ?? colors.primary,
+                        borderColor: instrumentColor,
                         backgroundColor: colors.primarySoft,
                       },
                     ]}
                     onPress={() => toggleDraftInstrument(instrument.id)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${selected ? "Desmarcar" : "Selecionar"} ${instrument.name}`}
+                    accessibilityLabel={`${selected ? "Desmarcar" : "Selecionar"} ${displayName}`}
                     testID={`instrument-option-${instrument.id}`}
                   >
-                    <View style={[styles.instrumentIconCircle, selected && { backgroundColor: instrument.colorHex ?? colors.primary }]}> 
-                      <Text style={styles.instrumentOptionIcon}>{getInstrumentIcon(instrument.name)}</Text>
+                    <View
+                      style={[styles.instrumentIconCircle, selected && { backgroundColor: instrumentColor }]}
+                      testID={`instrument-icon-${instrument.id}`}
+                    >
+                      {renderInstrumentIcon(instrument.name, selected)}
                     </View>
                     <View style={styles.instrumentOptionTextBox}>
-                      <Text style={styles.instrumentOptionName}>{instrument.name}</Text>
+                      <Text style={styles.instrumentOptionName}>{displayName}</Text>
                       <Text style={styles.instrumentOptionStatus}>{selected ? "Selecionado" : "Toque para selecionar"}</Text>
                     </View>
-                    <View style={[styles.checkCircle, selected && { backgroundColor: instrument.colorHex ?? colors.primary, borderColor: instrument.colorHex ?? colors.primary }]}> 
-                      <Text style={styles.checkText}>{selected ? "✓" : ""}</Text>
+                    <View style={[styles.checkCircle, selected && { backgroundColor: instrumentColor, borderColor: instrumentColor }]}>
+                      {selected ? <Check color={colors.surface} size={15} strokeWidth={3} /> : null}
                     </View>
                   </TouchableOpacity>
                 );
@@ -483,6 +474,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+  },
+  selectedChipIcon: {
+    width: 16,
+    height: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -549,7 +548,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  instrumentOptionIcon: { fontSize: 22 },
   instrumentOptionTextBox: { flex: 1 },
   instrumentOptionName: { color: colors.ink, fontSize: 15, fontWeight: "900" },
   instrumentOptionStatus: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
@@ -563,7 +561,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.surface,
   },
-  checkText: { color: colors.surface, fontSize: 15, fontWeight: "900" },
   modalActions: {
     flexDirection: "row",
     gap: spacing.md,

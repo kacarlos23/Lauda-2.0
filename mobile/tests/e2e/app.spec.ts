@@ -100,6 +100,7 @@ async function mockApi(
         data: [
           { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
           { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
+          { id: "instrument-3", name: "Operador de camera", colorHex: null },
         ],
       }),
     });
@@ -119,6 +120,9 @@ async function mockApi(
               : []),
             ...(body.instrumentIds?.includes("instrument-2")
               ? [{ id: "instrument-2", name: "Vocal", colorHex: "#10B981" }]
+              : []),
+            ...(body.instrumentIds?.includes("instrument-3")
+              ? [{ id: "instrument-3", name: "Operador de camera", colorHex: null }]
               : []),
           ],
         },
@@ -197,13 +201,13 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
-  await expect(page.getByText(/Ana|Lia|Bruno/)).toBeVisible();
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_token;
     })
     .toBe(token);
+  await expect(page.getByRole("tab", { name: "Perfil" })).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -291,13 +295,13 @@ test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   expect(storage.auth_tenant).toBeUndefined();
 });
 
-test("mostra badges de instrumentos na lista de membros sem expor ids", async ({ page }) => {
+test("mostra instrumentos selecionados no Perfil sem expor ids", async ({ page }) => {
   await login(page);
-  await page.getByText("Membros").last().click();
+  await page.getByText("Perfil").last().click();
 
-  await expect(page.getByText("Instrumentos/Cargos").first()).toBeVisible();
+  await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByTestId("selected-instrument-icon-instrument-1")).toBeVisible();
   await expect(page.getByText("Teclado").first()).toBeVisible();
-  await expect(page.getByText("Nenhum instrumento informado")).toBeVisible();
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
@@ -308,8 +312,11 @@ test("abre modal e permite cancelar alteração de instrumentos", async ({ page 
   await page.getByTestId("edit-instruments-button").click();
   await expect(page.getByTestId("instrument-selection-modal")).toBeVisible();
   await expect(page.getByText("Escolha seus instrumentos/cargos")).toBeVisible();
-  await expect(page.getByText("🎹")).toBeVisible();
-  await expect(page.getByText("🎤")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-1")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-2")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-3")).toBeVisible();
+  await expect(page.getByText("Operador de camera")).toBeVisible();
+  await expect(page.getByText("instrument-3")).not.toBeVisible();
 
   await page.getByTestId("instrument-option-instrument-2").click();
   await expect(page.getByText("Selecionado").nth(1)).toBeVisible();
@@ -330,6 +337,7 @@ test("permite editar instrumentos no perfil por modal com seleção múltipla", 
 
   await page.getByTestId("edit-instruments-button").click();
   await page.getByTestId("instrument-option-instrument-2").click();
+  await page.getByTestId("instrument-option-instrument-3").click();
   await page.getByTestId("save-instruments-selection").click();
 
   await expect
@@ -338,8 +346,15 @@ test("permite editar instrumentos no perfil por modal com seleção múltipla", 
       return storage.auth_user ?? "";
     })
     .toContain("Vocal");
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_user ?? "";
+    })
+    .toContain("Operador de camera");
   await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
   await expect(page.getByText("instrument-2")).not.toBeVisible();
+  await expect(page.getByText("instrument-3")).not.toBeVisible();
 });
 
 test("membro comum edita os próprios instrumentos pelo modal do Perfil", async ({ page }) => {
