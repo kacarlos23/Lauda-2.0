@@ -338,11 +338,14 @@ export class AuthService {
     }
 
     if (invite.ministryId) {
-      await authRepository.addUserToMinistry({
+      const membership = await authRepository.addUserToMinistry({
         tenantId: user.tenantId,
         userId: user.id,
         ministryId: invite.ministryId,
       });
+      if (!membership) {
+        throw new ValidationError("Convite inválido para este usuário");
+      }
     }
   }
 

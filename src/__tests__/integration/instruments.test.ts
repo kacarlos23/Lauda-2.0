@@ -196,6 +196,14 @@ describe("Instruments API", () => {
       .set("Authorization", `Bearer ${tenantA.token}`)
       .expect(404);
 
+    await request(app)
+      .get("/api/instruments")
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual([{ id: instrumentB.id, name: "Midia", colorHex: "#2563EB" }]);
+      });
+
     const updated = await request(app)
       .patch(`/api/instruments/${instrumentA.id}`)
       .set("Authorization", `Bearer ${tenantA.token}`)

@@ -103,13 +103,24 @@ export class MemberRepository {
   }
 
   addMinistry(userId: string, ministryId: string, isLeader: boolean) {
-    return prisma.ministryMember.upsert({
-      where: { userId_ministryId: { userId, ministryId } },
-      update: { isLeader, tenantId: this.tenantId },
-      create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
-      include: {
-        ministry: { select: { id: true, name: true } },
-      },
+    return prisma.$transaction(async (tx) => {
+      const [user, ministry] = await Promise.all([
+        tx.user.findFirst({ where: { id: userId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.ministry.findFirst({ where: { id: ministryId, tenantId: this.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!user || !ministry) {
+        return null;
+      }
+
+      return tx.ministryMember.upsert({
+        where: { userId_ministryId: { userId, ministryId } },
+        update: { isLeader, tenantId: this.tenantId },
+        create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
+        include: {
+          ministry: { select: { id: true, name: true } },
+        },
+      });
     });
   }
 
@@ -122,6 +133,26 @@ export class MemberRepository {
 
   async replaceInstruments(userId: string, instrumentIds: string[]) {
     const rows = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: { id: userId, tenantId: this.tenantId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      if (instrumentIds.length > 0) {
+        const instruments = await tx.instrument.findMany({
+          where: { id: { in: instrumentIds }, tenantId: this.tenantId },
+          select: { id: true },
+        });
+
+        if (instruments.length !== instrumentIds.length) {
+          return null;
+        }
+      }
+
       await tx.userInstrument.deleteMany({
         where: { userId, tenantId: this.tenantId },
       });
@@ -146,6 +177,6 @@ export class MemberRepository {
       });
     });
 
-    return rows.map((row) => row.instrument);
+    return rows ? rows.map((row) => row.instrument) : null;
   }
 }

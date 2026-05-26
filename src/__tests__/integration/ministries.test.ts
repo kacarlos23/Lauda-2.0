@@ -214,6 +214,30 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .expect(404);
   });
 
+  it("PUT e DELETE /api/ministries retornam 404 para ministerio de outro tenant e preservam o registro", async () => {
+    const tenantA = await registerTenant("tenant-cross-ministry-a");
+    const tenantB = await registerTenant("tenant-cross-ministry-b");
+    const ministryB = await createMinistry(tenantB.token, "Ministerio Tenant B");
+
+    await request(app)
+      .put(`/api/ministries/${ministryB.id}`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ name: "Nome indevido" })
+      .expect(404);
+
+    await request(app)
+      .delete(`/api/ministries/${ministryB.id}`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(404);
+
+    const stored = await prisma.ministry.findUnique({ where: { id: ministryB.id } });
+    expect(stored).toMatchObject({
+      id: ministryB.id,
+      name: "Ministerio Tenant B",
+      tenantId: tenantB.user.tenantId,
+    });
+  });
+
   it("POST /api/ministries/:id/members › deve validar RBAC e adicionar/remover membro", async () => {
     const tenantA = await registerTenant("tenant-rbac-test");
 
@@ -267,6 +291,21 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .delete(`/api/ministries/${ministryId}/members/${user2Id}`)
       .set("Authorization", `Bearer ${leaderToken}`)
       .expect(200);
+  });
+
+  it("POST /api/ministries/:id/members nao vincula membro de outro tenant", async () => {
+    const tenantA = await registerTenant("ministry-add-member-a");
+    const tenantB = await registerTenant("ministry-add-member-b");
+    const ministryA = await createMinistry(tenantA.token, "Louvor Add A");
+    const memberB = await createMember(tenantB.token, "ministry-add-foreign-member", "Membro B");
+
+    await request(app)
+      .post(`/api/ministries/${ministryA.id}/members`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ userId: memberB.id, isLeader: false })
+      .expect(404);
+
+    expect(await prisma.ministryMember.count({ where: { userId: memberB.id, ministryId: ministryA.id } })).toBe(0);
   });
 
   it("GET /api/ministries retorna para MEMBER apenas seus ministerios e seus respectivos membros", async () => {

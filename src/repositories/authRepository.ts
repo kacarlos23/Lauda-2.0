@@ -159,50 +159,74 @@ export class AuthRepository {
     hashedPassword: string;
     ministryId?: string | null;
   }): Promise<AuthUser> {
-    return prisma.user.create({
-      data: {
-        tenantId: data.tenantId,
-        name: data.name,
-        email: data.email,
-        phone: data.phone ?? null,
-        password: data.hashedPassword,
-        role: "MEMBER",
-        ministries: data.ministryId
-          ? {
-              create: {
-                tenantId: data.tenantId,
-                ministryId: data.ministryId,
-                isLeader: false,
-              },
-            }
-          : undefined,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        password: true,
-        role: true,
-        tenantId: true,
-        instruments: {
-          include: {
-            instrument: { select: { id: true, name: true, colorHex: true } },
+    return prisma.$transaction(async (tx) => {
+      if (data.ministryId) {
+        const ministry = await tx.ministry.findFirst({
+          where: { id: data.ministryId, tenantId: data.tenantId },
+          select: { id: true },
+        });
+
+        if (!ministry) {
+          throw new Error("Ministry not found in tenant");
+        }
+      }
+
+      return tx.user.create({
+        data: {
+          tenantId: data.tenantId,
+          name: data.name,
+          email: data.email,
+          phone: data.phone ?? null,
+          password: data.hashedPassword,
+          role: "MEMBER",
+          ministries: data.ministryId
+            ? {
+                create: {
+                  tenantId: data.tenantId,
+                  ministryId: data.ministryId,
+                  isLeader: false,
+                },
+              }
+            : undefined,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          password: true,
+          role: true,
+          tenantId: true,
+          instruments: {
+            include: {
+              instrument: { select: { id: true, name: true, colorHex: true } },
+            },
           },
         },
-      },
+      });
     });
   }
 
   async addUserToMinistry(data: { tenantId: string; userId: string; ministryId: string }) {
-    return prisma.ministryMember.upsert({
-      where: { userId_ministryId: { userId: data.userId, ministryId: data.ministryId } },
-      update: {},
-      create: {
-        tenantId: data.tenantId,
-        userId: data.userId,
-        ministryId: data.ministryId,
-        isLeader: false,
-      },
+    return prisma.$transaction(async (tx) => {
+      const [user, ministry] = await Promise.all([
+        tx.user.findFirst({ where: { id: data.userId, tenantId: data.tenantId }, select: { id: true } }),
+        tx.ministry.findFirst({ where: { id: data.ministryId, tenantId: data.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!user || !ministry) {
+        return null;
+      }
+
+      return tx.ministryMember.upsert({
+        where: { userId_ministryId: { userId: data.userId, ministryId: data.ministryId } },
+        update: {},
+        create: {
+          tenantId: data.tenantId,
+          userId: data.userId,
+          ministryId: data.ministryId,
+          isLeader: false,
+        },
+      });
     });
   }
 

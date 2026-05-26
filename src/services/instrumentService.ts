@@ -25,7 +25,11 @@ export class InstrumentService {
     }
 
     try {
-      return await this.instrumentRepository.update(id, input);
+      const updated = await this.instrumentRepository.update(id, input);
+      if (!updated) {
+        throw new NotFoundError("Instrumento não encontrado");
+      }
+      return updated;
     } catch (error) {
       this.handleKnownError(error);
     }
@@ -37,7 +41,11 @@ export class InstrumentService {
       throw new NotFoundError("Instrumento não encontrado");
     }
 
-    return this.instrumentRepository.delete(id);
+    const deleted = await this.instrumentRepository.delete(id);
+    if (!deleted) {
+      throw new NotFoundError("Instrumento não encontrado");
+    }
+    return deleted;
   }
 
   private handleKnownError(error: unknown): never {
