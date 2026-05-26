@@ -1,5 +1,8 @@
 # Lauda 2.0
 
+[![Backend CI](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/backend.yml/badge.svg)](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/backend.yml)
+[![Mobile CI](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/mobile.yml/badge.svg)](https://github.com/kacarlos23/Lauda-2.0/actions/workflows/mobile.yml)
+
 Lauda 2.0 is a SaaS project for managing church ministries, members, schedules, assignments, and songs. The repository contains a Node.js API, a PostgreSQL database modeled with Prisma, and an Expo/React Native mobile app.
 
 ## Stack
@@ -247,7 +250,31 @@ Permissions and isolation:
 - `mobile/app/(tabs)/profile.tsx` lets the signed-in user toggle multiple instruments/cargos with optimistic UI and rollback on error.
 - `authStore` persists updated `user.instruments` in `auth_user`, so session restore keeps the local profile consistent.
 
+### Mobile - Catálogo de instrumentos/cargos
+
+Admin users can manage the tenant instrument catalog in `mobile/app/(tabs)/instruments/index.tsx`. The route is hidden from the tab bar and is opened from the Profile button "Gerenciar instrumentos/cargos", visible only to `TENANT_ADMIN` and `GLOBAL_ADMIN`.
+
+Audit for the admin catalog:
+
+- Available endpoints: `GET /api/instruments`, `POST /api/instruments`, `PATCH /api/instruments/:id`, and `DELETE /api/instruments/:id`.
+- Backend permissions: all authenticated users can list instruments; only `TENANT_ADMIN` and `GLOBAL_ADMIN` can create, update, or delete.
+- Mobile route: `/(tabs)/instruments/index`, navigated as `/instruments`.
+- Mobile service/store: `mobile/src/services/instrumentService.ts` exposes catalog CRUD and member instrument updates; `mobile/src/store/instrumentStore.ts` keeps the screen from calling the API directly.
+- Delete behavior: deleting an instrument removes existing member links by cascade and the mobile UI confirms this before sending the request.
+
+Manual test flow:
+
+1. Sign in as a church admin.
+2. Open Profile and tap "Gerenciar instrumentos/cargos".
+3. Create an instrument with a name of at least two characters and an optional `#RRGGBB` color.
+4. Edit the instrument name and color.
+5. Delete the instrument and confirm that the item is removed.
+6. Sign in as a `MEMBER` or `MINISTRY_LEADER` and confirm the management button is not shown and direct access redirects to Profile.
+7. Confirm Profile still lets users edit their own instruments, the Members list still shows badges, and schedule flows still open normally.
+
 ### Validation
+
+GitHub Actions runs backend and mobile validation on pull requests and pushes to `main`.
 
 Backend:
 
@@ -265,7 +292,23 @@ npx tsc --noEmit
 npm run test:e2e
 ```
 
+Backend integration tests use Testcontainers with PostgreSQL, so Docker must be available locally and in CI. Mobile E2E tests use Playwright; the CI job installs browsers before running `npm run test:e2e`, and Playwright starts Expo web through the configured `webServer`.
+
 Recommended next step: use instruments to sort or filter members in schedule assignment dropdowns, for example placing members with the matching instrument/cargo at the top while still allowing any member to be selected.
+
+## Priorizacao de membros em escalas por instrumento
+
+O app mobile possui um utilitario reutilizavel para ordenar membros durante a escolha de assignments de escala:
+
+- `mobile/src/utils/memberInstrumentPriority.ts` compara a funcao/cargo digitada com os instrumentos do membro.
+- Membros compativeis aparecem no topo, mas todos continuam selecionaveis.
+- A lista continua ordenada por nome dentro dos grupos compativeis e nao compativeis.
+- Exemplos: "Teclado" prioriza membros com instrumento Teclado; "Baterista" prioriza membros com Bateria.
+- O componente `mobile/src/components/MemberPickerWithInstrumentPriority.tsx` renderiza membros nessa ordem, mostra badges de instrumentos e destaca membros compativeis.
+
+Nao foi criado endpoint novo para isso. O fluxo usa `GET /api/members`, que ja retorna `instruments`; se performance virar problema no futuro, uma extensao possivel seria `GET /api/members?instrument=Teclado`.
+
+A tela mobile atual de escalas lista as escalas do usuario e permite aceitar/recusar convites. Ela ainda nao possui uma tela visual de lider/admin para criar assignments, entao a integracao visual completa deve ser feita quando essa tela de gestao de escala existir.
 
 ## Mobile Setup
 

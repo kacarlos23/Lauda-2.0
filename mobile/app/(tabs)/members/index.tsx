@@ -18,14 +18,7 @@ import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member, Ministry } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
-
-function canManageMembers(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN";
-}
-
-function canViewMembers(role?: string): boolean {
-  return canManageMembers(role) || role === "MINISTRY_LEADER";
-}
+import { canManageMembers, canViewMembers } from "../../../src/utils/permissions";
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
@@ -66,6 +59,7 @@ export default function MembersScreen() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState<string>("");
+  const canManage = canManageMembers(user?.role);
 
   const loadMembers = useCallback(async () => {
     try {
@@ -80,6 +74,8 @@ export default function MembersScreen() {
   }, []);
 
   const loadInvite = useCallback(async (ministryId = selectedMinistryId) => {
+    if (!canManage) return;
+
     try {
       setInviteLoading(true);
       const data = await memberService.getMemberInvite(ministryId || undefined);
@@ -89,30 +85,36 @@ export default function MembersScreen() {
     } finally {
       setInviteLoading(false);
     }
-  }, [selectedMinistryId]);
+  }, [canManage, selectedMinistryId]);
 
   const loadMinistries = useCallback(async () => {
+    if (!canManage) return;
+
     try {
       const data = await ministryApi.getMinistries();
       setMinistries(data);
     } catch {
       setMinistries([]);
     }
-  }, []);
+  }, [canManage]);
 
   useEffect(() => {
     loadMembers();
-    loadMinistries();
-    loadInvite();
-  }, [loadInvite, loadMembers, loadMinistries]);
+    if (canManage) {
+      loadMinistries();
+      loadInvite();
+    }
+  }, [canManage, loadInvite, loadMembers, loadMinistries]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMembers();
-    await loadMinistries();
-    await loadInvite();
+    if (canManage) {
+      await loadMinistries();
+      await loadInvite();
+    }
     setRefreshing(false);
-  }, [loadInvite, loadMembers, loadMinistries]);
+  }, [canManage, loadInvite, loadMembers, loadMinistries]);
 
   const inviteLink = invite?.inviteLink ?? (invite ? `lauda://member-register?code=${invite.code}` : "");
 
@@ -137,7 +139,7 @@ export default function MembersScreen() {
   const handleRegenerateInvite = () => {
     Alert.alert(
       "Regenerar link",
-      "O link atual deixara de funcionar. Deseja continuar?",
+      "O link atual deixará de funcionar. Deseja continuar?",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -158,8 +160,6 @@ export default function MembersScreen() {
       ]
     );
   };
-
-  const canManage = canManageMembers(user?.role);
 
   if (!canViewMembers(user?.role)) {
     return <Redirect href="/(tabs)" />;

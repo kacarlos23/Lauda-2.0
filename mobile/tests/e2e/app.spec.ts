@@ -9,16 +9,60 @@ const adminUser = {
   instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
+const leaderUser = {
+  ...adminUser,
+  id: "leader-1",
+  name: "Lia Líder",
+  email: "lia@example.com",
+  role: "MINISTRY_LEADER",
+};
+
+const memberUser = {
+  ...adminUser,
+  id: "member-1",
+  name: "Bruno Membro",
+  email: "bruno@example.com",
+  role: "MEMBER",
+};
+
+const tenant = { id: "tenant-1", name: "Igreja Central" };
 const token = "test.jwt.token";
 
-async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
+function defaultSchedules(userId: string) {
+  return [
+    {
+      id: "assignment-1",
+      scheduleId: "schedule-1",
+      userId,
+      role: "Vocal",
+      status: "PENDING",
+      tenantId: tenant.id,
+      schedule: {
+        id: "schedule-1",
+        title: "Culto de domingo",
+        date: "2099-01-01T12:00:00.000Z",
+        ministryId: "ministry-1",
+        tenantId: tenant.id,
+        ministry: { id: "ministry-1", name: "Louvor" },
+      },
+    },
+  ];
+}
+
+async function mockApi(
+  page: Page,
+  options: { loginFails?: boolean; user?: typeof adminUser; schedules?: ReturnType<typeof defaultSchedules> } = {}
+) {
+  const currentUser = options.user ?? adminUser;
+  const schedules = options.schedules ?? defaultSchedules(currentUser.id);
+
   await page.route("**/api/auth/login", async (route) => {
     const body = route.request().postDataJSON() as { email?: string; password?: string };
     if (options.loginFails || body.password === "wrongpass") {
       await route.fulfill({
         status: 400,
         contentType: "application/json",
-        body: JSON.stringify({ error: "Credenciais invalidas" }),
+        body: JSON.stringify({ error: "Credenciais inválidas" }),
       });
       return;
     }
@@ -26,7 +70,9 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-          body: JSON.stringify({ data: { token, refreshToken: "refresh-token", user: { ...adminUser, email: body.email } } }),
+      body: JSON.stringify({
+        data: { token, refreshToken: "refresh-token", user: { ...currentUser, email: body.email }, tenant },
+      }),
     });
   });
 
@@ -40,6 +86,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
           token,
           refreshToken: "refresh-token",
           user: { ...adminUser, name: body.name ?? adminUser.name, email: body.email ?? adminUser.email },
+          tenant,
         },
       }),
     });
@@ -65,7 +112,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          id: adminUser.id,
+          id: currentUser.id,
           instruments: [
             ...(body.instrumentIds?.includes("instrument-1")
               ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
@@ -86,7 +133,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: adminUser }),
+      body: JSON.stringify({ data: currentUser }),
     });
   });
 
@@ -113,7 +160,7 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       contentType: "application/json",
       body: JSON.stringify({
         data: [
-          adminUser,
+          currentUser,
           {
             id: "user-2",
             name: "Bruno Membro",
@@ -127,13 +174,30 @@ async function mockApi(page: Page, options: { loginFails?: boolean } = {}) {
       }),
     });
   });
+
+  await page.route("**/api/schedules/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: schedules }),
+    });
+  });
+
+  await page.route("**/api/schedules/*/assignments/*/status", async (route) => {
+    const body = route.request().postDataJSON() as { status?: string };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: { ...schedules[0], status: body.status ?? "ACCEPTED" } }),
+    });
+  });
 }
 
 async function login(page: Page, email = "ana@example.com", password = "secret123") {
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
-  await expect(page.getByText(/Ana/)).toBeVisible();
+  await expect(page.getByText(/Ana|Lia|Bruno/)).toBeVisible();
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
@@ -175,12 +239,13 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   await login(page);
   await page.getByText("Ministérios").last().click();
 
-  await expect(page.getByText("Louvor")).toBeVisible();
+  await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);
 
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
   expect(storage.auth_token).toBe(token);
+  expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
@@ -206,6 +271,7 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   await expect(page.getByText(/Maria/)).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
+  expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
 test("permite sair da conta e limpa a sessão local", async ({ page }) => {
@@ -222,6 +288,7 @@ test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(storage.auth_token).toBeUndefined();
   expect(storage.auth_user).toBeUndefined();
+  expect(storage.auth_tenant).toBeUndefined();
 });
 
 test("mostra badges de instrumentos na lista de membros sem expor ids", async ({ page }) => {

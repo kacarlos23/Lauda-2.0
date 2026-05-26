@@ -1,0 +1,38 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://test:test@localhost:5432/lauda_ci
+      JWT_SECRET: test_access_secret
+      REFRESH_JWT_SECRET: test_refresh_secret
+      JWT_EXPIRES_IN: 15m
+      REFRESH_JWT_EXPIRES_IN: 7d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Run backend tests
+        run: npm test -- --runInBand

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LogOut, Shield, User } from "lucide-react-native";
+import { LogOut, Settings2, Shield, User } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
+import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
@@ -16,6 +17,7 @@ export default function ProfileScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>(() => user?.instruments?.map((item) => item.id) ?? []);
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
+  const canManageInstruments = canManageInstrumentCatalog(user?.role);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -174,6 +176,19 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {canManageInstruments ? (
+          <TouchableOpacity
+            style={styles.adminButton}
+            onPress={() => router.push("/instruments" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Gerenciar instrumentos e cargos"
+            testID="manage-instruments-button"
+          >
+            <Settings2 color={colors.primary} size={18} strokeWidth={2.5} />
+            <Text style={styles.adminButtonText}>Gerenciar instrumentos/cargos</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
           <LogOut color={colors.surface} size={18} strokeWidth={2.6} />
           <Text style={styles.logoutText}>Sair da conta</Text>
@@ -281,6 +296,18 @@ const styles = StyleSheet.create({
   },
   instrumentChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
   instrumentChipTextSelected: { color: colors.surface },
+  adminButton: {
+    width: "100%",
+    minHeight: 46,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  adminButtonText: { color: colors.primary, fontSize: 14, fontWeight: "800" },
   logoutBtn: {
     width: "100%",
     backgroundColor: colors.danger,

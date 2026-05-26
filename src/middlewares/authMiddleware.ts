@@ -21,11 +21,7 @@ interface JwtPayload {
  * @param next Next middleware callback executed inside AsyncLocalStorage context.
  * @returns Nothing; the response is ended when authentication fails.
  */
-export const authMiddleware = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -54,10 +50,7 @@ export const authMiddleware = (
       tenantId: decoded.tenantId,
     };
 
-    runWithTenantContext(
-      { userId, role: decoded.role, tenantId: decoded.tenantId },
-      () => next()
-    );
+    runWithTenantContext({ userId, role: decoded.role, tenantId: decoded.tenantId }, () => next());
   } catch {
     next(new UnauthorizedError("Token inválido"));
   }

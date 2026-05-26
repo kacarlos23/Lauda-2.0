@@ -31,8 +31,8 @@ export const toggleMinistryMemberSchema = z.object({
     return z.NEVER;
   }
 
-  return { member_id: memberId };
-});
+    return { member_id: memberId };
+  });
 
 export const memberStatusSchema = z.enum(["PENDING", "ACTIVE", "INACTIVE"]);
 

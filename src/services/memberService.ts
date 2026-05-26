@@ -19,7 +19,7 @@ export class MemberService {
   async getById(id: string) {
     const member = await this.memberRepository.findById(id);
     if (!member) {
-      throw new NotFoundError("Membro não encontrado");
+      throw new NotFoundError("Membro não encontrado.");
     }
     return member;
   }
@@ -36,12 +36,12 @@ export class MemberService {
   async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {
     const member = await this.memberRepository.findById(memberId);
     if (!member) {
-      throw new NotFoundError("Membro não encontrado");
+      throw new NotFoundError("Membro não encontrado.");
     }
 
     const ministry = await this.memberRepository.findMinistryById(ministryId);
     if (!ministry) {
-      throw new NotFoundError("Ministério não encontrado");
+      throw new NotFoundError("Ministério não encontrado.");
     }
 
     return this.memberRepository.addMinistry(memberId, ministryId, isLeader);
