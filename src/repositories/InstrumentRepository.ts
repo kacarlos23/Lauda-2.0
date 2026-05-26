@@ -37,21 +37,32 @@ export class InstrumentRepository {
     });
   }
 
-  update(id: string, data: UpdateInstrumentInput) {
-    return prisma.instrument.update({
-      where: { id },
+  async update(id: string, data: UpdateInstrumentInput) {
+    const result = await prisma.instrument.updateMany({
+      where: { id, tenantId: this.tenantId },
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.colorHex !== undefined ? { colorHex: data.colorHex } : {}),
       },
-      select: instrumentSelect,
     });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findById(id);
   }
 
-  delete(id: string) {
-    return prisma.instrument.delete({
-      where: { id },
-      select: instrumentSelect,
+  async delete(id: string) {
+    const instrument = await this.findById(id);
+    if (!instrument) {
+      return null;
+    }
+
+    const result = await prisma.instrument.deleteMany({
+      where: { id, tenantId: this.tenantId },
     });
+
+    return result.count === 0 ? null : instrument;
   }
 }

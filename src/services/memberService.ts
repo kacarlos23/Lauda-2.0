@@ -44,7 +44,11 @@ export class MemberService {
       throw new NotFoundError("Ministério não encontrado.");
     }
 
-    return this.memberRepository.addMinistry(memberId, ministryId, isLeader);
+    const assignment = await this.memberRepository.addMinistry(memberId, ministryId, isLeader);
+    if (!assignment) {
+      throw new NotFoundError("Membro ou ministério não encontrado");
+    }
+    return assignment;
   }
 
   async updateInstruments(memberId: string, input: UpdateMemberInstrumentsInput, user: RequestUser) {
@@ -68,6 +72,9 @@ export class MemberService {
     }
 
     const instruments = await this.memberRepository.replaceInstruments(memberId, instrumentIds);
+    if (!instruments) {
+      throw new NotFoundError("Membro não encontrado");
+    }
     return { id: memberId, instruments };
   }
 }

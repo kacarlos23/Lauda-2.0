@@ -79,25 +79,36 @@ export class ScheduleRepository {
   }
 
   createAssignment(scheduleId: string, data: CreateAssignmentInput) {
-    return prisma.scheduleAssignment.create({
-      data: {
-        scheduleId,
-        userId: data.userId,
-        role: data.role,
-        status: data.status,
-        tenantId: this.tenantId,
-      },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        schedule: {
-          select: {
-            id: true,
-            title: true,
-            date: true,
-            ministry: { select: { id: true, name: true } },
+    return prisma.$transaction(async (tx) => {
+      const [schedule, user] = await Promise.all([
+        tx.schedule.findFirst({ where: { id: scheduleId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.user.findFirst({ where: { id: data.userId, tenantId: this.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!schedule || !user) {
+        return null;
+      }
+
+      return tx.scheduleAssignment.create({
+        data: {
+          scheduleId,
+          userId: data.userId,
+          role: data.role,
+          status: data.status,
+          tenantId: this.tenantId,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          schedule: {
+            select: {
+              id: true,
+              title: true,
+              date: true,
+              ministry: { select: { id: true, name: true } },
+            },
           },
         },
-      },
+      });
     });
   }
 
@@ -124,21 +135,22 @@ export class ScheduleRepository {
     });
   }
 
-  updateAssignmentStatus(assignmentId: string, data: UpdateAssignmentStatusInput) {
-    return prisma.scheduleAssignment.update({
-      where: { id: assignmentId, tenantId: this.tenantId },
-      data: { status: data.status },
-      include: {
-        schedule: {
-          select: {
-            id: true,
-            title: true,
-            date: true,
-            ministry: { select: { id: true, name: true } },
-          },
-        },
+  async updateAssignmentStatus(scheduleId: string, assignmentId: string, data: UpdateAssignmentStatusInput) {
+    const result = await prisma.scheduleAssignment.updateMany({
+      where: {
+        id: assignmentId,
+        scheduleId,
+        tenantId: this.tenantId,
+        schedule: { tenantId: this.tenantId },
       },
+      data: { status: data.status },
     });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findAssignment(scheduleId, assignmentId);
   }
 
   deleteAssignment(assignmentId: string) {

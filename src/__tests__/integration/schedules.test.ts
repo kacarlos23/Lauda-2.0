@@ -297,6 +297,65 @@ describe("POST /api/schedules", () => {
 });
 
 describe("Schedule assignments", () => {
+  it("nao cria, atualiza ou remove assignments de outro tenant", async () => {
+    const tenantA = await registerTenant("assignment-cross-a");
+    const tenantB = await registerTenant("assignment-cross-b");
+    const ministryA = await createMinistry(tenantA.token, "Louvor A");
+    const ministryB = await createMinistry(tenantB.token, "Louvor B");
+    const memberB = await createUserAndLogin("assignment-cross-member-b", tenantB.tenant.id);
+
+    const scheduleA = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({
+        title: "Escala A",
+        date: "2026-05-11T13:00:00.000Z",
+        ministryId: ministryA.id,
+      })
+      .expect(201);
+
+    const scheduleB = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .send({
+        title: "Escala B",
+        date: "2026-05-12T13:00:00.000Z",
+        ministryId: ministryB.id,
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/schedules/${scheduleA.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ userId: memberB.user.id, role: "Vocal" })
+      .expect(404);
+
+    const assignmentB = await request(app)
+      .post(`/api/schedules/${scheduleB.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .send({ userId: memberB.user.id, role: "Vocal" })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleB.body.data.id}/assignments/${assignmentB.body.data.id}/status`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ status: "ACCEPTED" })
+      .expect(404);
+
+    await request(app)
+      .delete(`/api/schedules/${scheduleB.body.data.id}/assignments/${assignmentB.body.data.id}`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(404);
+
+    const stored = await prisma.scheduleAssignment.findUnique({ where: { id: assignmentB.body.data.id } });
+    expect(stored).toMatchObject({
+      id: assignmentB.body.data.id,
+      tenantId: tenantB.tenant.id,
+      status: "PENDING",
+    });
+    expect(await prisma.scheduleAssignment.count({ where: { scheduleId: scheduleA.body.data.id } })).toBe(0);
+  });
+
   it("permite membro aceitar e recusar a propria escala e bloqueia assignment de outro membro", async () => {
     const tenant = await registerTenant("assignment-status");
     const ministry = await createMinistry(tenant.token, "Louvor");
