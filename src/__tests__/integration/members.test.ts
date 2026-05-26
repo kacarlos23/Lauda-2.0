@@ -377,6 +377,30 @@ describe("Members API", () => {
       .expect(400);
   });
 
+  it("POST /api/members/:id/ministries nao vincula usuario ou ministerio de outro tenant", async () => {
+    const tenantA = await registerTenant("members-ministry-link-a");
+    const tenantB = await registerTenant("members-ministry-link-b");
+    const memberA = await createMember(tenantA.token, "member-ministry-link-a@example.com");
+    const memberB = await createMember(tenantB.token, "member-ministry-link-b@example.com");
+    const ministryA = await createMinistry(tenantA.token, "Louvor Link A");
+    const ministryB = await createMinistry(tenantB.token, "Louvor Link B");
+
+    await request(app)
+      .post(`/api/members/${memberB.body.data.id}/ministries`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ ministryId: ministryA.id, isLeader: false })
+      .expect(404);
+
+    await request(app)
+      .post(`/api/members/${memberA.body.data.id}/ministries`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ ministryId: ministryB.id, isLeader: false })
+      .expect(404);
+
+    expect(await prisma.ministryMember.count({ where: { userId: memberB.body.data.id, ministryId: ministryA.id } })).toBe(0);
+    expect(await prisma.ministryMember.count({ where: { userId: memberA.body.data.id, ministryId: ministryB.id } })).toBe(0);
+  });
+
   it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuario autenticado", async () => {
     const tenant = await registerTenant("members-me-instruments");
     const member = await createMember(tenant.token, "members-me@example.com");

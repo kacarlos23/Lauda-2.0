@@ -176,7 +176,7 @@ describe("Instruments API", () => {
       .send({ name: "Baixo" });
 
     expect(duplicate.status).toBe(400);
-    expect(duplicate.body.error).toBe("Ja existe um instrumento com este nome");
+    expect(duplicate.body.error).toBe("Já existe um instrumento com este nome");
   });
 
   it("PATCH e DELETE respeitam tenant e nao alteram instrumento de outro tenant", async () => {
@@ -195,6 +195,14 @@ describe("Instruments API", () => {
       .delete(`/api/instruments/${instrumentB.id}`)
       .set("Authorization", `Bearer ${tenantA.token}`)
       .expect(404);
+
+    await request(app)
+      .get("/api/instruments")
+      .set("Authorization", `Bearer ${tenantB.token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toEqual([{ id: instrumentB.id, name: "Midia", colorHex: "#2563EB" }]);
+      });
 
     const updated = await request(app)
       .patch(`/api/instruments/${instrumentA.id}`)

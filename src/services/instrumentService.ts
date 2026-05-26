@@ -21,11 +21,15 @@ export class InstrumentService {
   async update(id: string, input: UpdateInstrumentInput) {
     const instrument = await this.instrumentRepository.findById(id);
     if (!instrument) {
-      throw new NotFoundError("Instrumento nao encontrado");
+      throw new NotFoundError("Instrumento não encontrado");
     }
 
     try {
-      return await this.instrumentRepository.update(id, input);
+      const updated = await this.instrumentRepository.update(id, input);
+      if (!updated) {
+        throw new NotFoundError("Instrumento não encontrado");
+      }
+      return updated;
     } catch (error) {
       this.handleKnownError(error);
     }
@@ -34,15 +38,19 @@ export class InstrumentService {
   async delete(id: string) {
     const instrument = await this.instrumentRepository.findById(id);
     if (!instrument) {
-      throw new NotFoundError("Instrumento nao encontrado");
+      throw new NotFoundError("Instrumento não encontrado");
     }
 
-    return this.instrumentRepository.delete(id);
+    const deleted = await this.instrumentRepository.delete(id);
+    if (!deleted) {
+      throw new NotFoundError("Instrumento não encontrado");
+    }
+    return deleted;
   }
 
   private handleKnownError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new ValidationError("Ja existe um instrumento com este nome");
+      throw new ValidationError("Já existe um instrumento com este nome");
     }
 
     if (error instanceof AppError) throw error;

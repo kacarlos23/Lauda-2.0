@@ -86,7 +86,11 @@ export class MinistryService {
       throw new NotFoundError("Usuário não encontrado neste tenant");
     }
 
-    return this.ministryRepository.addMember(ministryId, targetUserId, isLeader);
+    const assignment = await this.ministryRepository.addMember(ministryId, targetUserId, isLeader);
+    if (!assignment) {
+      throw new NotFoundError("Ministério ou usuário não encontrado");
+    }
+    return assignment;
   }
 
   async removeMember(ministryId: string, targetUserId: string, reqUser: RequestUser) {
@@ -103,7 +107,7 @@ export class MinistryService {
 
     const targetUser = await this.ministryRepository.findUserById(targetUserId);
     if (!targetUser) {
-      throw new NotFoundError("Membro nÃ£o encontrado neste tenant");
+      throw new NotFoundError("Membro não encontrado neste tenant");
     }
 
     const existing = await this.ministryRepository.findAssignmentByUserAndMinistry(targetUserId, ministryId);
@@ -116,7 +120,10 @@ export class MinistryService {
       };
     }
 
-    await this.ministryRepository.createMembership(ministryId, targetUserId);
+    const membership = await this.ministryRepository.createMembership(ministryId, targetUserId);
+    if (!membership) {
+      throw new NotFoundError("Ministério ou membro não encontrado");
+    }
     return {
       status: "linked" as const,
       member_id: targetUserId,
@@ -137,7 +144,11 @@ export class MinistryService {
       throw new ValidationError("Usuário já está atribuído a este ministério");
     }
 
-    return this.ministryRepository.assignMemberToMinistry(input);
+    const assignment = await this.ministryRepository.assignMemberToMinistry(input);
+    if (!assignment) {
+      throw new NotFoundError("Ministério ou usuário não encontrado");
+    }
+    return assignment;
   }
 
   async updateAssignment(input: UpdateMemberAssignmentInput, reqUser: RequestUser) {
@@ -149,7 +160,11 @@ export class MinistryService {
     await this.ensureCanManageMinistry(assignment.ministryId, reqUser);
     const { assignmentId, ...data } = input;
 
-    return this.ministryRepository.updateMemberAssignment(assignmentId, data);
+    const updated = await this.ministryRepository.updateMemberAssignment(assignmentId, data);
+    if (!updated) {
+      throw new NotFoundError("Atribuição não encontrada");
+    }
+    return updated;
   }
 
   async listMinistryMembers(ministryId: string, filters: ListMinistryMembersInput) {

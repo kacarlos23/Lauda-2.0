@@ -89,7 +89,11 @@ export class ScheduleService {
     }
 
     try {
-      return await this.scheduleRepository.createAssignment(scheduleId, data);
+      const assignment = await this.scheduleRepository.createAssignment(scheduleId, data);
+      if (!assignment) {
+        throw new NotFoundError("Escala ou usuário não encontrado");
+      }
+      return assignment;
     } catch (error: any) {
       if (error?.code === "P2002") {
         throw new ValidationError("Usuário já está atribuído a esta escala");
@@ -110,17 +114,29 @@ export class ScheduleService {
     }
 
     if (assignment.userId === user.id) {
-      return this.scheduleRepository.updateAssignmentStatus(assignmentId, data);
+      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+      if (!updated) {
+        throw new NotFoundError("Atribuição não encontrada");
+      }
+      return updated;
     }
 
     if (this.isAdmin(user.role)) {
-      return this.scheduleRepository.updateAssignmentStatus(assignmentId, data);
+      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+      if (!updated) {
+        throw new NotFoundError("Atribuição não encontrada");
+      }
+      return updated;
     }
 
     if (user.role === Role.MINISTRY_LEADER) {
       const leadership = await this.scheduleRepository.findMinistryLeadership(assignment.schedule.ministryId, user.id);
       if (leadership) {
-        return this.scheduleRepository.updateAssignmentStatus(assignmentId, data);
+        const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+        if (!updated) {
+          throw new NotFoundError("Atribuição não encontrada");
+        }
+        return updated;
       }
     }
 

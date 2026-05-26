@@ -91,10 +91,21 @@ export class MinistryRepository {
   }
 
   addMember(ministryId: string, userId: string, isLeader: boolean) {
-    return prisma.ministryMember.upsert({
-      where: { userId_ministryId: { userId, ministryId } },
-      update: { isLeader, tenantId: this.tenantId },
-      create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
+    return prisma.$transaction(async (tx) => {
+      const [ministry, user] = await Promise.all([
+        tx.ministry.findFirst({ where: { id: ministryId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.user.findFirst({ where: { id: userId, tenantId: this.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!ministry || !user) {
+        return null;
+      }
+
+      return tx.ministryMember.upsert({
+        where: { userId_ministryId: { userId, ministryId } },
+        update: { isLeader, tenantId: this.tenantId },
+        create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
+      });
     });
   }
 
@@ -119,49 +130,71 @@ export class MinistryRepository {
   }
 
   findAssignmentByUserAndMinistry(userId: string, ministryId: string) {
-    return prisma.ministryMember.findUnique({
-      where: { userId_ministryId: { userId, ministryId } },
+    return prisma.ministryMember.findFirst({
+      where: { userId, ministryId, tenantId: this.tenantId },
       include: ministryMemberInclude,
     });
   }
 
   createMembership(ministryId: string, userId: string) {
-    return prisma.ministryMember.create({
-      data: {
-        userId,
-        ministryId,
-        tenantId: this.tenantId,
-        isLeader: false,
-        status: "ACTIVE",
-      },
-      include: ministryMemberInclude,
+    return prisma.$transaction(async (tx) => {
+      const [ministry, user] = await Promise.all([
+        tx.ministry.findFirst({ where: { id: ministryId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.user.findFirst({ where: { id: userId, tenantId: this.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!ministry || !user) {
+        return null;
+      }
+
+      return tx.ministryMember.create({
+        data: {
+          userId,
+          ministryId,
+          tenantId: this.tenantId,
+          isLeader: false,
+          status: "ACTIVE",
+        },
+        include: ministryMemberInclude,
+      });
     });
   }
 
   assignMemberToMinistry(data: AssignMemberToMinistryInput) {
     const { userId, ministryId, roleId, role, skills, status, notes, isLeader } = data;
 
-    return prisma.ministryMember.create({
-      data: {
-        userId,
-        ministryId,
-        tenantId: this.tenantId,
-        roleId: roleId ?? null,
-        role: role ?? null,
-        skills,
-        status,
-        notes: notes ?? null,
-        isLeader,
-      },
-      include: ministryMemberInclude,
+    return prisma.$transaction(async (tx) => {
+      const [ministry, user] = await Promise.all([
+        tx.ministry.findFirst({ where: { id: ministryId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.user.findFirst({ where: { id: userId, tenantId: this.tenantId }, select: { id: true } }),
+      ]);
+
+      if (!ministry || !user) {
+        return null;
+      }
+
+      return tx.ministryMember.create({
+        data: {
+          userId,
+          ministryId,
+          tenantId: this.tenantId,
+          roleId: roleId ?? null,
+          role: role ?? null,
+          skills,
+          status,
+          notes: notes ?? null,
+          isLeader,
+        },
+        include: ministryMemberInclude,
+      });
     });
   }
 
-  updateMemberAssignment(assignmentId: string, data: Omit<UpdateMemberAssignmentInput, "assignmentId">) {
+  async updateMemberAssignment(assignmentId: string, data: Omit<UpdateMemberAssignmentInput, "assignmentId">) {
     const { roleId, role, skills, status, notes, isLeader } = data;
 
-    return prisma.ministryMember.update({
-      where: { id: assignmentId },
+    const result = await prisma.ministryMember.updateMany({
+      where: { id: assignmentId, tenantId: this.tenantId },
       data: {
         ...(roleId !== undefined ? { roleId } : {}),
         ...(role !== undefined ? { role } : {}),
@@ -170,8 +203,13 @@ export class MinistryRepository {
         ...(notes !== undefined ? { notes } : {}),
         ...(isLeader !== undefined ? { isLeader } : {}),
       },
-      include: ministryMemberInclude,
     });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return this.findAssignmentById(assignmentId);
   }
 
   async getMinistryMembers(ministryId: string, filters: ListMinistryMembersInput) {
