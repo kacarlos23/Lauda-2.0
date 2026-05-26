@@ -1,0 +1,15 @@
+export const DEFAULT_INSTRUMENTS = [
+  { name: "Vocalista", colorHex: "#10B981" },
+  { name: "Violão", colorHex: "#F59E0B" },
+  { name: "Guitarra", colorHex: "#EF4444" },
+  { name: "Baixo", colorHex: "#8B5CF6" },
+  { name: "Bateria", colorHex: "#DC2626" },
+  { name: "Teclado", colorHex: "#2563EB" },
+  { name: "Piano", colorHex: "#2563EB" },
+  { name: "Violino", colorHex: "#A855F7" },
+  { name: "Flauta", colorHex: "#14B8A6" },
+  { name: "Mesa de Som", colorHex: "#0F766E" },
+  { name: "Saxofone", colorHex: "#D97706" },
+  { name: "Back Vocal", colorHex: "#22C55E" },
+  { name: "Multimídia", colorHex: "#7C3AED" },
+] as const;

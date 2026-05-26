@@ -94,6 +94,11 @@ async function createInstrument(token: string, name: string, colorHex = "#2563EB
   return response.body.data as { id: string; name: string; colorHex: string | null };
 }
 
+async function listInstruments(token: string) {
+  const response = await request(app).get("/api/instruments").set("Authorization", `Bearer ${token}`).expect(200);
+  return response.body.data as Array<{ id: string; name: string; colorHex: string | null }>;
+}
+
 function expectInvitePayload(data: Record<string, unknown>) {
   expect(data).toMatchObject({
     id: expect.any(String),
@@ -224,7 +229,7 @@ describe("Members API", () => {
   it("GET /api/members retorna instrumentos completos e mantem campos existentes", async () => {
     const tenant = await registerTenant("members-with-instruments");
     const created = await createMember(tenant.token, "member-instruments@example.com");
-    const keyboard = await createInstrument(tenant.token, "Teclado", "#2563EB");
+    const keyboard = (await listInstruments(tenant.token)).find((instrument) => instrument.name === "Teclado")!;
 
     await request(app)
       .patch(`/api/members/${created.body.data.id}/instruments`)
@@ -256,7 +261,7 @@ describe("Members API", () => {
     const tenantB = await registerTenant("members-instruments-tenant-b");
     const memberA = await createMember(tenantA.token, "member-no-instruments-a@example.com");
     const memberB = await createMember(tenantB.token, "member-with-instruments-b@example.com");
-    const instrumentB = await createInstrument(tenantB.token, "Bateria");
+    const instrumentB = (await listInstruments(tenantB.token)).find((instrument) => instrument.name === "Bateria")!;
 
     await request(app)
       .patch(`/api/members/${memberB.body.data.id}/instruments`)
@@ -284,9 +289,11 @@ describe("Members API", () => {
     const otherMember = await createMember(tenantA.token, "patch-other@example.com");
     await createMemberWithRole(tenantA.token, "patch-leader@example.com", "MINISTRY_LEADER").expect(201);
     const foreignMember = await createMember(tenantB.token, "patch-foreign@example.com");
-    const keyboard = await createInstrument(tenantA.token, "Teclado");
-    const vocal = await createInstrument(tenantA.token, "Vocal");
-    const foreignInstrument = await createInstrument(tenantB.token, "Teclado");
+    const tenantAInstruments = await listInstruments(tenantA.token);
+    const tenantBInstruments = await listInstruments(tenantB.token);
+    const keyboard = tenantAInstruments.find((instrument) => instrument.name === "Teclado")!;
+    const vocal = tenantAInstruments.find((instrument) => instrument.name === "Vocalista")!;
+    const foreignInstrument = tenantBInstruments.find((instrument) => instrument.name === "Teclado")!;
 
     const memberLogin = await request(app)
       .post("/api/auth/login")
@@ -311,7 +318,7 @@ describe("Members API", () => {
           id: memberA.body.data.id,
           instruments: [
             { id: keyboard.id, name: "Teclado", colorHex: "#2563EB" },
-            { id: vocal.id, name: "Vocal", colorHex: "#2563EB" },
+            { id: vocal.id, name: "Vocalista", colorHex: "#10B981" },
           ],
         });
       });
@@ -322,7 +329,7 @@ describe("Members API", () => {
       .send({ instrumentIds: [vocal.id] })
       .expect(200)
       .expect((response) => {
-        expect(response.body.data.instruments).toEqual([{ id: vocal.id, name: "Vocal", colorHex: "#2563EB" }]);
+        expect(response.body.data.instruments).toEqual([{ id: vocal.id, name: "Vocalista", colorHex: "#10B981" }]);
       });
 
     await request(app)
@@ -380,7 +387,7 @@ describe("Members API", () => {
   it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuário autenticado", async () => {
     const tenant = await registerTenant("members-me-instruments");
     const member = await createMember(tenant.token, "members-me@example.com");
-    const keyboard = await createInstrument(tenant.token, "Teclado");
+    const keyboard = (await listInstruments(tenant.token)).find((instrument) => instrument.name === "Teclado")!;
 
     const login = await request(app)
       .post("/api/auth/login")

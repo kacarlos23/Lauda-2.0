@@ -3,6 +3,7 @@ import path from "node:path";
 import type express from "express";
 import request from "supertest";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { DEFAULT_INSTRUMENTS } from "../../constants/defaultInstruments";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
 
 let app: express.Express;
@@ -100,6 +101,20 @@ describe("Auth API", () => {
     expect(response.body.data.refreshToken).toEqual(expect.any(String));
     expect(response.body.data.user.role).toBe("TENANT_ADMIN");
     expect(response.body.data.user.tenantId).toEqual(expect.any(String));
+  });
+
+  it("POST /api/auth/register pre-cadastra os instrumentos padrão da igreja", async () => {
+    await registerTenant("auth-default-instruments");
+
+    const instruments = await prisma.instrument.findMany({
+      select: { name: true, colorHex: true },
+      orderBy: { name: "asc" },
+    });
+
+    expect(instruments).toHaveLength(DEFAULT_INSTRUMENTS.length);
+    expect(instruments.map((instrument) => instrument.name).sort()).toEqual(
+      DEFAULT_INSTRUMENTS.map((instrument) => instrument.name).sort()
+    );
   });
 
   it("POST /api/auth/login returns 401 for wrong password", async () => {

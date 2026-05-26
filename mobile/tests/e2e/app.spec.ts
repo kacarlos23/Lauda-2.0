@@ -9,6 +9,22 @@ const adminUser = {
   instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
+const defaultInstruments = [
+  { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
+  { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
+  { id: "instrument-3", name: "Multimídia", colorHex: "#7C3AED" },
+  { id: "instrument-4", name: "Saxofone", colorHex: "#D97706" },
+  { id: "instrument-5", name: "Violão", colorHex: "#F59E0B" },
+  { id: "instrument-6", name: "Guitarra", colorHex: "#EF4444" },
+  { id: "instrument-7", name: "Baixo", colorHex: "#8B5CF6" },
+  { id: "instrument-8", name: "Bateria", colorHex: "#DC2626" },
+  { id: "instrument-9", name: "Piano", colorHex: "#2563EB" },
+  { id: "instrument-10", name: "Violino", colorHex: "#A855F7" },
+  { id: "instrument-11", name: "Flauta", colorHex: "#14B8A6" },
+  { id: "instrument-12", name: "Mesa de Som", colorHex: "#0F766E" },
+  { id: "instrument-13", name: "Back Vocal", colorHex: "#22C55E" },
+];
+
 const leaderUser = {
   ...adminUser,
   id: "leader-1",
@@ -96,13 +112,7 @@ async function mockApi(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        data: [
-          { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
-          { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
-          { id: "instrument-3", name: "Operador de camera", colorHex: null },
-        ],
-      }),
+      body: JSON.stringify({ data: defaultInstruments }),
     });
   });
 
@@ -118,12 +128,9 @@ async function mockApi(
             ...(body.instrumentIds?.includes("instrument-1")
               ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
               : []),
-            ...(body.instrumentIds?.includes("instrument-2")
-              ? [{ id: "instrument-2", name: "Vocal", colorHex: "#10B981" }]
-              : []),
-            ...(body.instrumentIds?.includes("instrument-3")
-              ? [{ id: "instrument-3", name: "Operador de camera", colorHex: null }]
-              : []),
+            ...defaultInstruments.filter(
+              (instrument) => instrument.id !== "instrument-1" && body.instrumentIds?.includes(instrument.id)
+            ),
           ],
         },
       }),
@@ -315,7 +322,7 @@ test("abre modal e permite cancelar alteração de instrumentos", async ({ page 
   await expect(page.getByTestId("instrument-icon-instrument-1")).toBeVisible();
   await expect(page.getByTestId("instrument-icon-instrument-2")).toBeVisible();
   await expect(page.getByTestId("instrument-icon-instrument-3")).toBeVisible();
-  await expect(page.getByText("Operador de camera")).toBeVisible();
+  await expect(page.getByText("Multimídia")).toBeVisible();
   await expect(page.getByText("instrument-3")).not.toBeVisible();
 
   await page.getByTestId("instrument-option-instrument-2").click();
@@ -324,7 +331,7 @@ test("abre modal e permite cancelar alteração de instrumentos", async ({ page 
   await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
 
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
-  expect(storage.auth_user).not.toContain("Vocal");
+  expect(storage.auth_user).not.toContain("Vocalista");
 });
 
 test("permite editar instrumentos no perfil por modal com seleção múltipla", async ({ page }) => {
@@ -345,13 +352,13 @@ test("permite editar instrumentos no perfil por modal com seleção múltipla", 
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
-    .toContain("Vocal");
+    .toContain("Vocalista");
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
-    .toContain("Operador de camera");
+    .toContain("Multimídia");
   await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
   await expect(page.getByText("instrument-2")).not.toBeVisible();
   await expect(page.getByText("instrument-3")).not.toBeVisible();
@@ -377,7 +384,7 @@ test("membro comum edita os próprios instrumentos pelo modal do Perfil", async 
           id: memberUser.id,
           instruments: [
             { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
-            { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
+            { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
           ],
         },
       }),
@@ -401,5 +408,5 @@ test("membro comum edita os próprios instrumentos pelo modal do Perfil", async 
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
-    .toContain("Vocal");
+    .toContain("Vocalista");
 });

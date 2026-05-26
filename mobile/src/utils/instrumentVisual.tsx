@@ -1,8 +1,6 @@
 import {
   Drum,
   Guitar,
-  Handshake,
-  HeartHandshake,
   MicVocal,
   MonitorPlay,
   Music2,
@@ -57,9 +55,11 @@ export function renderInstrumentIcon(name: string, selected = false, size = 20) 
   const iconProps = { color: iconColor, size, strokeWidth: 2.4 };
 
   switch (item.key) {
-    case "vocal":
+    case "vocalista":
+    case "back_vocal":
       return <MicVocal {...iconProps} />;
     case "teclado":
+    case "piano":
       return <Piano {...iconProps} />;
     case "violao":
     case "guitarra":
@@ -67,14 +67,14 @@ export function renderInstrumentIcon(name: string, selected = false, size = 20) 
       return <Guitar {...iconProps} />;
     case "bateria":
       return <Drum {...iconProps} />;
-    case "som":
+    case "mesa_som":
       return <Volume2 {...iconProps} />;
-    case "midia":
+    case "multimidia":
       return <MonitorPlay {...iconProps} />;
-    case "recepcao":
-      return <Handshake {...iconProps} />;
-    case "intercessao":
-      return <HeartHandshake {...iconProps} />;
+    case "violino":
+    case "flauta":
+    case "saxofone":
+      return <Music2 {...iconProps} />;
     default:
       return <Music2 {...iconProps} />;
   }

@@ -7,16 +7,10 @@ export type InstrumentCatalogItem = {
 
 export const INSTRUMENT_CATALOG: InstrumentCatalogItem[] = [
   {
-    key: "vocal",
-    displayName: "Vocal",
-    aliases: ["vocal", "voz", "cantor", "cantora", "vocalista"],
+    key: "vocalista",
+    displayName: "Vocalista",
+    aliases: ["vocalista", "vocal", "voz", "cantor", "cantora"],
     colorHex: "#10B981",
-  },
-  {
-    key: "teclado",
-    displayName: "Teclado",
-    aliases: ["teclado", "piano", "pianista", "tecladista"],
-    colorHex: "#2563EB",
   },
   {
     key: "violao",
@@ -43,28 +37,52 @@ export const INSTRUMENT_CATALOG: InstrumentCatalogItem[] = [
     colorHex: "#DC2626",
   },
   {
-    key: "som",
-    displayName: "Som",
-    aliases: ["som", "audio", "áudio", "operador de som"],
+    key: "teclado",
+    displayName: "Teclado",
+    aliases: ["teclado", "tecladista"],
+    colorHex: "#2563EB",
+  },
+  {
+    key: "piano",
+    displayName: "Piano",
+    aliases: ["piano", "pianista"],
+    colorHex: "#2563EB",
+  },
+  {
+    key: "violino",
+    displayName: "Violino",
+    aliases: ["violino", "violinista"],
+    colorHex: "#A855F7",
+  },
+  {
+    key: "flauta",
+    displayName: "Flauta",
+    aliases: ["flauta", "flautista"],
+    colorHex: "#14B8A6",
+  },
+  {
+    key: "mesa_som",
+    displayName: "Mesa de Som",
+    aliases: ["mesa de som", "som", "audio", "áudio", "operador de som"],
     colorHex: "#0F766E",
   },
   {
-    key: "midia",
-    displayName: "Mídia",
-    aliases: ["midia", "mídia", "projecao", "projeção", "slides"],
+    key: "saxofone",
+    displayName: "Saxofone",
+    aliases: ["saxofone", "sax", "saxofonista"],
+    colorHex: "#D97706",
+  },
+  {
+    key: "back_vocal",
+    displayName: "Back Vocal",
+    aliases: ["back vocal", "backing vocal", "back", "apoio vocal"],
+    colorHex: "#22C55E",
+  },
+  {
+    key: "multimidia",
+    displayName: "Multimídia",
+    aliases: ["multimidia", "multimídia", "midia", "mídia", "projecao", "projeção", "slides"],
     colorHex: "#7C3AED",
-  },
-  {
-    key: "recepcao",
-    displayName: "Recepção",
-    aliases: ["recepcao", "recepção", "recepcionista"],
-    colorHex: "#0891B2",
-  },
-  {
-    key: "intercessao",
-    displayName: "Intercessão",
-    aliases: ["intercessao", "intercessão", "oração", "oracao"],
-    colorHex: "#BE185D",
   },
   {
     key: "outro",
