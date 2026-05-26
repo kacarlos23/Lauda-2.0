@@ -10,19 +10,34 @@ import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
+function getInstrumentIds(instruments?: Instrument[]): string[] {
+  return instruments?.map((item) => item.id) ?? [];
+}
+
+function getSelectedInstruments(ids: string[], availableInstruments: Instrument[], previousInstruments: Instrument[]): Instrument[] {
+  return ids
+    .map((id) => availableInstruments.find((instrument) => instrument.id === id) ?? previousInstruments.find((instrument) => instrument.id === id))
+    .filter((instrument): instrument is Instrument => Boolean(instrument));
+}
+
 export default function ProfileScreen() {
   const { user, logout, updateCurrentUser } = useAuthStore();
   const router = useRouter();
   const [availableInstruments, setAvailableInstruments] = useState<Instrument[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => user?.instruments?.map((item) => item.id) ?? []);
+  const [selectedInstruments, setSelectedInstruments] = useState<Instrument[]>(() => user?.instruments ?? []);
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => getInstrumentIds(user?.instruments));
+  const [pendingInstrumentIds, setPendingInstrumentIds] = useState<string[]>([]);
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
   const canManageInstruments = canManageInstrumentCatalog(user?.role);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const pendingSet = useMemo(() => new Set(pendingInstrumentIds), [pendingInstrumentIds]);
 
   useEffect(() => {
-    setSelectedIds(user?.instruments?.map((item) => item.id) ?? []);
+    const instruments = user?.instruments ?? [];
+    setSelectedInstruments(instruments);
+    setSelectedIds(getInstrumentIds(instruments));
   }, [user?.id, user?.instruments]);
 
   const loadInstruments = async () => {
@@ -33,15 +48,17 @@ export default function ProfileScreen() {
         instrumentService.getInstruments(),
         memberService.getCurrentMember(),
       ]);
+      const currentInstruments = currentMember.instruments ?? [];
       setAvailableInstruments(instruments);
-      setSelectedIds(currentMember.instruments?.map((item) => item.id) ?? []);
+      setSelectedInstruments(currentInstruments);
+      setSelectedIds(getInstrumentIds(currentInstruments));
       await updateCurrentUser({
         id: currentMember.id,
         name: currentMember.name,
         email: currentMember.email,
         role: currentMember.role,
         tenantId: currentMember.tenantId,
-        instruments: currentMember.instruments ?? [],
+        instruments: currentInstruments,
       });
     } catch (error) {
       setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
@@ -82,20 +99,30 @@ export default function ProfileScreen() {
   };
 
   const handleToggleInstrument = async (instrumentId: string) => {
+    if (pendingSet.has(instrumentId)) return;
+
     const previousIds = selectedIds;
+    const previousInstruments = selectedInstruments;
     const nextIds = selectedSet.has(instrumentId)
       ? selectedIds.filter((id) => id !== instrumentId)
       : [...selectedIds, instrumentId];
+    const optimisticInstruments = getSelectedInstruments(nextIds, availableInstruments, selectedInstruments);
 
+    setPendingInstrumentIds((current) => [...current, instrumentId]);
     setSelectedIds(nextIds);
+    setSelectedInstruments(optimisticInstruments);
 
     try {
       const result = await instrumentService.updateMyInstruments(nextIds);
-      setSelectedIds(result.instruments.map((item) => item.id));
+      setSelectedIds(getInstrumentIds(result.instruments));
+      setSelectedInstruments(result.instruments);
       await updateCurrentUser({ instruments: result.instruments });
     } catch (error) {
       setSelectedIds(previousIds);
+      setSelectedInstruments(previousInstruments);
       showInstrumentError(error instanceof Error ? error.message : "Não foi possível atualizar instrumentos.");
+    } finally {
+      setPendingInstrumentIds((current) => current.filter((id) => id !== instrumentId));
     }
   };
 
@@ -133,6 +160,32 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
+          <Text style={styles.instrumentHelp}>
+            Toque em um instrumento para adicionar ou remover do seu perfil. A alteração é salva automaticamente.
+          </Text>
+
+          {selectedInstruments.length > 0 ? (
+            <View style={styles.selectedBox}>
+              <Text style={styles.selectedTitle}>Selecionados</Text>
+              <View style={styles.instrumentList}>
+                {selectedInstruments.map((instrument) => (
+                  <View
+                    key={instrument.id}
+                    style={[
+                      styles.selectedChip,
+                      {
+                        backgroundColor: instrument.colorHex ?? colors.primary,
+                        borderColor: instrument.colorHex ?? colors.primary,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.instrumentChipTextSelected}>{instrument.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
           {instrumentsLoading ? (
             <View style={styles.instrumentLoading}>
               <ActivityIndicator color={colors.primary} />
@@ -146,11 +199,12 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           ) : availableInstruments.length === 0 ? (
-            <Text style={styles.instrumentMuted}>Nenhum instrumento disponível</Text>
+            <Text style={styles.instrumentMuted}>Nenhum instrumento disponível. Peça a um administrador para cadastrar instrumentos/cargos.</Text>
           ) : (
             <View style={styles.instrumentList}>
               {availableInstruments.map((instrument) => {
                 const selected = selectedSet.has(instrument.id);
+                const pending = pendingSet.has(instrument.id);
                 return (
                   <TouchableOpacity
                     key={instrument.id}
@@ -160,14 +214,16 @@ export default function ProfileScreen() {
                         backgroundColor: instrument.colorHex ?? colors.primary,
                         borderColor: instrument.colorHex ?? colors.primary,
                       },
+                      pending && styles.instrumentChipPending,
                     ]}
                     onPress={() => void handleToggleInstrument(instrument.id)}
+                    disabled={pending}
                     accessibilityRole="button"
                     accessibilityLabel={`${selected ? "Remover" : "Adicionar"} ${instrument.name}`}
                     testID={`instrument-toggle-${instrument.id}`}
                   >
                     <Text style={[styles.instrumentChipText, selected && styles.instrumentChipTextSelected]}>
-                      {instrument.name}
+                      {pending ? "Salvando..." : instrument.name}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -264,11 +320,22 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  instrumentHelp: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
+  selectedBox: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  selectedTitle: { color: colors.primary, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   instrumentLoading: {
     gap: spacing.sm,
     alignItems: "flex-start",
   },
-  instrumentMuted: { color: colors.muted, fontSize: 14, fontWeight: "600" },
+  instrumentMuted: { color: colors.muted, fontSize: 14, fontWeight: "600", lineHeight: 20 },
   errorText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
   retryButton: {
     minHeight: 38,
@@ -294,8 +361,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  selectedChip: {
+    minHeight: 30,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  instrumentChipPending: {
+    opacity: 0.7,
+  },
   instrumentChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
-  instrumentChipTextSelected: { color: colors.surface },
+  instrumentChipTextSelected: { color: colors.surface, fontSize: 13, fontWeight: "800" },
   adminButton: {
     width: "100%",
     minHeight: 46,
