@@ -76,7 +76,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="ministries/[id]/members"
         options={{
-          title: "Membros do ministerio",
+          title: "Membros do ministério",
           href: null,
         }}
       />
@@ -90,7 +90,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="ministries/my-assignments"
         options={{
-          title: "Meus ministerios",
+          title: "Meus ministérios",
           tabBarLabel: "Meus",
           tabBarIcon: ({ color }) => tabIcon(UserCheck, color),
           href: "/ministries/my-assignments",

@@ -15,7 +15,7 @@ router.use(authMiddleware);
 function requireDirectoryAccess(req: Request, res: Response, next: NextFunction) {
   const role = req.user?.role;
   if (role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN" || role === "MINISTRY_LEADER") return next();
-  next(new ForbiddenError("Acesso negado: apenas lideres e administradores"));
+  next(new ForbiddenError("Acesso negado: apenas líderes e administradores"));
 }
 
 // Only admins can create and manage members.

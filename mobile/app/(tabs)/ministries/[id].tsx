@@ -62,7 +62,7 @@ export default function MinistryDetailsScreen() {
       const tenantMembers = await memberService.listMembers();
       setAllMembers(tenantMembers);
     } catch (error) {
-      setToggleError(error instanceof Error ? error.message : "Nao foi possivel carregar os membros.");
+      setToggleError(error instanceof Error ? error.message : "Não foi possível carregar os membros.");
     }
   }, [isAdmin]);
 
@@ -180,7 +180,7 @@ export default function MinistryDetailsScreen() {
         if (!wasLinked && currentlyLinked) return current.filter((currentId) => currentId !== memberId);
         return current;
       });
-      setToggleError("Nao foi possivel atualizar o vinculo. Tente novamente.");
+      setToggleError("Não foi possível atualizar o vínculo. Tente novamente.");
     } finally {
       setPendingMemberIds((current) => current.filter((currentId) => currentId !== memberId));
     }

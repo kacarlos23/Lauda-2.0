@@ -147,14 +147,14 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("redireciona usuario anonimo para login e bloqueia area autenticada", async ({ page }) => {
+test("redireciona usuário anônimo para login e bloqueia área autenticada", async ({ page }) => {
   await page.goto("/members");
 
   await expect(page.getByTestId("login-email")).toBeVisible();
   await expect(page.getByTestId("login-password")).toBeVisible();
 });
 
-test("valida campos obrigatorios no login antes de chamar a API", async ({ page }) => {
+test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {
   let loginRequests = 0;
   page.on("request", (request) => {
     if (request.url().includes("/api/auth/login")) loginRequests += 1;
@@ -166,7 +166,7 @@ test("valida campos obrigatorios no login antes de chamar a API", async ({ page 
   await expect(page.getByTestId("login-email")).toBeVisible();
 });
 
-test("faz login, envia token em requisicoes protegidas e nao persiste senha", async ({ page }) => {
+test("faz login, envia token em requisições protegidas e não persiste senha", async ({ page }) => {
   let ministriesRequest: Request | undefined;
   page.on("request", (request) => {
     if (request.url().includes("/api/ministries")) ministriesRequest = request;
@@ -208,7 +208,7 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   expect(JSON.stringify(storage)).not.toContain("secret123");
 });
 
-test("permite sair da conta e limpa a sessao local", async ({ page }) => {
+test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
@@ -234,7 +234,7 @@ test("mostra badges de instrumentos na lista de membros sem expor ids", async ({
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
-test("permite editar instrumentos no perfil com atualizacao otimista e persistencia local", async ({ page }) => {
+test("permite editar instrumentos no perfil com atualização otimista e persistência local", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 

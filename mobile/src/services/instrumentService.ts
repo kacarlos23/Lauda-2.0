@@ -16,7 +16,7 @@ function handleApiError(error: unknown): never {
   if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
     const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
     const data = response?.data;
-    throw new Error(data?.error ?? data?.message ?? "Nao foi possivel processar instrumentos.");
+    throw new Error(data?.error ?? data?.message ?? "Não foi possível processar instrumentos.");
   }
 
   if (error instanceof Error) {

@@ -17,7 +17,7 @@ function canAssign(role?: string): boolean {
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     ALL: "Todos",
-    PENDING: "Vinculo pendente",
+    PENDING: "Vínculo pendente",
     ACTIVE: "Vinculado",
     INACTIVE: "Inativo",
   };
@@ -53,7 +53,7 @@ export default function MinistryMembersScreen() {
         setPage(response.pagination.page);
         setTotalPages(response.pagination.totalPages);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Nao foi possivel carregar membros.");
+        setError(err instanceof Error ? err.message : "Não foi possível carregar membros.");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -136,7 +136,7 @@ export default function MinistryMembersScreen() {
               <Text style={styles.email}>{item.user.email}</Text>
               {item.role ? <Text style={styles.meta}>{item.role}</Text> : null}
               {item.skills.length ? <Text style={styles.skills}>{item.skills.join(", ")}</Text> : null}
-              {item.isLeader ? <Text style={styles.leader}>Lider</Text> : null}
+              {item.isLeader ? <Text style={styles.leader}>Líder</Text> : null}
             </View>
           </View>
         )}

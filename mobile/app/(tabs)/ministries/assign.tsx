@@ -36,7 +36,7 @@ export default function AssignMemberScreen() {
       setMinistries(data);
       if (!ministryId && data[0]) setMinistryId(data[0].id);
     } catch (error) {
-      Alert.alert("Erro", error instanceof Error ? error.message : "Nao foi possivel carregar ministerios.");
+      Alert.alert("Erro", error instanceof Error ? error.message : "Não foi possível carregar ministérios.");
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function AssignMemberScreen() {
       .filter(Boolean);
 
     if (!ministryId || !userId.trim()) {
-      Alert.alert("Dados obrigatorios", "Informe o ministerio e o ID do usuario.");
+      Alert.alert("Dados obrigatórios", "Informe o ministério e o ID do usuário.");
       return;
     }
 
@@ -68,11 +68,11 @@ export default function AssignMemberScreen() {
         notes: notes.trim() || undefined,
         isLeader,
       });
-      Alert.alert("Membro atribuido", "A atribuicao foi criada com sucesso.", [
+      Alert.alert("Membro atribuído", "A atribuição foi criada com sucesso.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error) {
-      Alert.alert("Erro", error instanceof Error ? error.message : "Nao foi possivel atribuir o membro.");
+      Alert.alert("Erro", error instanceof Error ? error.message : "Não foi possível atribuir o membro.");
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +81,7 @@ export default function AssignMemberScreen() {
   if (!canAssign(user?.role)) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>Voce nao tem permissao para atribuir membros.</Text>
+        <Text style={styles.errorText}>Você não tem permissão para atribuir membros.</Text>
       </View>
     );
   }
@@ -98,7 +98,7 @@ export default function AssignMemberScreen() {
 
         {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
 
-        <Text style={styles.label}>Ministerio</Text>
+        <Text style={styles.label}>Ministério</Text>
         <View style={styles.chips}>
           {ministries.map((ministry) => (
             <TouchableOpacity
@@ -112,12 +112,12 @@ export default function AssignMemberScreen() {
           ))}
         </View>
 
-        <Text style={styles.label}>ID do usuario *</Text>
+        <Text style={styles.label}>ID do usuário *</Text>
         <TextInput
           style={styles.input}
           value={userId}
           onChangeText={setUserId}
-          placeholder="UUID do usuario"
+          placeholder="UUID do usuário"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
         />
@@ -136,11 +136,11 @@ export default function AssignMemberScreen() {
           style={styles.input}
           value={skillsText}
           onChangeText={setSkillsText}
-          placeholder="violao, vocal, bateria"
+          placeholder="violão, vocal, bateria"
           placeholderTextColor={colors.muted}
         />
 
-        <Text style={styles.label}>Situacao no ministerio</Text>
+        <Text style={styles.label}>Situação no ministério</Text>
         <View style={styles.chips}>
           {statuses.map((item) => (
             <TouchableOpacity
@@ -158,7 +158,7 @@ export default function AssignMemberScreen() {
           <View style={[styles.checkbox, isLeader && styles.checkboxActive]}>
             {isLeader ? <Check color={colors.surface} size={16} /> : null}
           </View>
-          <Text style={styles.toggleText}>Marcar como lider do ministerio</Text>
+          <Text style={styles.toggleText}>Marcar como líder do ministério</Text>
         </TouchableOpacity>
 
         <Text style={styles.label}>Notas</Text>
@@ -166,7 +166,7 @@ export default function AssignMemberScreen() {
           style={[styles.input, styles.textArea]}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Observacoes internas"
+          placeholder="Observações internas"
           placeholderTextColor={colors.muted}
           multiline
           textAlignVertical="top"

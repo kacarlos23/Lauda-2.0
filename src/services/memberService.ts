@@ -50,20 +50,20 @@ export class MemberService {
   async updateInstruments(memberId: string, input: UpdateMemberInstrumentsInput, user: RequestUser) {
     const member = await this.memberRepository.findById(memberId);
     if (!member) {
-      throw new NotFoundError("Membro nÃ£o encontrado");
+      throw new NotFoundError("Membro não encontrado");
     }
 
     const isSelf = user.id === memberId;
     const isAdmin = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
     if (!isSelf && !isAdmin) {
-      throw new ForbiddenError("Apenas o proprio membro ou administradores podem alterar instrumentos");
+      throw new ForbiddenError("Apenas o próprio membro ou administradores podem alterar instrumentos");
     }
 
     const instrumentIds = Array.from(new Set(input.instrumentIds));
     if (instrumentIds.length > 0) {
       const found = await this.memberRepository.findInstrumentIds(instrumentIds);
       if (found.length !== instrumentIds.length) {
-        throw new ValidationError("Instrumento invalido ou nao encontrado");
+        throw new ValidationError("Instrumento inválido ou não encontrado");
       }
     }
 

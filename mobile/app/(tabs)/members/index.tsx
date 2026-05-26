@@ -29,19 +29,19 @@ function canViewMembers(role?: string): boolean {
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
-    GLOBAL_ADMIN: "Admin global",
-    TENANT_ADMIN: "Lider da igreja",
-    MINISTRY_LEADER: "Lider de ministerio",
+    GLOBAL_ADMIN: "Administrador global",
+    TENANT_ADMIN: "Administrador da igreja",
+    MINISTRY_LEADER: "Líder de ministério",
     MEMBER: "Membro",
   };
   return labels[role] ?? role;
 }
 
 function formatMinistries(member: Member): string {
-  if (!member.ministries?.length) return "Sem ministerios vinculados";
+  if (!member.ministries?.length) return "Sem ministérios vinculados";
 
   return member.ministries
-    .map((item) => `${item.ministry.name}${item.isLeader ? " (lider)" : ""}`)
+    .map((item) => `${item.ministry.name}${item.isLeader ? " (líder)" : ""}`)
     .join(", ");
 }
 
@@ -73,7 +73,7 @@ export default function MembersScreen() {
       const data = await memberService.listMembers();
       setMembers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel carregar os membros.");
+      setError(err instanceof Error ? err.message : "Não foi possível carregar os membros.");
     } finally {
       setLoading(false);
     }
@@ -85,7 +85,7 @@ export default function MembersScreen() {
       const data = await memberService.getMemberInvite(ministryId || undefined);
       setInvite(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel carregar o convite.");
+      setError(err instanceof Error ? err.message : "Não foi possível carregar o convite.");
     } finally {
       setInviteLoading(false);
     }
@@ -131,7 +131,7 @@ export default function MembersScreen() {
   const handleCopyCode = async () => {
     if (!invite?.code) return;
 
-    await handleCopyText(invite.code, "Codigo copiado", "O codigo de cadastro foi copiado.");
+    await handleCopyText(invite.code, "Código copiado", "O código de cadastro foi copiado.");
   };
 
   const handleRegenerateInvite = () => {
@@ -149,7 +149,7 @@ export default function MembersScreen() {
               const data = await memberService.regenerateMemberInvite(selectedMinistryId || undefined);
               setInvite(data);
             } catch (err) {
-              Alert.alert("Erro", err instanceof Error ? err.message : "Nao foi possivel regenerar o link.");
+              Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível regenerar o link.");
             } finally {
               setInviteLoading(false);
             }
@@ -204,7 +204,7 @@ export default function MembersScreen() {
               <View style={styles.inviteHeader}>
                 <View style={styles.inviteTitleGroup}>
                   <Text style={styles.inviteTitle}>Link de cadastro de membros</Text>
-                  <Text style={styles.inviteText}>Escolha um ministerio para que o membro entre nele automaticamente.</Text>
+                  <Text style={styles.inviteText}>Escolha um ministério para que o membro entre nele automaticamente.</Text>
                 </View>
                 {inviteLoading ? <ActivityIndicator color={colors.primary} /> : null}
               </View>
@@ -247,13 +247,13 @@ export default function MembersScreen() {
               <View style={styles.inviteField}>
                 <Text style={styles.inviteLabel}>Link</Text>
                 <Text style={styles.inviteValue} selectable>
-                  {inviteLoading && !invite ? "Carregando convite..." : inviteLink || "Convite indisponivel"}
+                  {inviteLoading && !invite ? "Carregando convite..." : inviteLink || "Convite indisponível"}
                 </Text>
               </View>
               <View style={styles.inviteField}>
-                <Text style={styles.inviteLabel}>{invite?.ministry ? `Codigo - ${invite.ministry.name}` : "Codigo"}</Text>
+                <Text style={styles.inviteLabel}>{invite?.ministry ? `Código - ${invite.ministry.name}` : "Código"}</Text>
                 <Text style={styles.inviteValue} selectable>
-                  {invite?.code ?? "Convite indisponivel"}
+                  {invite?.code ?? "Convite indisponível"}
                 </Text>
               </View>
               <View style={styles.inviteActions}>
@@ -272,10 +272,10 @@ export default function MembersScreen() {
                   onPress={handleCopyCode}
                   disabled={!invite?.code}
                   accessibilityRole="button"
-                  accessibilityLabel="Copiar codigo de cadastro"
+                  accessibilityLabel="Copiar código de cadastro"
                 >
                   <Copy color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Copiar codigo</Text>
+                  <Text style={styles.secondaryButtonText}>Copiar código</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryButton}
@@ -295,7 +295,7 @@ export default function MembersScreen() {
           <View style={styles.emptyBox}>
             <Users color={colors.primary} size={28} strokeWidth={2.3} />
             <Text style={styles.emptyTitle}>Nenhum membro cadastrado</Text>
-            <Text style={styles.emptyText}>Cadastre pessoas da igreja para organizar equipes e ministerios.</Text>
+            <Text style={styles.emptyText}>Cadastre pessoas da igreja para organizar equipes e ministérios.</Text>
           </View>
         }
         renderItem={({ item }) => (

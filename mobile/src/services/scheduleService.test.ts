@@ -74,7 +74,7 @@ describe("scheduleService", () => {
     );
   });
 
-  it("status invalido lanca erro antes de chamar a API", async () => {
+  it("status inválido lança erro antes de chamar a API", async () => {
     await expect(
       updateAssignmentStatus("schedule-1", "assignment-1", "INVALID" as AssignmentStatus)
     ).rejects.toThrow("Status de escala inválido.");
@@ -87,7 +87,7 @@ describe("scheduleService", () => {
     await expect(getMySchedules()).rejects.toThrow("Escalas indisponíveis.");
   });
 
-  it("usa fallback quando a API nao retorna mensagem", async () => {
+  it("usa fallback quando a API não retorna mensagem", async () => {
     mockedApi.get.mockRejectedValueOnce(makeAxiosError({}));
 
     await expect(getMySchedules()).rejects.toThrow("Não foi possível carregar as escalas.");

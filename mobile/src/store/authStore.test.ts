@@ -43,7 +43,7 @@ describe("authStore user instruments", () => {
     });
   });
 
-  it("atualiza instrumentos no usuario atual e persiste auth_user", async () => {
+  it("atualiza instrumentos no usuário atual e persiste auth_user", async () => {
     useAuthStore.setState({
       user: {
         id: "user-1",
@@ -138,7 +138,7 @@ describe("authStore user instruments", () => {
     expect(useAuthStore.getState().tenant).toEqual({ id: "tenant-1", name: "Igreja Central" });
   });
 
-  it("logout limpa instrumentos com o restante da sessao", async () => {
+  it("logout limpa instrumentos com o restante da sessão", async () => {
     mockStorage.set("auth_token", "token-1");
     mockStorage.set("refresh_token", "refresh-1");
     mockStorage.set("auth_user", JSON.stringify({ id: "user-1", instruments: [{ id: "instrument-1" }] }));

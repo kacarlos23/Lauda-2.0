@@ -173,7 +173,7 @@ describe("POST /api/auth/login", () => {
 });
 
 describe("GET /api/schedules", () => {
-  it("retorna apenas dados do tenant do usuario autenticado", async () => {
+  it("retorna apenas dados do tenant do usuário autenticado", async () => {
     const tenantA = await registerTenant("tenant-a");
     const tenantB = await registerTenant("tenant-b");
     const ministryA = await createMinistry(tenantA.token, "Louvor A");
@@ -213,7 +213,7 @@ describe("GET /api/schedules", () => {
 });
 
 describe("POST /api/schedules", () => {
-  it("retorna 403 se usuario nao for TENANT_ADMIN ou MINISTRY_LEADER", async () => {
+  it("retorna 403 se usuário não for TENANT_ADMIN ou MINISTRY_LEADER", async () => {
     const tenant = await registerTenant("member-denied");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const password = await bcrypt.hash("secret123", 10);
@@ -258,7 +258,7 @@ describe("POST /api/schedules", () => {
       .expect(201);
   });
 
-  it("permite lider criar escala somente no ministerio que lidera", async () => {
+  it("permite líder criar escala somente no ministério que lidera", async () => {
     const tenant = await registerTenant("leader-own");
     const ownMinistry = await createMinistry(tenant.token, "Louvor liderado");
     const otherMinistry = await createMinistry(tenant.token, "Dança");
@@ -345,7 +345,7 @@ describe("Schedule assignments", () => {
       .expect(403);
   });
 
-  it("GET /api/schedules/me retorna apenas escalas do usuario autenticado", async () => {
+  it("GET /api/schedules/me retorna apenas escalas do usuário autenticado", async () => {
     const tenant = await registerTenant("my-schedules");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("my-schedules-a", tenant.tenant.id);
