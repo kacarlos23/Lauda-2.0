@@ -90,38 +90,69 @@ npm test
 
 The integration tests use Testcontainers and require Docker to be running.
 
-## Roles e permissoes
+## Roles e permissões
 
-`GLOBAL_ADMIN` e o administrador global do sistema. Ele tem acesso total, visualiza todas as igrejas, usa o painel global no app e nao fica limitado a uma unica igreja mesmo quando seu cadastro possui `tenantId`.
+`GLOBAL_ADMIN` é o administrador global do sistema. Ele tem acesso total, visualiza todas as igrejas, usa o painel global no app e não fica limitado a uma única igreja mesmo quando seu cadastro possui `tenantId`.
 
-`TENANT_ADMIN` administra apenas a propria igreja. Ele gerencia ministerios, membros, escalas, instrumentos e convites do seu tenant.
+`TENANT_ADMIN` administra apenas a própria igreja. Ele gerencia ministérios, membros, escalas, instrumentos e convites do seu tenant.
 
-`MINISTRY_LEADER` administra apenas os ministerios onde possui vinculo como lider. Ele nao tem permissao global.
+`MINISTRY_LEADER` administra apenas os ministérios onde possui vínculo como líder. Ele não tem permissão global.
 
-`MEMBER` visualiza seus dados, escalas e ministerios, e atualiza seus proprios instrumentos/cargos. Ele nao gerencia outros usuarios.
+`MEMBER` visualiza seus dados, escalas e ministérios, e atualiza seus próprios instrumentos/cargos. Ele não gerencia outros usuários.
 
 ### Admin Global API
 
-Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `GLOBAL_ADMIN`; outras roles recebem `403` e usuarios anonimos recebem `401`.
+Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `GLOBAL_ADMIN`; outras roles recebem `403` e usuários anônimos recebem `401`.
 
-- `GET /api/admin/tenants`: lista todas as igrejas com contagens de usuarios, ministerios, escalas e instrumentos.
-- `GET /api/admin/tenants/:tenantId`: detalha uma igreja especifica, seus usuarios, ministerios, instrumentos e contagens.
-- `GET /api/admin/users`: lista usuarios de todos os tenants sem retornar senha. Aceita `?tenantId=<uuid>`.
-- `GET /api/admin/ministries`: lista ministerios globais com `tenant: { id, name }`.
+- `GET /api/admin/tenants`: lista todas as igrejas com contagens de usuários, ministérios, escalas e instrumentos.
+- `GET /api/admin/tenants/:tenantId`: detalha uma igreja específica, seus usuários, ministérios, instrumentos e contagens.
+- `GET /api/admin/users`: lista usuários de todos os tenants sem retornar senha. Aceita `?tenantId=<uuid>`.
+- `GET /api/admin/ministries`: lista ministérios globais com `tenant: { id, name }`.
 
-Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrao para preservar o isolamento multi-tenant.
+Resposta de exemplo de `GET /api/admin/tenants`:
 
-### Promover usuario para administrador global
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "name": "Igreja Central",
+      "createdAt": "2026-05-27T00:00:00.000Z",
+      "_count": {
+        "users": 2,
+        "ministries": 1,
+        "schedules": 0,
+        "instruments": 10
+      }
+    }
+  ]
+}
+```
 
-O usuario de referencia para administracao global e `kacarlos2016@proton.me`.
+Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrão para preservar o isolamento multi-tenant.
 
-Para promover esse usuario sem expor senha:
+### Promover usuário para administrador global
+
+O usuário de referência para administração global é `kacarlos2016@proton.me`.
+
+Para promover esse usuário sem expor senha:
 
 ```bash
 npm run promote:global-admin
 ```
 
-O script procura o usuario pelo e-mail e altera apenas a role para `GLOBAL_ADMIN`. Ele nao cria usuario, nao altera `password` e nao contem senha em plaintext. Se o usuario nao existir, crie-o pelo fluxo normal do produto e rode o script novamente em ambiente controlado.
+O script procura o usuário pelo e-mail e altera apenas a role para `GLOBAL_ADMIN`. Ele não cria usuário, não altera `password` e não contém senha em plaintext. Se o usuário não existir, crie-o pelo fluxo normal do produto e rode o script novamente em ambiente controlado.
+
+Depois da promoção, faça logout/login para receber um JWT novo com `role: "GLOBAL_ADMIN"`. Não use token antigo e não commite senhas reais.
+
+Para validar o painel global:
+
+1. Rode `npm run promote:global-admin`.
+2. Faça logout/login com o usuário promovido.
+3. Abra a aba Global no app.
+4. Confira os contadores de igrejas, usuários, ministérios e escalas.
+5. Se os valores estiverem zerados, verifique a resposta de `GET /api/admin/tenants` e confirme se o token enviado é do usuário promovido.
 
 ## Schedule API
 
@@ -331,17 +362,17 @@ Recommended next step: use instruments to sort or filter members in schedule ass
 
 ## Priorizacao de membros em escalas por instrumento
 
-O app mobile possui um utilitario reutilizavel para ordenar membros durante a escolha de assignments de escala:
+O app mobile possui um utilitário reutilizável para ordenar membros durante a escolha de assignments de escala:
 
-- `mobile/src/utils/memberInstrumentPriority.ts` compara a funcao/cargo digitada com os instrumentos do membro.
-- Membros compativeis aparecem no topo, mas todos continuam selecionaveis.
-- A lista continua ordenada por nome dentro dos grupos compativeis e nao compativeis.
+- `mobile/src/utils/memberInstrumentPriority.ts` compara a função/cargo digitada com os instrumentos do membro.
+- Membros compatíveis aparecem no topo, mas todos continuam selecionáveis.
+- A lista continua ordenada por nome dentro dos grupos compatíveis e não compatíveis.
 - Exemplos: "Teclado" prioriza membros com instrumento Teclado; "Baterista" prioriza membros com Bateria.
-- O componente `mobile/src/components/MemberPickerWithInstrumentPriority.tsx` renderiza membros nessa ordem, mostra badges de instrumentos e destaca membros compativeis.
+- O componente `mobile/src/components/MemberPickerWithInstrumentPriority.tsx` renderiza membros nessa ordem, mostra badges de instrumentos e destaca membros compatíveis.
 
-Nao foi criado endpoint novo para isso. O fluxo usa `GET /api/members`, que ja retorna `instruments`; se performance virar problema no futuro, uma extensao possivel seria `GET /api/members?instrument=Teclado`.
+Não foi criado endpoint novo para isso. O fluxo usa `GET /api/members`, que já retorna `instruments`; se performance virar problema no futuro, uma extensão possível seria `GET /api/members?instrument=Teclado`.
 
-A tela mobile atual de escalas lista as escalas do usuario e permite aceitar/recusar convites. Ela ainda nao possui uma tela visual de lider/admin para criar assignments, entao a integracao visual completa deve ser feita quando essa tela de gestao de escala existir.
+A tela mobile atual de escalas lista as escalas do usuário e permite aceitar/recusar convites. Ela ainda não possui uma tela visual de líder/admin para criar assignments, então a integração visual completa deve ser feita quando essa tela de gestão de escala existir.
 
 ## Mobile Setup
 

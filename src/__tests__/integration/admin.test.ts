@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type express from "express";
 import request from "supertest";
+import jwt from "jsonwebtoken";
 import { Role } from "@prisma/client";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
@@ -9,6 +10,16 @@ import type { prisma as PrismaClientInstance } from "../../config/prisma";
 let app: express.Express;
 let prisma: typeof PrismaClientInstance;
 let container: StartedTestContainer;
+
+type AdminTenantListItem = {
+  id: string;
+  _count: {
+    users: number;
+    ministries: number;
+    schedules: number;
+    instruments: number;
+  };
+};
 
 function migrate(databaseUrl: string): void {
   const prismaCli = path.resolve("node_modules", "prisma", "build", "index.js");
@@ -64,7 +75,7 @@ async function createMember(token: string, seed: string, role: "MEMBER" | "MINIS
   await request(app)
     .post("/api/members")
     .set("Authorization", `Bearer ${token}`)
-    .send({ name: `UsuÃ¡rio ${seed}`, email, password: "member123", role })
+    .send({ name: `Usuário ${seed}`, email, password: "member123", role })
     .expect(201);
 
   return login(email, "member123");
@@ -74,10 +85,21 @@ async function createMinistry(token: string, name: string) {
   const response = await request(app)
     .post("/api/ministries")
     .set("Authorization", `Bearer ${token}`)
-    .send({ name, description: `MinistÃ©rio ${name}` })
+    .send({ name, description: `Ministério ${name}` })
     .expect(201);
 
   return response.body.data as { id: string; tenantId: string; name: string };
+}
+
+async function createSchedule(tenantId: string, ministryId: string, title: string) {
+  return prisma.schedule.create({
+    data: {
+      tenantId,
+      ministryId,
+      title,
+      date: new Date("2099-01-01T12:00:00.000Z"),
+    },
+  });
 }
 
 beforeAll(async () => {
@@ -128,6 +150,14 @@ describe("Admin global API", () => {
     const globalAdmin = await login(tenantA.user.email);
     const member = await createMember(tenantA.accessToken, "member-admin-global", "MEMBER");
     const leader = await createMember(tenantA.accessToken, "leader-admin-global", "MINISTRY_LEADER");
+    await createMember(tenantB.accessToken, "member-admin-global-b", "MEMBER");
+    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Global A");
+    const ministryB = await createMinistry(tenantB.accessToken, "Louvor Global B");
+    await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Global A");
+    await createSchedule(tenantB.tenant.id, ministryB.id, "Culto Global B");
+
+    expect(globalAdmin.user.role).toBe(Role.GLOBAL_ADMIN);
+    expect(jwt.decode(globalAdmin.accessToken)).toMatchObject({ role: Role.GLOBAL_ADMIN });
 
     const response = await request(app)
       .get("/api/admin/tenants")
@@ -137,11 +167,23 @@ describe("Admin global API", () => {
     expect(response.body.data.map((tenant: { id: string }) => tenant.id).sort()).toEqual(
       [tenantA.tenant.id, tenantB.tenant.id].sort()
     );
-    expect(response.body.data[0]._count).toMatchObject({
-      users: expect.any(Number),
-      ministries: expect.any(Number),
-      schedules: expect.any(Number),
-      instruments: expect.any(Number),
+    expect(JSON.stringify(response.body.data)).not.toContain("password");
+    expect(JSON.stringify(response.body.data)).not.toContain("passwordHash");
+
+    const tenantsById = new Map<string, AdminTenantListItem>(
+      response.body.data.map((tenant: AdminTenantListItem) => [tenant.id, tenant])
+    );
+    expect(tenantsById.get(tenantA.tenant.id)?._count).toMatchObject({
+      users: 3,
+      ministries: 1,
+      schedules: 1,
+      instruments: 13,
+    });
+    expect(tenantsById.get(tenantB.tenant.id)?._count).toMatchObject({
+      users: 2,
+      ministries: 1,
+      schedules: 1,
+      instruments: 13,
     });
 
     await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${tenantB.accessToken}`).expect(403);
@@ -150,13 +192,13 @@ describe("Admin global API", () => {
     await request(app).get("/api/admin/tenants").expect(401);
   });
 
-  it("detalha tenant, lista usuÃ¡rios sem senha, filtra por tenantId e valida tenantId invÃ¡lido", async () => {
+  it("detalha tenant, lista usuários sem senha, filtra por tenantId e valida tenantId inválido", async () => {
     const tenantA = await registerTenant("detail-a");
     const tenantB = await registerTenant("detail-b");
     await prisma.user.update({ where: { id: tenantA.user.id }, data: { role: Role.GLOBAL_ADMIN } });
     const globalAdmin = await login(tenantA.user.email);
     await createMember(tenantA.accessToken, "member-detail-a");
-    await createMember(tenantB.accessToken, "member-detail-b");
+    const memberB = await createMember(tenantB.accessToken, "member-detail-b");
 
     const tenantResponse = await request(app)
       .get(`/api/admin/tenants/${tenantB.tenant.id}`)
@@ -171,8 +213,12 @@ describe("Admin global API", () => {
       .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
       .expect(200);
     expect(usersResponse.body.data.length).toBeGreaterThanOrEqual(4);
+    expect(usersResponse.body.data.some((user: { tenantId: string }) => user.tenantId === tenantA.tenant.id)).toBe(true);
+    expect(usersResponse.body.data.some((user: { tenantId: string }) => user.tenantId === tenantB.tenant.id)).toBe(true);
+    expect(usersResponse.body.data[0].tenant).toMatchObject({ id: expect.any(String), name: expect.any(String) });
     expect(usersResponse.body.data[0]).not.toHaveProperty("password");
     expect(usersResponse.body.data[0]).not.toHaveProperty("passwordHash");
+    expect(JSON.stringify(usersResponse.body.data)).not.toContain("password");
 
     const filteredResponse = await request(app)
       .get(`/api/admin/users?tenantId=${tenantB.tenant.id}`)
@@ -184,9 +230,12 @@ describe("Admin global API", () => {
       .get("/api/admin/users?tenantId=not-a-uuid")
       .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
       .expect(400);
+
+    await request(app).get("/api/admin/users").set("Authorization", `Bearer ${tenantB.accessToken}`).expect(403);
+    await request(app).get("/api/admin/users").set("Authorization", `Bearer ${memberB.accessToken}`).expect(403);
   });
 
-  it("lista ministÃ©rios globais com tenant e mantÃ©m endpoints normais tenant-scoped", async () => {
+  it("lista ministérios globais com tenant e mantém endpoints normais tenant-scoped", async () => {
     const tenantA = await registerTenant("ministries-a");
     const tenantB = await registerTenant("ministries-b");
     await prisma.user.update({ where: { id: tenantA.user.id }, data: { role: Role.GLOBAL_ADMIN } });

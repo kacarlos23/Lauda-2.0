@@ -107,7 +107,7 @@ afterAll(async () => {
 });
 
 describe("Ministries API - Isolamento Multi-Tenant", () => {
-  it("GET /api/ministries › deve retornar apenas ministérios do próprio tenant", async () => {
+  it("GET /api/ministries > deve retornar apenas ministérios do próprio tenant", async () => {
     // Registra Tenant A e Tenant B
     const tenantA = await registerTenant("tenant-a-min");
     const tenantB = await registerTenant("tenant-b-min");
@@ -145,7 +145,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     expect(resB.body.data[0].name).toBe("Ministry B1");
   });
 
-  it("POST /api/ministries › deve ser bloqueado para usuários com role MEMBER", async () => {
+  it("POST /api/ministries > deve ser bloqueado para usuários com role MEMBER", async () => {
     const tenantA = await registerTenant("tenant-member-test");
 
     // Cria um membro comum usando o token de admin
@@ -214,7 +214,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .expect(404);
   });
 
-  it("PUT e DELETE /api/ministries retornam 404 para ministerio de outro tenant e preservam o registro", async () => {
+  it("PUT e DELETE /api/ministries retornam 404 para ministério de outro tenant e preservam o registro", async () => {
     const tenantA = await registerTenant("tenant-cross-ministry-a");
     const tenantB = await registerTenant("tenant-cross-ministry-b");
     const ministryB = await createMinistry(tenantB.token, "Ministerio Tenant B");
@@ -238,7 +238,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
     });
   });
 
-  it("POST /api/ministries/:id/members › deve validar RBAC e adicionar/remover membro", async () => {
+  it("POST /api/ministries/:id/members > deve validar RBAC e adicionar/remover membro", async () => {
     const tenantA = await registerTenant("tenant-rbac-test");
 
     // Cria o ministério

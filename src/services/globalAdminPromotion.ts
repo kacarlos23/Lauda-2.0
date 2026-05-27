@@ -19,7 +19,7 @@ export async function promoteGlobalAdmin(
 ): Promise<PromotionUser> {
   const user = await repository.findUserByEmail(email);
   if (!user) {
-    throw new Error("UsuÃ¡rio nÃ£o encontrado. Crie o usuÃ¡rio pelo fluxo normal antes de promover.");
+    throw new Error("Usuário não encontrado. Crie o usuário pelo fluxo normal antes de promover.");
   }
 
   return repository.updateUserRole(email, Role.GLOBAL_ADMIN);

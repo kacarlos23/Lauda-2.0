@@ -75,7 +75,18 @@ function defaultSchedules(userId: string) {
 
 async function mockApi(
   page: Page,
-  options: { loginFails?: boolean; user?: typeof adminUser; schedules?: ReturnType<typeof defaultSchedules> } = {}
+  options: {
+    loginFails?: boolean;
+    user?: typeof adminUser;
+    schedules?: ReturnType<typeof defaultSchedules>;
+    adminTenants?: Array<{
+      id: string;
+      name: string;
+      createdAt: string;
+      _count: { users: number; ministries: number; schedules: number; instruments: number };
+    }>;
+    adminTenantsError?: boolean;
+  } = {}
 ) {
   const currentUser = options.user ?? adminUser;
   const schedules = options.schedules ?? defaultSchedules(currentUser.id);
@@ -203,11 +214,20 @@ async function mockApi(
   });
 
   await page.route("**/api/admin/tenants", async (route) => {
+    if (options.adminTenantsError) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Não foi possível carregar o painel global." }),
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: [
+        data: options.adminTenants ?? [
           {
             id: "tenant-1",
             name: "Igreja Central",
@@ -290,7 +310,7 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
-test("admin global ve perfil, home e aba global com lista de igrejas", async ({ page }) => {
+test("admin global vê perfil, home e aba global com lista de igrejas", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
   await mockApi(page, { user: globalAdminUser });
@@ -302,16 +322,27 @@ test("admin global ve perfil, home e aba global com lista de igrejas", async ({ 
   await expect(page.getByText("Acesso global ao sistema").first()).toBeVisible();
   await expect(page.getByRole("tab", { name: "Global" })).toBeVisible();
 
+  await page.getByText("Perfil").last().click();
+  await expect(page.getByText("Acesso global", { exact: true })).toBeVisible();
+  await expect(page.getByText("Abrir Painel Global")).toBeVisible();
+  await page.getByTestId("open-global-admin-button").click();
+
+  await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
+  await page.getByText("Perfil").last().click();
+  await expect(page.getByText("Acesso global", { exact: true })).toBeVisible();
+
   await page.getByRole("tab", { name: "Global" }).click();
-  await expect(page.getByText("Painel global")).toBeVisible();
+  await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
   await expect(page.getByText("Igreja Central")).toBeVisible();
   await expect(page.getByText("Igreja Norte")).toBeVisible();
   await expect(page.getByText("tenant-1")).not.toBeVisible();
 });
 
-test("roles nao globais nao veem aba Admin Global", async ({ page }) => {
+test("roles não globais não veem aba Admin Global", async ({ page }) => {
   await login(page);
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+  await page.getByText("Perfil").last().click();
+  await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
 
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
@@ -320,6 +351,8 @@ test("roles nao globais nao veem aba Admin Global", async ({ page }) => {
   await page.goto("/");
   await login(page, "bruno@example.com");
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+  await page.getByText("Perfil").last().click();
+  await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
 
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
@@ -328,6 +361,60 @@ test("roles nao globais nao veem aba Admin Global", async ({ page }) => {
   await page.goto("/");
   await login(page, "lia@example.com");
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+  await page.getByText("Perfil").last().click();
+  await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
+});
+
+test("admin global vê contadores reais no painel global", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await mockApi(page, {
+    user: globalAdminUser,
+    adminTenants: [
+      {
+        id: "tenant-1",
+        name: "Igreja Central",
+        createdAt: "2026-05-27T00:00:00.000Z",
+        _count: { users: 2, ministries: 1, schedules: 0, instruments: 10 },
+      },
+    ],
+  });
+  await page.goto("/");
+
+  await login(page, "global@example.com");
+  await page.getByRole("tab", { name: "Global" }).click();
+
+  await expect(page.getByText("Igrejas", { exact: true })).toBeVisible();
+  await expect(page.getByText("Usuários", { exact: true })).toBeVisible();
+  await expect(page.getByText("Igreja Central")).toBeVisible();
+  await expect(page.getByText("2 usuários")).toBeVisible();
+  await expect(page.getByText("1 ministério")).toBeVisible();
+  await expect(page.getByText("10 instrumentos")).toBeVisible();
+  await expect(page.getByText("0 escalas")).toBeVisible();
+});
+
+test("painel global exibe erro e empty state conforme resposta da API", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await mockApi(page, { user: globalAdminUser, adminTenantsError: true });
+  await page.goto("/");
+
+  await login(page, "global@example.com");
+  await page.getByRole("tab", { name: "Global" }).click();
+  await expect(page.getByText("Não foi possível carregar o painel global.")).toBeVisible();
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await mockApi(page, { user: globalAdminUser, adminTenants: [] });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto("/");
+
+  await login(page, "global@example.com");
+  await page.getByRole("tab", { name: "Global" }).click();
+  await expect(page.getByText("Nenhuma igreja cadastrada.")).toBeVisible();
 });
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
@@ -394,7 +481,7 @@ test("abre seletor de instrumentos e permite fechar", async ({ page }) => {
   await expect(page.getByText("Multimídia")).toBeVisible();
   await expect(page.getByText("instrument-3")).not.toBeVisible();
 
-  await page.getByLabel("Fechar selecao de instrumentos").click();
+  await page.getByLabel("Fechar seleção de instrumentos").click();
   await expect(page.getByText("Selecionar instrumentos/cargos")).not.toBeVisible();
 });
 

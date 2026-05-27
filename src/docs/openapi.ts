@@ -81,7 +81,7 @@ const ScheduleResponseSchema = registry.register(
 registry.registerPath({
   method: "post",
   path: "/api/auth/login",
-  summary: "Autentica usuario",
+  summary: "Autentica usuário",
   request: {
     body: {
       content: {
@@ -115,7 +115,7 @@ registry.registerPath({
       content: { "application/json": { schema: ScheduleListResponseSchema } },
     },
     401: {
-      description: "Token ausente ou invalido.",
+      description: "Token ausente ou inválido.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
@@ -146,11 +146,11 @@ registry.registerPath({
       content: { "application/json": { schema: ScheduleResponseSchema } },
     },
     400: {
-      description: "Payload invalido.",
+      description: "Payload inválido.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     403: {
-      description: "Usuario sem permissao para criar escalas.",
+      description: "Usuario sem permissão para criar escalas.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
@@ -169,7 +169,7 @@ export function generateOpenApiDocument() {
     info: {
       title: "Lauda 2.0 API",
       version: "1.0.0",
-      description: "API multi-tenant para gerenciamento de ministerios.",
+      description: "API multi-tenant para gerenciamento de ministérios.",
     },
     servers: [{ url: "http://localhost:3000" }],
     components: {

@@ -16,13 +16,13 @@ describe("permission helpers", () => {
     expect(isMember({ role: Role.MEMBER })).toBe(true);
   });
 
-  it("nÃ£o confunde roles comuns com permissÃ£o global", () => {
+  it("não confunde roles comuns com permissão global", () => {
     expect(isGlobalAdmin({ role: Role.TENANT_ADMIN })).toBe(false);
     expect(isGlobalAdmin({ role: Role.MINISTRY_LEADER })).toBe(false);
     expect(isGlobalAdmin({ role: Role.MEMBER })).toBe(false);
   });
 
-  it("limita TENANT_ADMIN ao prÃ³prio tenant e libera GLOBAL_ADMIN", () => {
+  it("limita TENANT_ADMIN ao próprio tenant e libera GLOBAL_ADMIN", () => {
     expect(canManageTenant({ role: Role.GLOBAL_ADMIN }, "tenant-b")).toBe(true);
     expect(canManageTenant({ role: Role.TENANT_ADMIN, tenantId: "tenant-a" }, "tenant-a")).toBe(true);
     expect(canManageTenant({ role: Role.TENANT_ADMIN, tenantId: "tenant-a" }, "tenant-b")).toBe(false);

@@ -19,7 +19,7 @@ async function main() {
       }),
   });
 
-  console.log(`UsuÃ¡rio ${user.email} promovido para ${user.role}.`);
+  console.log(`Usuário ${user.email} promovido para ${user.role}.`);
 }
 
 main()

@@ -11,7 +11,7 @@ export class AdminService {
   async getTenantById(tenantId: string) {
     const tenant = await this.repository.getTenantById(tenantId);
     if (!tenant) {
-      throw new NotFoundError("Igreja nÃ£o encontrada");
+      throw new NotFoundError("Igreja não encontrada");
     }
     return tenant;
   }

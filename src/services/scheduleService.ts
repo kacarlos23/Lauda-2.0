@@ -52,7 +52,7 @@ export class ScheduleService {
 
     const leadership = await this.scheduleRepository.findMinistryLeadership(schedule.ministryId, user.id);
     if (!leadership) {
-      throw new ForbiddenError("Líder só pode gerenciar escalas dos ministérios que lidera");
+      throw new ForbiddenError("Líder só pode gerenciar escalas dos ministérios que lídera");
     }
 
     return schedule;
@@ -74,7 +74,7 @@ export class ScheduleService {
 
     const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
     if (!leadership) {
-      throw new ForbiddenError("Líder só pode criar escalas dos ministérios que lidera");
+      throw new ForbiddenError("Líder só pode criar escalas dos ministérios que lídera");
     }
 
     return this.scheduleRepository.create(data);

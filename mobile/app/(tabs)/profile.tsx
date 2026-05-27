@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, LogOut, Plus, Settings2, Shield, User, X } from "lucide-react-native";
+import { Check, Globe2, LogOut, Plus, Settings2, Shield, User, X } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
@@ -23,7 +23,7 @@ import {
   normalizeInstrumentName,
   validateInstrumentForm,
 } from "../../src/utils/instrumentCatalog";
-import { formatRoleLabel } from "../../src/utils/permissions";
+import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
@@ -62,6 +62,7 @@ export default function ProfileScreen() {
   const [instrumentFormError, setInstrumentFormError] = useState<string | null>(null);
   const [creatingInstrument, setCreatingInstrument] = useState(false);
   const canManageInstruments = canManageInstrumentCatalog(user?.role);
+  const hasGlobalAccess = isGlobalAdmin(user);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -185,7 +186,7 @@ export default function ProfileScreen() {
       await updateCurrentUser({ instruments: result.instruments });
       resetInstrumentForm();
     } catch (error) {
-      setInstrumentFormError(error instanceof Error ? error.message : "Nao foi possivel criar o instrumento.");
+      setInstrumentFormError(error instanceof Error ? error.message : "Não foi possível criar o instrumento.");
     } finally {
       setCreatingInstrument(false);
     }
@@ -222,6 +223,30 @@ export default function ProfileScreen() {
             <Text style={styles.rowValue}>{formatRoleLabel(user?.role)}</Text>
           </View>
         </View>
+
+        {hasGlobalAccess ? (
+          <View style={styles.globalAccessCard}>
+            <View style={styles.globalAccessHeader}>
+              <View style={styles.globalAccessIcon}>
+                <Globe2 color={colors.primary} size={22} strokeWidth={2.5} />
+              </View>
+              <View style={styles.globalAccessTextBox}>
+                <Text style={styles.globalAccessTitle}>Acesso global</Text>
+                <Text style={styles.globalAccessText}>
+                  Você pode visualizar e administrar todas as igrejas cadastradas no sistema.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.globalAccessButton}
+              onPress={() => router.push("/global-admin" as never)}
+              accessibilityRole="button"
+              testID="open-global-admin-button"
+            >
+              <Text style={styles.globalAccessButtonText}>Abrir Painel Global</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -287,13 +312,13 @@ export default function ProfileScreen() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleGroup}>
                   <Text style={styles.modalTitle}>Selecionar instrumentos/cargos</Text>
-                  <Text style={styles.modalSubtitle}>Toque nas opcoes para atualizar o seu perfil.</Text>
+                  <Text style={styles.modalSubtitle}>Toque nas opções para atualizar o seu perfil.</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setPickerVisible(false)}
                   accessibilityRole="button"
-                  accessibilityLabel="Fechar selecao de instrumentos"
+                  accessibilityLabel="Fechar seleção de instrumentos"
                 >
                   <X color={colors.primary} size={20} strokeWidth={2.5} />
                 </TouchableOpacity>
@@ -346,7 +371,7 @@ export default function ProfileScreen() {
 
               <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
                 {availableInstruments.length === 0 ? (
-                  <Text style={styles.instrumentMuted}>Nenhum instrumento disponivel</Text>
+                  <Text style={styles.instrumentMuted}>Nenhum instrumento disponível</Text>
                 ) : (
                   availableInstruments.map((instrument) => {
                     const selected = selectedSet.has(instrument.id);
@@ -462,6 +487,41 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  globalAccessCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: spacing.lg,
+    ...shadow,
+  },
+  globalAccessHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  globalAccessIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  globalAccessTextBox: { flex: 1 },
+  globalAccessTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.xs },
+  globalAccessText: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  globalAccessButton: {
+    minHeight: 44,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  globalAccessButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",

@@ -58,7 +58,7 @@ describe("prioritizeMembersByRole", () => {
     expect(prioritizeMembersByRole(members, "tecladista")).toHaveLength(3);
   });
 
-  it("nao altera array original", () => {
+  it("não altera array original", () => {
     const members = [makeMember("Bruno"), makeMember("Ana", [{ id: "keys", name: "Teclado" }])];
     const originalOrder = members.map((member) => member.name);
 

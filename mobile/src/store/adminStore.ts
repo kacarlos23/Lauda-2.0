@@ -21,7 +21,6 @@ export const useAdminStore = create<AdminState>((set) => ({
       set({ tenants, loading: false, error: null });
     } catch (error) {
       set({
-        tenants: [],
         loading: false,
         error: error instanceof Error ? error.message : "Não foi possível carregar igrejas.",
       });

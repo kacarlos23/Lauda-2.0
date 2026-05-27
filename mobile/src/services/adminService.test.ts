@@ -67,4 +67,10 @@ describe("adminService", () => {
 
     await expect(adminService.getTenants()).rejects.toThrow("Acesso negado");
   });
+
+  it("não retorna lista vazia quando a API falha", async () => {
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError());
+
+    await expect(adminService.getTenants()).rejects.toThrow("Não foi possível carregar o painel global.");
+  });
 });

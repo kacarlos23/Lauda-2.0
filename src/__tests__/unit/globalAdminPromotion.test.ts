@@ -2,7 +2,7 @@ import { Role } from "@prisma/client";
 import { promoteGlobalAdmin } from "../../services/globalAdminPromotion";
 
 describe("promoteGlobalAdmin", () => {
-  it("promove usuÃ¡rio existente sem alterar senha", async () => {
+  it("promove usuário existente sem alterar senha", async () => {
     const stored = {
       id: "user-1",
       email: "admin@example.com",
@@ -19,14 +19,14 @@ describe("promoteGlobalAdmin", () => {
     expect(result.role).toBe(Role.GLOBAL_ADMIN);
   });
 
-  it("falha claramente quando usuÃ¡rio nÃ£o existe", async () => {
+  it("falha claramente quando usuário não existe", async () => {
     const repository = {
       findUserByEmail: jest.fn().mockResolvedValue(null),
       updateUserRole: jest.fn(),
     };
 
     await expect(promoteGlobalAdmin(repository, "missing@example.com")).rejects.toThrow(
-      "UsuÃ¡rio nÃ£o encontrado"
+      "Usuário não encontrado"
     );
     expect(repository.updateUserRole).not.toHaveBeenCalled();
   });

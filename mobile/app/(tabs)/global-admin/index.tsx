@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Building2, CalendarClock, RefreshCcw, ShieldAlert, UsersRound } from "lucide-react-native";
+import { Building2, CalendarClock, Guitar, RefreshCcw, ShieldAlert, UsersRound, Workflow } from "lucide-react-native";
 import { useAdminStore } from "../../../src/store/adminStore";
 import { useAuthStore } from "../../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
@@ -13,6 +13,10 @@ function formatDate(value: string): string {
   );
 }
 
+function countLabel(value: number, singular: string, plural: string): string {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
 export default function GlobalAdminScreen() {
   const { user } = useAuthStore();
   const { tenants, loading, error, loadTenants } = useAdminStore();
@@ -21,8 +25,9 @@ export default function GlobalAdminScreen() {
       users: acc.users + tenant._count.users,
       ministries: acc.ministries + tenant._count.ministries,
       schedules: acc.schedules + tenant._count.schedules,
+      instruments: acc.instruments + tenant._count.instruments,
     }),
-    { users: 0, ministries: 0, schedules: 0 }
+    { users: 0, ministries: 0, schedules: 0, instruments: 0 }
   );
 
   useEffect(() => {
@@ -68,6 +73,18 @@ export default function GlobalAdminScreen() {
             <Text style={styles.metricLabel}>Escalas</Text>
           </View>
         </View>
+        <View style={styles.summaryRow}>
+          <View style={styles.metric}>
+            <Workflow color={colors.primaryDark} size={22} strokeWidth={2.4} />
+            <Text style={styles.metricValue}>{totals.ministries}</Text>
+            <Text style={styles.metricLabel}>Ministérios</Text>
+          </View>
+          <View style={styles.metric}>
+            <Guitar color={colors.primaryDark} size={22} strokeWidth={2.4} />
+            <Text style={styles.metricValue}>{totals.instruments}</Text>
+            <Text style={styles.metricLabel}>Instrumentos</Text>
+          </View>
+        </View>
 
         {loading ? (
           <View style={styles.stateBox}>
@@ -100,9 +117,14 @@ export default function GlobalAdminScreen() {
                   </View>
                 </View>
                 <View style={styles.countRow}>
-                  <Text style={styles.countText}>{tenant._count.users} usuários</Text>
-                  <Text style={styles.countText}>{tenant._count.ministries} ministérios</Text>
-                  <Text style={styles.countText}>{tenant._count.schedules} escalas</Text>
+                  <Text style={styles.countText}>{countLabel(tenant._count.users, "usuário", "usuários")}</Text>
+                  <Text style={styles.countText}>
+                    {countLabel(tenant._count.ministries, "ministério", "ministérios")}
+                  </Text>
+                  <Text style={styles.countText}>
+                    {countLabel(tenant._count.instruments, "instrumento", "instrumentos")}
+                  </Text>
+                  <Text style={styles.countText}>{countLabel(tenant._count.schedules, "escala", "escalas")}</Text>
                 </View>
               </View>
             ))}

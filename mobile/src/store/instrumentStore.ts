@@ -44,7 +44,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
       set({ instruments: sortByName(instruments), loading: false });
     } catch (error) {
       set({
-        error: getErrorMessage(error, "Nao foi possivel carregar instrumentos."),
+        error: getErrorMessage(error, "Não foi possível carregar instrumentos."),
         loading: false,
       });
     }
@@ -60,7 +60,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: getErrorMessage(error, "Nao foi possivel criar o instrumento."),
+        error: getErrorMessage(error, "Não foi possível criar o instrumento."),
         saving: false,
       });
     }
@@ -76,7 +76,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: getErrorMessage(error, "Nao foi possivel atualizar o instrumento."),
+        error: getErrorMessage(error, "Não foi possível atualizar o instrumento."),
         saving: false,
       });
     }
@@ -92,7 +92,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
       });
     } catch (error) {
       set({
-        error: getErrorMessage(error, "Nao foi possivel excluir o instrumento."),
+        error: getErrorMessage(error, "Não foi possível excluir o instrumento."),
         deletingId: null,
       });
     }

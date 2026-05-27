@@ -57,7 +57,7 @@ function collect(node: any, type: string): any[] {
 }
 
 describe("MemberPickerWithInstrumentPriority", () => {
-  it("membros compativeis aparecem primeiro", () => {
+  it("membros compatíveis aparecem primeiro", () => {
     const element = MemberPickerWithInstrumentPriority({
       members: [makeMember("Bruno"), makeMember("Ana", [{ id: "keys", name: "Teclado" }])],
       roleText: "tecladista",
@@ -83,7 +83,7 @@ describe("MemberPickerWithInstrumentPriority", () => {
     expect(textContent(element)).toContain("Nenhum instrumento informado");
   });
 
-  it("selecao chama onSelect", () => {
+  it("seleção chama onSelect", () => {
     const onSelect = jest.fn();
     const member = makeMember("Ana", [{ id: "keys", name: "Teclado" }]);
     const element = MemberPickerWithInstrumentPriority({

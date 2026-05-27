@@ -258,9 +258,9 @@ describe("POST /api/schedules", () => {
       .expect(201);
   });
 
-  it("permite líder criar escala somente no ministério que lidera", async () => {
+  it("permite líder criar escala somente no ministério que lídera", async () => {
     const tenant = await registerTenant("leader-own");
-    const ownMinistry = await createMinistry(tenant.token, "Louvor liderado");
+    const ownMinistry = await createMinistry(tenant.token, "Louvor líderado");
     const otherMinistry = await createMinistry(tenant.token, "Dança");
     const leader = await createUserAndLogin("leader-own", tenant.tenant.id, "MINISTRY_LEADER");
 
@@ -278,7 +278,7 @@ describe("POST /api/schedules", () => {
       .post("/api/schedules")
       .set("Authorization", `Bearer ${leader.token}`)
       .send({
-        title: "Culto liderado",
+        title: "Culto líderado",
         date: "2026-05-06T13:00:00.000Z",
         ministryId: ownMinistry.id,
       })
@@ -297,7 +297,7 @@ describe("POST /api/schedules", () => {
 });
 
 describe("Schedule assignments", () => {
-  it("nao cria, atualiza ou remove assignments de outro tenant", async () => {
+  it("não cria, atualiza ou remove assignments de outro tenant", async () => {
     const tenantA = await registerTenant("assignment-cross-a");
     const tenantB = await registerTenant("assignment-cross-b");
     const ministryA = await createMinistry(tenantA.token, "Louvor A");
@@ -356,7 +356,7 @@ describe("Schedule assignments", () => {
     expect(await prisma.scheduleAssignment.count({ where: { scheduleId: scheduleA.body.data.id } })).toBe(0);
   });
 
-  it("permite membro aceitar e recusar a propria escala e bloqueia assignment de outro membro", async () => {
+  it("permite membro aceitar e recusar a própria escala e bloqueia assignment de outro membro", async () => {
     const tenant = await registerTenant("assignment-status");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("assignment-member-a", tenant.tenant.id);
