@@ -3,6 +3,7 @@ import path from "node:path";
 import type express from "express";
 import request from "supertest";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { DEFAULT_INSTRUMENTS } from "../../constants/defaultInstruments";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
 
 let app: express.Express;
@@ -79,6 +80,11 @@ async function createInstrument(token: string, name: string, colorHex = "#2563EB
   return response.body.data as { id: string; name: string; colorHex: string | null };
 }
 
+async function listInstruments(token: string) {
+  const response = await request(app).get("/api/instruments").set("Authorization", `Bearer ${token}`).expect(200);
+  return response.body.data as Array<{ id: string; name: string; colorHex: string | null }>;
+}
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
@@ -124,25 +130,25 @@ afterAll(async () => {
 describe("Instruments API", () => {
   it("lista apenas instrumentos do tenant autenticado e permite acesso de MEMBER", async () => {
     const tenantA = await registerTenant("instruments-list-a");
-    const tenantB = await registerTenant("instruments-list-b");
+    await registerTenant("instruments-list-b");
     const member = await createMember(tenantA.token, "instrument-list-member");
-
-    await createInstrument(tenantA.token, "Teclado");
-    await createInstrument(tenantB.token, "Bateria");
 
     const response = await request(app)
       .get("/api/instruments")
       .set("Authorization", `Bearer ${member.token}`)
       .expect(200);
 
-    expect(response.body.data).toEqual([{ id: expect.any(String), name: "Teclado", colorHex: "#2563EB" }]);
+    expect(response.body.data).toHaveLength(DEFAULT_INSTRUMENTS.length);
+    expect(response.body.data.map((instrument: { name: string }) => instrument.name).sort()).toEqual(
+      DEFAULT_INSTRUMENTS.map((instrument) => instrument.name).sort()
+    );
   });
 
   it("TENANT_ADMIN cria instrumento, MEMBER não cria, e validação rejeita payload inválido", async () => {
     const tenant = await registerTenant("instruments-create");
     const member = await createMember(tenant.token, "instrument-create-member");
 
-    await createInstrument(tenant.token, "Vocal", "#10B981");
+    await createInstrument(tenant.token, "Harpa", "#10B981");
 
     await request(app)
       .post("/api/instruments")
@@ -167,13 +173,13 @@ describe("Instruments API", () => {
     const tenantA = await registerTenant("instruments-dup-a");
     const tenantB = await registerTenant("instruments-dup-b");
 
-    await createInstrument(tenantA.token, "Baixo");
-    await createInstrument(tenantB.token, "Baixo");
+    await createInstrument(tenantA.token, "Ukulele");
+    await createInstrument(tenantB.token, "Ukulele");
 
     const duplicate = await request(app)
       .post("/api/instruments")
       .set("Authorization", `Bearer ${tenantA.token}`)
-      .send({ name: "Baixo" });
+      .send({ name: "Ukulele" });
 
     expect(duplicate.status).toBe(400);
     expect(duplicate.body.error).toBe("Já existe um instrumento com este nome");
@@ -182,8 +188,8 @@ describe("Instruments API", () => {
   it("PATCH e DELETE respeitam tenant e não alteram instrumento de outro tenant", async () => {
     const tenantA = await registerTenant("instruments-update-a");
     const tenantB = await registerTenant("instruments-update-b");
-    const instrumentA = await createInstrument(tenantA.token, "Som");
-    const instrumentB = await createInstrument(tenantB.token, "Mídia");
+    const instrumentA = await createInstrument(tenantA.token, "Cajon");
+    const instrumentB = await createInstrument(tenantB.token, "Acordeon");
 
     await request(app)
       .patch(`/api/instruments/${instrumentB.id}`)
@@ -201,7 +207,7 @@ describe("Instruments API", () => {
       .set("Authorization", `Bearer ${tenantB.token}`)
       .expect(200)
       .expect((response) => {
-        expect(response.body.data).toEqual([{ id: instrumentB.id, name: "Midia", colorHex: "#2563EB" }]);
+        expect(response.body.data).toContainEqual({ id: instrumentB.id, name: "Acordeon", colorHex: "#2563EB" });
       });
 
     const updated = await request(app)
@@ -222,7 +228,8 @@ describe("Instruments API", () => {
       .set("Authorization", `Bearer ${tenantA.token}`)
       .expect(200)
       .expect((response) => {
-        expect(response.body.data).toEqual([]);
+        expect(response.body.data).toHaveLength(DEFAULT_INSTRUMENTS.length);
+        expect(response.body.data).not.toContainEqual({ id: instrumentA.id, name: "Audio", colorHex: "#111827" });
       });
   });
 
@@ -230,8 +237,9 @@ describe("Instruments API", () => {
     const tenant = await registerTenant("instrument-cardinality");
     const memberA = await createMember(tenant.token, "instrument-card-a");
     const memberB = await createMember(tenant.token, "instrument-card-b");
-    const keyboard = await createInstrument(tenant.token, "Teclado");
-    const vocal = await createInstrument(tenant.token, "Vocal");
+    const instruments = await listInstruments(tenant.token);
+    const keyboard = instruments.find((instrument) => instrument.name === "Teclado")!;
+    const vocal = instruments.find((instrument) => instrument.name === "Vocalista")!;
 
     await request(app)
       .patch(`/api/members/${memberA.user.id}/instruments`)
