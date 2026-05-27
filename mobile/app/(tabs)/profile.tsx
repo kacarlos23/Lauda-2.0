@@ -4,24 +4,29 @@ import {
   Alert,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, Edit3, LogOut, Settings2, Shield, User } from "lucide-react-native";
+import { Check, LogOut, Plus, Settings2, Shield, User, X } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
-import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
-import { getInstrumentColor, getInstrumentDisplayName, renderInstrumentIcon } from "../../src/utils/instrumentVisual";
+import {
+  canManageInstrumentCatalog,
+  normalizeColorHex,
+  normalizeInstrumentName,
+  validateInstrumentForm,
+} from "../../src/utils/instrumentCatalog";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
+
+const emptyInstrumentForm = { name: "", colorHex: "" };
 
 function getInstrumentIds(instruments?: Instrument[]): string[] {
   return instruments?.map((item) => item.id) ?? [];
@@ -31,6 +36,22 @@ function getSelectedInstruments(ids: string[], availableInstruments: Instrument[
   return ids
     .map((id) => availableInstruments.find((instrument) => instrument.id === id) ?? previousInstruments.find((instrument) => instrument.id === id))
     .filter((instrument): instrument is Instrument => Boolean(instrument));
+}
+
+function sortInstruments(instruments: Instrument[]): Instrument[] {
+  return [...instruments].sort((first, second) =>
+    first.name.localeCompare(second.name, "pt-BR", { sensitivity: "base" })
+  );
+}
+
+function readableTextColor(backgroundColor?: string | null): string {
+  if (!backgroundColor || !/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) return colors.primaryDark;
+
+  const red = parseInt(backgroundColor.slice(1, 3), 16);
+  const green = parseInt(backgroundColor.slice(3, 5), 16);
+  const blue = parseInt(backgroundColor.slice(5, 7), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.62 ? colors.ink : colors.surface;
 }
 
 export default function ProfileScreen() {
@@ -45,6 +66,10 @@ export default function ProfileScreen() {
   const [savingInstruments, setSavingInstruments] = useState(false);
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [instrumentForm, setInstrumentForm] = useState(emptyInstrumentForm);
+  const [instrumentFormError, setInstrumentFormError] = useState<string | null>(null);
+  const [creatingInstrument, setCreatingInstrument] = useState(false);
   const canManageInstruments = canManageInstrumentCatalog(user?.role);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -68,8 +93,7 @@ export default function ProfileScreen() {
         memberService.getCurrentMember(),
       ]);
       const currentInstruments = currentMember.instruments ?? [];
-      const currentIds = getInstrumentIds(currentInstruments);
-      setAvailableInstruments(instruments);
+      setAvailableInstruments(sortInstruments(instruments));
       setSelectedInstruments(currentInstruments);
       setSelectedIds(currentIds);
       setDraftInstrumentIds(currentIds);
@@ -168,6 +192,41 @@ export default function ProfileScreen() {
     }
   };
 
+  const resetInstrumentForm = () => {
+    setInstrumentForm(emptyInstrumentForm);
+    setInstrumentFormError(null);
+  };
+
+  const handleCreateInstrument = async () => {
+    const validation = validateInstrumentForm(instrumentForm);
+    if (validation) {
+      setInstrumentFormError(validation);
+      return;
+    }
+
+    setCreatingInstrument(true);
+    setInstrumentFormError(null);
+
+    try {
+      const created = await instrumentService.createInstrument({
+        name: normalizeInstrumentName(instrumentForm.name),
+        colorHex: normalizeColorHex(instrumentForm.colorHex),
+      });
+      const nextIds = Array.from(new Set([...selectedIds, created.id]));
+      const result = await instrumentService.updateMyInstruments(nextIds);
+
+      setAvailableInstruments((current) => sortInstruments([...current.filter((item) => item.id !== created.id), created]));
+      setSelectedIds(getInstrumentIds(result.instruments));
+      setSelectedInstruments(result.instruments);
+      await updateCurrentUser({ instruments: result.instruments });
+      resetInstrumentForm();
+    } catch (error) {
+      setInstrumentFormError(error instanceof Error ? error.message : "Nao foi possivel criar o instrumento.");
+    } finally {
+      setCreatingInstrument(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -201,51 +260,22 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
-              <Text style={styles.instrumentHelp}>Escolha os instrumentos e cargos que aparecem no seu perfil.</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.editInstrumentButton, (instrumentsLoading || Boolean(instrumentsError) || availableInstruments.length === 0) && styles.editInstrumentButtonDisabled]}
-              onPress={openInstrumentModal}
-              disabled={instrumentsLoading || Boolean(instrumentsError) || availableInstruments.length === 0}
-              accessibilityRole="button"
-              accessibilityLabel="Alterar instrumentos e cargos"
-              testID="edit-instruments-button"
-            >
-              <Edit3 color={colors.primary} size={16} strokeWidth={2.5} />
-              <Text style={styles.editInstrumentButtonText}>Alterar</Text>
-            </TouchableOpacity>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
+            {!instrumentsLoading && !instrumentsError ? (
+              <TouchableOpacity
+                style={styles.editInstrumentsButton}
+                onPress={() => setPickerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Selecionar instrumentos e cargos"
+                testID="open-instrument-picker"
+              >
+                <Text style={styles.editInstrumentsButtonText}>
+                  {selectedInstruments.length > 0 ? "Editar" : "Selecionar"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-
-          {selectedInstruments.length > 0 ? (
-            <View style={styles.selectedBox}>
-              <Text style={styles.selectedTitle}>Selecionados</Text>
-              <View style={styles.instrumentList}>
-                {selectedInstruments.map((instrument) => (
-                  <View
-                    key={instrument.id}
-                    style={[
-                      styles.selectedChip,
-                      {
-                        backgroundColor: getInstrumentColor(instrument),
-                        borderColor: getInstrumentColor(instrument),
-                      },
-                    ]}
-                  >
-                    <View style={styles.selectedChipIcon} testID={`selected-instrument-icon-${instrument.id}`}>
-                      {renderInstrumentIcon(instrument.name, true, 14)}
-                    </View>
-                    <Text style={styles.instrumentChipTextSelected}>{getInstrumentDisplayName(instrument.name)}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : !instrumentsLoading && !instrumentsError ? (
-            <Text style={styles.instrumentMuted}>Nenhum instrumento/cargo selecionado.</Text>
-          ) : null}
-
           {instrumentsLoading ? (
             <View style={styles.instrumentLoading}>
               <ActivityIndicator color={colors.primary} />
@@ -258,10 +288,129 @@ export default function ProfileScreen() {
                 <Text style={styles.retryButtonText}>Tentar novamente</Text>
               </TouchableOpacity>
             </View>
-          ) : availableInstruments.length === 0 ? (
-            <Text style={styles.instrumentMuted}>Nenhum instrumento disponível. Peça a um administrador para cadastrar instrumentos/cargos.</Text>
-          ) : null}
+          ) : selectedInstruments.length === 0 ? (
+            <Text style={styles.instrumentMuted}>Nenhum instrumento selecionado</Text>
+          ) : (
+            <View style={styles.instrumentList}>
+              {selectedInstruments.map((instrument) => (
+                <View
+                  key={instrument.id}
+                  style={[
+                    styles.instrumentChip,
+                    {
+                      backgroundColor: instrument.colorHex ?? colors.primarySoft,
+                      borderColor: instrument.colorHex ?? colors.line,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.instrumentChipText, { color: readableTextColor(instrument.colorHex) }]}>
+                    {instrument.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
+
+        <Modal
+          visible={pickerVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setPickerVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalTitleGroup}>
+                  <Text style={styles.modalTitle}>Selecionar instrumentos/cargos</Text>
+                  <Text style={styles.modalSubtitle}>Toque nas opcoes para atualizar o seu perfil.</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setPickerVisible(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Fechar selecao de instrumentos"
+                >
+                  <X color={colors.primary} size={20} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+
+              {canManageInstruments ? (
+                <View style={styles.createInstrumentBox}>
+                  <Text style={styles.createInstrumentTitle}>Novo instrumento/cargo</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={instrumentForm.name}
+                    onChangeText={(name) => {
+                      setInstrumentForm((current) => ({ ...current, name }));
+                      setInstrumentFormError(null);
+                    }}
+                    placeholder="Nome"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="words"
+                    testID="profile-instrument-name-input"
+                  />
+                  <TextInput
+                    style={styles.modalInput}
+                    value={instrumentForm.colorHex}
+                    onChangeText={(colorHex) => {
+                      setInstrumentForm((current) => ({ ...current, colorHex }));
+                      setInstrumentFormError(null);
+                    }}
+                    placeholder="#RRGGBB opcional"
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="characters"
+                    testID="profile-instrument-color-input"
+                  />
+                  {instrumentFormError ? <Text style={styles.errorText}>{instrumentFormError}</Text> : null}
+                  <TouchableOpacity
+                    style={[styles.createInstrumentButton, creatingInstrument && styles.buttonDisabled]}
+                    onPress={() => void handleCreateInstrument()}
+                    disabled={creatingInstrument}
+                    accessibilityRole="button"
+                    testID="profile-instrument-create-button"
+                  >
+                    {creatingInstrument ? (
+                      <ActivityIndicator color={colors.surface} />
+                    ) : (
+                      <Plus color={colors.surface} size={17} strokeWidth={2.4} />
+                    )}
+                    <Text style={styles.createInstrumentButtonText}>Criar e selecionar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
+                {availableInstruments.length === 0 ? (
+                  <Text style={styles.instrumentMuted}>Nenhum instrumento disponivel</Text>
+                ) : (
+                  availableInstruments.map((instrument) => {
+                    const selected = selectedSet.has(instrument.id);
+                    return (
+                      <TouchableOpacity
+                        key={instrument.id}
+                        style={[styles.modalInstrumentRow, selected && styles.modalInstrumentRowSelected]}
+                        onPress={() => void handleToggleInstrument(instrument.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${selected ? "Remover" : "Adicionar"} ${instrument.name}`}
+                        testID={`instrument-toggle-${instrument.id}`}
+                      >
+                        <View
+                          style={[
+                            styles.modalInstrumentColor,
+                            { backgroundColor: instrument.colorHex ?? colors.primarySoft },
+                          ]}
+                        />
+                        <Text style={styles.modalInstrumentName}>{instrument.name}</Text>
+                        {selected ? <Check color={colors.primary} size={20} strokeWidth={2.8} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         {canManageInstruments ? (
           <TouchableOpacity
@@ -438,17 +587,22 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
-  instrumentHelp: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  selectedBox: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: spacing.md,
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
     marginBottom: spacing.md,
-    gap: spacing.sm,
   },
-  selectedTitle: { color: colors.primary, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  editInstrumentsButton: {
+    minHeight: 36,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editInstrumentsButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   instrumentLoading: {
     gap: spacing.sm,
     alignItems: "flex-start",
@@ -566,18 +720,103 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
   },
-  modalButton: {
+  instrumentChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  instrumentChipTextSelected: { color: colors.surface, fontSize: 13, fontWeight: "800" },
+  modalBackdrop: {
     flex: 1,
-    minHeight: 46,
+    backgroundColor: "rgba(23, 33, 26, 0.42)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: screen.maxWidth,
+    maxHeight: "88%",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.lg,
+    ...shadow,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  modalTitleGroup: { flex: 1 },
+  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.xs },
+  modalSubtitle: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  closeButton: {
+    width: 40,
+    height: 40,
     borderRadius: radii.sm,
+    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  cancelButton: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.line },
-  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "900" },
-  saveButton: { backgroundColor: colors.primary },
-  saveButtonDisabled: { opacity: 0.7 },
-  saveButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  createInstrumentBox: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  createInstrumentTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.md },
+  modalInput: {
+    minHeight: 44,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: "600",
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  createInstrumentButton: {
+    minHeight: 42,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  createInstrumentButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  buttonDisabled: { opacity: 0.7 },
+  modalList: { flexGrow: 0 },
+  modalListContent: { gap: spacing.sm },
+  modalInstrumentRow: {
+    minHeight: 48,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  modalInstrumentRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  modalInstrumentColor: {
+    width: 24,
+    height: 24,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  modalInstrumentName: { flex: 1, color: colors.ink, fontSize: 14, fontWeight: "800" },
   adminButton: {
     width: "100%",
     minHeight: 46,
