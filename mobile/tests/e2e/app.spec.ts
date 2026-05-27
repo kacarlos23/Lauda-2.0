@@ -9,6 +9,22 @@ const adminUser = {
   instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
+const defaultInstruments = [
+  { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
+  { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
+  { id: "instrument-3", name: "Multimídia", colorHex: "#7C3AED" },
+  { id: "instrument-4", name: "Saxofone", colorHex: "#D97706" },
+  { id: "instrument-5", name: "Violão", colorHex: "#F59E0B" },
+  { id: "instrument-6", name: "Guitarra", colorHex: "#EF4444" },
+  { id: "instrument-7", name: "Baixo", colorHex: "#8B5CF6" },
+  { id: "instrument-8", name: "Bateria", colorHex: "#DC2626" },
+  { id: "instrument-9", name: "Piano", colorHex: "#2563EB" },
+  { id: "instrument-10", name: "Violino", colorHex: "#A855F7" },
+  { id: "instrument-11", name: "Flauta", colorHex: "#14B8A6" },
+  { id: "instrument-12", name: "Mesa de Som", colorHex: "#0F766E" },
+  { id: "instrument-13", name: "Back Vocal", colorHex: "#22C55E" },
+];
+
 const leaderUser = {
   ...adminUser,
   id: "leader-1",
@@ -96,12 +112,7 @@ async function mockApi(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        data: [
-          { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
-          { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
-        ],
-      }),
+      body: JSON.stringify({ data: defaultInstruments }),
     });
   });
 
@@ -117,9 +128,9 @@ async function mockApi(
             ...(body.instrumentIds?.includes("instrument-1")
               ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
               : []),
-            ...(body.instrumentIds?.includes("instrument-2")
-              ? [{ id: "instrument-2", name: "Vocal", colorHex: "#10B981" }]
-              : []),
+            ...defaultInstruments.filter(
+              (instrument) => instrument.id !== "instrument-1" && body.instrumentIds?.includes(instrument.id)
+            ),
           ],
         },
       }),
@@ -197,13 +208,13 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByTestId("login-submit").click();
-  await expect(page.getByText(/Ana|Lia|Bruno/)).toBeVisible();
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_token;
     })
     .toBe(token);
+  await expect(page.getByRole("tab", { name: "Perfil" })).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -291,36 +302,69 @@ test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   expect(storage.auth_tenant).toBeUndefined();
 });
 
-test("mostra badges de instrumentos na lista de membros sem expor ids", async ({ page }) => {
+test("mostra instrumentos selecionados no Perfil sem expor ids", async ({ page }) => {
   await login(page);
-  await page.getByText("Membros").last().click();
+  await page.getByText("Perfil").last().click();
 
-  await expect(page.getByText("Instrumentos/Cargos").first()).toBeVisible();
+  await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByTestId("selected-instrument-icon-instrument-1")).toBeVisible();
   await expect(page.getByText("Teclado").first()).toBeVisible();
-  await expect(page.getByText("Nenhum instrumento informado")).toBeVisible();
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
-test("permite editar instrumentos no perfil com atualização otimista e persistência local", async ({ page }) => {
+test("abre modal e permite cancelar alteração de instrumentos", async ({ page }) => {
+  await login(page);
+  await page.getByText("Perfil").last().click();
+
+  await page.getByTestId("edit-instruments-button").click();
+  await expect(page.getByTestId("instrument-selection-modal")).toBeVisible();
+  await expect(page.getByText("Escolha seus instrumentos/cargos")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-1")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-2")).toBeVisible();
+  await expect(page.getByTestId("instrument-icon-instrument-3")).toBeVisible();
+  await expect(page.getByText("Multimídia")).toBeVisible();
+  await expect(page.getByText("instrument-3")).not.toBeVisible();
+
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await expect(page.getByText("Selecionado").nth(1)).toBeVisible();
+  await page.getByTestId("cancel-instruments-selection").click();
+  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
+
+  const storage = await page.evaluate(() => ({ ...window.localStorage }));
+  expect(storage.auth_user).not.toContain("Vocalista");
+});
+
+test("permite editar instrumentos no perfil por modal com seleção múltipla", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
   await expect(page.getByText("Selecionados")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
-  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
-  await expect(page.getByText("Salvando...")).toBeVisible();
+
+  await page.getByTestId("edit-instruments-button").click();
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await page.getByTestId("instrument-option-instrument-3").click();
+  await page.getByTestId("save-instruments-selection").click();
 
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
-    .toContain("Vocal");
+    .toContain("Vocalista");
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => ({ ...window.localStorage }));
+      return storage.auth_user ?? "";
+    })
+    .toContain("Multimídia");
+  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
   await expect(page.getByText("instrument-2")).not.toBeVisible();
+  await expect(page.getByText("instrument-3")).not.toBeVisible();
 });
 
-test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }) => {
+test("membro comum edita os próprios instrumentos pelo modal do Perfil", async ({ page }) => {
   let updateRequests = 0;
   let lastPayload: { instrumentIds?: string[] } | undefined;
 
@@ -340,7 +384,7 @@ test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }
           id: memberUser.id,
           instruments: [
             { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
-            { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
+            { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
           ],
         },
       }),
@@ -353,7 +397,9 @@ test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }
 
   await expect(page.getByText("Membro").first()).toBeVisible();
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
-  await page.getByTestId("instrument-toggle-instrument-2").click({ force: true });
+  await page.getByTestId("edit-instruments-button").click();
+  await page.getByTestId("instrument-option-instrument-2").click();
+  await page.getByTestId("save-instruments-selection").click();
 
   await expect.poll(() => updateRequests).toBe(1);
   expect(lastPayload?.instrumentIds).toEqual(["instrument-1", "instrument-2"]);
@@ -362,5 +408,5 @@ test("membro comum edita os próprios instrumentos pelo Perfil", async ({ page }
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
-    .toContain("Vocal");
+    .toContain("Vocalista");
 });

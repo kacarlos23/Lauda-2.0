@@ -1,4 +1,5 @@
 import { Prisma, User } from "@prisma/client";
+import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { prisma } from "./prismaClient";
 
 export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "role" | "tenantId"> & {
@@ -81,6 +82,12 @@ export class AuthRepository {
             password: data.hashedPassword,
             role: "TENANT_ADMIN",
           },
+        },
+        instruments: {
+          create: DEFAULT_INSTRUMENTS.map((instrument) => ({
+            name: instrument.name,
+            colorHex: instrument.colorHex,
+          })),
         },
       },
       include: { users: true },
