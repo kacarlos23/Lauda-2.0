@@ -62,6 +62,23 @@ describe("adminService", () => {
     expect(mockedApi.get).toHaveBeenCalledWith("/admin/users", { params: { tenantId: "tenant-1" } });
   });
 
+  it("getGlobalMinistries chama GET /admin/ministries", async () => {
+    const ministries = [
+      {
+        id: "ministry-1",
+        name: "Louvor",
+        tenantId: "tenant-1",
+        tenant: { id: "tenant-1", name: "Igreja Central" },
+        createdAt: "2026-05-27T00:00:00.000Z",
+        _count: { members: 2, schedules: 1 },
+      },
+    ];
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: ministries } });
+
+    await expect(adminService.getGlobalMinistries()).resolves.toEqual(ministries);
+    expect(mockedApi.get).toHaveBeenCalledWith("/admin/ministries");
+  });
+
   it("trata erros com mensagem amigavel", async () => {
     mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Acesso negado" }));
 

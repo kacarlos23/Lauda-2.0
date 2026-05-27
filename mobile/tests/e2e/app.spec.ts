@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request, type Route } from "@playwright/test";
+﻿import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 
 const adminUser = {
   id: "user-1",
@@ -84,6 +84,24 @@ async function mockApi(
       name: string;
       createdAt: string;
       _count: { users: number; ministries: number; schedules: number; instruments: number };
+    }>;
+    adminUsers?: Array<{
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      tenantId: string;
+      tenant: { id: string; name: string };
+      createdAt: string;
+    }>;
+    adminMinistries?: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      tenantId: string;
+      tenant: { id: string; name: string };
+      createdAt: string;
+      _count: { members: number; schedules: number };
     }>;
     adminTenantsError?: boolean;
     churchSummary?: {
@@ -251,6 +269,73 @@ async function mockApi(
     });
   });
 
+  await page.route("**/api/admin/users", async (route) => {
+    if (options.adminTenantsError) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Não foi possível carregar usuários globais." }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: options.adminUsers ?? [
+          {
+            id: "global-1",
+            name: "Gael Global",
+            email: "global@example.com",
+            role: "GLOBAL_ADMIN",
+            tenantId: "tenant-1",
+            tenant: { id: "tenant-1", name: "Igreja Central" },
+            createdAt: "2026-05-27T00:00:00.000Z",
+          },
+          {
+            id: "member-2",
+            name: "Bruno Membro",
+            email: "bruno@example.com",
+            role: "MEMBER",
+            tenantId: "tenant-2",
+            tenant: { id: "tenant-2", name: "Igreja Norte" },
+            createdAt: "2026-05-26T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/admin/ministries", async (route) => {
+    if (options.adminTenantsError) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Não foi possível carregar ministérios globais." }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: options.adminMinistries ?? [
+          {
+            id: "ministry-1",
+            name: "Louvor",
+            description: "Equipe principal",
+            tenantId: "tenant-1",
+            tenant: { id: "tenant-1", name: "Igreja Central" },
+            createdAt: "2026-05-27T00:00:00.000Z",
+            _count: { members: 3, schedules: 2 },
+          },
+        ],
+      }),
+    });
+  });
+
   await page.route("**/api/church/me", async (route) => {
     if (options.churchError) {
       await route.fulfill({
@@ -344,7 +429,7 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   });
 
   await login(page);
-  await page.getByText("Ministérios").last().click();
+  await page.getByRole("tab", { name: "Ministérios" }).click();
 
   await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);
@@ -378,8 +463,11 @@ test("admin global vê perfil, home e aba global com lista de igrejas", async ({
 
   await page.getByRole("tab", { name: "Global" }).click();
   await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Norte")).toBeVisible();
+  await expect(page.getByText("Igreja Central", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Igreja Norte").first()).toBeVisible();
+  await expect(page.getByText("Gael Global").first()).toBeVisible();
+  await expect(page.getByText("global@example.com").first()).toBeVisible();
+  await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   await expect(page.getByText("tenant-1")).not.toBeVisible();
 });
 
@@ -501,13 +589,17 @@ test("admin global vê contadores reais no painel global", async ({ page }) => {
   await login(page, "global@example.com");
   await page.getByRole("tab", { name: "Global" }).click();
 
-  await expect(page.getByText("Igrejas", { exact: true })).toBeVisible();
-  await expect(page.getByText("Usuários", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Central")).toBeVisible();
+  await expect(page.getByText("Igrejas", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Usuários", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Ministérios", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Igreja Central").first()).toBeVisible();
   await expect(page.getByText("2 usuários")).toBeVisible();
   await expect(page.getByText("1 ministério")).toBeVisible();
   await expect(page.getByText("10 instrumentos")).toBeVisible();
   await expect(page.getByText("0 escalas")).toBeVisible();
+  await expect(page.getByText("Gael Global")).toBeVisible();
+  await expect(page.getByText("Admin global", { exact: true })).toBeVisible();
+  await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
 });
 
 test("painel global exibe erro e empty state conforme resposta da API", async ({ page }) => {
@@ -519,7 +611,7 @@ test("painel global exibe erro e empty state conforme resposta da API", async ({
 
   await login(page, "global@example.com");
   await page.getByRole("tab", { name: "Global" }).click();
-  await expect(page.getByText("Não foi possível carregar o painel global.")).toBeVisible();
+  await expect(page.getByText("Não foi possível carregar o painel global.").first()).toBeVisible();
 
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
