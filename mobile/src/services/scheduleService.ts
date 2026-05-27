@@ -10,14 +10,20 @@ type ApiResponse<T> = {
 function handleApiError(error: unknown): never {
   if (error instanceof AxiosError) {
     const data = error.response?.data as { error?: string; message?: string } | undefined;
-    throw new Error(data?.error ?? data?.message ?? "Erro ao processar escala.");
+    throw new Error(data?.error ?? data?.message ?? "Não foi possível carregar as escalas.");
   }
 
   if (error instanceof Error) {
     throw error;
   }
 
-  throw new Error("Erro de rede ao processar escala.");
+  throw new Error("Não foi possível carregar as escalas.");
+}
+
+function assertAssignmentStatus(status: AssignmentStatus): void {
+  if (!["PENDING", "ACCEPTED", "DECLINED"].includes(status)) {
+    throw new Error("Status de escala inválido.");
+  }
 }
 
 export const scheduleService = {
@@ -35,6 +41,8 @@ export const scheduleService = {
     assignmentId: string,
     status: AssignmentStatus
   ): Promise<ScheduleAssignment> {
+    assertAssignmentStatus(status);
+
     try {
       const response = await api.patch<ApiResponse<ScheduleAssignment>>(
         `/schedules/${scheduleId}/assignments/${assignmentId}/status`,
@@ -46,3 +54,6 @@ export const scheduleService = {
     }
   },
 };
+
+export const getMySchedules = scheduleService.getMySchedules;
+export const updateAssignmentStatus = scheduleService.updateAssignmentStatus;

@@ -112,6 +112,6 @@ export function withTenantIsolation(baseClient: PrismaClient) {
   );
 }
 
-const basePrisma = new PrismaClient({ adapter });
+export const basePrisma = new PrismaClient({ adapter });
 
 export const prisma = withTenantIsolation(basePrisma);

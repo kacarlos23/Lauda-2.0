@@ -1,9 +1,9 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { CalendarClock, Church, Home, User, UserCheck, Users } from "lucide-react-native";
+import { CalendarClock, Church, Globe2, Home, User, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
-import { canViewMembers } from "../../src/utils/permissions";
+import { canAccessGlobalAdminArea, canViewMembers } from "../../src/utils/permissions";
 
 type TabIconProps = {
   color?: string;
@@ -111,6 +111,15 @@ export default function TabsLayout() {
         options={{
           title: "Novo membro",
           href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="global-admin/index"
+        options={{
+          title: "Admin Global",
+          tabBarLabel: "Global",
+          tabBarIcon: ({ color }) => tabIcon(Globe2, color),
+          href: canAccessGlobalAdminArea(user?.role) ? ("/global-admin" as never) : null,
         }}
       />
       <Tabs.Screen

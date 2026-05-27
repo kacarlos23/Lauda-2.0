@@ -68,6 +68,8 @@ describe("authStore session", () => {
   });
 
   it("atualiza instrumentos no usuário atual e persiste auth_user", async () => {
+    jest.mocked(api.post).mockResolvedValueOnce(authResponse());
+
     useAuthStore.setState({
       user: {
         id: "user-1",

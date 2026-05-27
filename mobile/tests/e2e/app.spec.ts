@@ -9,6 +9,14 @@ const adminUser = {
   instruments: [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }],
 };
 
+const globalAdminUser = {
+  ...adminUser,
+  id: "global-1",
+  name: "Gael Global",
+  email: "global@example.com",
+  role: "GLOBAL_ADMIN",
+};
+
 const defaultInstruments = [
   { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
   { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
@@ -194,6 +202,29 @@ async function mockApi(
     });
   });
 
+  await page.route("**/api/admin/tenants", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          {
+            id: "tenant-1",
+            name: "Igreja Central",
+            createdAt: "2026-05-27T00:00:00.000Z",
+            _count: { users: 4, ministries: 2, schedules: 3, instruments: 13 },
+          },
+          {
+            id: "tenant-2",
+            name: "Igreja Norte",
+            createdAt: "2026-05-26T00:00:00.000Z",
+            _count: { users: 2, ministries: 1, schedules: 1, instruments: 8 },
+          },
+        ],
+      }),
+    });
+  });
+
   await page.route("**/api/schedules/*/assignments/*/status", async (route) => {
     const body = route.request().postDataJSON() as { status?: string };
     await route.fulfill({
@@ -259,6 +290,46 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   expect(storage.auth_tenant).toContain("Igreja Central");
 });
 
+test("admin global ve perfil, home e aba global com lista de igrejas", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: globalAdminUser });
+  await page.goto("/");
+
+  await login(page, "global@example.com");
+
+  await expect(page.getByText("Administrador global").first()).toBeVisible();
+  await expect(page.getByText("Acesso global ao sistema").first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Global" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Global" }).click();
+  await expect(page.getByText("Painel global")).toBeVisible();
+  await expect(page.getByText("Igreja Central")).toBeVisible();
+  await expect(page.getByText("Igreja Norte")).toBeVisible();
+  await expect(page.getByText("tenant-1")).not.toBeVisible();
+});
+
+test("roles nao globais nao veem aba Admin Global", async ({ page }) => {
+  await login(page);
+  await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: memberUser });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto("/");
+  await login(page, "bruno@example.com");
+  await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: leaderUser });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto("/");
+  await login(page, "lia@example.com");
+  await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+});
+
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
   await page.getByTestId("go-register").click();
   await expect(page.getByText("Nova igreja")).toBeVisible();
@@ -307,45 +378,35 @@ test("mostra instrumentos selecionados no Perfil sem expor ids", async ({ page }
   await page.getByText("Perfil").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
-  await expect(page.getByTestId("selected-instrument-icon-instrument-1")).toBeVisible();
   await expect(page.getByText("Teclado").first()).toBeVisible();
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
-test("abre modal e permite cancelar alteração de instrumentos", async ({ page }) => {
+test("abre seletor de instrumentos e permite fechar", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
-  await page.getByTestId("edit-instruments-button").click();
-  await expect(page.getByTestId("instrument-selection-modal")).toBeVisible();
-  await expect(page.getByText("Escolha seus instrumentos/cargos")).toBeVisible();
-  await expect(page.getByTestId("instrument-icon-instrument-1")).toBeVisible();
-  await expect(page.getByTestId("instrument-icon-instrument-2")).toBeVisible();
-  await expect(page.getByTestId("instrument-icon-instrument-3")).toBeVisible();
+  await page.getByTestId("open-instrument-picker").click();
+  await expect(page.getByText("Selecionar instrumentos/cargos")).toBeVisible();
+  await expect(page.getByTestId("instrument-toggle-instrument-1")).toBeVisible();
+  await expect(page.getByTestId("instrument-toggle-instrument-2")).toBeVisible();
+  await expect(page.getByTestId("instrument-toggle-instrument-3")).toBeVisible();
   await expect(page.getByText("Multimídia")).toBeVisible();
   await expect(page.getByText("instrument-3")).not.toBeVisible();
 
-  await page.getByTestId("instrument-option-instrument-2").click();
-  await expect(page.getByText("Selecionado").nth(1)).toBeVisible();
-  await page.getByTestId("cancel-instruments-selection").click();
-  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
-
-  const storage = await page.evaluate(() => ({ ...window.localStorage }));
-  expect(storage.auth_user).not.toContain("Vocalista");
+  await page.getByLabel("Fechar selecao de instrumentos").click();
+  await expect(page.getByText("Selecionar instrumentos/cargos")).not.toBeVisible();
 });
 
-test("permite editar instrumentos no perfil por modal com seleção múltipla", async ({ page }) => {
+test("permite editar instrumentos no perfil pelo seletor", async ({ page }) => {
   await login(page);
   await page.getByText("Perfil").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
-  await expect(page.getByText("Selecionados")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
 
-  await page.getByTestId("edit-instruments-button").click();
-  await page.getByTestId("instrument-option-instrument-2").click();
-  await page.getByTestId("instrument-option-instrument-3").click();
-  await page.getByTestId("save-instruments-selection").click();
+  await page.getByTestId("open-instrument-picker").click();
+  await page.getByTestId("instrument-toggle-instrument-2").click();
 
   await expect
     .poll(async () => {
@@ -353,17 +414,16 @@ test("permite editar instrumentos no perfil por modal com seleção múltipla", 
       return storage.auth_user ?? "";
     })
     .toContain("Vocalista");
+  await page.getByTestId("instrument-toggle-instrument-3").click();
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
       return storage.auth_user ?? "";
     })
     .toContain("Multimídia");
-  await expect(page.getByTestId("instrument-selection-modal")).not.toBeVisible();
   await expect(page.getByText("instrument-2")).not.toBeVisible();
   await expect(page.getByText("instrument-3")).not.toBeVisible();
 });
-
 test("membro comum edita os próprios instrumentos pelo modal do Perfil", async ({ page }) => {
   let updateRequests = 0;
   let lastPayload: { instrumentIds?: string[] } | undefined;
@@ -397,9 +457,8 @@ test("membro comum edita os próprios instrumentos pelo modal do Perfil", async 
 
   await expect(page.getByText("Membro").first()).toBeVisible();
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
-  await page.getByTestId("edit-instruments-button").click();
-  await page.getByTestId("instrument-option-instrument-2").click();
-  await page.getByTestId("save-instruments-selection").click();
+  await page.getByTestId("open-instrument-picker").click();
+  await page.getByTestId("instrument-toggle-instrument-2").click();
 
   await expect.poll(() => updateRequests).toBe(1);
   expect(lastPayload?.instrumentIds).toEqual(["instrument-1", "instrument-2"]);

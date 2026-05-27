@@ -7,11 +7,6 @@ export interface Tenant {
   name: string;
 }
 
-export interface Tenant {
-  id: string;
-  name: string;
-}
-
 export interface Instrument {
   id: string;
   name: string;
@@ -98,4 +93,49 @@ export interface ScheduleAssignment {
   status: AssignmentStatus;
   tenantId?: string;
   schedule: Schedule;
+}
+
+export type MySchedule = Omit<ScheduleAssignment, "id" | "scheduleId" | "userId" | "tenantId" | "schedule"> & {
+  id?: string;
+  assignmentId?: string;
+  scheduleId?: string;
+  userId?: string;
+  tenantId?: string;
+  schedule: Omit<Schedule, "tenantId"> & { tenantId?: string };
+};
+
+export interface GlobalTenant {
+  id: string;
+  name: string;
+  createdAt: string;
+  _count: {
+    users: number;
+    ministries: number;
+    schedules: number;
+    instruments: number;
+  };
+}
+
+export interface GlobalUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: Role;
+  tenantId: string;
+  tenant?: Tenant;
+  createdAt: string;
+}
+
+export interface GlobalMinistry {
+  id: string;
+  name: string;
+  description?: string | null;
+  tenantId: string;
+  tenant: Tenant;
+  createdAt: string;
+  _count?: {
+    members: number;
+    schedules: number;
+  };
 }

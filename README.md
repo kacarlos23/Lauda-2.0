@@ -90,6 +90,39 @@ npm test
 
 The integration tests use Testcontainers and require Docker to be running.
 
+## Roles e permissoes
+
+`GLOBAL_ADMIN` e o administrador global do sistema. Ele tem acesso total, visualiza todas as igrejas, usa o painel global no app e nao fica limitado a uma unica igreja mesmo quando seu cadastro possui `tenantId`.
+
+`TENANT_ADMIN` administra apenas a propria igreja. Ele gerencia ministerios, membros, escalas, instrumentos e convites do seu tenant.
+
+`MINISTRY_LEADER` administra apenas os ministerios onde possui vinculo como lider. Ele nao tem permissao global.
+
+`MEMBER` visualiza seus dados, escalas e ministerios, e atualiza seus proprios instrumentos/cargos. Ele nao gerencia outros usuarios.
+
+### Admin Global API
+
+Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `GLOBAL_ADMIN`; outras roles recebem `403` e usuarios anonimos recebem `401`.
+
+- `GET /api/admin/tenants`: lista todas as igrejas com contagens de usuarios, ministerios, escalas e instrumentos.
+- `GET /api/admin/tenants/:tenantId`: detalha uma igreja especifica, seus usuarios, ministerios, instrumentos e contagens.
+- `GET /api/admin/users`: lista usuarios de todos os tenants sem retornar senha. Aceita `?tenantId=<uuid>`.
+- `GET /api/admin/ministries`: lista ministerios globais com `tenant: { id, name }`.
+
+Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrao para preservar o isolamento multi-tenant.
+
+### Promover usuario para administrador global
+
+O usuario de referencia para administracao global e `kacarlos2016@proton.me`.
+
+Para promover esse usuario sem expor senha:
+
+```bash
+npm run promote:global-admin
+```
+
+O script procura o usuario pelo e-mail e altera apenas a role para `GLOBAL_ADMIN`. Ele nao cria usuario, nao altera `password` e nao contem senha em plaintext. Se o usuario nao existir, crie-o pelo fluxo normal do produto e rode o script novamente em ambiente controlado.
+
 ## Schedule API
 
 All schedule endpoints require `Authorization: Bearer <token>` and are scoped by the authenticated user's `tenantId`.

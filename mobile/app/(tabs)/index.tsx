@@ -12,6 +12,7 @@ import {
   formatScheduleDate,
   getNextSchedule,
 } from "../../src/utils/scheduleFormat";
+import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -31,8 +32,10 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Hoje</Text>
           <Text style={styles.greeting}>Olá, {firstName}</Text>
-          <Text style={styles.role}>{formatRole(user?.role)}</Text>
-          <Text style={styles.tenant}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
+          <Text style={styles.role}>{formatRoleLabel(user?.role)}</Text>
+          <Text style={styles.tenant}>
+            {isGlobalAdmin(user) ? "Acesso global ao sistema" : `Igreja atual: ${tenant?.name ?? "Não identificada"}`}
+          </Text>
         </View>
 
         <View style={styles.summaryRow}>
@@ -95,16 +98,6 @@ export default function DashboardScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function formatRole(role?: string) {
-  const labels: Record<string, string> = {
-    GLOBAL_ADMIN: "Administrador global",
-    TENANT_ADMIN: "Administrador da igreja",
-    MINISTRY_LEADER: "Líder de ministério",
-    MEMBER: "Membro",
-  };
-  return labels[role ?? ""] ?? "";
 }
 
 const styles = StyleSheet.create({

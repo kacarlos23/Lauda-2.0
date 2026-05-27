@@ -4,6 +4,7 @@ import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { runWithTenantContext } from "../context/tenantContext";
 import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
+import { isChurchAdmin } from "../utils/permissions";
 
 interface JwtPayload {
   id?: string;
@@ -78,7 +79,7 @@ export const requireChurchAdmin = (req: Request, _res: Response, next: NextFunct
     return;
   }
 
-  if (req.user.role !== Role.GLOBAL_ADMIN && req.user.role !== Role.TENANT_ADMIN) {
+  if (!isChurchAdmin(req.user)) {
     next(new ForbiddenError("Apenas administradores da igreja podem gerenciar vínculos"));
     return;
   }
