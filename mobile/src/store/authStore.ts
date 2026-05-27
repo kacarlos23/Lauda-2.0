@@ -131,7 +131,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
 
-      const user = storedUser ? (JSON.parse(storedUser) as User) : userFromToken(storedToken);
+      const tokenUser = userFromToken(storedToken);
+      const storedUserData = storedUser ? (JSON.parse(storedUser) as User) : null;
+      const user = storedUserData && tokenUser ? { ...storedUserData, ...tokenUser } : storedUserData ?? tokenUser;
       const tenant = storedTenant ? (JSON.parse(storedTenant) as Tenant) : null;
       set({
         user,

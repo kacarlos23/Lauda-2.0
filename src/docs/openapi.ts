@@ -26,11 +26,18 @@ const CreateScheduleRequestSchema = registry.register(
   })
 );
 
+const UpdateChurchRequestSchema = registry.register(
+  "UpdateChurchRequest",
+  z.object({
+    name: z.string().min(1).meta({ example: "Igreja Central" }),
+  })
+);
+
 const ErrorResponseSchema = registry.register(
   "ErrorResponse",
   z.object({
     success: z.boolean().meta({ example: false }),
-    error: z.string().meta({ example: "Credenciais invalidas" }),
+    error: z.string().meta({ example: "Credenciais inválidas" }),
   })
 );
 
@@ -62,6 +69,42 @@ const ScheduleSchema = registry.register(
   })
 );
 
+const TenantCountSchema = registry.register(
+  "TenantCount",
+  z.object({
+    users: z.number().int(),
+    ministries: z.number().int(),
+    schedules: z.number().int(),
+    instruments: z.number().int(),
+  })
+);
+
+const GlobalTenantSchema = registry.register(
+  "GlobalTenant",
+  z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    createdAt: z.string().datetime(),
+    _count: TenantCountSchema,
+  })
+);
+
+const ChurchSummaryResponseSchema = registry.register(
+  "ChurchSummaryResponse",
+  z.object({
+    success: z.boolean().meta({ example: true }),
+    data: z.object({
+      tenant: z.object({
+        id: z.string().uuid(),
+        name: z.string(),
+        createdAt: z.string().datetime(),
+        updatedAt: z.string().datetime(),
+      }),
+      _count: TenantCountSchema,
+    }),
+  })
+);
+
 const ScheduleListResponseSchema = registry.register(
   "ScheduleListResponse",
   z.object({
@@ -75,6 +118,14 @@ const ScheduleResponseSchema = registry.register(
   z.object({
     success: z.boolean().meta({ example: true }),
     data: ScheduleSchema,
+  })
+);
+
+const GlobalTenantListResponseSchema = registry.register(
+  "GlobalTenantListResponse",
+  z.object({
+    success: z.boolean().meta({ example: true }),
+    data: z.array(GlobalTenantSchema),
   })
 );
 
@@ -94,11 +145,108 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "Tokens emitidos para credenciais validas.",
+      description: "Tokens emitidos para credenciais válidas.",
       content: { "application/json": { schema: LoginResponseSchema } },
     },
     401: {
-      description: "Credenciais invalidas.",
+      description: "Credenciais inválidas.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/admin/tenants",
+  summary: "Lista igrejas para administradores globais",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Igrejas com contagens reais.",
+      content: { "application/json": { schema: GlobalTenantListResponseSchema } },
+    },
+    401: {
+      description: "Token ausente ou inválido.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Usuário sem permissão global.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/church/me",
+  summary: "Retorna dados da igreja do tenant autenticado",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Resumo da igreja do tenant.",
+      content: { "application/json": { schema: ChurchSummaryResponseSchema } },
+    },
+    401: {
+      description: "Token ausente ou inválido.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Usuário sem permissão de administração da igreja.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/church/me",
+  summary: "Atualiza dados básicos da igreja do tenant autenticado",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: UpdateChurchRequestSchema,
+          example: { name: "Igreja Central" },
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Resumo atualizado da igreja.",
+      content: { "application/json": { schema: ChurchSummaryResponseSchema } },
+    },
+    400: {
+      description: "Payload inválido.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    401: {
+      description: "Token ausente ou inválido.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Usuário sem permissão de administração da igreja.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/church/overview",
+  summary: "Retorna visão agregada da igreja do tenant autenticado",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Membros, ministérios, instrumentos e escalas do tenant.",
+    },
+    401: {
+      description: "Token ausente ou inválido.",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Usuário sem permissão de administração da igreja.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
@@ -150,7 +298,7 @@ registry.registerPath({
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     403: {
-      description: "Usuario sem permissão para criar escalas.",
+      description: "Usuário sem permissão para criar escalas.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },

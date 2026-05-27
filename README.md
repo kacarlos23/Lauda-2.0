@@ -92,19 +92,19 @@ The integration tests use Testcontainers and require Docker to be running.
 
 ## Roles e permissões
 
-`GLOBAL_ADMIN` é o administrador global do sistema. Ele tem acesso total, visualiza todas as igrejas, usa o painel global no app e não fica limitado a uma única igreja mesmo quando seu cadastro possui `tenantId`.
+`GLOBAL_ADMIN` é o administrador global do sistema. Ele visualiza todas as igrejas e usa a aba Global no app. Rotas globais usam o Prisma base para não aplicar filtro pelo `tenantId` do próprio cadastro.
 
-`TENANT_ADMIN` administra apenas a própria igreja. Ele gerencia ministérios, membros, escalas, instrumentos e convites do seu tenant.
+`TENANT_ADMIN` administra apenas a própria igreja. Ele gerencia ministérios, membros, escalas, instrumentos e convites do seu tenant. A aba Igreja/Dados da Igreja é visível apenas para esse perfil.
 
-`MINISTRY_LEADER` administra apenas os ministérios onde possui vínculo como líder. Ele não tem permissão global.
+`MINISTRY_LEADER` administra apenas os ministérios onde possui vínculo como líder. Ele não tem permissão global e não acessa Dados da Igreja.
 
-`MEMBER` visualiza seus dados, escalas e ministérios, e atualiza seus próprios instrumentos/cargos. Ele não gerencia outros usuários.
+`MEMBER` visualiza seus dados, escalas e ministérios, e atualiza seus próprios instrumentos/cargos. Ele não gerencia outros usuários e não acessa Dados da Igreja.
 
 ### Admin Global API
 
 Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `GLOBAL_ADMIN`; outras roles recebem `403` e usuários anônimos recebem `401`.
 
-- `GET /api/admin/tenants`: lista todas as igrejas com contagens de usuários, ministérios, escalas e instrumentos.
+- `GET /api/admin/tenants`: lista todas as igrejas com contagens reais de usuários, ministérios, escalas e instrumentos.
 - `GET /api/admin/tenants/:tenantId`: detalha uma igreja específica, seus usuários, ministérios, instrumentos e contagens.
 - `GET /api/admin/users`: lista usuários de todos os tenants sem retornar senha. Aceita `?tenantId=<uuid>`.
 - `GET /api/admin/ministries`: lista ministérios globais com `tenant: { id, name }`.
@@ -130,7 +130,41 @@ Resposta de exemplo de `GET /api/admin/tenants`:
 }
 ```
 
+Para validar se os contadores são reais, faça login novamente após promover o usuário global e chame `GET /api/admin/tenants` com o token novo. Se a API retornar dados e o app mostrar zero, investigue a base URL mobile, o token persistido e a interpretação de `{ success, data }`. Token antigo pode causar `403` ou estado aparente de zero; a tela mobile agora mostra erro quando a API falha em vez de tratar falha como lista vazia.
+
 Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrão para preservar o isolamento multi-tenant.
+
+### Dados da Igreja API
+
+Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `TENANT_ADMIN`. `GLOBAL_ADMIN`, `MINISTRY_LEADER`, `MEMBER` e anônimos não acessam esse fluxo inicial.
+
+- `GET /api/church/me`: retorna a igreja do usuário autenticado e contagens reais do tenant.
+- `PATCH /api/church/me`: atualiza dados básicos da própria igreja. Payload inicial: `{ "name": "Novo nome" }`.
+- `GET /api/church/overview`: retorna membros, ministérios, instrumentos e escalas do próprio tenant, sem senha.
+
+Resposta de exemplo de `GET /api/church/me`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "tenant": {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "name": "Igreja Central",
+      "createdAt": "2026-05-27T00:00:00.000Z",
+      "updatedAt": "2026-05-27T00:00:00.000Z"
+    },
+    "_count": {
+      "users": 10,
+      "ministries": 3,
+      "schedules": 5,
+      "instruments": 8
+    }
+  }
+}
+```
+
+A área Dados da Igreja no mobile centraliza a gestão do tenant: permite editar o nome da igreja e navegar para os CRUDs existentes de membros, ministérios, escalas e instrumentos/cargos. Todas as queries usam o `tenantId` do token, nunca um `tenantId` arbitrário do body.
 
 ### Promover usuário para administrador global
 
@@ -153,6 +187,12 @@ Para validar o painel global:
 3. Abra a aba Global no app.
 4. Confira os contadores de igrejas, usuários, ministérios e escalas.
 5. Se os valores estiverem zerados, verifique a resposta de `GET /api/admin/tenants` e confirme se o token enviado é do usuário promovido.
+
+### Mobile Admin
+
+- A aba Global é visível apenas para `GLOBAL_ADMIN`.
+- A aba Igreja/Dados da Igreja é visível apenas para `TENANT_ADMIN`.
+- `EXPO_PUBLIC_API_URL` pode apontar para a raiz do backend ou para `/api`; o app normaliza a URL para evitar chamadas duplicadas como `/api/api`.
 
 ## Schedule API
 

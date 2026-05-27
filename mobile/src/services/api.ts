@@ -26,19 +26,24 @@ let isRefreshing = false;
 
 function getBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
-  if (envUrl) return envUrl;
+  if (envUrl) return normalizeApiBaseUrl(envUrl);
 
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const host = hostUri.split(":")[0];
-    return `http://${host}:3000/api`;
+    return normalizeApiBaseUrl(`http://${host}:3000/api`);
   }
 
   if (Platform.OS === "android") {
-    return "http://10.0.2.2:3000/api";
+    return normalizeApiBaseUrl("http://10.0.2.2:3000/api");
   }
 
-  return "http://localhost:3000/api";
+  return normalizeApiBaseUrl("http://localhost:3000/api");
+}
+
+function normalizeApiBaseUrl(url: string): string {
+  const trimmed = url.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 }
 
 export const api = axios.create({

@@ -16,6 +16,10 @@ export function canAccessGlobalAdminArea(role?: Role | string): boolean {
   return role === "GLOBAL_ADMIN";
 }
 
+export function canAccessChurchAdmin(role?: Role | string): boolean {
+  return role === "TENANT_ADMIN";
+}
+
 export function canManageChurch(role?: Role | string): boolean {
   return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN";
 }

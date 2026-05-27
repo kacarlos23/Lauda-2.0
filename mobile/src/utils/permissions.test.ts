@@ -1,5 +1,6 @@
 import {
   canAccessGlobalAdminArea,
+  canAccessChurchAdmin,
   canManageChurch,
   canManageMembers,
   canViewMembers,
@@ -34,6 +35,10 @@ describe("member permissions", () => {
     expect(canAccessGlobalAdminArea("TENANT_ADMIN")).toBe(false);
     expect(canAccessGlobalAdminArea("MINISTRY_LEADER")).toBe(false);
     expect(canAccessGlobalAdminArea("MEMBER")).toBe(false);
+    expect(canAccessChurchAdmin("TENANT_ADMIN")).toBe(true);
+    expect(canAccessChurchAdmin("GLOBAL_ADMIN")).toBe(false);
+    expect(canAccessChurchAdmin("MINISTRY_LEADER")).toBe(false);
+    expect(canAccessChurchAdmin("MEMBER")).toBe(false);
   });
 
   it("formata labels das roles", () => {

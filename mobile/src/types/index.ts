@@ -5,6 +5,8 @@ export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 export interface Tenant {
   id: string;
   name: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Instrument {
@@ -138,4 +140,22 @@ export interface GlobalMinistry {
     members: number;
     schedules: number;
   };
+}
+
+export interface ChurchSummary {
+  tenant: Tenant;
+  _count: {
+    users: number;
+    ministries: number;
+    schedules: number;
+    instruments: number;
+  };
+}
+
+export interface ChurchOverview {
+  tenant: Tenant;
+  members: Member[];
+  ministries: Ministry[];
+  instruments: Instrument[];
+  schedules: Schedule[];
 }

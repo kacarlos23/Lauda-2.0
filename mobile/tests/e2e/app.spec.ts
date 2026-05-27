@@ -86,6 +86,12 @@ async function mockApi(
       _count: { users: number; ministries: number; schedules: number; instruments: number };
     }>;
     adminTenantsError?: boolean;
+    churchSummary?: {
+      tenant: { id: string; name: string; createdAt?: string; updatedAt?: string };
+      _count: { users: number; ministries: number; schedules: number; instruments: number };
+    };
+    churchError?: boolean;
+    onChurchPatch?: (payload: { name?: string }) => void;
   } = {}
 ) {
   const currentUser = options.user ?? adminUser;
@@ -245,6 +251,45 @@ async function mockApi(
     });
   });
 
+  await page.route("**/api/church/me", async (route) => {
+    if (options.churchError) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Não foi possível carregar os dados da igreja." }),
+      });
+      return;
+    }
+
+    const currentSummary =
+      options.churchSummary ?? {
+        tenant: { ...tenant, createdAt: "2026-05-27T00:00:00.000Z", updatedAt: "2026-05-27T00:00:00.000Z" },
+        _count: { users: 2, ministries: 1, schedules: 1, instruments: 13 },
+      };
+
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as { name?: string };
+      options.onChurchPatch?.(body);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            ...currentSummary,
+            tenant: { ...currentSummary.tenant, name: body.name ?? currentSummary.tenant.name },
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: currentSummary }),
+    });
+  });
+
   await page.route("**/api/schedules/*/assignments/*/status", async (route) => {
     const body = route.request().postDataJSON() as { status?: string };
     await route.fulfill({
@@ -333,7 +378,7 @@ test("admin global vê perfil, home e aba global com lista de igrejas", async ({
 
   await page.getByRole("tab", { name: "Global" }).click();
   await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Central")).toBeVisible();
+  await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
   await expect(page.getByText("Igreja Norte")).toBeVisible();
   await expect(page.getByText("tenant-1")).not.toBeVisible();
 });
@@ -363,6 +408,77 @@ test("roles não globais não veem aba Admin Global", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
   await page.getByText("Perfil").last().click();
   await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
+});
+
+test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page }) => {
+  let patchPayload: { name?: string } | undefined;
+  await page.unroute("**/api/church/me").catch(() => undefined);
+  await mockApi(page, {
+    churchSummary: {
+      tenant: { id: "tenant-1", name: "Igreja Central", createdAt: "2026-05-27T00:00:00.000Z" },
+      _count: { users: 5, ministries: 2, schedules: 3, instruments: 9 },
+    },
+    onChurchPatch: (payload) => {
+      patchPayload = payload;
+    },
+  });
+  await page.goto("/");
+
+  await login(page);
+  await expect(page.getByRole("tab", { name: "Igreja" })).toBeVisible();
+  await page.getByRole("tab", { name: "Igreja" }).click();
+
+  await expect(page.getByRole("heading", { name: "Dados da Igreja" })).toBeVisible();
+  await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
+  await expect(page.getByText("5", { exact: true })).toBeVisible();
+  await expect(page.getByText("2", { exact: true })).toBeVisible();
+  await expect(page.getByText("3", { exact: true })).toBeVisible();
+  await expect(page.getByText("9", { exact: true })).toBeVisible();
+  await expect(page.getByText("Gerenciar").first()).toBeVisible();
+
+  await page.getByText("Editar").click();
+  await page.getByLabel("Nome da igreja").fill("Igreja Renovada");
+  await page.getByText("Salvar").click();
+
+  await expect.poll(() => patchPayload?.name).toBe("Igreja Renovada");
+  await expect(page.getByText("Igreja Renovada")).toBeVisible();
+});
+
+test("somente TENANT_ADMIN vê aba Igreja", async ({ page }) => {
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: memberUser });
+  await page.goto("/");
+  await login(page, "bruno@example.com");
+  await expect(page.getByRole("tab", { name: "Igreja" })).not.toBeVisible();
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: leaderUser });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto("/");
+  await login(page, "lia@example.com");
+  await expect(page.getByRole("tab", { name: "Igreja" })).not.toBeVisible();
+
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: globalAdminUser });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto("/");
+  await login(page, "global@example.com");
+  await expect(page.getByRole("tab", { name: "Igreja" })).not.toBeVisible();
+});
+
+test("Dados da Igreja exibe erro de API e não mostra outro tenant", async ({ page }) => {
+  await page.unroute("**/api/church/me").catch(() => undefined);
+  await mockApi(page, { churchError: true });
+  await page.goto("/");
+
+  await login(page);
+  await page.getByRole("tab", { name: "Igreja" }).click();
+
+  await expect(page.getByText("Não foi possível carregar os dados da igreja.")).toBeVisible();
+  await expect(page.getByText("Igreja Norte")).not.toBeVisible();
 });
 
 test("admin global vê contadores reais no painel global", async ({ page }) => {

@@ -3,7 +3,7 @@ import type { ComponentType } from "react";
 import { CalendarClock, Church, Globe2, Home, User, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors } from "../../src/theme";
-import { canAccessGlobalAdminArea, canViewMembers } from "../../src/utils/permissions";
+import { canAccessChurchAdmin, canAccessGlobalAdminArea, canViewMembers } from "../../src/utils/permissions";
 
 type TabIconProps = {
   color?: string;
@@ -120,6 +120,15 @@ export default function TabsLayout() {
           tabBarLabel: "Global",
           tabBarIcon: ({ color }) => tabIcon(Globe2, color),
           href: canAccessGlobalAdminArea(user?.role) ? ("/global-admin" as never) : null,
+        }}
+      />
+      <Tabs.Screen
+        name="church/index"
+        options={{
+          title: "Dados da Igreja",
+          tabBarLabel: "Igreja",
+          tabBarIcon: ({ color }) => tabIcon(Church, color),
+          href: canAccessChurchAdmin(user?.role) ? ("/church" as never) : null,
         }}
       />
       <Tabs.Screen

@@ -102,6 +102,16 @@ async function createSchedule(tenantId: string, ministryId: string, title: strin
   });
 }
 
+async function createInstrument(token: string, name: string) {
+  const response = await request(app)
+    .post("/api/instruments")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ name, colorHex: "#123456" })
+    .expect(201);
+
+  return response.body.data as { id: string; name: string };
+}
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
@@ -153,6 +163,8 @@ describe("Admin global API", () => {
     await createMember(tenantB.accessToken, "member-admin-global-b", "MEMBER");
     const ministryA = await createMinistry(tenantA.accessToken, "Louvor Global A");
     const ministryB = await createMinistry(tenantB.accessToken, "Louvor Global B");
+    await createInstrument(globalAdmin.accessToken, "Violino Global A");
+    await createInstrument(tenantB.accessToken, "Violino Global B");
     await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Global A");
     await createSchedule(tenantB.tenant.id, ministryB.id, "Culto Global B");
 
@@ -177,13 +189,13 @@ describe("Admin global API", () => {
       users: 3,
       ministries: 1,
       schedules: 1,
-      instruments: 13,
+      instruments: 14,
     });
     expect(tenantsById.get(tenantB.tenant.id)?._count).toMatchObject({
       users: 2,
       ministries: 1,
       schedules: 1,
-      instruments: 13,
+      instruments: 14,
     });
 
     await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${tenantB.accessToken}`).expect(403);
@@ -264,5 +276,95 @@ describe("Admin global API", () => {
       .set("Authorization", `Bearer ${memberA.accessToken}`)
       .expect(200);
     expect(memberResponse.body.data.tenantId).toBe(tenantA.tenant.id);
+  });
+});
+
+describe("Administração da igreja", () => {
+  it("permite TENANT_ADMIN ver e atualizar apenas a própria igreja", async () => {
+    const tenantA = await registerTenant("church-a");
+    const tenantB = await registerTenant("church-b");
+    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Igreja A");
+    const ministryB = await createMinistry(tenantB.accessToken, "Louvor Igreja B");
+    await createMember(tenantA.accessToken, "member-church-a");
+    await createMember(tenantB.accessToken, "member-church-b");
+    await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Igreja A");
+    await createSchedule(tenantB.tenant.id, ministryB.id, "Culto Igreja B");
+
+    const summaryResponse = await request(app)
+      .get("/api/church/me")
+      .set("Authorization", `Bearer ${tenantA.accessToken}`)
+      .expect(200);
+
+    expect(summaryResponse.body.data.tenant.id).toBe(tenantA.tenant.id);
+    expect(summaryResponse.body.data.tenant.name).toBe(tenantA.tenant.name);
+    expect(summaryResponse.body.data._count).toMatchObject({
+      users: 2,
+      ministries: 1,
+      schedules: 1,
+      instruments: 13,
+    });
+    expect(JSON.stringify(summaryResponse.body.data)).not.toContain("password");
+    expect(JSON.stringify(summaryResponse.body.data)).not.toContain("passwordHash");
+
+    const updateResponse = await request(app)
+      .patch("/api/church/me")
+      .set("Authorization", `Bearer ${tenantA.accessToken}`)
+      .send({ name: "Igreja Atualizada A" })
+      .expect(200);
+
+    expect(updateResponse.body.data.tenant.id).toBe(tenantA.tenant.id);
+    expect(updateResponse.body.data.tenant.name).toBe("Igreja Atualizada A");
+
+    const unchangedTenantB = await prisma.tenant.findUnique({ where: { id: tenantB.tenant.id } });
+    expect(unchangedTenantB?.name).toBe(tenantB.tenant.name);
+  });
+
+  it("bloqueia roles sem permissão e anônimos", async () => {
+    const tenant = await registerTenant("church-roles");
+    const member = await createMember(tenant.accessToken, "member-church-roles", "MEMBER");
+    const leader = await createMember(tenant.accessToken, "leader-church-roles", "MINISTRY_LEADER");
+
+    await request(app).get("/api/church/me").set("Authorization", `Bearer ${leader.accessToken}`).expect(403);
+    await request(app).get("/api/church/me").set("Authorization", `Bearer ${member.accessToken}`).expect(403);
+    await request(app).get("/api/church/me").expect(401);
+  });
+
+  it("overview retorna apenas dados do tenant autenticado e não expõe senha", async () => {
+    const tenantA = await registerTenant("church-overview-a");
+    const tenantB = await registerTenant("church-overview-b");
+    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Overview A");
+    const ministryB = await createMinistry(tenantB.accessToken, "Louvor Overview B");
+    const memberA = await createMember(tenantA.accessToken, "member-overview-a");
+    await createMember(tenantB.accessToken, "member-overview-b");
+    await createInstrument(tenantA.accessToken, "Violino Overview A");
+    await createInstrument(tenantB.accessToken, "Violino Overview B");
+    const scheduleA = await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Overview A");
+    await createSchedule(tenantB.tenant.id, ministryB.id, "Culto Overview B");
+
+    const response = await request(app)
+      .get("/api/church/overview")
+      .set("Authorization", `Bearer ${tenantA.accessToken}`)
+      .expect(200);
+
+    expect(response.body.data.tenant.id).toBe(tenantA.tenant.id);
+    expect(response.body.data.members.some((member: { id: string }) => member.id === memberA.user.id)).toBe(true);
+    expect(response.body.data.members.every((member: { tenantId: string }) => member.tenantId === tenantA.tenant.id)).toBe(true);
+    expect(response.body.data.ministries.map((ministry: { id: string }) => ministry.id)).toContain(ministryA.id);
+    expect(response.body.data.ministries.map((ministry: { id: string }) => ministry.id)).not.toContain(ministryB.id);
+    expect(response.body.data.schedules.map((schedule: { id: string }) => schedule.id)).toContain(scheduleA.id);
+    expect(response.body.data.schedules.every((schedule: { tenantId: string }) => schedule.tenantId === tenantA.tenant.id)).toBe(true);
+    expect(response.body.data.instruments.every((instrument: { name: string }) => !instrument.name.includes("Overview B"))).toBe(true);
+    expect(JSON.stringify(response.body.data)).not.toContain("password");
+    expect(JSON.stringify(response.body.data)).not.toContain("passwordHash");
+  });
+
+  it("valida nome vazio no PATCH /api/church/me", async () => {
+    const tenant = await registerTenant("church-validation");
+
+    await request(app)
+      .patch("/api/church/me")
+      .set("Authorization", `Bearer ${tenant.accessToken}`)
+      .send({ name: "" })
+      .expect(400);
   });
 });

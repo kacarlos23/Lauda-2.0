@@ -20,6 +20,7 @@ function countLabel(value: number, singular: string, plural: string): string {
 export default function GlobalAdminScreen() {
   const { user } = useAuthStore();
   const { tenants, loading, error, loadTenants } = useAdminStore();
+  const hasData = tenants.length > 0;
   const totals = tenants.reduce(
     (acc, tenant) => ({
       users: acc.users + tenant._count.users,
@@ -56,35 +57,39 @@ export default function GlobalAdminScreen() {
           <Text style={styles.subtitle}>Acesso global ao sistema</Text>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.metric}>
-            <Building2 color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{tenants.length}</Text>
-            <Text style={styles.metricLabel}>Igrejas</Text>
-          </View>
-          <View style={styles.metric}>
-            <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{totals.users}</Text>
-            <Text style={styles.metricLabel}>Usuários</Text>
-          </View>
-          <View style={styles.metric}>
-            <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{totals.schedules}</Text>
-            <Text style={styles.metricLabel}>Escalas</Text>
-          </View>
-        </View>
-        <View style={styles.summaryRow}>
-          <View style={styles.metric}>
-            <Workflow color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{totals.ministries}</Text>
-            <Text style={styles.metricLabel}>Ministérios</Text>
-          </View>
-          <View style={styles.metric}>
-            <Guitar color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{totals.instruments}</Text>
-            <Text style={styles.metricLabel}>Instrumentos</Text>
-          </View>
-        </View>
+        {!error || hasData ? (
+          <>
+            <View style={styles.summaryRow}>
+              <View style={styles.metric}>
+                <Building2 color={colors.primaryDark} size={22} strokeWidth={2.4} />
+                <Text style={styles.metricValue}>{tenants.length}</Text>
+                <Text style={styles.metricLabel}>Igrejas</Text>
+              </View>
+              <View style={styles.metric}>
+                <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
+                <Text style={styles.metricValue}>{totals.users}</Text>
+                <Text style={styles.metricLabel}>Usuários</Text>
+              </View>
+              <View style={styles.metric}>
+                <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
+                <Text style={styles.metricValue}>{totals.schedules}</Text>
+                <Text style={styles.metricLabel}>Escalas</Text>
+              </View>
+            </View>
+            <View style={styles.summaryRow}>
+              <View style={styles.metric}>
+                <Workflow color={colors.primaryDark} size={22} strokeWidth={2.4} />
+                <Text style={styles.metricValue}>{totals.ministries}</Text>
+                <Text style={styles.metricLabel}>Ministérios</Text>
+              </View>
+              <View style={styles.metric}>
+                <Guitar color={colors.primaryDark} size={22} strokeWidth={2.4} />
+                <Text style={styles.metricValue}>{totals.instruments}</Text>
+                <Text style={styles.metricLabel}>Instrumentos</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
 
         {loading ? (
           <View style={styles.stateBox}>
@@ -93,7 +98,10 @@ export default function GlobalAdminScreen() {
           </View>
         ) : error ? (
           <View style={styles.stateBox}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>Não foi possível carregar o painel global.</Text>
+            {error !== "Não foi possível carregar o painel global." ? (
+              <Text style={styles.stateText}>{error}</Text>
+            ) : null}
             <TouchableOpacity style={styles.retryButton} onPress={loadTenants} accessibilityRole="button">
               <RefreshCcw color={colors.primary} size={16} strokeWidth={2.5} />
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
