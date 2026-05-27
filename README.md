@@ -132,6 +132,14 @@ Resposta de exemplo de `GET /api/admin/tenants`:
 
 Para validar se os contadores são reais, faça login novamente após promover o usuário global e chame `GET /api/admin/tenants` com o token novo. Se a API retornar dados e o app mostrar zero, investigue a base URL mobile, o token persistido e a interpretação de `{ success, data }`. Token antigo pode causar `403` ou estado aparente de zero; a tela mobile agora mostra erro quando a API falha em vez de tratar falha como lista vazia.
 
+Diagnóstico local registrado em 2026-05-27:
+
+- Banco usado pelo backend atual: `postgresql://postgres:postgres@localhost:5434/lauda2?schema=public`.
+- O banco local contém 8 igrejas e 15 usuários; o usuário global está com `role = "GLOBAL_ADMIN"`.
+- `GET http://localhost:3000/api/admin/tenants` retornou `404` porque o processo nessa porta era uma instância antiga do backend, iniciada antes das rotas administrativas atuais.
+- Subindo o backend atual em `PORT=3001`, `GET /api/admin/tenants` retornou `{ "success": true, "data": [...] }` com igrejas e contagens reais, incluindo usuários maiores que zero.
+- Causa raiz local dos contadores zerados/indisponíveis: app/backend apontando para uma instância antiga na porta 3000. Reinicie o backend usado pelo app ou ajuste `EXPO_PUBLIC_API_URL` para a instância atual.
+
 Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrão para preservar o isolamento multi-tenant.
 
 ### Dados da Igreja API
