@@ -46,6 +46,8 @@ export class AuthService {
     id: string;
     name: string;
     email: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
     role: string;
     tenantId: string;
     tenant?: { id: string; name: string };
@@ -67,6 +69,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone ?? null,
+        avatarUrl: user.avatarUrl ?? null,
         role: user.role,
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],

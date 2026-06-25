@@ -35,3 +35,10 @@ export class NotFoundError extends AppError {
     Object.setPrototypeOf(this, NotFoundError.prototype);
   }
 }
+
+export class ConflictError extends AppError {
+  constructor(message = "Recurso já existente") {
+    super(message, 409);
+    Object.setPrototypeOf(this, ConflictError.prototype);
+  }
+}

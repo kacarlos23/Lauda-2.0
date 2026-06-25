@@ -17,6 +17,17 @@ export const updateMemberInstrumentsSchema = z.object({
   instrumentIds: z.array(z.string().uuid("ID do instrumento inválido")),
 });
 
+const avatarUrlSchema = z.string().max(3_000_000, "A imagem deve ter no máximo 2 MB").refine(
+  (value) => /^https?:\/\//i.test(value) || /^data:image\/(?:jpeg|png|webp);base64,/i.test(value),
+  "Imagem de perfil inválida"
+);
+
+export const updateMyProfileSchema = z.object({
+  name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max(100).optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+  avatarUrl: avatarUrlSchema.nullable().optional(),
+}).refine((input) => Object.keys(input).length > 0, "Informe ao menos um dado para atualizar");
+
 export const toggleMinistryMemberSchema = z.object({
   member_id: z.string().uuid("ID do membro inválido").optional(),
   memberId: z.string().uuid("ID do membro inválido").optional(),
@@ -66,6 +77,7 @@ export const listMinistryMembersSchema = z.object({
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 export type AddMemberMinistryInput = z.infer<typeof addMemberMinistrySchema>;
 export type UpdateMemberInstrumentsInput = z.infer<typeof updateMemberInstrumentsSchema>;
+export type UpdateMyProfileInput = z.infer<typeof updateMyProfileSchema>;
 export type ToggleMinistryMemberInput = z.infer<typeof toggleMinistryMemberSchema>;
 export type AssignMemberToMinistryInput = z.infer<typeof assignMemberToMinistrySchema>;
 export type UpdateMemberAssignmentInput = z.infer<typeof updateMemberAssignmentSchema>;

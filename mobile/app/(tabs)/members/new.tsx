@@ -12,12 +12,14 @@ import {
   View,
 } from "react-native";
 import { Redirect, useRouter } from "expo-router";
-import { ArrowLeft, Check, Save, UserPlus } from "lucide-react-native";
+import { Check, Save, UserPlus } from "lucide-react-native";
 import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Ministry, Role } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { AppBackButton } from "../../../src/components/AppBackButton";
+import { goBackTo } from "../../../src/utils/navigation";
 
 type ManagedRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER">;
 
@@ -105,7 +107,7 @@ export default function NewMemberScreen() {
       setSuccess("Membro cadastrado com sucesso.");
       Alert.alert("Sucesso", "Membro cadastrado com sucesso.", [
         { text: "Cadastrar outro" },
-        { text: "Ver membros", onPress: () => router.replace("/members" as never) },
+        { text: "Ver membros", onPress: () => goBackTo(router, "/members") },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao cadastrar membro.");
@@ -121,10 +123,7 @@ export default function NewMemberScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-            <ArrowLeft color={colors.primary} size={18} strokeWidth={2.4} />
-            <Text style={styles.backText}>Voltar</Text>
-          </TouchableOpacity>
+          <View style={styles.back}><AppBackButton href="/members" /></View>
 
           <View style={styles.brandMark}>
             <UserPlus color={colors.surface} size={26} strokeWidth={2.6} />

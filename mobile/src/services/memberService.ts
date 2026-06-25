@@ -15,6 +15,12 @@ export type LinkMemberMinistryPayload = {
   isLeader?: boolean;
 };
 
+export type UpdateMyProfilePayload = {
+  name?: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+};
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -66,6 +72,15 @@ export const memberService = {
   async getCurrentMember(): Promise<Member> {
     try {
       const response = await api.get<ApiResponse<Member>>("/members/me");
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updateMyProfile(payload: UpdateMyProfilePayload): Promise<Member> {
+    try {
+      const response = await api.patch<ApiResponse<Member>>("/members/me/profile", payload);
       return response.data.data;
     } catch (error) {
       handleApiError(error);

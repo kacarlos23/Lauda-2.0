@@ -16,6 +16,7 @@ import { ArrowLeft, Link as LinkIcon, UserPlus } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { goBackTo } from "../../src/utils/navigation";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -101,7 +102,7 @@ export default function PublicMemberRegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back} testID="member-register-back">
+          <TouchableOpacity onPress={() => goBackTo(router, "/(auth)/login")} style={styles.back} testID="member-register-back">
             <ArrowLeft color={colors.primary} size={18} strokeWidth={2.4} />
             <Text style={styles.backText}>Voltar</Text>
           </TouchableOpacity>

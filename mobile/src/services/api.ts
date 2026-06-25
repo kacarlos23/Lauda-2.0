@@ -41,7 +41,7 @@ function getBaseUrl(): string {
   return normalizeApiBaseUrl("http://localhost:3000/api");
 }
 
-function normalizeApiBaseUrl(url: string): string {
+export function normalizeApiBaseUrl(url: string): string {
   const trimmed = url.replace(/\/+$/, "");
   return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 }

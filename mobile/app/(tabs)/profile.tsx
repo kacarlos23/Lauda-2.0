@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -11,9 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, Globe2, LogOut, Plus, Settings2, Shield, User, X } from "lucide-react-native";
+import { Camera, Check, Globe2, LogOut, Plus, Save, Settings2, Shield, Trash2, User, X } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
@@ -61,6 +63,11 @@ export default function ProfileScreen() {
   const [instrumentForm, setInstrumentForm] = useState(emptyInstrumentForm);
   const [instrumentFormError, setInstrumentFormError] = useState<string | null>(null);
   const [creatingInstrument, setCreatingInstrument] = useState(false);
+  const [name, setName] = useState(user?.name ?? "");
+  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const canManageInstruments = canManageInstrumentCatalog(user?.role);
   const hasGlobalAccess = isGlobalAdmin(user);
 
@@ -71,6 +78,12 @@ export default function ProfileScreen() {
     setSelectedInstruments(instruments);
     setSelectedIds(getInstrumentIds(instruments));
   }, [user?.id, user?.instruments]);
+
+  useEffect(() => {
+    setName(user?.name ?? "");
+    setPhone(user?.phone ?? "");
+    setAvatarUrl(user?.avatarUrl ?? null);
+  }, [user?.id, user?.name, user?.phone, user?.avatarUrl]);
 
   const loadInstruments = async () => {
     try {
@@ -92,6 +105,8 @@ export default function ProfileScreen() {
         role: currentMember.role,
         tenantId: currentMember.tenantId,
         instruments: currentInstruments,
+        phone: currentMember.phone,
+        avatarUrl: currentMember.avatarUrl,
       });
     } catch (error) {
       setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
@@ -157,6 +172,51 @@ export default function ProfileScreen() {
     }
   };
 
+  const pickAvatar = async () => {
+    setProfileError(null);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setProfileError("Permita o acesso às fotos para selecionar uma imagem.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.45,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      setProfileError("Não foi possível processar a imagem selecionada.");
+      return;
+    }
+    const nextAvatar = `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`;
+    if (nextAvatar.length > 3_000_000) {
+      setProfileError("A imagem é muito grande. Escolha uma foto menor.");
+      return;
+    }
+    setAvatarUrl(nextAvatar);
+  };
+
+  const saveProfile = async () => {
+    if (name.trim().length < 2) {
+      setProfileError("Informe um nome com ao menos 2 caracteres.");
+      return;
+    }
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      const updated = await memberService.updateMyProfile({ name: name.trim(), phone: phone.trim() || null, avatarUrl });
+      await updateCurrentUser({ name: updated.name, phone: updated.phone, avatarUrl: updated.avatarUrl });
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Não foi possível atualizar o perfil.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const resetInstrumentForm = () => {
     setInstrumentForm(emptyInstrumentForm);
     setInstrumentFormError(null);
@@ -196,9 +256,10 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <User color={colors.surface} size={38} strokeWidth={2.4} />
-          </View>
+          <TouchableOpacity style={styles.avatarButton} onPress={() => void pickAvatar()} accessibilityLabel="Alterar foto de perfil" testID="profile-avatar-picker">
+            {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={38} strokeWidth={2.4} /></View>}
+            <View style={styles.cameraBadge}><Camera color={colors.surface} size={16} strokeWidth={2.6} /></View>
+          </TouchableOpacity>
 
           <Text style={styles.name}>{user?.name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
@@ -209,19 +270,20 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Conta</Text>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Nome</Text>
-            <Text style={styles.rowValue}>{user?.name}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>E-mail</Text>
-            <Text style={styles.rowValue}>{user?.email}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Permissão</Text>
-            <Text style={styles.rowValue}>{formatRoleLabel(user?.role)}</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Editar dados</Text>
+          <Text style={styles.rowLabel}>Nome</Text>
+          <TextInput style={styles.profileInput} value={name} onChangeText={setName} autoCapitalize="words" testID="profile-name-input" />
+          <Text style={styles.rowLabel}>Telefone</Text>
+          <TextInput style={styles.profileInput} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Opcional" placeholderTextColor={colors.muted} testID="profile-phone-input" />
+          <Text style={styles.rowLabel}>E-mail</Text>
+          <View style={styles.readonlyInput}><Text style={styles.rowValue}>{user?.email}</Text></View>
+          {avatarUrl ? <TouchableOpacity style={styles.removePhotoButton} onPress={() => setAvatarUrl(null)}><Trash2 color={colors.danger} size={16} /><Text style={styles.removePhotoText}>Remover foto</Text></TouchableOpacity> : null}
+          {profileError ? <Text style={styles.errorText}>{profileError}</Text> : null}
+          <TouchableOpacity style={[styles.saveProfileButton, profileSaving && styles.buttonDisabled]} onPress={() => void saveProfile()} disabled={profileSaving} testID="profile-save-button">
+            {profileSaving ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={17} />}
+            <Text style={styles.saveProfileText}>{profileSaving ? "Salvando..." : "Salvar dados"}</Text>
+          </TouchableOpacity>
+          <View style={styles.permissionRow}><Text style={styles.rowLabel}>Permissão</Text><Text style={styles.rowValue}>{formatRoleLabel(user?.role)}</Text></View>
         </View>
 
         {hasGlobalAccess ? (
@@ -404,7 +466,7 @@ export default function ProfileScreen() {
         {canManageInstruments ? (
           <TouchableOpacity
             style={styles.adminButton}
-            onPress={() => router.push("/instruments" as never)}
+            onPress={() => router.push("/instruments?returnTo=/profile" as never)}
             accessibilityRole="button"
             accessibilityLabel="Gerenciar instrumentos e cargos"
             testID="manage-instruments-button"
@@ -449,8 +511,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.lg,
   },
+  avatarButton: { width: 96, height: 96, marginBottom: spacing.lg, alignItems: "center", justifyContent: "center" },
+  avatarImage: { width: 92, height: 92, borderRadius: 46, backgroundColor: colors.surfaceMuted },
+  cameraBadge: { position: "absolute", right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 24, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs, textAlign: "center" },
   email: { fontSize: 14, color: colors.muted, marginBottom: spacing.lg, textAlign: "center" },
   badge: {
@@ -487,6 +551,13 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  profileInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
+  readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
+  removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
+  removePhotoText: { color: colors.danger, fontSize: 13, fontWeight: "800" },
+  saveProfileButton: { minHeight: 46, borderRadius: radii.sm, backgroundColor: colors.primary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
+  saveProfileText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  permissionRow: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.lg, paddingTop: spacing.md },
   globalAccessCard: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,

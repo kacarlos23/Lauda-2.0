@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Check } from "lucide-react-native";
+import { Check } from "lucide-react-native";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { MemberStatus, Ministry } from "../../../src/types";
 import { colors, radii, spacing } from "../../../src/theme";
+import { AppBackButton } from "../../../src/components/AppBackButton";
+import { goBackTo } from "../../../src/utils/navigation";
 
 const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
 
@@ -69,7 +71,7 @@ export default function AssignMemberScreen() {
         isLeader,
       });
       Alert.alert("Membro atribuído", "A atribuição foi criada com sucesso.", [
-        { text: "OK", onPress: () => router.back() },
+        { text: "OK", onPress: () => goBackTo(router, ministryId ? `/ministries/${ministryId}/members` : "/ministries") },
       ]);
     } catch (error) {
       Alert.alert("Erro", error instanceof Error ? error.message : "Não foi possível atribuir o membro.");
@@ -90,9 +92,7 @@ export default function AssignMemberScreen() {
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-            <ArrowLeft color={colors.ink} size={24} />
-          </TouchableOpacity>
+          <AppBackButton href={ministryId ? `/ministries/${ministryId}/members` : "/ministries"} compact />
           <Text style={styles.title}>Atribuir membro</Text>
         </View>
 

@@ -47,6 +47,10 @@ yarn-debug.*
 yarn-error.*
 pnpm-debug.*
 
+# Local SQL exports / database dumps
+*.sql
+!prisma/migrations/**/migration.sql
+
 # TypeScript
 *.tsbuildinfo
 

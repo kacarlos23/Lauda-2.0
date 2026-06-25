@@ -32,12 +32,13 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  ministries Ministry[]
-  schedules  Schedule[]
-  songs      Song[]
+  users         User[]
+  ministries    Ministry[]
+  schedules     Schedule[]
+  songs         Song[]
+  artists       Artist[]
   memberInvites MemberInvite[]
-  instruments Instrument[]
+  instruments   Instrument[]
 
   ministryMembers     MinistryMember[]
   scheduleAssignments ScheduleAssignment[]
@@ -66,21 +67,24 @@ model MemberInvite {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  email    String  @unique
-  password String
-  name     String
-  phone    String?
-  role     Role    @default(MEMBER)
+  id        String  @id @default(uuid())
+  email     String  @unique
+  password  String
+  name      String
+  phone     String?
+  avatarUrl String? @db.Text
+  role      Role    @default(MEMBER)
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  ministries MinistryMember[]
-  schedules  ScheduleAssignment[]
-  instruments UserInstrument[]
+  ministries   MinistryMember[]
+  schedules    ScheduleAssignment[]
+  instruments  UserInstrument[]
+  createdSongs Song[]               @relation("SongCreatedBy")
+  updatedSongs Song[]               @relation("SongUpdatedBy")
 
-  resetPasswordToken   String? @unique
+  resetPasswordToken   String?   @unique
   resetPasswordExpires DateTime?
 
   createdAt DateTime @default(now())
@@ -133,10 +137,10 @@ model Ministry {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  members   MinistryMember[]
+  members       MinistryMember[]
   memberInvites MemberInvite[]
-  schedules Schedule[]
-  songs     MinistrySong[]
+  schedules     Schedule[]
+  songs         MinistrySong[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -162,8 +166,8 @@ model MinistryMember {
   status    MemberStatus @default(PENDING)
   joinedAt  DateTime     @default(now())
   notes     String?
-  isLeader  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isLeader  Boolean      @default(false)
+  createdAt DateTime     @default(now())
 
   @@unique([userId, ministryId])
   @@index([ministryId])
@@ -212,10 +216,22 @@ model ScheduleAssignment {
 }
 
 model Song {
-  id     String  @id @default(uuid())
-  title  String
-  artist String?
-  bpm    Int?
+  id              String  @id @default(uuid())
+  title           String
+  normalizedTitle String
+  composer        String?
+  originalKey     String
+  content         String  @db.Text
+  bpm             Int?
+
+  artistId String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User?   @relation("SongCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  updatedById String?
+  updatedBy   User?   @relation("SongUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -225,7 +241,27 @@ model Song {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([tenantId])
+  @@unique([tenantId, artistId, normalizedTitle])
+  @@index([tenantId, normalizedTitle])
+  @@index([tenantId, artistId])
+}
+
+model Artist {
+  id             String  @id @default(uuid())
+  name           String
+  normalizedName String
+  imageUrl       String?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  songs Song[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, normalizedName])
+  @@index([tenantId, name])
 }
 
 model MinistrySong {

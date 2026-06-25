@@ -40,7 +40,7 @@ export default function ChurchAdminScreen() {
       { label: "Membros", description: "Gerencie pessoas e permissões", href: "/members" },
       { label: "Ministérios", description: "Organize equipes e responsáveis", href: "/ministries" },
       { label: "Escalas", description: "Acompanhe agenda e participantes", href: "/schedules" },
-      { label: "Instrumentos/Cargos", description: "Configure funções do tenant", href: "/instruments" },
+      { label: "Instrumentos/Cargos", description: "Configure funções do tenant", href: "/instruments?returnTo=/church" },
     ],
     []
   );

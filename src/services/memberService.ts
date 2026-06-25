@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { CreateMemberInput, UpdateMemberInstrumentsInput } from "../validators/member.schema";
+import { CreateMemberInput, UpdateMemberInstrumentsInput, UpdateMyProfileInput } from "../validators/member.schema";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 
 type RequestUser = {
@@ -31,6 +31,15 @@ export class MemberService {
     }
     const password = await bcrypt.hash(input.password, 10);
     return this.memberRepository.create({ ...input, password });
+  }
+
+  async updateMyProfile(userId: string, input: UpdateMyProfileInput) {
+    const member = await this.memberRepository.updateProfile(userId, {
+      ...input,
+      phone: input.phone === "" ? null : input.phone,
+    });
+    if (!member) throw new NotFoundError("Membro não encontrado");
+    return member;
   }
 
   async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {

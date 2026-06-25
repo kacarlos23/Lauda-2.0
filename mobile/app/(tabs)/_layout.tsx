@@ -1,9 +1,10 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { CalendarClock, Church, Globe2, Home, User, UserCheck, Users } from "lucide-react-native";
+import { CalendarClock, Church, Home, Music2, UserCheck, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { colors } from "../../src/theme";
-import { canAccessChurchAdmin, canAccessGlobalAdminArea, canViewMembers } from "../../src/utils/permissions";
+import { canAccessChurchAdmin, canViewMembers } from "../../src/utils/permissions";
 
 type TabIconProps = {
   color?: string;
@@ -34,11 +35,12 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700" },
         headerStyle: { backgroundColor: colors.background },
         headerShadowVisible: false,
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: "800" },
+        headerTitle: () => null,
+        headerRight: () => <ProfileHeaderButton />,
       }}
     >
       <Tabs.Screen
@@ -72,6 +74,7 @@ export default function TabsLayout() {
         options={{
           title: "Ministério",
           href: null,
+          headerLeft: () => null,
         }}
       />
       <Tabs.Screen
@@ -79,6 +82,7 @@ export default function TabsLayout() {
         options={{
           title: "Membros do ministério",
           href: null,
+          headerLeft: () => null,
         }}
       />
       <Tabs.Screen
@@ -86,6 +90,7 @@ export default function TabsLayout() {
         options={{
           title: "Atribuir membro",
           href: null,
+          headerLeft: () => null,
         }}
       />
       <Tabs.Screen
@@ -97,6 +102,19 @@ export default function TabsLayout() {
           href: "/ministries/my-assignments",
         }}
       />
+      <Tabs.Screen
+        name="songs/index"
+        options={{
+          title: "Músicas",
+          tabBarLabel: "Músicas",
+          tabBarIcon: ({ color }) => tabIcon(Music2, color),
+          href: "/songs" as never,
+        }}
+      />
+      <Tabs.Screen name="songs/new" options={{ title: "Nova música", href: null, headerLeft: () => null }} />
+      <Tabs.Screen name="songs/[id]" options={{ title: "Cifra", href: null, headerLeft: () => null }} />
+      <Tabs.Screen name="songs/[id]/edit" options={{ title: "Editar música", href: null, headerLeft: () => null }} />
+      <Tabs.Screen name="artists/index" options={{ title: "Artistas", href: null, headerLeft: () => null }} />
       <Tabs.Screen
         name="members/index"
         options={{
@@ -111,15 +129,14 @@ export default function TabsLayout() {
         options={{
           title: "Novo membro",
           href: null,
+          headerLeft: () => null,
         }}
       />
       <Tabs.Screen
         name="global-admin/index"
         options={{
           title: "Admin Global",
-          tabBarLabel: "Global",
-          tabBarIcon: ({ color }) => tabIcon(Globe2, color),
-          href: canAccessGlobalAdminArea(user?.role) ? ("/global-admin" as never) : null,
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -136,14 +153,14 @@ export default function TabsLayout() {
         options={{
           title: "Instrumentos/Cargos",
           href: null,
+          headerLeft: () => null,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",
-          tabBarLabel: "Perfil",
-          tabBarIcon: ({ color }) => tabIcon(User, color),
+          href: null,
         }}
       />
     </Tabs>

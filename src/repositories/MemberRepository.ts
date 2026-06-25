@@ -28,6 +28,7 @@ export class MemberRepository {
         name: true,
         email: true,
         phone: true,
+        avatarUrl: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -52,6 +53,7 @@ export class MemberRepository {
         name: true,
         email: true,
         phone: true,
+        avatarUrl: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -95,6 +97,7 @@ export class MemberRepository {
         name: true,
         email: true,
         phone: true,
+        avatarUrl: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -122,6 +125,11 @@ export class MemberRepository {
         },
       });
     });
+  }
+
+  async updateProfile(userId: string, data: { name?: string; phone?: string | null; avatarUrl?: string | null }) {
+    const result = await prisma.user.updateMany({ where: { id: userId, tenantId: this.tenantId }, data });
+    return result.count ? this.findById(userId) : null;
   }
 
   async findInstrumentIds(ids: string[]) {

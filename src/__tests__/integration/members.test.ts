@@ -437,6 +437,22 @@ describe("Members API", () => {
     });
   });
 
+  it("permite ao usuário atualizar os próprios dados e foto", async () => {
+    const tenant = await registerTenant("profile-update");
+    await createMember(tenant.token, "profile@example.com");
+    const login = await request(app).post("/api/auth/login").send({ email: "profile@example.com", password: "member123" }).expect(200);
+    const avatarUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+    await request(app)
+      .patch("/api/members/me/profile")
+      .set("Authorization", `Bearer ${login.body.data.token}`)
+      .send({ name: "Novo Nome", phone: "11999990000", avatarUrl })
+      .expect(200)
+      .expect((response) => expect(response.body.data).toMatchObject({ name: "Novo Nome", phone: "11999990000", avatarUrl }));
+
+    await request(app).patch("/api/members/me/profile").set("Authorization", `Bearer ${login.body.data.token}`).send({ avatarUrl: "javascript:alert(1)" }).expect(400);
+  });
+
   it("admin obtém convite e GET cria um quando não existe ativo", async () => {
     const tenant = await registerTenant("invite-get-create");
 

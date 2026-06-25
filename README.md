@@ -140,6 +140,15 @@ Diagnóstico local registrado em 2026-05-27:
 - Subindo o backend atual em `PORT=3001`, `GET /api/admin/tenants` retornou `{ "success": true, "data": [...] }` com igrejas e contagens reais, incluindo usuários maiores que zero.
 - Causa raiz local dos contadores zerados/indisponíveis: app/backend apontando para uma instância antiga na porta 3000. Reinicie o backend usado pelo app ou ajuste `EXPO_PUBLIC_API_URL` para a instância atual.
 
+Diagnóstico local registrado em 2026-06-01:
+
+- A porta `3000` ainda possuía um processo escutando; o backend atual desta branch foi iniciado em `PORT=3001` para isolar o teste.
+- Foi criado um usuário temporário pelo fluxo normal de registro, promovido localmente para `GLOBAL_ADMIN` e logado novamente para emitir um JWT novo. O payload do JWT continha `role = "GLOBAL_ADMIN"`.
+- Chamada manual: `GET http://localhost:3001/api/admin/tenants`, base URL `http://localhost:3001/api`, com `Authorization: Bearer <token>` enviado.
+- Resultado: HTTP `200`, body `{ "success": true, "data": [...] }`, com igrejas reais do banco local e contagens `_count.users`, `_count.ministries`, `_count.schedules` e `_count.instruments`.
+- Causa raiz confirmada neste ambiente: o backend e o banco estão retornando dados reais; o erro do Painel Global ocorre quando o mobile aponta para uma instância/baseURL incorreta ou usa sessão/token antigo sem `GLOBAL_ADMIN`.
+- Para comparar banco e API, rode `npm run debug:admin-tenants` e depois chame `GET /api/admin/tenants` com um token `GLOBAL_ADMIN` novo.
+
 Os endpoints normais (`/api/members`, `/api/ministries`, `/api/schedules`, `/api/instruments`) continuam tenant-scoped por padrão para preservar o isolamento multi-tenant.
 
 ### Dados da Igreja API
@@ -195,6 +204,7 @@ Para validar o painel global:
 3. Abra a aba Global no app.
 4. Confira os contadores de igrejas, usuários, ministérios e escalas.
 5. Se os valores estiverem zerados, verifique a resposta de `GET /api/admin/tenants` e confirme se o token enviado é do usuário promovido.
+6. Rode `npm run debug:admin-tenants` para confirmar que o backend está conectado ao banco esperado. O script apenas lê totais e não imprime senhas.
 
 ### Mobile Admin
 
@@ -421,6 +431,27 @@ O app mobile possui um utilitário reutilizável para ordenar membros durante a 
 Não foi criado endpoint novo para isso. O fluxo usa `GET /api/members`, que já retorna `instruments`; se performance virar problema no futuro, uma extensão possível seria `GET /api/members?instrument=Teclado`.
 
 A tela mobile atual de escalas lista as escalas do usuário e permite aceitar/recusar convites. Ela ainda não possui uma tela visual de líder/admin para criar assignments, então a integração visual completa deve ser feita quando essa tela de gestão de escala existir.
+
+## Catálogo de músicas e cifras
+
+Usuários autenticados podem consultar músicas e exportar cifras. `GLOBAL_ADMIN`, `TENANT_ADMIN` e
+`MINISTRY_LEADER` também podem criar artistas, cadastrar músicas e editar cifras; `MEMBER` possui
+acesso somente de leitura e exportação. Artistas, músicas e PDFs são sempre isolados pelo tenant.
+
+- `GET/POST /api/artists` e `GET/PATCH /api/artists/:id` gerenciam artistas.
+- `GET/POST /api/songs` e `GET/PATCH /api/songs/:id` gerenciam músicas e cifras.
+- `POST /api/songs/export` recebe de 1 a 50 IDs e devolve `application/pdf`.
+- A aba Músicas oferece busca, criação guiada, editor monoespaçado e exportação individual/conjunta.
+- A tela Artistas permite editar nome e URL HTTP/HTTPS opcional da imagem; exclusão e fusão não são suportadas.
+
+O conteúdo da cifra usa preferencialmente ChordPro (`[G]Grande é o [D]Senhor`) e aceita cifras antigas com
+acordes sobre a letra. O limite é de 100 mil caracteres. Espaços e quebras de linha são preservados.
+Uma igreja não pode cadastrar duas músicas com o mesmo título normalizado para o mesmo artista.
+
+Na leitura da música, `chordsheetjs` transforma o conteúdo em linhas renderizáveis e `tonal` transpõe os
+acordes localmente. O Zustand mantém, durante a sessão, o tom escolhido por música, tamanho da fonte e
+velocidade de rolagem. A rolagem automática usa Shared Values do Reanimated e considera o BPM opcional
+(30–300) e o multiplicador escolhido pelo usuário. A transposição de leitura não altera o conteúdo salvo.
 
 ## Mobile Setup
 

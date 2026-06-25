@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Church } from "lucide-react-native";
+import { goBackTo } from "../../src/utils/navigation";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../src/theme";
 
@@ -60,7 +61,7 @@ export default function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back} testID="register-back">
+          <TouchableOpacity onPress={() => goBackTo(router, "/(auth)/login")} style={styles.back} testID="register-back">
             <ArrowLeft color={colors.primary} size={18} strokeWidth={2.4} />
             <Text style={styles.backText}>Voltar</Text>
           </TouchableOpacity>

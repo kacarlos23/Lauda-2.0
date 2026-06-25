@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
+import { CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { memberService } from "../../../src/services/memberService";
@@ -21,6 +21,8 @@ import { colors, radii, spacing } from "../../../src/theme";
 import { Member } from "../../../src/types";
 import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
 import { isChurchAdmin } from "../../../src/utils/permissions";
+import { AppBackButton } from "../../../src/components/AppBackButton";
+import { goBackTo } from "../../../src/utils/navigation";
 
 export default function MinistryDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -146,7 +148,7 @@ export default function MinistryDetailsScreen() {
             const deleteError = useMinistryStore.getState().error;
             setDeleting(false);
             if (!deleteError) {
-              router.back();
+              goBackTo(router, "/ministries");
             }
           },
         },
@@ -198,9 +200,7 @@ export default function MinistryDetailsScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error || "Ministério não encontrado"}</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Voltar</Text>
-        </TouchableOpacity>
+        <AppBackButton href="/ministries" />
       </View>
     );
   }
@@ -208,9 +208,7 @@ export default function MinistryDetailsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <ArrowLeft color={colors.ink} size={24} />
-        </TouchableOpacity>
+        <AppBackButton href="/ministries" compact />
 
         {canManageMinistry ? (
           <View style={styles.headerActions}>

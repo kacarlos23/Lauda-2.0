@@ -176,11 +176,15 @@ describe("Admin global API", () => {
       .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
       .expect(200);
 
+    expect(response.body.success).toBe(true);
+    expect(Array.isArray(response.body.data)).toBe(true);
     expect(response.body.data.map((tenant: { id: string }) => tenant.id).sort()).toEqual(
       [tenantA.tenant.id, tenantB.tenant.id].sort()
     );
     expect(JSON.stringify(response.body.data)).not.toContain("password");
     expect(JSON.stringify(response.body.data)).not.toContain("passwordHash");
+    expect(JSON.stringify(response.body.data)).not.toContain("resetPasswordToken");
+    expect(JSON.stringify(response.body.data)).not.toContain("resetPasswordExpires");
 
     const tenantsById = new Map<string, AdminTenantListItem>(
       response.body.data.map((tenant: AdminTenantListItem) => [tenant.id, tenant])
@@ -197,6 +201,12 @@ describe("Admin global API", () => {
       schedules: 1,
       instruments: 14,
     });
+    expect(tenantsById.get(tenantA.tenant.id)?._count.users).toBeGreaterThan(0);
+    expect(tenantsById.get(tenantA.tenant.id)?._count.ministries).toBe(1);
+    expect(tenantsById.get(tenantA.tenant.id)?._count.instruments).toBe(14);
+
+    expect(globalAdmin.user.tenantId).toBe(tenantA.tenant.id);
+    expect(response.body.data.some((tenant: { id: string }) => tenant.id === tenantB.tenant.id)).toBe(true);
 
     await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${tenantB.accessToken}`).expect(403);
     await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${leader.accessToken}`).expect(403);

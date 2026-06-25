@@ -10,15 +10,15 @@ jest.mock("./api", () => ({
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-function makeAxiosError(data?: { error?: string; message?: string }): AxiosError {
+function makeAxiosError(status: number, data?: { error?: string; message?: string }): AxiosError {
   const config: InternalAxiosRequestConfig = { headers: new AxiosHeaders() };
 
   return new AxiosError("Request failed", "ERR_BAD_REQUEST", config, {}, {
     config,
     data,
     headers: {},
-    status: 400,
-    statusText: "Bad Request",
+    status,
+    statusText: "Error",
   });
 }
 
@@ -27,7 +27,7 @@ describe("adminService", () => {
     jest.clearAllMocks();
   });
 
-  it("getTenants chama GET /admin/tenants", async () => {
+  it("getTenants chama GET /admin/tenants porque a baseURL já contém /api", async () => {
     const tenants = [
       {
         id: "tenant-1",
@@ -40,6 +40,24 @@ describe("adminService", () => {
 
     await expect(adminService.getTenants()).resolves.toEqual(tenants);
     expect(mockedApi.get).toHaveBeenCalledWith("/admin/tenants");
+    expect(mockedApi.get).not.toHaveBeenCalledWith("/api/admin/tenants");
+  });
+
+  it("getTenants retorna response.data.data preservando _count real", async () => {
+    const tenants = [
+      {
+        id: "tenant-1",
+        name: "Igreja Central",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        _count: { users: 2, ministries: 1, schedules: 3, instruments: 4 },
+      },
+    ];
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: tenants } });
+
+    const result = await adminService.getTenants();
+
+    expect(result).toEqual(tenants);
+    expect(result[0]._count).toEqual({ users: 2, ministries: 1, schedules: 3, instruments: 4 });
   });
 
   it("getTenantDetails chama GET /admin/tenants/:id", async () => {
@@ -79,15 +97,28 @@ describe("adminService", () => {
     expect(mockedApi.get).toHaveBeenCalledWith("/admin/ministries");
   });
 
-  it("trata erros com mensagem amigavel", async () => {
-    mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Acesso negado" }));
+  it("trata erros com mensagem da API", async () => {
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError(403, { error: "Acesso negado" }));
 
     await expect(adminService.getTenants()).rejects.toThrow("Acesso negado");
   });
 
-  it("não retorna lista vazia quando a API falha", async () => {
-    mockedApi.get.mockRejectedValueOnce(makeAxiosError());
+  it.each([401, 403])("lança erro quando a API retorna %i", async (status) => {
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError(status, { error: "Falha autenticada" }));
+
+    await expect(adminService.getTenants()).rejects.toThrow("Falha autenticada");
+  });
+
+  it("lança erro amigável quando a API retorna 500", async () => {
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError(500));
 
     await expect(adminService.getTenants()).rejects.toThrow("Não foi possível carregar o painel global.");
+  });
+
+  it("não retorna lista vazia nem contadores zerados quando a API falha", async () => {
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError(500));
+
+    await expect(adminService.getTenants()).rejects.toThrow("Não foi possível carregar o painel global.");
+    expect(mockedApi.get).toHaveBeenCalledTimes(1);
   });
 });

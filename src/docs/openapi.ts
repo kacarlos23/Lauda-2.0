@@ -26,6 +26,26 @@ const CreateScheduleRequestSchema = registry.register(
   })
 );
 
+const ArtistRequestSchema = registry.register(
+  "ArtistRequest",
+  z.object({
+    name: z.string().min(2).max(100).meta({ example: "Oficina G3" }),
+    imageUrl: z.string().url().nullable().optional().meta({ example: "https://example.com/artista.jpg" }),
+  })
+);
+
+const SongRequestSchema = registry.register(
+  "SongRequest",
+  z.object({
+    title: z.string().min(1).max(200).meta({ example: "Depois da Guerra" }),
+    artistId: z.string().uuid(),
+    composer: z.string().max(200).nullable().optional(),
+    originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]),
+    content: z.string().min(1).max(100000).meta({ example: "[G]Grande é o [D]Senhor" }),
+    bpm: z.number().int().min(30).max(300).nullable().optional(),
+  })
+);
+
 const UpdateChurchRequestSchema = registry.register(
   "UpdateChurchRequest",
   z.object({
@@ -302,6 +322,42 @@ registry.registerPath({
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
+});
+
+registry.registerPath({
+  method: "get", path: "/api/artists", summary: "Busca artistas do tenant", security: [{ bearerAuth: [] }],
+  request: { query: z.object({ search: z.string().optional(), page: z.coerce.number().optional(), limit: z.coerce.number().optional() }) },
+  responses: { 200: { description: "Lista paginada de artistas." }, 401: { description: "Não autenticado." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/artists", summary: "Cria artista", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: ArtistRequestSchema } } } },
+  responses: { 201: { description: "Artista criado." }, 403: { description: "Perfil sem permissão." }, 409: { description: "Nome duplicado." } },
+});
+registry.registerPath({
+  method: "patch", path: "/api/artists/{id}", summary: "Edita artista", security: [{ bearerAuth: [] }],
+  request: { params: z.object({ id: z.string().uuid() }), body: { content: { "application/json": { schema: ArtistRequestSchema.partial() } } } },
+  responses: { 200: { description: "Artista atualizado." }, 404: { description: "Artista não encontrado no tenant." } },
+});
+registry.registerPath({
+  method: "get", path: "/api/songs", summary: "Busca músicas e cifras do tenant", security: [{ bearerAuth: [] }],
+  request: { query: z.object({ search: z.string().optional(), artistId: z.string().uuid().optional(), page: z.coerce.number().optional(), limit: z.coerce.number().optional() }) },
+  responses: { 200: { description: "Lista paginada de músicas." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/songs", summary: "Cria música e cifra", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: SongRequestSchema } } } },
+  responses: { 201: { description: "Música criada." }, 403: { description: "Perfil sem permissão." }, 409: { description: "Música duplicada para o artista." } },
+});
+registry.registerPath({
+  method: "patch", path: "/api/songs/{id}", summary: "Edita música e cifra", security: [{ bearerAuth: [] }],
+  request: { params: z.object({ id: z.string().uuid() }), body: { content: { "application/json": { schema: SongRequestSchema.partial() } } } },
+  responses: { 200: { description: "Música atualizada." }, 404: { description: "Música não encontrada no tenant." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/songs/export", summary: "Exporta até 50 cifras em PDF", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: z.object({ songIds: z.array(z.string().uuid()).min(1).max(50) }) } } } },
+  responses: { 200: { description: "PDF gerado.", content: { "application/pdf": { schema: z.string() } } }, 404: { description: "Uma ou mais músicas não pertencem ao tenant." } },
 });
 
 /**

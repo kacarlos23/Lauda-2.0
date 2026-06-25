@@ -19,6 +19,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
   role: Role;
   tenantId: string;
   instruments?: Instrument[];
@@ -64,6 +66,7 @@ export interface Member {
   name: string;
   email: string;
   phone?: string | null;
+  avatarUrl?: string | null;
   role: Role;
   tenantId: string;
   instruments?: Instrument[];
@@ -140,6 +143,41 @@ export interface GlobalMinistry {
     members: number;
     schedules: number;
   };
+}
+
+export interface Artist {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const MUSICAL_KEYS = [
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+  "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+] as const;
+
+export type MusicalKey = (typeof MUSICAL_KEYS)[number];
+
+export interface Song {
+  id: string;
+  title: string;
+  composer?: string | null;
+  originalKey: MusicalKey;
+  content: string;
+  bpm?: number | null;
+  artistId: string;
+  artist: Pick<Artist, "id" | "name" | "imageUrl">;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface ChurchSummary {

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { api } from "../../src/services/api";
+import { goBackTo } from "../../src/utils/navigation";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -66,7 +67,7 @@ export default function ForgotPasswordScreen() {
 
         <TouchableOpacity
           className="w-full h-14 items-center justify-center mt-2"
-          onPress={() => router.back()}
+          onPress={() => goBackTo(router, "/(auth)/login")}
           disabled={loading}
         >
           <Text className="text-indigo-600 font-medium text-base">Voltar para o login</Text>

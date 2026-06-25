@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Plus, Search, User as UserIcon } from "lucide-react-native";
+import { Plus, Search, User as UserIcon } from "lucide-react-native";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
 import { colors, radii, spacing } from "../../../../src/theme";
+import { AppBackButton } from "../../../../src/components/AppBackButton";
 
 const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
 
@@ -75,9 +76,7 @@ export default function MinistryMembersScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityRole="button">
-          <ArrowLeft color={colors.ink} size={24} />
-        </TouchableOpacity>
+        <AppBackButton href={`/ministries/${id}`} compact />
         <Text style={styles.title}>Membros</Text>
         {canAssign(user?.role) ? (
           <TouchableOpacity

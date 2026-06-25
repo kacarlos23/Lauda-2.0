@@ -50,14 +50,22 @@ describe("adminStore", () => {
     useAdminStore.setState({ tenants: [], users: [], ministries: [], loading: false, error: null });
   });
 
-  it("loadTenants preenche tenants preservando contagens reais", async () => {
+  it("estado inicial não carrega dados nem erro", () => {
+    expect(useAdminStore.getState().tenants).toEqual([]);
+    expect(useAdminStore.getState().loading).toBe(false);
+    expect(useAdminStore.getState().error).toBeNull();
+  });
+
+  it("loadTenants chama o service e preserva contagens reais", async () => {
     mockedAdminService.getTenants.mockResolvedValueOnce(tenants);
 
     await useAdminStore.getState().loadTenants();
 
+    expect(mockedAdminService.getTenants).toHaveBeenCalledTimes(1);
     expect(useAdminStore.getState().tenants).toEqual(tenants);
     expect(useAdminStore.getState().tenants[0]._count.users).toBe(2);
     expect(useAdminStore.getState().tenants[0]._count.ministries).toBe(1);
+    expect(useAdminStore.getState().tenants[0]._count.schedules).toBe(3);
     expect(useAdminStore.getState().tenants[0]._count.instruments).toBe(10);
     expect(useAdminStore.getState().error).toBeNull();
   });
@@ -76,6 +84,18 @@ describe("adminStore", () => {
     expect(useAdminStore.getState().ministries[0]._count?.members).toBe(2);
     expect(useAdminStore.getState().loading).toBe(false);
     expect(useAdminStore.getState().error).toBeNull();
+  });
+
+  it("loadTenants preserva dados anteriores quando refresh falha", async () => {
+    useAdminStore.setState({ tenants, users: [], ministries: [], loading: false, error: null });
+    mockedAdminService.getTenants.mockRejectedValueOnce(new Error("Não foi possível carregar igrejas."));
+
+    await useAdminStore.getState().loadTenants();
+
+    expect(useAdminStore.getState().tenants).toEqual(tenants);
+    expect(useAdminStore.getState().tenants[0]._count.users).toBe(2);
+    expect(useAdminStore.getState().error).toBe("Não foi possível carregar igrejas.");
+    expect(useAdminStore.getState().loading).toBe(false);
   });
 
   it("erro seta mensagem e não substitui dados anteriores por zeros fake", async () => {

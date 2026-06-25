@@ -15,6 +15,7 @@ const tenantScopedModels = new Set(
     "Schedule",
     "ScheduleAssignment",
     "Song",
+    "Artist",
     "MinistrySong",
     "Instrument",
     "UserInstrument",

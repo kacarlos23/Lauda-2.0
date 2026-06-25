@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import type express from "express";
 import request from "supertest";
+import jwt from "jsonwebtoken";
+import { Role } from "@prisma/client";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { DEFAULT_INSTRUMENTS } from "../../constants/defaultInstruments";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
@@ -139,5 +141,66 @@ describe("Auth API", () => {
       });
 
     expect(response.status).toBe(404);
+  });
+
+  it("login emite role GLOBAL_ADMIN no usuário, JWT e middleware permite /api/admin/tenants", async () => {
+    await registerTenant("auth-global-admin");
+    const storedUser = await prisma.user.update({
+      where: { email: "admin-auth-global-admin@example.com" },
+      data: { role: Role.GLOBAL_ADMIN },
+      select: { id: true, role: true },
+    });
+
+    const loginResponse = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "admin-auth-global-admin@example.com",
+        password: "secret123",
+      })
+      .expect(200);
+
+    const accessToken = loginResponse.body.data.accessToken as string;
+    expect(loginResponse.body.data.user.role).toBe(Role.GLOBAL_ADMIN);
+    expect(jwt.decode(accessToken)).toMatchObject({ userId: storedUser.id, role: Role.GLOBAL_ADMIN });
+
+    await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${accessToken}`).expect(200);
+  });
+
+  it("token antigo TENANT_ADMIN não acessa /api/admin/tenants e novo login reflete role atualizada", async () => {
+    await registerTenant("auth-role-refresh");
+
+    const oldLogin = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "admin-auth-role-refresh@example.com",
+        password: "secret123",
+      })
+      .expect(200);
+    expect(oldLogin.body.data.user.role).toBe(Role.TENANT_ADMIN);
+
+    await prisma.user.update({
+      where: { email: "admin-auth-role-refresh@example.com" },
+      data: { role: Role.GLOBAL_ADMIN },
+    });
+
+    await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${oldLogin.body.data.accessToken}`)
+      .expect(403);
+
+    const newLogin = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "admin-auth-role-refresh@example.com",
+        password: "secret123",
+      })
+      .expect(200);
+
+    expect(newLogin.body.data.user.role).toBe(Role.GLOBAL_ADMIN);
+    expect(jwt.decode(newLogin.body.data.accessToken)).toMatchObject({ role: Role.GLOBAL_ADMIN });
+    await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${newLogin.body.data.accessToken}`)
+      .expect(200);
   });
 });

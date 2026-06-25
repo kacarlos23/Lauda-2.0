@@ -110,9 +110,11 @@ async function mockApi(
     };
     churchError?: boolean;
     onChurchPatch?: (payload: { name?: string }) => void;
+    onProfilePatch?: (payload: { name?: string; phone?: string | null; avatarUrl?: string | null }) => void;
   } = {}
 ) {
   const currentUser = options.user ?? adminUser;
+  const profileUser = { ...currentUser };
   const schedules = options.schedules ?? defaultSchedules(currentUser.id);
 
   await page.route("**/api/auth/login", async (route) => {
@@ -183,11 +185,18 @@ async function mockApi(
   await page.route("**/api/members/me/instruments", fulfillInstrumentUpdate);
   await page.route("**/api/members/*/instruments", fulfillInstrumentUpdate);
 
+  await page.route("**/api/members/me/profile", async (route) => {
+    const payload = route.request().postDataJSON() as { name?: string; phone?: string | null; avatarUrl?: string | null };
+    Object.assign(profileUser, payload);
+    options.onProfilePatch?.(payload);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: profileUser }) });
+  });
+
   await page.route("**/api/members/me", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: currentUser }),
+      body: JSON.stringify({ data: profileUser }),
     });
   });
 
@@ -251,6 +260,7 @@ async function mockApi(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
+        success: true,
         data: options.adminTenants ?? [
           {
             id: "tenant-1",
@@ -283,6 +293,7 @@ async function mockApi(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
+        success: true,
         data: options.adminUsers ?? [
           {
             id: "global-1",
@@ -321,6 +332,7 @@ async function mockApi(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
+        success: true,
         data: options.adminMinistries ?? [
           {
             id: "ministry-1",
@@ -395,7 +407,8 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
       return storage.auth_token;
     })
     .toBe(token);
-  await expect(page.getByRole("tab", { name: "Perfil" })).toBeVisible();
+  await expect(page.getByTestId("header-profile-button").last()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Perfil" })).not.toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -450,31 +463,25 @@ test("admin global vê perfil, home e aba global com lista de igrejas", async ({
 
   await expect(page.getByText("Administrador global").first()).toBeVisible();
   await expect(page.getByText("Acesso global ao sistema").first()).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Global" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
+  await expect(page.getByRole("tab", { name: "Perfil" })).not.toBeVisible();
 
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
   await expect(page.getByText("Acesso global", { exact: true })).toBeVisible();
   await expect(page.getByText("Abrir Painel Global")).toBeVisible();
   await page.getByTestId("open-global-admin-button").click();
 
   await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
-  await page.getByText("Perfil").last().click();
+  await page.getByRole("button", { name: "Abrir perfil" }).click();
   await expect(page.getByText("Acesso global", { exact: true })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Global" }).click();
-  await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Central", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Igreja Norte").first()).toBeVisible();
-  await expect(page.getByText("Gael Global").first()).toBeVisible();
-  await expect(page.getByText("global@example.com").first()).toBeVisible();
-  await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
-  await expect(page.getByText("tenant-1")).not.toBeVisible();
+  await expect(page.getByText("Abrir Painel Global")).toBeVisible();
 });
 
 test("roles não globais não veem aba Admin Global", async ({ page }) => {
   await login(page);
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
   await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
 
   await page.unroute("**/api/auth/login").catch(() => undefined);
@@ -484,7 +491,7 @@ test("roles não globais não veem aba Admin Global", async ({ page }) => {
   await page.goto("/");
   await login(page, "bruno@example.com");
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
   await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
 
   await page.unroute("**/api/auth/login").catch(() => undefined);
@@ -494,7 +501,7 @@ test("roles não globais não veem aba Admin Global", async ({ page }) => {
   await page.goto("/");
   await login(page, "lia@example.com");
   await expect(page.getByRole("tab", { name: "Global" })).not.toBeVisible();
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
   await expect(page.getByText("Acesso global", { exact: true })).not.toBeVisible();
 });
 
@@ -516,7 +523,7 @@ test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page
   await expect(page.getByRole("tab", { name: "Igreja" })).toBeVisible();
   await page.getByRole("tab", { name: "Igreja" }).click();
 
-  await expect(page.getByRole("heading", { name: "Dados da Igreja" })).toBeVisible();
+  await expect(page.getByText("Dados da Igreja", { exact: true })).toBeVisible();
   await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
   await expect(page.getByText("5", { exact: true })).toBeVisible();
   await expect(page.getByText("2", { exact: true })).toBeVisible();
@@ -569,7 +576,11 @@ test("Dados da Igreja exibe erro de API e não mostra outro tenant", async ({ pa
   await expect(page.getByText("Igreja Norte")).not.toBeVisible();
 });
 
-test("admin global vê contadores reais no painel global", async ({ page }) => {
+test("GLOBAL_ADMIN visualiza dados reais no Painel Global", async ({ page }) => {
+  let adminTenantsRequest: Request | undefined;
+  page.on("request", (request) => {
+    if (request.url().includes("/api/admin/tenants")) adminTenantsRequest = request;
+  });
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
   await page.unroute("**/api/admin/tenants").catch(() => undefined);
@@ -579,30 +590,36 @@ test("admin global vê contadores reais no painel global", async ({ page }) => {
       {
         id: "tenant-1",
         name: "Igreja Central",
-        createdAt: "2026-05-27T00:00:00.000Z",
-        _count: { users: 2, ministries: 1, schedules: 0, instruments: 10 },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        _count: { users: 2, ministries: 1, schedules: 3, instruments: 4 },
       },
     ],
   });
   await page.goto("/");
 
   await login(page, "global@example.com");
-  await page.getByRole("tab", { name: "Global" }).click();
+  await page.getByTestId("header-profile-button").last().click();
+  await page.getByTestId("open-global-admin-button").click();
 
   await expect(page.getByText("Igrejas", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Usuários", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Ministérios", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Igreja Central").first()).toBeVisible();
+  await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("2 usuários")).toBeVisible();
   await expect(page.getByText("1 ministério")).toBeVisible();
-  await expect(page.getByText("10 instrumentos")).toBeVisible();
-  await expect(page.getByText("0 escalas")).toBeVisible();
-  await expect(page.getByText("Gael Global")).toBeVisible();
+  await expect(page.getByText("3 escalas")).toBeVisible();
+  await expect(page.getByText("4 instrumentos")).toBeVisible();
+  await expect(page.getByText("Gael Global").last()).toBeVisible();
   await expect(page.getByText("Admin global", { exact: true })).toBeVisible();
   await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
+  await expect(page.getByText("Não foi possível carregar o painel global.")).not.toBeVisible();
+  await expect(page.getByText("0 usuários")).not.toBeVisible();
+  expect(adminTenantsRequest?.url()).toContain("/api/admin/tenants");
+  expect(adminTenantsRequest?.headers().authorization).toBe(`Bearer ${token}`);
 });
 
-test("painel global exibe erro e empty state conforme resposta da API", async ({ page }) => {
+test("GLOBAL_ADMIN vê erro claro quando API global falha", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
   await page.unroute("**/api/admin/tenants").catch(() => undefined);
@@ -610,9 +627,13 @@ test("painel global exibe erro e empty state conforme resposta da API", async ({
   await page.goto("/");
 
   await login(page, "global@example.com");
-  await page.getByRole("tab", { name: "Global" }).click();
+  await page.getByTestId("header-profile-button").last().click();
+  await page.getByTestId("open-global-admin-button").click();
   await expect(page.getByText("Não foi possível carregar o painel global.").first()).toBeVisible();
+  await expect(page.getByText("Nenhuma igreja cadastrada.")).not.toBeVisible();
+});
 
+test("painel global exibe empty state apenas quando API retorna banco vazio", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
   await page.unroute("**/api/admin/tenants").catch(() => undefined);
@@ -621,7 +642,8 @@ test("painel global exibe erro e empty state conforme resposta da API", async ({
   await page.goto("/");
 
   await login(page, "global@example.com");
-  await page.getByRole("tab", { name: "Global" }).click();
+  await page.getByTestId("header-profile-button").last().click();
+  await page.getByTestId("open-global-admin-button").click();
   await expect(page.getByText("Nenhuma igreja cadastrada.")).toBeVisible();
 });
 
@@ -653,7 +675,7 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
 
 test("permite sair da conta e limpa a sessão local", async ({ page }) => {
   await login(page);
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
 
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain("encerrar");
@@ -670,16 +692,42 @@ test("permite sair da conta e limpa a sessão local", async ({ page }) => {
 
 test("mostra instrumentos selecionados no Perfil sem expor ids", async ({ page }) => {
   await login(page);
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
   await expect(page.getByText("Teclado").first()).toBeVisible();
   await expect(page.getByText("instrument-1")).not.toBeVisible();
 });
 
+test("edita dados do perfil pelo acesso no cabeçalho", async ({ page }) => {
+  let payload: { name?: string; phone?: string | null; avatarUrl?: string | null } | undefined;
+  await page.unroute("**/api/members/me/profile");
+  await page.route("**/api/members/me/profile", async (route) => {
+    payload = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { ...adminUser, ...payload } }) });
+  });
+
+  await login(page);
+  await page.getByTestId("header-profile-button").last().click();
+  await expect(page.getByTestId("profile-avatar-picker")).toBeVisible();
+  const fileChooserPromise = page.waitForEvent("filechooser");
+  await page.getByTestId("profile-avatar-picker").click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles({ name: "avatar.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+Mnp5WQAAAABJRU5ErkJggg==", "base64") });
+  await expect(page.getByText("Remover foto")).toBeVisible();
+  await page.getByTestId("profile-name-input").fill("Ana Atualizada");
+  await page.getByTestId("profile-phone-input").fill("11999990000");
+  await page.getByTestId("profile-save-button").click();
+
+  await expect.poll(() => payload?.name).toBe("Ana Atualizada");
+  expect(payload?.phone).toBe("11999990000");
+  expect(payload?.avatarUrl).toMatch(/^data:image\/png;base64,/);
+  await expect(page.getByTestId("header-profile-button").last()).toBeVisible();
+});
+
 test("abre seletor de instrumentos e permite fechar", async ({ page }) => {
   await login(page);
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
 
   await page.getByTestId("open-instrument-picker").click();
   await expect(page.getByText("Selecionar instrumentos/cargos")).toBeVisible();
@@ -695,7 +743,7 @@ test("abre seletor de instrumentos e permite fechar", async ({ page }) => {
 
 test("permite editar instrumentos no perfil pelo seletor", async ({ page }) => {
   await login(page);
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
 
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();
   await expect(page.getByText("Teclado")).toBeVisible();
@@ -748,7 +796,7 @@ test("membro comum edita os próprios instrumentos pelo modal do Perfil", async 
   await page.goto("/");
 
   await login(page, "bruno@example.com");
-  await page.getByText("Perfil").last().click();
+  await page.getByTestId("header-profile-button").last().click();
 
   await expect(page.getByText("Membro").first()).toBeVisible();
   await expect(page.getByText("Meus instrumentos/cargos")).toBeVisible();

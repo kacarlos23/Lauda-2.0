@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { Edit3, Plus, Save, Trash2, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -24,10 +24,14 @@ import {
 } from "../../../src/utils/instrumentCatalog";
 import { Instrument } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { AppBackButton } from "../../../src/components/AppBackButton";
+import { safeReturnTo } from "../../../src/utils/navigation";
 
 const emptyForm = { name: "", colorHex: "" };
 
 export default function InstrumentCatalogScreen() {
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = safeReturnTo(params.returnTo, ["/profile", "/church"], "/profile");
   const { user } = useAuthStore();
   const {
     instruments,
@@ -125,6 +129,7 @@ export default function InstrumentCatalogScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={styles.backRow}><AppBackButton href={returnTo} /></View>
         <View style={styles.header}>
           <Text style={styles.title}>Instrumentos/Cargos</Text>
           <Text style={styles.subtitle}>Gerencie o catálogo usado nos perfis e na lista de membros.</Text>
@@ -268,6 +273,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   header: { marginBottom: spacing.lg },
+  backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 28, fontWeight: "800", marginBottom: spacing.xs },
   subtitle: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   section: {
