@@ -9,6 +9,10 @@ export const songSelect = {
   originalKey: true,
   content: true,
   bpm: true,
+  cifraUrl: true,
+  letraUrl: true,
+  audioUrl: true,
+  videoUrl: true,
   artistId: true,
   artist: { select: { id: true, name: true, imageUrl: true } },
   createdAt: true,
@@ -58,6 +62,10 @@ export class SongRepository {
     originalKey: string;
     content: string;
     bpm: number | null;
+    cifraUrl?: string | null;
+    letraUrl?: string | null;
+    audioUrl?: string | null;
+    videoUrl?: string | null;
     userId: string;
   }) {
     const { userId, ...songData } = data;

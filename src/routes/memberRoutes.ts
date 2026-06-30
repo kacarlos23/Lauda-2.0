@@ -32,6 +32,7 @@ router.patch("/me/instruments", (req, res) => ctrl.updateMyInstruments(req, res)
 router.get("/", requireDirectoryAccess, (req, res) => ctrl.list(req, res));
 router.get("/:id", requireDirectoryAccess, (req, res) => ctrl.getOne(req, res));
 router.patch("/:id/instruments", (req, res) => ctrl.updateInstruments(req, res));
+router.patch("/:id/permissions", requireAdmin, (req, res) => ctrl.updatePermissions(req, res));
 router.post("/", requireAdmin, (req, res) => ctrl.create(req, res));
 router.post("/:id/ministries", requireAdmin, (req, res) => ctrl.addMinistry(req, res));
 

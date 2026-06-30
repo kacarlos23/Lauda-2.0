@@ -43,6 +43,10 @@ export class SongService {
         originalKey: input.originalKey,
         content: input.content,
         bpm: input.bpm ?? null,
+        cifraUrl: input.cifraUrl ?? null,
+        letraUrl: input.letraUrl ?? null,
+        audioUrl: input.audioUrl ?? null,
+        videoUrl: input.videoUrl ?? null,
         userId: this.userId,
       });
     } catch (error) {
@@ -62,6 +66,10 @@ export class SongService {
         ...(input.originalKey !== undefined ? { originalKey: input.originalKey } : {}),
         ...(input.content !== undefined ? { content: input.content } : {}),
         ...(input.bpm !== undefined ? { bpm: input.bpm } : {}),
+        ...(input.cifraUrl !== undefined ? { cifraUrl: input.cifraUrl } : {}),
+        ...(input.letraUrl !== undefined ? { letraUrl: input.letraUrl } : {}),
+        ...(input.audioUrl !== undefined ? { audioUrl: input.audioUrl } : {}),
+        ...(input.videoUrl !== undefined ? { videoUrl: input.videoUrl } : {}),
         updatedById: this.userId,
       });
       if (!song) throw new NotFoundError("Música não encontrada");

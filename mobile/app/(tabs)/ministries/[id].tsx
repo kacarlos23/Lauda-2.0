@@ -85,7 +85,7 @@ export default function MinistryDetailsScreen() {
     const query = memberSearch.trim().toLowerCase();
     const visible = query
       ? allMembers.filter((member) => {
-          const haystack = `${member.name} ${member.email} ${member.phone ?? ""}`.toLowerCase();
+          const haystack = `${member.name} ${member.email ?? ""} ${member.phone ?? ""}`.toLowerCase();
           return haystack.includes(query);
         })
       : allMembers;
@@ -269,7 +269,7 @@ export default function MinistryDetailsScreen() {
                     </View>
                     <View style={styles.memberInfo}>
                       <Text style={styles.memberName}>{member.name}</Text>
-                      <Text style={styles.memberEmail}>{member.email}</Text>
+                      {member.email ? <Text style={styles.memberEmail}>{member.email}</Text> : null}
                       {member.phone ? <Text style={styles.memberPhone}>{member.phone}</Text> : null}
                     </View>
                     <TouchableOpacity

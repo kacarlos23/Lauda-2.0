@@ -14,6 +14,15 @@ export const songListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+const externalLinkSchema = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || null : value,
+  z.string()
+    .url("Informe uma URL válida")
+    .refine((value) => value.startsWith("http://") || value.startsWith("https://"), "Use uma URL iniciada com http:// ou https://")
+    .nullable()
+    .optional()
+);
+
 export const createSongSchema = z.object({
   title: z.string().trim().min(1, "O título é obrigatório").max(200),
   artistId: z.string().uuid("ID do artista inválido"),
@@ -21,6 +30,10 @@ export const createSongSchema = z.object({
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido"),
   content: z.string().min(1, "A cifra é obrigatória").max(100_000, "A cifra deve ter no máximo 100 mil caracteres"),
   bpm: z.number().int().min(30, "O BPM mínimo é 30").max(300, "O BPM máximo é 300").nullable().optional(),
+  cifraUrl: externalLinkSchema,
+  letraUrl: externalLinkSchema,
+  audioUrl: externalLinkSchema,
+  videoUrl: externalLinkSchema,
 });
 
 export const updateSongSchema = createSongSchema.partial().refine(
@@ -33,8 +46,30 @@ export const exportSongsSchema = z.object({
     (ids) => new Set(ids).size === ids.length,
     "A seleção não pode conter músicas repetidas"
   ),
+  transpositions: z.record(z.string().uuid("ID de música inválido"), z.number().int().min(-11).max(11)).optional(),
+});
+
+export const cifraClubSearchSchema = z.object({
+  artist: z.string().trim().min(1, "Informe o artista").max(120),
+  title: z.string().trim().min(1, "Informe o nome da música").max(200),
+});
+
+export const cifraClubImportSchema = z.object({
+  url: z.string()
+    .trim()
+    .url("Informe uma URL válida")
+    .refine((value) => {
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "https:" && parsed.hostname === "www.cifraclub.com.br";
+      } catch {
+        return false;
+      }
+    }, "Informe uma URL do Cifra Club"),
 });
 
 export type SongListInput = z.infer<typeof songListSchema>;
 export type CreateSongInput = z.infer<typeof createSongSchema>;
 export type UpdateSongInput = z.infer<typeof updateSongSchema>;
+export type CifraClubSearchInput = z.infer<typeof cifraClubSearchSchema>;
+export type CifraClubImportInput = z.infer<typeof cifraClubImportSchema>;

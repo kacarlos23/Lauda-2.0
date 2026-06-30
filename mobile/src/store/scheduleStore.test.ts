@@ -1,6 +1,9 @@
 jest.mock("../services/scheduleService", () => ({
   scheduleService: {
+    listSchedules: jest.fn(),
     getMySchedules: jest.fn(),
+    createSchedule: jest.fn(),
+    updateSchedule: jest.fn(),
     updateAssignmentStatus: jest.fn(),
   },
 }));
@@ -27,9 +30,57 @@ const schedule = {
 
 describe("scheduleStore", () => {
   beforeEach(() => {
+    jest.mocked(scheduleService.listSchedules).mockReset();
     jest.mocked(scheduleService.getMySchedules).mockReset();
+    jest.mocked(scheduleService.createSchedule).mockReset();
+    jest.mocked(scheduleService.updateSchedule).mockReset();
     jest.mocked(scheduleService.updateAssignmentStatus).mockReset();
-    useScheduleStore.setState({ schedules: [], loading: false, error: null });
+    useScheduleStore.setState({ allSchedules: [], schedules: [], loading: false, saving: false, error: null });
+  });
+
+  it("carrega calendário geral de escalas", async () => {
+    jest.mocked(scheduleService.listSchedules).mockResolvedValueOnce([schedule.schedule]);
+
+    await useScheduleStore.getState().loadSchedules();
+
+    expect(scheduleService.listSchedules).toHaveBeenCalled();
+    expect(useScheduleStore.getState().allSchedules).toEqual([schedule.schedule]);
+  });
+
+  it("cria escala e adiciona na lista geral ordenada", async () => {
+    const payload = {
+      title: "Culto novo",
+      date: "2099-01-02T12:00:00.000Z",
+      ministryId: "ministry-1",
+      songIds: ["song-1"],
+      assignments: [{ userId: "user-1", role: "Vocal" }],
+    };
+    const created = { ...schedule.schedule, id: "schedule-2", title: payload.title, date: payload.date };
+    useScheduleStore.setState({ allSchedules: [schedule.schedule] });
+    jest.mocked(scheduleService.createSchedule).mockResolvedValueOnce(created);
+
+    await expect(useScheduleStore.getState().createSchedule(payload)).resolves.toEqual(created);
+
+    expect(scheduleService.createSchedule).toHaveBeenCalledWith(payload);
+    expect(useScheduleStore.getState().allSchedules.map((item) => item.id)).toEqual(["schedule-1", "schedule-2"]);
+  });
+
+  it("atualiza escala na lista geral", async () => {
+    const payload = {
+      title: "Culto editado",
+      date: "2099-01-03T12:00:00.000Z",
+      ministryId: "ministry-1",
+      songIds: ["song-1"],
+      assignments: [{ userId: "user-1", role: "Vocal", status: "PENDING" as const }],
+    };
+    const updated = { ...schedule.schedule, title: payload.title, date: payload.date };
+    useScheduleStore.setState({ allSchedules: [schedule.schedule] });
+    jest.mocked(scheduleService.updateSchedule).mockResolvedValueOnce(updated);
+
+    await expect(useScheduleStore.getState().updateSchedule("schedule-1", payload)).resolves.toEqual(updated);
+
+    expect(scheduleService.updateSchedule).toHaveBeenCalledWith("schedule-1", payload);
+    expect(useScheduleStore.getState().allSchedules[0].title).toBe("Culto editado");
   });
 
   it("carrega minhas escalas reais", async () => {

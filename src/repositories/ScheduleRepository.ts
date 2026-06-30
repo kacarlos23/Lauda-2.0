@@ -1,5 +1,24 @@
 import { prisma } from "./prismaClient";
-import { CreateAssignmentInput, CreateScheduleInput, UpdateAssignmentStatusInput } from "../validators/schedule.schema";
+import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
+
+const scheduleInclude = {
+  ministry: { select: { id: true, name: true } },
+  assignments: { include: { user: { select: { id: true, name: true } } } },
+  songs: {
+    orderBy: { order: "asc" as const },
+    include: {
+      song: {
+        select: {
+          id: true,
+          title: true,
+          originalKey: true,
+          artistId: true,
+          artist: { select: { id: true, name: true, imageUrl: true } },
+        },
+      },
+    },
+  },
+};
 
 export class ScheduleRepository {
   constructor(private readonly tenantId: string) {}
@@ -9,13 +28,14 @@ export class ScheduleRepository {
    *
    * @returns Schedules visible to the current tenant only.
    */
-  findAll() {
+  findAll(filters: Partial<ListSchedulesInput> = {}) {
     return prisma.schedule.findMany({
-      where: { tenantId: this.tenantId },
-      include: {
-        ministry: { select: { id: true, name: true } },
-        assignments: true,
+      where: {
+        tenantId: this.tenantId,
+        ...(filters.ministryId ? { ministryId: filters.ministryId } : {}),
+        ...(filters.from || filters.to ? { date: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
       },
+      include: scheduleInclude,
       orderBy: { date: "asc" },
     });
   }
@@ -45,7 +65,21 @@ export class ScheduleRepository {
   findTenantUserById(userId: string) {
     return prisma.user.findFirst({
       where: { id: userId, tenantId: this.tenantId },
-      select: { id: true, name: true, email: true, tenantId: true },
+      select: { id: true, name: true, tenantId: true },
+    });
+  }
+
+  findMinistryMember(ministryId: string, userId: string) {
+    return prisma.ministryMember.findFirst({
+      where: { ministryId, userId, tenantId: this.tenantId },
+      select: { id: true, status: true },
+    });
+  }
+
+  countTenantSongs(songIds: string[]) {
+    if (!songIds.length) return Promise.resolve(0);
+    return prisma.song.count({
+      where: { id: { in: songIds }, tenantId: this.tenantId },
     });
   }
 
@@ -68,13 +102,81 @@ export class ScheduleRepository {
    * @returns The created schedule.
    */
   create(data: CreateScheduleInput) {
+    const songIds = Array.from(new Set(data.songIds));
+    const assignments = Array.from(new Map(data.assignments.map((assignment) => [assignment.userId, assignment])).values());
+
     return prisma.schedule.create({
       data: {
         title: data.title,
         date: data.date,
         ministryId: data.ministryId,
         tenantId: this.tenantId,
+        assignments: {
+          create: assignments.map((assignment) => ({
+            userId: assignment.userId,
+            role: assignment.role,
+            status: assignment.status,
+            tenantId: this.tenantId,
+          })),
+        },
+        songs: {
+          create: songIds.map((songId, index) => ({
+            songId,
+            order: index,
+            tenantId: this.tenantId,
+          })),
+        },
       },
+      include: scheduleInclude,
+    });
+  }
+
+  update(scheduleId: string, data: UpdateScheduleInput) {
+    const songIds = Array.from(new Set(data.songIds));
+    const assignments = Array.from(new Map(data.assignments.map((assignment) => [assignment.userId, assignment])).values());
+
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.schedule.findFirst({
+        where: { id: scheduleId, tenantId: this.tenantId },
+        select: { id: true },
+      });
+      if (!existing) return null;
+
+      await tx.schedule.update({
+        where: { id: scheduleId },
+        data: {
+          title: data.title,
+          date: data.date,
+          ministryId: data.ministryId,
+        },
+      });
+
+      await tx.scheduleSong.deleteMany({ where: { scheduleId, tenantId: this.tenantId } });
+      if (songIds.length) {
+        await tx.scheduleSong.createMany({
+          data: songIds.map((songId, index) => ({ scheduleId, songId, order: index, tenantId: this.tenantId })),
+          skipDuplicates: true,
+        });
+      }
+
+      await tx.scheduleAssignment.deleteMany({ where: { scheduleId, tenantId: this.tenantId } });
+      if (assignments.length) {
+        await tx.scheduleAssignment.createMany({
+          data: assignments.map((assignment) => ({
+            scheduleId,
+            userId: assignment.userId,
+            role: assignment.role,
+            status: assignment.status,
+            tenantId: this.tenantId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return tx.schedule.findFirst({
+        where: { id: scheduleId, tenantId: this.tenantId },
+        include: scheduleInclude,
+      });
     });
   }
 
@@ -98,7 +200,7 @@ export class ScheduleRepository {
           tenantId: this.tenantId,
         },
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true } },
           schedule: {
             select: {
               id: true,
@@ -130,7 +232,7 @@ export class ScheduleRepository {
             ministry: { select: { id: true, name: true } },
           },
         },
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true } },
       },
     });
   }

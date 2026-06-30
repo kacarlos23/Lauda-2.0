@@ -18,7 +18,7 @@ export interface Instrument {
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string | null;
   avatarUrl?: string | null;
   role: Role;
@@ -38,7 +38,7 @@ export interface Ministry {
 export interface MinistryMember {
   id: string;
   userId: string;
-  user: Pick<User, 'id' | 'name' | 'email'>;
+  user: Pick<User, "id" | "name" | "email">;
   ministryId: string;
   ministry?: Pick<Ministry, "id" | "name" | "tenantId">;
   roleId?: string | null;
@@ -64,7 +64,7 @@ export interface PaginatedMinistryMembers {
 export interface Member {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string | null;
   avatarUrl?: string | null;
   role: Role;
@@ -88,6 +88,8 @@ export interface Schedule {
   ministryId: string;
   tenantId: string;
   ministry?: ScheduleMinistry | null;
+  assignments?: ScheduleAssignment[];
+  songs?: ScheduleSong[];
 }
 
 export interface ScheduleAssignment {
@@ -97,7 +99,16 @@ export interface ScheduleAssignment {
   role: string;
   status: AssignmentStatus;
   tenantId?: string;
+  user?: Pick<User, "id" | "name" | "email">;
   schedule: Schedule;
+}
+
+export interface ScheduleSong {
+  id: string;
+  scheduleId: string;
+  songId: string;
+  order: number;
+  song: Pick<Song, "id" | "title" | "originalKey" | "artistId" | "artist">;
 }
 
 export type MySchedule = Omit<ScheduleAssignment, "id" | "scheduleId" | "userId" | "tenantId" | "schedule"> & {
@@ -167,6 +178,10 @@ export interface Song {
   originalKey: MusicalKey;
   content: string;
   bpm?: number | null;
+  cifraUrl?: string | null;
+  letraUrl?: string | null;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
   artistId: string;
   artist: Pick<Artist, "id" | "name" | "imageUrl">;
   createdAt: string;

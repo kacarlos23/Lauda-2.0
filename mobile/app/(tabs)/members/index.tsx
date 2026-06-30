@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
@@ -10,15 +11,22 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Redirect, useRouter } from "expo-router";
-import { Copy, RefreshCw, Plus, Users } from "lucide-react-native";
+import { Redirect, useFocusEffect, useRouter } from "expo-router";
+import { Copy, Edit3, RefreshCw, Plus, Save, Users, X } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { MemberInvite, memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
-import { Member, Ministry } from "../../../src/types";
+import { Member, Ministry, Role } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { canManageMembers, canViewMembers } from "../../../src/utils/permissions";
+
+type EditableRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER" | "TENANT_ADMIN">;
+
+type PermissionDraft = {
+  role: EditableRole;
+  ministries: Record<string, { selected: boolean; isLeader: boolean }>;
+};
 
 function formatRole(role: string) {
   const labels: Record<string, string> = {
@@ -48,6 +56,21 @@ function readableTextColor(backgroundColor?: string | null): string {
   return luminance > 0.62 ? colors.ink : colors.surface;
 }
 
+function buildPermissionDraft(member: Member, ministries: Ministry[]): PermissionDraft {
+  const currentMinistries = new Map(member.ministries.map((item) => [item.ministry.id, item]));
+  const role = member.role === "TENANT_ADMIN" || member.role === "MINISTRY_LEADER" ? member.role : "MEMBER";
+
+  return {
+    role,
+    ministries: Object.fromEntries(
+      ministries.map((ministry) => {
+        const current = currentMinistries.get(ministry.id);
+        return [ministry.id, { selected: Boolean(current), isLeader: Boolean(current?.isLeader) }];
+      })
+    ),
+  };
+}
+
 export default function MembersScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -59,6 +82,9 @@ export default function MembersScreen() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState<string>("");
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
+  const [savingPermissions, setSavingPermissions] = useState(false);
   const canManage = canManageMembers(user?.role);
 
   const loadMembers = useCallback(async () => {
@@ -98,13 +124,15 @@ export default function MembersScreen() {
     }
   }, [canManage]);
 
-  useEffect(() => {
-    loadMembers();
-    if (canManage) {
-      loadMinistries();
-      loadInvite();
-    }
-  }, [canManage, loadInvite, loadMembers, loadMinistries]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadMembers();
+      if (canManage) {
+        void loadMinistries();
+        void loadInvite();
+      }
+    }, [canManage, loadInvite, loadMembers, loadMinistries])
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -161,6 +189,80 @@ export default function MembersScreen() {
     );
   };
 
+  const openPermissionEditor = (member: Member) => {
+    setEditingMember(member);
+    setPermissionDraft(buildPermissionDraft(member, ministries));
+  };
+
+  const closePermissionEditor = () => {
+    if (savingPermissions) return;
+    setEditingMember(null);
+    setPermissionDraft(null);
+  };
+
+  const setDraftRole = (role: EditableRole) => {
+    setPermissionDraft((current) => current ? { ...current, role } : current);
+  };
+
+  const toggleDraftMinistry = (ministryId: string) => {
+    setPermissionDraft((current) => {
+      if (!current) return current;
+      const currentMinistry = current.ministries[ministryId] ?? { selected: false, isLeader: false };
+      const selected = !currentMinistry.selected;
+      return {
+        ...current,
+        ministries: {
+          ...current.ministries,
+          [ministryId]: {
+            selected,
+            isLeader: selected ? currentMinistry.isLeader : false,
+          },
+        },
+      };
+    });
+  };
+
+  const toggleDraftLeader = (ministryId: string) => {
+    setPermissionDraft((current) => {
+      if (!current) return current;
+      const currentMinistry = current.ministries[ministryId] ?? { selected: false, isLeader: false };
+      return {
+        ...current,
+        ministries: {
+          ...current.ministries,
+          [ministryId]: {
+            selected: true,
+            isLeader: !currentMinistry.isLeader,
+          },
+        },
+      };
+    });
+  };
+
+  const savePermissions = async () => {
+    if (!editingMember || !permissionDraft) return;
+
+    const selectedMinistries = Object.entries(permissionDraft.ministries)
+      .filter(([, value]) => value.selected)
+      .map(([ministryId, value]) => ({ ministryId, isLeader: value.isLeader }));
+
+    try {
+      setSavingPermissions(true);
+      const updated = await memberService.updatePermissions(editingMember.id, {
+        role: permissionDraft.role,
+        ministries: selectedMinistries,
+      });
+      setMembers((current) => current.map((member) => member.id === updated.id ? updated : member));
+      setEditingMember(null);
+      setPermissionDraft(null);
+      Alert.alert("Permissões atualizadas", "As permissões do membro foram alteradas.");
+    } catch (err) {
+      Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível atualizar as permissões.");
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
   if (!canViewMembers(user?.role)) {
     return <Redirect href="/(tabs)" />;
   }
@@ -175,6 +277,103 @@ export default function MembersScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+      <Modal
+        visible={Boolean(editingMember && permissionDraft)}
+        transparent
+        animationType="fade"
+        onRequestClose={closePermissionEditor}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleGroup}>
+                <Text style={styles.modalTitle}>Permissões do membro</Text>
+                <Text style={styles.modalSubtitle}>{editingMember?.name}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={closePermissionEditor}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar edição de permissões"
+              >
+                <X color={colors.text} size={18} />
+              </TouchableOpacity>
+            </View>
+
+            {permissionDraft ? (
+              <>
+                <Text style={styles.label}>Nível de acesso</Text>
+                <View style={styles.roleSelector}>
+                  {(["MEMBER", "MINISTRY_LEADER", "TENANT_ADMIN"] as EditableRole[]).map((role) => {
+                    const selected = permissionDraft.role === role;
+                    return (
+                      <TouchableOpacity
+                        key={role}
+                        style={[styles.roleOption, selected && styles.roleOptionActive]}
+                        onPress={() => setDraftRole(role)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Definir como ${formatRole(role)}`}
+                      >
+                        <Text style={[styles.roleOptionText, selected && styles.roleOptionTextActive]}>
+                          {formatRole(role)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.label}>Ministérios e liderança</Text>
+                <View style={styles.permissionsMinistryList}>
+                  {ministries.length === 0 ? (
+                    <Text style={styles.noInstruments}>Nenhum ministério cadastrado.</Text>
+                  ) : ministries.map((ministry) => {
+                    const state = permissionDraft.ministries[ministry.id] ?? { selected: false, isLeader: false };
+                    return (
+                      <View key={ministry.id} style={styles.permissionMinistryRow}>
+                        <TouchableOpacity
+                          style={[styles.permissionMinistryMain, state.selected && styles.permissionMinistryMainActive]}
+                          onPress={() => toggleDraftMinistry(ministry.id)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Vincular ${editingMember?.name} ao ministério ${ministry.name}`}
+                        >
+                          <Text style={styles.permissionMinistryName}>{ministry.name}</Text>
+                          <Text style={styles.permissionMinistryStatus}>{state.selected ? "Vinculado" : "Sem vínculo"}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.leaderToggle,
+                            state.isLeader && styles.leaderToggleActive,
+                            !state.selected && styles.leaderToggleDisabled,
+                          ]}
+                          onPress={() => toggleDraftLeader(ministry.id)}
+                          disabled={!state.selected}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Marcar liderança em ${ministry.name}`}
+                        >
+                          <Text style={[styles.leaderToggleText, state.isLeader && styles.leaderToggleTextActive]}>
+                            Líder
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.savePermissionButton, savingPermissions && styles.savePermissionButtonDisabled]}
+                  onPress={savePermissions}
+                  disabled={savingPermissions}
+                  accessibilityRole="button"
+                  accessibilityLabel="Salvar permissões"
+                >
+                  {savingPermissions ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={18} />}
+                  <Text style={styles.savePermissionButtonText}>Salvar permissões</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
       <FlatList
         data={members}
         keyExtractor={(item) => item.id}
@@ -308,9 +507,18 @@ export default function MembersScreen() {
                 <Text style={styles.name}>{item.name}</Text>
                 <Text style={styles.role}>{formatRole(item.role)}</Text>
               </View>
-              <Text style={styles.email}>{item.email}</Text>
-              {item.phone ? <Text style={styles.phone}>{item.phone}</Text> : null}
               <Text style={styles.ministries}>{formatMinistries(item)}</Text>
+              {canManage && item.id !== user?.id ? (
+                <TouchableOpacity
+                  style={styles.permissionButton}
+                  onPress={() => openPermissionEditor(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Editar permissões de ${item.name}`}
+                >
+                  <Edit3 color={colors.primary} size={15} strokeWidth={2.4} />
+                  <Text style={styles.permissionButtonText}>Permissões</Text>
+                </TouchableOpacity>
+              ) : null}
               <View style={styles.instrumentSection}>
                 <Text style={styles.instrumentTitle}>Instrumentos/Cargos</Text>
                 {item.instruments?.length ? (
@@ -446,6 +654,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   inviteValue: { color: colors.ink, fontSize: 13, lineHeight: 19 },
+  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
   inviteActions: {
     flexDirection: "row",
     gap: spacing.sm,
@@ -502,8 +711,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   name: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
-  email: { fontSize: 13, color: colors.muted, marginBottom: spacing.xs },
-  phone: { fontSize: 13, color: colors.text, marginBottom: spacing.xs },
   role: {
     fontSize: 11,
     color: colors.primary,
@@ -540,4 +747,124 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   noInstruments: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  permissionButton: {
+    alignSelf: "flex-start",
+    minHeight: 34,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primarySoft,
+  },
+  permissionButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.46)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 620,
+    maxHeight: "92%",
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.lg,
+    ...shadow,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  modalTitleGroup: { flex: 1 },
+  modalTitle: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
+  modalSubtitle: { color: colors.muted, fontSize: 14, fontWeight: "700" },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  roleSelector: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  roleOption: {
+    minHeight: 42,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  roleOptionText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  roleOptionTextActive: { color: colors.primary },
+  permissionsMinistryList: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  permissionMinistryRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "stretch",
+  },
+  permissionMinistryMain: {
+    flex: 1,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  permissionMinistryMainActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  permissionMinistryName: { color: colors.ink, fontSize: 14, fontWeight: "800" },
+  permissionMinistryStatus: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  leaderToggle: {
+    minWidth: 84,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  leaderToggleActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  leaderToggleDisabled: { opacity: 0.45 },
+  leaderToggleText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  leaderToggleTextActive: { color: colors.surface },
+  savePermissionButton: {
+    minHeight: 48,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  savePermissionButtonDisabled: { opacity: 0.65 },
+  savePermissionButtonText: { color: colors.surface, fontSize: 15, fontWeight: "900" },
 });

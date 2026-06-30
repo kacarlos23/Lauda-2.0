@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { CreateMemberInput, UpdateMemberInstrumentsInput, UpdateMyProfileInput } from "../validators/member.schema";
+import { CreateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyProfileInput } from "../validators/member.schema";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 
 type RequestUser = {
@@ -85,5 +85,49 @@ export class MemberService {
       throw new NotFoundError("Membro não encontrado");
     }
     return { id: memberId, instruments };
+  }
+
+  async updatePermissions(memberId: string, input: UpdateMemberPermissionsInput, user: RequestUser) {
+    const member = await this.memberRepository.findById(memberId);
+    if (!member) {
+      throw new NotFoundError("Membro não encontrado");
+    }
+
+    if (memberId === user.id) {
+      throw new ForbiddenError("Administradores não podem alterar as próprias permissões");
+    }
+
+    if (member.role === Role.GLOBAL_ADMIN) {
+      throw new ForbiddenError("Não é permitido alterar permissões de administrador global");
+    }
+
+    const isAdmin = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
+    if (!isAdmin) {
+      throw new ForbiddenError("Apenas administradores podem alterar permissões");
+    }
+
+    const normalizedMinistries = Array.from(
+      new Map(input.ministries.map((item) => [item.ministryId, item])).values()
+    );
+
+    if (normalizedMinistries.length > 0) {
+      const ministryIds = normalizedMinistries.map((item) => item.ministryId);
+      const found = await this.memberRepository.findMinistryIds(ministryIds);
+      if (found.length !== ministryIds.length) {
+        throw new ValidationError("Ministério inválido ou não encontrado");
+      }
+    }
+
+    const shouldBeLeader = input.role === Role.MINISTRY_LEADER || normalizedMinistries.some((item) => item.isLeader);
+    const role = shouldBeLeader && input.role === Role.MEMBER ? Role.MINISTRY_LEADER : input.role;
+
+    const updated = await this.memberRepository.updatePermissions(memberId, {
+      role,
+      ministries: normalizedMinistries,
+    });
+    if (!updated) {
+      throw new NotFoundError("Membro não encontrado");
+    }
+    return updated;
   }
 }

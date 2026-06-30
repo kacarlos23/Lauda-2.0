@@ -6,6 +6,7 @@ jest.mock("./api", () => ({
   api: {
     get: jest.fn(),
     post: jest.fn(),
+    patch: jest.fn(),
   },
 }));
 
@@ -35,5 +36,28 @@ describe("memberService", () => {
     expect(result).toEqual(members);
     expect(mockedApi.get).toHaveBeenCalledWith("/members");
     expect(result[0]?.instruments?.[0]?.name).toBe("Teclado");
+  });
+
+  it("updatePermissions chama endpoint de permissões do membro", async () => {
+    const member: Member = {
+      id: "member-1",
+      name: "Carlos",
+      email: "carlos@example.com",
+      role: "MINISTRY_LEADER",
+      tenantId: "tenant-1",
+      instruments: [],
+      ministries: [{ ministry: { id: "ministry-1", name: "Louvor" }, isLeader: true }],
+    };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: member } });
+
+    await expect(memberService.updatePermissions("member-1", {
+      role: "MINISTRY_LEADER",
+      ministries: [{ ministryId: "ministry-1", isLeader: true }],
+    })).resolves.toEqual(member);
+
+    expect(mockedApi.patch).toHaveBeenCalledWith("/members/member-1/permissions", {
+      role: "MINISTRY_LEADER",
+      ministries: [{ ministryId: "ministry-1", isLeader: true }],
+    });
   });
 });

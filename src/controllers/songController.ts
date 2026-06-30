@@ -4,7 +4,8 @@ import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { SongPdfService } from "../services/songPdfService";
 import { SongService } from "../services/songService";
-import { createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
+import { CifraClubImportService } from "../services/cifraClubImportService";
+import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
 
 function safeFilename(value: string): string {
   return value.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, " ").trim();
@@ -32,16 +33,28 @@ export class SongController extends BaseController {
     this.handleSuccess(res, await this.service(req).create(createSongSchema.parse(req.body)), 201);
   }
 
+  async searchCifraClub(req: Request, res: Response) {
+    this.handleSuccess(res, await new CifraClubImportService().search(cifraClubSearchSchema.parse(req.query)));
+  }
+
+  async importCifraClub(req: Request, res: Response) {
+    const { url } = cifraClubImportSchema.parse(req.body);
+    this.handleSuccess(res, await new CifraClubImportService().import(url));
+  }
+
   async update(req: Request, res: Response) {
     const { id } = songIdSchema.parse(req.params);
     this.handleSuccess(res, await this.service(req).update(id, updateSongSchema.parse(req.body)));
   }
 
   async export(req: Request, res: Response) {
-    const { songIds } = exportSongsSchema.parse(req.body);
+    const { songIds, transpositions = {} } = exportSongsSchema.parse(req.body);
     const songs = await this.service(req).getForExport(songIds);
     try {
-      const pdf = await new SongPdfService().generate(songs);
+      const pdf = await new SongPdfService().generate(songs.map((song) => ({
+        ...song,
+        semitoneOffset: transpositions[song.id] ?? 0,
+      })));
       const filename = songs.length === 1
         ? `${safeFilename(songs[0].artist.name)} - ${safeFilename(songs[0].title)}.pdf`
         : `Cifras - ${new Date().toISOString().slice(0, 10)}.pdf`;

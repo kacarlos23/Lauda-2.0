@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import { Stack, useSegments } from "expo-router";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../src/store/authStore";
@@ -10,6 +11,31 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadSession();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    const styleId = "lauda-global-hover-styles";
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      @media (hover: hover) and (pointer: fine) {
+        [role="button"]:not([aria-disabled="true"]),
+        [role="link"]:not([aria-disabled="true"]) {
+          transition: filter 140ms ease, background-color 140ms ease, opacity 140ms ease;
+          cursor: pointer;
+        }
+
+        [role="button"]:not([aria-disabled="true"]):hover,
+        [role="link"]:not([aria-disabled="true"]):hover {
+          filter: brightness(0.94);
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }, []);
 
   useEffect(() => {

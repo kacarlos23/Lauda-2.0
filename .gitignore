@@ -7,6 +7,8 @@ mobile/node_modules/
 .env.*
 !.env.example
 !.env.*.example
+.cloudflared/
+*.cfargotunnel.com.json
 
 # Build output
 dist/

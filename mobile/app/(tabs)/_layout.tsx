@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import type { ComponentType } from "react";
-import { CalendarClock, Church, Home, Music2, UserCheck, Users } from "lucide-react-native";
+import { CalendarClock, Church, Home, Music2, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { colors } from "../../src/theme";
@@ -60,6 +60,8 @@ export default function TabsLayout() {
           href: "/schedules" as never,
         }}
       />
+      <Tabs.Screen name="schedules/new" options={{ title: "Nova Escala", href: null, headerLeft: () => null }} />
+      <Tabs.Screen name="schedules/[id]/edit" options={{ title: "Editar Escala", href: null, headerLeft: () => null }} />
       <Tabs.Screen
         name="ministries/index"
         options={{
@@ -91,15 +93,6 @@ export default function TabsLayout() {
           title: "Atribuir membro",
           href: null,
           headerLeft: () => null,
-        }}
-      />
-      <Tabs.Screen
-        name="ministries/my-assignments"
-        options={{
-          title: "Meus ministérios",
-          tabBarLabel: "Meus",
-          tabBarIcon: ({ color }) => tabIcon(UserCheck, color),
-          href: "/ministries/my-assignments",
         }}
       />
       <Tabs.Screen

@@ -6,6 +6,8 @@ import {
   assignmentParamsSchema,
   createAssignmentSchema,
   createScheduleSchema,
+  listSchedulesSchema,
+  updateScheduleSchema,
   updateAssignmentStatusSchema,
   uuidParamSchema,
 } from "../validators/schedule.validator";
@@ -24,7 +26,7 @@ export class ScheduleController extends BaseController {
    * @returns A promise that resolves after the response is sent.
    */
   async list(req: Request, res: Response): Promise<void> {
-    const schedules = await this.buildService(req).listAll();
+    const schedules = await this.buildService(req).listAll(listSchedulesSchema.parse(req.query));
 
     this.handleSuccess(res, schedules);
   }
@@ -44,6 +46,17 @@ export class ScheduleController extends BaseController {
     });
 
     this.handleSuccess(res, schedule, 201);
+  }
+
+  async update(req: Request, res: Response): Promise<void> {
+    const { id } = uuidParamSchema.parse(req.params);
+    const input = updateScheduleSchema.parse(req.body);
+    const schedule = await this.buildService(req).updateForUser(id, input, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
+
+    this.handleSuccess(res, schedule);
   }
 
   async addAssignment(req: Request, res: Response): Promise<void> {

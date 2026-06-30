@@ -1,0 +1,15 @@
+# Example Cloudflare Tunnel config for local development.
+# Do not put credentials in this file.
+# The real config is generated at: %USERPROFILE%\.cloudflared\laudaapp.yml
+
+tunnel: <TUNNEL_UUID>
+credentials-file: C:\Users\<YOUR_USER>\.cloudflared\<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: laudaapp.com
+    service: http://localhost:8081
+  - hostname: www.laudaapp.com
+    service: http://localhost:8081
+  - hostname: api.laudaapp.com
+    service: http://localhost:3000
+  - service: http_status:404

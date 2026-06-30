@@ -1,6 +1,7 @@
 param(
   [int]$BackendPort = 3000,
   [int]$FrontendPort = 8081,
+  [string]$PublicApiUrl,
   [switch]$SkipMigrations
 )
 
@@ -10,7 +11,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $MobileRoot = Join-Path $ProjectRoot "mobile"
 $BackendUrl = "http://localhost:$BackendPort"
 $FrontendUrl = "http://localhost:$FrontendPort"
-$ApiUrl = "$BackendUrl/api"
+$ApiUrl = if ([string]::IsNullOrWhiteSpace($PublicApiUrl)) { "$BackendUrl/api" } else { $PublicApiUrl.TrimEnd("/") }
 $DbHost = "localhost"
 $DbPort = 5434
 $DbName = "lauda2"

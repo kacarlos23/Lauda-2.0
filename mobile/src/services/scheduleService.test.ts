@@ -1,11 +1,12 @@
-import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
-import { getMySchedules, updateAssignmentStatus } from "./scheduleService";
+﻿import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
+import { getMySchedules, scheduleService, updateAssignmentStatus } from "./scheduleService";
 import { api } from "./api";
 import { AssignmentStatus, MySchedule } from "../types";
 
 jest.mock("./api", () => ({
   api: {
     get: jest.fn(),
+    post: jest.fn(),
     patch: jest.fn(),
   },
 }));
@@ -52,6 +53,43 @@ describe("scheduleService", () => {
     expect(mockedApi.get).toHaveBeenCalledWith("/schedules/me");
   });
 
+  it("listSchedules chama GET /schedules", async () => {
+    const schedules = [{ id: "schedule-1", title: "Culto", date: "2026-05-24T13:00:00.000Z", ministryId: "ministry-1", tenantId: "tenant-1" }];
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: schedules } });
+
+    await expect(scheduleService.listSchedules()).resolves.toEqual(schedules);
+    expect(mockedApi.get).toHaveBeenCalledWith("/schedules");
+  });
+
+  it("createSchedule envia mÃºsicas e membros para POST /schedules", async () => {
+    const payload = {
+      title: "Culto",
+      date: "2026-05-24T13:00:00.000Z",
+      ministryId: "ministry-1",
+      songIds: ["song-1"],
+      assignments: [{ userId: "user-1", role: "Vocal" }],
+    };
+    const created = { id: "schedule-1", ...payload, tenantId: "tenant-1" };
+    mockedApi.post.mockResolvedValueOnce({ data: { success: true, data: created } });
+
+    await expect(scheduleService.createSchedule(payload)).resolves.toEqual(created);
+    expect(mockedApi.post).toHaveBeenCalledWith("/schedules", payload);
+  });
+
+  it("updateSchedule envia músicas e membros para PATCH /schedules/:id", async () => {
+    const payload = {
+      title: "Culto atualizado",
+      date: "2026-05-25T13:00:00.000Z",
+      ministryId: "ministry-1",
+      songIds: ["song-2"],
+      assignments: [{ userId: "user-2", role: "Violão", status: "PENDING" as const }],
+    };
+    const updated = { id: "schedule-1", ...payload, tenantId: "tenant-1" };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });
+
+    await expect(scheduleService.updateSchedule("schedule-1", payload)).resolves.toEqual(updated);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/schedules/schedule-1", payload);
+  });
   it("updateAssignmentStatus chama PATCH com ACCEPTED", async () => {
     const updated = makeSchedule("ACCEPTED");
     mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });
@@ -74,7 +112,7 @@ describe("scheduleService", () => {
     );
   });
 
-  it("status inválido lança erro antes de chamar a API", async () => {
+  it("status invÃ¡lido lanÃ§a erro antes de chamar a API", async () => {
     await expect(
       updateAssignmentStatus("schedule-1", "assignment-1", "INVALID" as AssignmentStatus)
     ).rejects.toThrow("Status de escala inválido.");
@@ -82,14 +120,16 @@ describe("scheduleService", () => {
   });
 
   it("usa mensagem amigavel retornada pela API", async () => {
-    mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Escalas indisponíveis." }));
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Escalas indisponÃ­veis." }));
 
-    await expect(getMySchedules()).rejects.toThrow("Escalas indisponíveis.");
+    await expect(getMySchedules()).rejects.toThrow("Escalas indisponÃ­veis.");
   });
 
-  it("usa fallback quando a API não retorna mensagem", async () => {
+  it("usa fallback quando a API nÃ£o retorna mensagem", async () => {
     mockedApi.get.mockRejectedValueOnce(makeAxiosError({}));
 
     await expect(getMySchedules()).rejects.toThrow("Não foi possível carregar as escalas.");
   });
 });
+
+

@@ -20,6 +20,7 @@ function migrate(databaseUrl: string) {
 async function cleanDatabase() {
   await prisma.userInstrument.deleteMany();
   await prisma.scheduleAssignment.deleteMany();
+  await prisma.scheduleSong.deleteMany();
   await prisma.schedule.deleteMany();
   await prisma.ministryMember.deleteMany();
   await prisma.ministrySong.deleteMany();
@@ -64,6 +65,13 @@ const songPayload = (artistId: string) => ({
   bpm: 96,
 });
 
+const songLinks = {
+  cifraUrl: "https://example.com/cifra",
+  letraUrl: "https://example.com/letra",
+  audioUrl: "https://example.com/audio",
+  videoUrl: "https://example.com/video",
+};
+
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine").withEnvironment({
     POSTGRES_DB: "lauda_music_test", POSTGRES_USER: "test", POSTGRES_PASSWORD: "test",
@@ -101,6 +109,27 @@ describe("Artists and songs API", () => {
     await request(app).post("/api/artists").set("Authorization", `Bearer ${globalLogin.body.data.token}`).send({ name: "Global Artist" }).expect(201);
   });
 
+  it("protege as rotas de importação do Cifra Club por permissão e valida entrada", async () => {
+    const tenant = await register("cifra-import");
+    const memberToken = await member(tenant.token, "cifra-member", "MEMBER");
+
+    await request(app)
+      .get("/api/songs/cifra-club/search?artist=Aline%20Barros&title=Autor%20da%20Vida")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .expect(403);
+
+    await request(app)
+      .get("/api/songs/cifra-club/search?artist=&title=")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(400);
+
+    await request(app)
+      .post("/api/songs/cifra-club/import")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ url: "https://example.com/aline-barros/autor-da-vida/" })
+      .expect(400);
+  });
+
   it("normaliza nomes, ordena busca e rejeita duplicidade por tenant", async () => {
     const tenant = await register("duplicates");
     await createArtist(tenant.token, "  Oficina   G3  ");
@@ -121,6 +150,52 @@ describe("Artists and songs API", () => {
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`).send({ ...songPayload(artist.id), title: " PRA   SEMPRE " }).expect(409);
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`).send({ ...songPayload(artist.id), title: "Outro", originalKey: "H" }).expect(400);
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`).send({ ...songPayload(artist.id), title: "BPM inválido", bpm: 301 }).expect(400);
+  });
+
+  it("cria, edita e limpa links externos da música", async () => {
+    const tenant = await register("links");
+    const artist = await createArtist(tenant.token);
+    const created = await request(app)
+      .post("/api/songs")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), ...songLinks })
+      .expect(201);
+
+    expect(created.body.data).toMatchObject(songLinks);
+
+    const updated = await request(app)
+      .patch(`/api/songs/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        cifraUrl: "https://example.com/nova-cifra",
+        letraUrl: null,
+        audioUrl: "",
+      })
+      .expect(200);
+
+    expect(updated.body.data).toMatchObject({
+      cifraUrl: "https://example.com/nova-cifra",
+      letraUrl: null,
+      audioUrl: null,
+      videoUrl: songLinks.videoUrl,
+    });
+  });
+
+  it("rejeita links externos inválidos", async () => {
+    const tenant = await register("invalid-links");
+    const artist = await createArtist(tenant.token);
+
+    await request(app)
+      .post("/api/songs")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), cifraUrl: "example.com/cifra" })
+      .expect(400);
+
+    await request(app)
+      .post("/api/songs")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "FTP", cifraUrl: "ftp://example.com/cifra" })
+      .expect(400);
   });
 
   it("isola artistas e músicas de outros tenants com 404", async () => {
@@ -153,6 +228,19 @@ describe("Artists and songs API", () => {
       res.on("end", () => callback(null, Buffer.concat(chunks)));
     }).expect(200);
     expect(individualPdf.body.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+
+    await request(app)
+      .post("/api/songs/export")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ songIds: [first.body.data.id], transpositions: { [first.body.data.id]: 2 } })
+      .expect(200)
+      .expect("Content-Type", /application\/pdf/);
+
+    await request(app)
+      .post("/api/songs/export")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ songIds: [first.body.data.id], transpositions: { [first.body.data.id]: 12 } })
+      .expect(400);
 
     await request(app).post("/api/songs/export").set("Authorization", `Bearer ${tenant.token}`).send({ songIds: [] }).expect(400);
     await request(app).post("/api/songs/export").set("Authorization", `Bearer ${tenant.token}`).send({ songIds: Array.from({ length: 51 }, () => first.body.data.id) }).expect(400);

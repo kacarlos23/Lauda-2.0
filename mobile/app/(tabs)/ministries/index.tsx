@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -39,9 +39,11 @@ export default function MinistriesScreen() {
 
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
 
-  useEffect(() => {
-    fetchMinistries();
-  }, [fetchMinistries]);
+  useFocusEffect(
+    useCallback(() => {
+      void fetchMinistries();
+    }, [fetchMinistries])
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

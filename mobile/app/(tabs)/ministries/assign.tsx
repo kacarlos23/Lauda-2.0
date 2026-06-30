@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Check } from "lucide-react-native";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -44,9 +44,11 @@ export default function AssignMemberScreen() {
     }
   }, [ministryId]);
 
-  useEffect(() => {
-    loadMinistries();
-  }, [loadMinistries]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadMinistries();
+    }, [loadMinistries])
+  );
 
   const handleSubmit = async () => {
     const skills = skillsText

@@ -15,6 +15,14 @@ export type LinkMemberMinistryPayload = {
   isLeader?: boolean;
 };
 
+export type UpdateMemberPermissionsPayload = {
+  role: Extract<Role, "MEMBER" | "MINISTRY_LEADER" | "TENANT_ADMIN">;
+  ministries: Array<{
+    ministryId: string;
+    isLeader: boolean;
+  }>;
+};
+
 export type UpdateMyProfilePayload = {
   name?: string;
   phone?: string | null;
@@ -90,6 +98,15 @@ export const memberService = {
   async addMinistry(memberId: string, payload: LinkMemberMinistryPayload): Promise<void> {
     try {
       await api.post(`/members/${memberId}/ministries`, payload);
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updatePermissions(memberId: string, payload: UpdateMemberPermissionsPayload): Promise<Member> {
+    try {
+      const response = await api.patch<ApiResponse<Member>>(`/members/${memberId}/permissions`, payload);
+      return response.data.data;
     } catch (error) {
       handleApiError(error);
     }

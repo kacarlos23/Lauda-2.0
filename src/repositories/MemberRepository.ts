@@ -1,4 +1,5 @@
 import { prisma } from "./prismaClient";
+import { Role } from "@prisma/client";
 import { CreateMemberInput } from "../validators/member.schema";
 
 const userInstrumentInclude = {
@@ -26,8 +27,6 @@ export class MemberRepository {
       select: {
         id: true,
         name: true,
-        email: true,
-        phone: true,
         avatarUrl: true,
         role: true,
         tenantId: true,
@@ -127,6 +126,13 @@ export class MemberRepository {
     });
   }
 
+  findMinistryIds(ids: string[]) {
+    return prisma.ministry.findMany({
+      where: { id: { in: ids }, tenantId: this.tenantId },
+      select: { id: true },
+    });
+  }
+
   async updateProfile(userId: string, data: { name?: string; phone?: string | null; avatarUrl?: string | null }) {
     const result = await prisma.user.updateMany({ where: { id: userId, tenantId: this.tenantId }, data });
     return result.count ? this.findById(userId) : null;
@@ -186,5 +192,82 @@ export class MemberRepository {
     });
 
     return rows ? rows.map((row) => row.instrument) : null;
+  }
+
+  async updatePermissions(
+    userId: string,
+    data: { role: Role; ministries: Array<{ ministryId: string; isLeader: boolean }> }
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: { id: userId, tenantId: this.tenantId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      const ministryIds = data.ministries.map((item) => item.ministryId);
+      if (ministryIds.length > 0) {
+        const ministries = await tx.ministry.findMany({
+          where: { id: { in: ministryIds }, tenantId: this.tenantId },
+          select: { id: true },
+        });
+
+        if (ministries.length !== ministryIds.length) {
+          return null;
+        }
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { role: data.role },
+      });
+
+      await tx.ministryMember.deleteMany({
+        where: { userId, tenantId: this.tenantId, ministryId: { notIn: ministryIds } },
+      });
+
+      for (const ministry of data.ministries) {
+        await tx.ministryMember.upsert({
+          where: { userId_ministryId: { userId, ministryId: ministry.ministryId } },
+          update: {
+            isLeader: ministry.isLeader,
+            status: "ACTIVE",
+            tenantId: this.tenantId,
+          },
+          create: {
+            userId,
+            ministryId: ministry.ministryId,
+            isLeader: ministry.isLeader,
+            tenantId: this.tenantId,
+            status: "ACTIVE",
+          },
+        });
+      }
+
+      return tx.user.findFirst({
+        where: { id: userId, tenantId: this.tenantId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          avatarUrl: true,
+          role: true,
+          tenantId: true,
+          createdAt: true,
+          updatedAt: true,
+          ministries: {
+            include: {
+              ministry: { select: { id: true, name: true } },
+            },
+            orderBy: { ministry: { name: "asc" } },
+          },
+          instruments: userInstrumentInclude,
+        },
+      });
+    }).then((member) => (member ? mapMemberInstruments(member) : null));
   }
 }

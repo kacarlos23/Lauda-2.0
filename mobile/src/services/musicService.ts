@@ -16,11 +16,38 @@ export type SongPayload = {
   originalKey: MusicalKey;
   content: string;
   bpm?: number | null;
+  cifraUrl?: string | null;
+  letraUrl?: string | null;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
+};
+
+export type CifraClubSearchResult = {
+  title: string;
+  artist: string;
+  url: string;
+  originalKey?: string | null;
+};
+
+export type CifraClubImportResult = {
+  title: string;
+  artist: string;
+  originalKey: MusicalKey;
+  cifraUrl: string;
+  content: string;
+  source: "download" | "page-fallback";
 };
 
 function apiError(error: unknown, fallback: string): never {
   if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
-    const data = (error as { response?: { data?: { error?: string; message?: string } } }).response?.data;
+    const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+    if (axiosError.code === "ECONNABORTED") {
+      throw new Error("A conexão demorou demais para responder. Tente novamente em alguns segundos.");
+    }
+    if (!axiosError.response) {
+      throw new Error("Não foi possível conectar ao backend. Verifique se o servidor está ligado.");
+    }
+    const data = axiosError.response.data;
     throw new Error(data?.error ?? data?.message ?? fallback);
   }
   if (error instanceof Error) throw error;
@@ -77,9 +104,26 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível atualizar a música."); }
   },
 
-  async exportSongs(songIds: string[], filename: string): Promise<void> {
+  async searchCifraClub(artist: string, title: string): Promise<CifraClubSearchResult[]> {
     try {
-      const response = await api.post<ArrayBuffer>("/songs/export", { songIds }, { responseType: "arraybuffer" });
+      const response = await api.get<ApiResponse<{ items: CifraClubSearchResult[] }>>("/songs/cifra-club/search", {
+        params: { artist, title },
+        timeout: 45000,
+      });
+      return response.data.data.items;
+    } catch (error) { apiError(error, "Não foi possível buscar no Cifra Club. Verifique a conexão com o backend e tente novamente."); }
+  },
+
+  async importCifraClub(url: string): Promise<CifraClubImportResult> {
+    try {
+      const response = await api.post<ApiResponse<CifraClubImportResult>>("/songs/cifra-club/import", { url }, { timeout: 45000 });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível importar a cifra do Cifra Club. Verifique a conexão com o backend e tente novamente."); }
+  },
+
+  async exportSongs(songIds: string[], filename: string, transpositions?: Record<string, number>): Promise<void> {
+    try {
+      const response = await api.post<ArrayBuffer>("/songs/export", { songIds, ...(transpositions ? { transpositions } : {}) }, { responseType: "arraybuffer" });
       const bytes = new Uint8Array(response.data);
       if (Platform.OS === "web") {
         const blob = new Blob([bytes], { type: "application/pdf" });

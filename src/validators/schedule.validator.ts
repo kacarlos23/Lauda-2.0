@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 const isoDateTimeMessage = "Data deve estar em formato ISO datetime válido";
 
@@ -22,16 +22,30 @@ export const CreateScheduleSchema = z.object({
     .min(3, "Título deve ter entre 3 e 100 caracteres")
     .max(100, "Título deve ter entre 3 e 100 caracteres"),
   date: z
-    .string({ error: "Data é obrigatória" })
+    .string({ error: "Data é obrigatÃ³ria" })
     .datetime({ message: isoDateTimeMessage })
     .transform((value) => new Date(value)),
   ministryId: z.string({ error: "Ministério é obrigatório" }).uuid("Ministério deve ser um UUID válido"),
+  assignments: z.array(z.object({
+    userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
+    role: z.string().trim().min(2, "Função deve ter ao menos 2 caracteres").default("Membro"),
+    status: AssignmentStatusSchema.default("PENDING"),
+  })).default([]),
+  songIds: z.array(z.string().uuid("Música deve ser um UUID válido")).default([]),
+});
+
+export const UpdateScheduleSchema = CreateScheduleSchema;
+
+export const ListSchedulesSchema = z.object({
+  from: z.string().datetime({ message: isoDateTimeMessage }).optional().transform((value) => value ? new Date(value) : undefined),
+  to: z.string().datetime({ message: isoDateTimeMessage }).optional().transform((value) => value ? new Date(value) : undefined),
+  ministryId: z.string().uuid("Ministério deve ser um UUID válido").optional(),
 });
 
 export const CreateAssignmentSchema = z.object({
   userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
   role: z
-    .string({ error: "Função é obrigatória" })
+    .string({ error: "Função é obrigatÃ³ria" })
     .trim()
     .min(2, "Função deve ter ao menos 2 caracteres"),
   status: AssignmentStatusSchema.default("PENDING"),
@@ -42,9 +56,14 @@ export const UpdateAssignmentStatusSchema = z.object({
 });
 
 export type CreateScheduleInput = z.infer<typeof CreateScheduleSchema>;
+export type UpdateScheduleInput = z.infer<typeof UpdateScheduleSchema>;
+export type ListSchedulesInput = z.infer<typeof ListSchedulesSchema>;
 export type CreateAssignmentInput = z.infer<typeof CreateAssignmentSchema>;
 export type UpdateAssignmentStatusInput = z.infer<typeof UpdateAssignmentStatusSchema>;
 
 export const createScheduleSchema = CreateScheduleSchema;
+export const updateScheduleSchema = UpdateScheduleSchema;
+export const listSchedulesSchema = ListSchedulesSchema;
 export const createAssignmentSchema = CreateAssignmentSchema;
 export const updateAssignmentStatusSchema = UpdateAssignmentStatusSchema;
+

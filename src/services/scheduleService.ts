@@ -1,7 +1,7 @@
 import { Role } from "@prisma/client";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
-import { CreateAssignmentInput, CreateScheduleInput, UpdateAssignmentStatusInput } from "../validators/schedule.schema";
+import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
 
 type RequestUser = { id: string; role: Role };
 
@@ -13,8 +13,8 @@ export class ScheduleService {
    *
    * @returns Tenant-scoped schedules.
    */
-  async listAll() {
-    return this.scheduleRepository.findAll();
+  async listAll(filters: Partial<ListSchedulesInput> = {}) {
+    return this.scheduleRepository.findAll(filters);
   }
 
   /**
@@ -64,7 +64,10 @@ export class ScheduleService {
       throw new NotFoundError("Ministério não encontrado");
     }
 
+    await this.ensureSongsBelongToTenant(data.songIds);
+
     if (this.isAdmin(user.role)) {
+      await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
       return this.scheduleRepository.create(data);
     }
 
@@ -77,15 +80,45 @@ export class ScheduleService {
       throw new ForbiddenError("Líder só pode criar escalas dos ministérios que lídera");
     }
 
+    await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
     return this.scheduleRepository.create(data);
   }
 
-  async addAssignment(scheduleId: string, data: CreateAssignmentInput, user: RequestUser) {
+  async updateForUser(scheduleId: string, data: UpdateScheduleInput, user: RequestUser) {
     await this.ensureCanManageSchedule(scheduleId, user);
+
+    const ministry = await this.scheduleRepository.findMinistryById(data.ministryId);
+    if (!ministry) {
+      throw new NotFoundError("Ministério não encontrado");
+    }
+
+    await this.ensureSongsBelongToTenant(data.songIds);
+
+    if (!this.isAdmin(user.role)) {
+      const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
+      if (!leadership) {
+        throw new ForbiddenError("Líder só pode mover escalas para ministérios que lidera");
+      }
+    }
+
+    await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
+    const updated = await this.scheduleRepository.update(scheduleId, data);
+    if (!updated) {
+      throw new NotFoundError("Escala não encontrada");
+    }
+    return updated;
+  }
+
+  async addAssignment(scheduleId: string, data: CreateAssignmentInput, user: RequestUser) {
+    const schedule = await this.ensureCanManageSchedule(scheduleId, user);
 
     const targetUser = await this.scheduleRepository.findTenantUserById(data.userId);
     if (!targetUser) {
       throw new NotFoundError("Usuário não encontrado neste tenant");
+    }
+
+    if (!this.isAdmin(user.role)) {
+      await this.ensureUserBelongsToMinistry(schedule.ministryId, data.userId);
     }
 
     try {
@@ -158,5 +191,32 @@ export class ScheduleService {
 
   async listMine(userId: string) {
     return this.scheduleRepository.findSchedulesForUser(userId);
+  }
+
+  private async ensureSongsBelongToTenant(songIds: string[]) {
+    const uniqueSongIds = Array.from(new Set(songIds));
+    const count = await this.scheduleRepository.countTenantSongs(uniqueSongIds);
+    if (count !== uniqueSongIds.length) {
+      throw new NotFoundError("Uma ou mais músicas não foram encontradas neste tenant");
+    }
+  }
+
+  private async ensureAssignmentsAreAllowed(ministryId: string, assignments: CreateAssignmentInput[], user: RequestUser) {
+    for (const assignment of assignments) {
+      const targetUser = await this.scheduleRepository.findTenantUserById(assignment.userId);
+      if (!targetUser) {
+        throw new NotFoundError("Usuário não encontrado neste tenant");
+      }
+      if (!this.isAdmin(user.role)) {
+        await this.ensureUserBelongsToMinistry(ministryId, assignment.userId);
+      }
+    }
+  }
+
+  private async ensureUserBelongsToMinistry(ministryId: string, userId: string) {
+    const membership = await this.scheduleRepository.findMinistryMember(ministryId, userId);
+    if (!membership) {
+      throw new ForbiddenError("Líder só pode escalar membros do próprio ministério");
+    }
   }
 }

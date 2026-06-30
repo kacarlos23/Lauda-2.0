@@ -23,10 +23,68 @@ describe("musicService", () => {
     await musicService.createArtist({ name: "Artista" });
     expect(mockedApi.post).toHaveBeenLastCalledWith("/artists", { name: "Artista" });
 
-    const payload = { title: "Canção", artistId: "a1", composer: null, originalKey: "C" as const, content: "[C]Letra", bpm: 90 };
+    const payload = {
+      title: "Canção",
+      artistId: "a1",
+      composer: null,
+      originalKey: "C" as const,
+      content: "[C]Letra",
+      bpm: 90,
+      cifraUrl: "https://example.com/cifra",
+      letraUrl: "https://example.com/letra",
+      audioUrl: "https://example.com/audio",
+      videoUrl: "https://example.com/video",
+    };
     mockedApi.post.mockResolvedValueOnce({ data: { data: { id: "s1", ...payload } } });
     await musicService.createSong(payload);
     expect(mockedApi.post).toHaveBeenLastCalledWith("/songs", payload);
+  });
+
+  it("atualiza música com links externos", async () => {
+    const payload = { cifraUrl: "https://example.com/nova-cifra", letraUrl: null };
+    mockedApi.patch.mockResolvedValueOnce({ data: { data: { id: "s1", ...payload } } });
+
+    await musicService.updateSong("s1", payload);
+
+    expect(mockedApi.patch).toHaveBeenLastCalledWith("/songs/s1", payload);
+  });
+
+  it("busca e importa cifra do Cifra Club", async () => {
+    const items = [{ title: "Autor da Vida", artist: "Aline Barros", url: "https://www.cifraclub.com.br/aline-barros/autor-da-vida/" }];
+    mockedApi.get.mockResolvedValueOnce({ data: { data: { items } } });
+
+    await expect(musicService.searchCifraClub("Aline Barros", "Autor da Vida")).resolves.toEqual(items);
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/cifra-club/search", {
+      params: { artist: "Aline Barros", title: "Autor da Vida" },
+      timeout: 45000,
+    });
+
+    const imported = {
+      title: "Autor da Vida",
+      artist: "Aline Barros",
+      originalKey: "G",
+      cifraUrl: items[0].url,
+      content: "[Intro] G",
+      source: "download",
+    };
+    mockedApi.post.mockResolvedValueOnce({ data: { data: imported } });
+
+    await expect(musicService.importCifraClub(items[0].url)).resolves.toEqual(imported);
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/cifra-club/import", { url: items[0].url }, { timeout: 45000 });
+  });
+
+  it("exporta PDF com transposição opcional por música", async () => {
+    const createObjectURL = jest.fn(() => "blob:url");
+    const revokeObjectURL = jest.fn();
+    const click = jest.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click })) } });
+    mockedApi.post.mockResolvedValueOnce({ data: new ArrayBuffer(4) });
+
+    await musicService.exportSongs(["s1"], "cifra.pdf", { s1: 2 });
+
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/export", { songIds: ["s1"], transpositions: { s1: 2 } }, { responseType: "arraybuffer" });
+    expect(click).toHaveBeenCalled();
   });
 
   it("converte erro da API em mensagem de domínio", async () => {

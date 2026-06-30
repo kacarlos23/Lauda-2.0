@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Image, StyleSheet, Text, TextInput,
 import { useFocusEffect, useRouter } from "expo-router";
 import { Check, Download, Plus, Search, Settings2, Square, UserRound } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMusicStore } from "../../../src/store/musicStore";
 import { musicService } from "../../../src/services/musicService";
@@ -12,7 +13,7 @@ import { colors, radii, screen, spacing } from "../../../src/theme";
 export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { songs, pagination, loading, error, loadSongs } = useMusicStore();
+  const { songs, pagination, loading, error, loadSongs, primeSong } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -64,9 +65,20 @@ export default function SongsScreen() {
           renderItem={({ item }) => {
             const checked = selected.includes(item.id);
             return (
-              <TouchableOpacity style={[styles.row, checked && styles.rowSelected]} onPress={() => selectionMode ? toggle(item.id) : router.push(`/songs/${item.id}` as never)}>
+              <TouchableOpacity
+                style={[styles.row, checked && styles.rowSelected]}
+                onPress={() => {
+                  if (selectionMode) {
+                    toggle(item.id);
+                    return;
+                  }
+                  primeSong(item);
+                  router.push(`/songs/${item.id}` as never);
+                }}
+              >
                 {item.artist.imageUrl ? <Image source={{ uri: item.artist.imageUrl }} style={styles.avatar} /> : <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={20} /></View>}
                 <View style={styles.info}><Text style={styles.songTitle}>{item.title}</Text><Text style={styles.meta}>{item.artist.name} · Tom {item.originalKey}{item.bpm ? ` · ${item.bpm} BPM` : ""}</Text></View>
+                {!selectionMode ? <SongLinkButtons links={item} compact /> : null}
                 {selectionMode ? checked ? <View style={styles.check}><Check color={colors.surface} size={16} /></View> : <Square color={colors.muted} size={22} /> : null}
               </TouchableOpacity>
             );

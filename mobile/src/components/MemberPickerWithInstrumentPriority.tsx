@@ -48,7 +48,7 @@ export function MemberPickerWithInstrumentPriority({ members, roleText, selected
                 </View>
               ) : null}
             </View>
-            <Text style={styles.email}>{item.email}</Text>
+            {item.email ? <Text style={styles.email}>{item.email}</Text> : null}
             {item.instruments?.length ? (
               <View style={styles.instrumentList}>
                 {item.instruments.map((instrument) => {

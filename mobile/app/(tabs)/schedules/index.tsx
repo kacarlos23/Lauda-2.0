@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -9,110 +10,194 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CalendarClock } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { CalendarClock, Plus } from "lucide-react-native";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
-import { ScheduleAssignment } from "../../../src/types";
+import { Schedule, ScheduleAssignment } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
-import { formatAssignmentStatus, formatScheduleDate } from "../../../src/utils/scheduleFormat";
+import { formatAssignmentStatus } from "../../../src/utils/scheduleFormat";
+
+const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
+const time = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+
+function canManageSchedules(role?: string | null) {
+  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
+}
+
+function dateKey(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildCalendarDays(reference: Date) {
+  const first = new Date(reference.getFullYear(), reference.getMonth(), 1);
+  const last = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
+  const days: Date[] = [];
+  for (let day = 1; day <= last.getDate(); day += 1) {
+    days.push(new Date(reference.getFullYear(), reference.getMonth(), day));
+  }
+  return { firstPadding: first.getDay(), days };
+}
 
 export default function SchedulesScreen() {
-  const { tenant } = useAuthStore();
-  const { schedules, loading, error, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const router = useRouter();
+  const { tenant, user } = useAuthStore();
+  const { allSchedules, schedules: myAssignments, loading, error, loadSchedules, loadMySchedules, updateScheduleStatus } = useScheduleStore();
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
+  const [month, setMonth] = useState(() => new Date());
 
   useEffect(() => {
+    void loadSchedules();
     void loadMySchedules();
-  }, [loadMySchedules]);
+  }, [loadSchedules, loadMySchedules]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadMySchedules();
+    await Promise.all([loadSchedules(), loadMySchedules()]);
     setRefreshing(false);
-  }, [loadMySchedules]);
+  }, [loadSchedules, loadMySchedules]);
 
   const handleStatus = async (item: ScheduleAssignment, status: "ACCEPTED" | "DECLINED") => {
     setUpdatingId(item.id);
     try {
       await updateScheduleStatus(item.scheduleId, item.id, status);
+      await loadMySchedules();
     } finally {
       setUpdatingId(null);
     }
   };
 
-  if (loading && schedules.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  const assignmentByScheduleId = useMemo(() => {
+    const map = new Map<string, ScheduleAssignment>();
+    myAssignments.forEach((assignment) => map.set(assignment.scheduleId, assignment));
+    return map;
+  }, [myAssignments]);
+
+  const schedulesByDay = useMemo(() => {
+    const map = new Map<string, Schedule[]>();
+    allSchedules.forEach((schedule) => {
+      const key = dateKey(schedule.date);
+      map.set(key, [...(map.get(key) ?? []), schedule]);
+    });
+    return map;
+  }, [allSchedules]);
+
+  const selectedSchedules = useMemo(
+    () => [...(schedulesByDay.get(selectedDate) ?? [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [schedulesByDay, selectedDate]
+  );
+  const calendar = useMemo(() => buildCalendarDays(month), [month]);
+  const todayKey = dateKey(new Date());
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <FlatList
-        data={schedules}
+        data={selectedSchedules}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Minhas escalas</Text>
-            <Text style={styles.subtitle}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
+          <View>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>Escalas</Text>
+                <Text style={styles.subtitle}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
+              </View>
+              {canManageSchedules(user?.role) ? (
+                <TouchableOpacity style={styles.newButton} onPress={() => router.push("/schedules/new" as never)}>
+                  <Plus color={colors.surface} size={18} />
+                  <Text style={styles.newButtonText}>Nova Escala</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <View style={styles.calendarCard}>
+              <View style={styles.monthRow}>
+                <TouchableOpacity onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
+                  <Text style={styles.monthNav}>‹</Text>
+                </TouchableOpacity>
+                <Text style={styles.monthTitle}>{monthTitle.format(month)}</Text>
+                <TouchableOpacity onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
+                  <Text style={styles.monthNav}>›</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.weekRow}>
+                {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => <Text key={`${label}-${index}`} style={styles.weekLabel}>{label}</Text>)}
+              </View>
+              <View style={styles.dayGrid}>
+                {Array.from({ length: calendar.firstPadding }).map((_, index) => <View key={`pad-${index}`} style={styles.dayCell} />)}
+                {calendar.days.map((day) => {
+                  const key = dateKey(day);
+                  const hasSchedule = schedulesByDay.has(key);
+                  const selected = key === selectedDate;
+                  const today = key === todayKey;
+                  return (
+                    <TouchableOpacity key={key} style={[styles.dayCell, today && styles.todayCell, selected && styles.selectedCell]} onPress={() => setSelectedDate(key)}>
+                      <Text style={[styles.dayText, selected && styles.selectedDayText]}>{day.getDate()}</Text>
+                      {hasSchedule ? <View style={[styles.dot, selected && styles.selectedDot]} /> : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            <Text style={styles.sectionTitle}>Escalas do dia</Text>
+            {loading && !allSchedules.length ? <ActivityIndicator color={colors.primary} /> : null}
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />
-            <Text style={styles.emptyTitle}>Nenhuma escala encontrada</Text>
-            <Text style={styles.emptyText}>Quando você for escalado, os compromissos aparecerão aqui.</Text>
+            <Text style={styles.emptyTitle}>Nenhuma escala neste dia</Text>
+            <Text style={styles.emptyText}>Selecione outro dia no calendário ou crie uma nova escala.</Text>
           </View>
         }
         renderItem={({ item }) => {
-          const isPending = item.status === "PENDING";
-          const isUpdating = updatingId === item.id;
-
+          const assignment = assignmentByScheduleId.get(item.id);
+          const isPending = assignment?.status === "PENDING";
+          const isUpdating = updatingId === assignment?.id;
+          const date = new Date(item.date);
           return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.iconCircle}>
-                  <CalendarClock color={colors.primaryDark} size={20} strokeWidth={2.4} />
-                </View>
-                <View style={styles.cardTitleGroup}>
-                  <Text style={styles.cardTitle}>{item.schedule.title}</Text>
-                  <Text style={styles.cardMeta}>{formatScheduleDate(item.schedule.date)}</Text>
-                </View>
-                <Text style={styles.status}>{formatAssignmentStatus(item.status)}</Text>
+            <Pressable
+              style={({ hovered, pressed }: any) => [
+                styles.card,
+                canManageSchedules(user?.role) && styles.cardClickable,
+                hovered && canManageSchedules(user?.role) && styles.cardHover,
+                pressed && canManageSchedules(user?.role) && styles.cardPressed,
+              ]}
+              onPress={() => { if (canManageSchedules(user?.role)) router.push(`/schedules/${item.id}/edit` as never); }}
+              accessibilityRole={canManageSchedules(user?.role) ? "button" : undefined}
+              accessibilityLabel={canManageSchedules(user?.role) ? `Editar escala ${item.title}` : undefined}
+            >
+              <View style={styles.summaryDate}>
+                <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                <Text style={styles.weekday}>{weekday.format(date).replace(".", "")}</Text>
               </View>
-
-              <Text style={styles.detail}>Ministério: {item.schedule.ministry?.name ?? "Não informado"}</Text>
-              <Text style={styles.detail}>Função: {item.role || "Não informada"}</Text>
-
-              {isPending ? (
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.acceptButton]}
-                    onPress={() => void handleStatus(item, "ACCEPTED")}
-                    disabled={isUpdating}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Aceitar ${item.schedule.title}`}
-                  >
-                    <Text style={styles.acceptButtonText}>{isUpdating ? "Atualizando..." : "Aceitar"}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.declineButton]}
-                    onPress={() => void handleStatus(item, "DECLINED")}
-                    disabled={isUpdating}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Recusar ${item.schedule.title}`}
-                  >
-                    <Text style={styles.declineButtonText}>Recusar</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTime}>{time.format(date)}</Text>
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.detail}>Ministério: {item.ministry?.name ?? "Não informado"}</Text>
+                {item.songs?.length ? <Text style={styles.detail}>Músicas: {item.songs.map((entry) => entry.song.title).join(", ")}</Text> : null}
+                {item.assignments?.length ? <Text style={styles.detail}>Membros: {item.assignments.map((entry) => entry.user?.name ?? "Membro").join(", ")}</Text> : null}
+                {assignment ? <Text style={styles.status}>Minha atribuição: {assignment.role} · {formatAssignmentStatus(assignment.status)}</Text> : null}
+                {isPending && assignment ? (
+                  <View style={styles.actions}>
+                    <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => void handleStatus(assignment, "ACCEPTED")} disabled={isUpdating}>
+                      <Text style={styles.acceptButtonText}>{isUpdating ? "Atualizando..." : "Aceitar"}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => void handleStatus(assignment, "DECLINED")} disabled={isUpdating}>
+                      <Text style={styles.declineButtonText}>Recusar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            </Pressable>
           );
         }}
       />
@@ -122,78 +207,48 @@ export default function SchedulesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  center: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  list: {
-    width: "100%",
-    maxWidth: screen.listMaxWidth,
-    alignSelf: "center",
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-  },
-  header: { marginBottom: spacing.lg },
+  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: spacing.xxl },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
   title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
   subtitle: { fontSize: 15, color: colors.muted, fontWeight: "600" },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginTop: spacing.sm },
-  emptyBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: "center",
-    gap: spacing.sm,
-  },
+  newButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.primary, borderRadius: radii.sm, paddingHorizontal: spacing.md },
+  newButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
+  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginBottom: spacing.sm },
+  calendarCard: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, marginBottom: spacing.lg, ...shadow },
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  monthTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", textTransform: "capitalize" },
+  monthNav: { color: colors.primary, fontSize: 30, fontWeight: "900", paddingHorizontal: spacing.md },
+  weekRow: { flexDirection: "row" },
+  weekLabel: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 12, fontWeight: "900", marginBottom: spacing.xs },
+  dayGrid: { flexDirection: "row", flexWrap: "wrap" },
+  dayCell: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
+  todayCell: { borderWidth: 1, borderColor: colors.primary },
+  selectedCell: { backgroundColor: colors.primary },
+  dayText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  selectedDayText: { color: colors.surface },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary, marginTop: 3 },
+  selectedDot: { backgroundColor: colors.surface },
+  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.md },
+  emptyBox: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, borderWidth: 1, borderColor: colors.line, alignItems: "center", gap: spacing.sm },
   emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800" },
   emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardTitleGroup: { flex: 1 },
-  cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", marginBottom: spacing.xs },
-  cardMeta: { color: colors.muted, fontSize: 13, fontWeight: "600" },
-  status: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    textAlign: "right",
-  },
+  card: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.line, ...shadow },
+  cardClickable: { cursor: "pointer" } as any,
+  cardHover: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  cardPressed: { opacity: 0.86 },
+  summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
+  dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "900" },
+  weekday: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  cardBody: { flex: 1 },
+  cardTime: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", marginTop: spacing.xs, marginBottom: spacing.xs },
   detail: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: "600" },
+  status: { color: colors.primary, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  actionButton: {
-    minHeight: 40,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  actionButton: { minHeight: 40, borderRadius: radii.sm, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center" },
   acceptButton: { backgroundColor: colors.primary },
   declineButton: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.line },
   acceptButtonText: { color: colors.surface, fontSize: 13, fontWeight: "800" },
   declineButtonText: { color: colors.text, fontSize: 13, fontWeight: "800" },
 });
+

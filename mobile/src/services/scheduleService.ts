@@ -1,6 +1,6 @@
 import { AxiosError } from "axios";
 import { api } from "./api";
-import { AssignmentStatus, ScheduleAssignment } from "../types";
+import { AssignmentStatus, Schedule, ScheduleAssignment } from "../types";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -27,9 +27,48 @@ function assertAssignmentStatus(status: AssignmentStatus): void {
 }
 
 export const scheduleService = {
+  async listSchedules(): Promise<Schedule[]> {
+    try {
+      const response = await api.get<ApiResponse<Schedule[]>>("/schedules");
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
   async getMySchedules(): Promise<ScheduleAssignment[]> {
     try {
       const response = await api.get<ApiResponse<ScheduleAssignment[]>>("/schedules/me");
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async createSchedule(payload: {
+    title: string;
+    date: string;
+    ministryId: string;
+    songIds: string[];
+    assignments: Array<{ userId: string; role: string }>;
+  }): Promise<Schedule> {
+    try {
+      const response = await api.post<ApiResponse<Schedule>>("/schedules", payload);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updateSchedule(id: string, payload: {
+    title: string;
+    date: string;
+    ministryId: string;
+    songIds: string[];
+    assignments: Array<{ userId: string; role: string; status?: AssignmentStatus }>;
+  }): Promise<Schedule> {
+    try {
+      const response = await api.patch<ApiResponse<Schedule>>(`/schedules/${id}`, payload);
       return response.data.data;
     } catch (error) {
       handleApiError(error);

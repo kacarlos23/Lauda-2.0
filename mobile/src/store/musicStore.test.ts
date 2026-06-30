@@ -64,4 +64,69 @@ describe("musicStore", () => {
     expect(useMusicStore.getState().currentSong).toEqual(casa);
     expect(useMusicStore.getState().requestedSongId).toBe(casa.id);
   });
+
+  it("usa a música da lista como cache imediato enquanto atualiza o detalhe", async () => {
+    const stale = { ...song, title: "Título em cache" };
+    const fresh = { ...song, title: "Título atualizado", content: "Conteúdo atualizado" };
+    let resolveSong!: (value: Song) => void;
+    useMusicStore.setState({ songs: [stale] });
+    mockedService.getSong.mockReturnValueOnce(new Promise((resolve) => { resolveSong = resolve; }));
+
+    const promise = useMusicStore.getState().loadSong(song.id);
+
+    expect(useMusicStore.getState()).toMatchObject({
+      currentSong: stale,
+      requestedSongId: song.id,
+      detailLoading: true,
+      detailError: null,
+    });
+
+    resolveSong(fresh);
+    await promise;
+
+    expect(useMusicStore.getState().currentSong).toEqual(fresh);
+    expect(useMusicStore.getState().songs[0]).toEqual(fresh);
+    expect(useMusicStore.getState().detailLoading).toBe(false);
+  });
+
+  it("prepara a música clicada para renderização imediata antes da navegação", () => {
+    useMusicStore.getState().primeSong(song);
+
+    expect(useMusicStore.getState()).toMatchObject({
+      currentSong: song,
+      requestedSongId: song.id,
+      detailError: null,
+    });
+  });
+
+  it("mantém loading de detalhe separado para não mostrar falso não encontrada", async () => {
+    let resolveSong!: (value: Song) => void;
+    mockedService.getSong.mockReturnValueOnce(new Promise((resolve) => { resolveSong = resolve; }));
+
+    const promise = useMusicStore.getState().loadSong(song.id);
+
+    expect(useMusicStore.getState()).toMatchObject({
+      currentSong: null,
+      requestedSongId: song.id,
+      detailLoading: true,
+      detailError: null,
+    });
+
+    resolveSong(song);
+    await promise;
+
+    expect(useMusicStore.getState()).toMatchObject({
+      currentSong: song,
+      requestedSongId: song.id,
+      detailLoading: false,
+      detailError: null,
+    });
+  });
+
+  it("erro de lista não contamina erro de detalhe de música", async () => {
+    mockedService.listSongs.mockRejectedValueOnce(new Error("Falha na lista"));
+    await useMusicStore.getState().loadSongs("", 1);
+    expect(useMusicStore.getState().error).toBe("Falha na lista");
+    expect(useMusicStore.getState().detailError).toBeNull();
+  });
 });

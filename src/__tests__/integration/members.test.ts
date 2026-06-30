@@ -221,12 +221,13 @@ describe("Members API", () => {
       .set("Authorization", `Bearer ${tenantA.token}`)
       .expect(200);
 
-    const emails = response.body.data.map((member: { email: string }) => member.email);
-    expect(emails).toContain("tenant-a-member@example.com");
-    expect(emails).not.toContain("tenant-b-member@example.com");
+    expect(response.body.data.map((member: { tenantId: string }) => member.tenantId).every((tenantId: string) => tenantId === tenantA.user.tenantId)).toBe(true);
+    expect(response.body.data).toHaveLength(2);
+    expect(response.body.data[0]).not.toHaveProperty("email");
+    expect(response.body.data[0]).not.toHaveProperty("phone");
   });
 
-  it("GET /api/members retorna instrumentos completos e mantem campos existentes", async () => {
+  it("GET /api/members retorna resumo seguro com instrumentos completos", async () => {
     const tenant = await registerTenant("members-with-instruments");
     const created = await createMember(tenant.token, "member-instruments@example.com");
     const keyboard = (await listInstruments(tenant.token)).find((instrument) => instrument.name === "Teclado")!;
@@ -242,16 +243,16 @@ describe("Members API", () => {
       .set("Authorization", `Bearer ${tenant.token}`)
       .expect(200);
 
-    const member = response.body.data.find((item: { email: string }) => item.email === "member-instruments@example.com");
+    const member = response.body.data.find((item: { id: string }) => item.id === created.body.data.id);
     expect(member).toMatchObject({
       id: created.body.data.id,
       name: "Novo Membro",
-      email: "member-instruments@example.com",
-      phone: "(11) 99999-0000",
       role: "MEMBER",
       tenantId: tenant.user.tenantId,
       instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB" }],
     });
+    expect(member).not.toHaveProperty("email");
+    expect(member).not.toHaveProperty("phone");
     expect(member.ministries).toEqual([]);
     expect(member.userInstruments).toBeUndefined();
   });
@@ -274,9 +275,7 @@ describe("Members API", () => {
       .set("Authorization", `Bearer ${tenantA.token}`)
       .expect(200);
 
-    const emails = response.body.data.map((item: { email: string }) => item.email);
-    expect(emails).toContain("member-no-instruments-a@example.com");
-    expect(emails).not.toContain("member-with-instruments-b@example.com");
+    expect(response.body.data.map((member: { tenantId: string }) => member.tenantId).every((tenantId: string) => tenantId === tenantA.user.tenantId)).toBe(true);
 
     const member = response.body.data.find((item: { id: string }) => item.id === memberA.body.data.id);
     expect(member.instruments).toEqual([]);
@@ -382,6 +381,72 @@ describe("Members API", () => {
       .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
       .send({})
       .expect(400);
+  });
+
+  it("PATCH /api/members/:id/permissions atualiza role e liderança em ministérios existentes", async () => {
+    const tenantA = await registerTenant("members-permissions-a");
+    const tenantB = await registerTenant("members-permissions-b");
+    const louvor = await createMinistry(tenantA.token, "Louvor");
+    const recepcao = await createMinistry(tenantA.token, "Recepcao");
+    const foreignMinistry = await createMinistry(tenantB.token, "Outro Tenant");
+    const member = await createMember(tenantA.token, "carlos.permissions@example.com");
+    const foreignMember = await createMember(tenantB.token, "foreign.permissions@example.com");
+
+    await request(app)
+      .patch(`/api/members/${member.body.data.id}/permissions`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({
+        role: "MEMBER",
+        ministries: [
+          { ministryId: louvor.id, isLeader: true },
+          { ministryId: recepcao.id, isLeader: false },
+        ],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({
+          id: member.body.data.id,
+          email: "carlos.permissions@example.com",
+          role: "MINISTRY_LEADER",
+        });
+        expect(response.body.data.ministries).toEqual([
+          expect.objectContaining({ ministry: { id: louvor.id, name: "Louvor" }, isLeader: true }),
+          expect.objectContaining({ ministry: { id: recepcao.id, name: "Recepcao" }, isLeader: false }),
+        ]);
+      });
+
+    const storedLeader = await prisma.ministryMember.findUnique({
+      where: { userId_ministryId: { userId: member.body.data.id, ministryId: louvor.id } },
+    });
+    expect(storedLeader).toMatchObject({
+      tenantId: tenantA.user.tenantId,
+      isLeader: true,
+      status: "ACTIVE",
+    });
+
+    const storedUser = await prisma.user.findUnique({ where: { id: member.body.data.id } });
+    expect(storedUser?.role).toBe("MINISTRY_LEADER");
+
+    await request(app)
+      .patch(`/api/members/${member.body.data.id}/permissions`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({
+        role: "MEMBER",
+        ministries: [{ ministryId: foreignMinistry.id, isLeader: true }],
+      })
+      .expect(400);
+
+    await request(app)
+      .patch(`/api/members/${foreignMember.body.data.id}/permissions`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ role: "MEMBER", ministries: [] })
+      .expect(404);
+
+    await request(app)
+      .patch(`/api/members/${tenantA.user.id}/permissions`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .send({ role: "MEMBER", ministries: [] })
+      .expect(403);
   });
 
   it("GET /api/members/me e PATCH /api/members/me/instruments funcionam para usuário autenticado", async () => {

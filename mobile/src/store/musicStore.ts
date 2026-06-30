@@ -7,12 +7,15 @@ interface MusicState {
   currentSong: Song | null;
   pagination: { page: number; totalPages: number; total: number };
   loading: boolean;
+  detailLoading: boolean;
   saving: boolean;
   error: string | null;
+  detailError: string | null;
   requestedSongId: string | null;
   requestedListKey: string | null;
   loadSongs: (search?: string, page?: number) => Promise<void>;
   loadSong: (id: string) => Promise<void>;
+  primeSong: (song: Song) => void;
   createSong: (payload: SongPayload) => Promise<Song>;
   updateSong: (id: string, payload: Partial<SongPayload>) => Promise<Song>;
   clearError: () => void;
@@ -25,11 +28,19 @@ export const useMusicStore = create<MusicState>((set) => ({
   currentSong: null,
   pagination: { page: 1, totalPages: 0, total: 0 },
   loading: false,
+  detailLoading: false,
   saving: false,
   error: null,
+  detailError: null,
   requestedSongId: null,
   requestedListKey: null,
   clearError: () => set({ error: null }),
+
+  primeSong: (song) => set({
+    currentSong: song,
+    requestedSongId: song.id,
+    detailError: null,
+  }),
 
   loadSongs: async (search = "", page = 1) => {
     const requestKey = `${search}\u0000${page}`;
@@ -47,13 +58,27 @@ export const useMusicStore = create<MusicState>((set) => ({
   },
 
   loadSong: async (id) => {
-    set({ loading: true, error: null, currentSong: null, requestedSongId: id });
+    set((state) => {
+      const cachedSong = state.currentSong?.id === id ? state.currentSong : state.songs.find((song) => song.id === id) ?? null;
+      return {
+        detailLoading: true,
+        detailError: null,
+        currentSong: cachedSong,
+        requestedSongId: id,
+      };
+    });
     try {
       const song = await musicService.getSong(id);
-      set((state) => state.requestedSongId === id ? { currentSong: song, loading: false } : state);
+      set((state) => state.requestedSongId === id
+        ? {
+          currentSong: song,
+          detailLoading: false,
+          songs: state.songs.map((item) => item.id === id ? song : item),
+        }
+        : state);
     } catch (error) {
       set((state) => state.requestedSongId === id
-        ? { loading: false, error: message(error, "Não foi possível carregar a música.") }
+        ? { detailLoading: false, detailError: message(error, "Não foi possível carregar a música.") }
         : state);
     }
   },
@@ -62,7 +87,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     set({ saving: true, error: null });
     try {
       const song = await musicService.createSong(payload);
-      set({ saving: false, currentSong: song, requestedSongId: song.id });
+      set({ saving: false, currentSong: song, requestedSongId: song.id, detailLoading: false, detailError: null });
       return song;
     } catch (error) {
       const reason = message(error, "Não foi possível criar a música.");
@@ -75,7 +100,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     set({ saving: true, error: null });
     try {
       const song = await musicService.updateSong(id, payload);
-      set((state) => ({ saving: false, currentSong: song, requestedSongId: song.id, songs: state.songs.map((item) => item.id === id ? song : item) }));
+      set((state) => ({ saving: false, currentSong: song, requestedSongId: song.id, detailLoading: false, detailError: null, songs: state.songs.map((item) => item.id === id ? song : item) }));
       return song;
     } catch (error) {
       const reason = message(error, "Não foi possível atualizar a música.");

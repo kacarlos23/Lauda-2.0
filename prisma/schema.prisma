@@ -42,6 +42,7 @@ model Tenant {
 
   ministryMembers     MinistryMember[]
   scheduleAssignments ScheduleAssignment[]
+  scheduleSongs        ScheduleSong[]
   ministrySongs       MinistrySong[]
   userInstruments     UserInstrument[]
 }
@@ -187,12 +188,36 @@ model Schedule {
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
   assignments ScheduleAssignment[]
+  songs       ScheduleSong[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([tenantId, date])
   @@index([ministryId])
+  @@index([tenantId, ministryId, date])
+}
+
+model ScheduleSong {
+  id String @id @default(uuid())
+
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  songId String
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([scheduleId, songId])
+  @@index([tenantId])
+  @@index([tenantId, scheduleId])
+  @@index([songId])
 }
 
 model ScheduleAssignment {
@@ -213,6 +238,8 @@ model ScheduleAssignment {
 
   @@unique([scheduleId, userId])
   @@index([tenantId])
+  @@index([tenantId, userId])
+  @@index([tenantId, status])
 }
 
 model Song {
@@ -223,6 +250,10 @@ model Song {
   originalKey     String
   content         String  @db.Text
   bpm             Int?
+  cifraUrl        String? @db.Text
+  letraUrl        String? @db.Text
+  audioUrl        String? @db.Text
+  videoUrl        String? @db.Text
 
   artistId String
   artist   Artist @relation(fields: [artistId], references: [id], onDelete: Restrict)
@@ -237,6 +268,7 @@ model Song {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   ministries MinistrySong[]
+  schedules  ScheduleSong[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
