@@ -444,6 +444,35 @@ acesso somente de leitura e exportação. Artistas, músicas e PDFs são sempre 
 - A aba Músicas oferece busca, criação guiada, editor monoespaçado e exportação individual/conjunta.
 - A tela Artistas permite editar nome e URL HTTP/HTTPS opcional da imagem; exclusão e fusão não são suportadas.
 
+### Importação assistida do Cifra Club
+
+O formulário de música permite buscar uma cifra no Cifra Club, selecionar o resultado correto, revisar uma prévia e preencher automaticamente tom original, link da cifra e conteúdo. A importação é assistida: o backend não cria nem edita a música sozinho.
+
+Rotas:
+
+- `GET /api/songs/cifra-club/search?artist=...&title=...`
+- `POST /api/songs/cifra-club/import` com `{ "url": "https://www.cifraclub.com.br/..." }`
+
+As rotas exigem autenticação e permissão de edição de músicas (`GLOBAL_ADMIN`, `TENANT_ADMIN` ou `MINISTRY_LEADER`). O importador usa Playwright no backend para tentar o botão "Baixar cifra"; se o download falhar ou a página/contexto fechar durante a tentativa, o erro é tratado e o serviço tenta o fallback do conteúdo público da página. Esse comportamento evita que uma falha externa derrube o servidor Node.
+
+Testes relacionados:
+
+```bash
+npm test -- --runInBand src\__tests__\unit\cifraClubImportService.test.ts
+npm test -- --runInBand src\__tests__\integration\music.test.ts
+```
+
+### Consistência da lista de músicas no mobile
+
+O estado mobile de músicas preserva a lista já carregada após criar ou editar uma música. Quando uma música nova é salva, ela é mesclada na lista local; quando uma música é editada, apenas o item correspondente é substituído. Requisições antigas de listagem que retornam depois de uma criação/edição são ignoradas para evitar que dados antigos apaguem a lista atual.
+
+Testes relacionados:
+
+```bash
+cd mobile
+npm test -- --runInBand --runTestsByPath src/store/musicStore.test.ts src/services/musicService.test.ts
+```
+
 O conteúdo da cifra usa preferencialmente ChordPro (`[G]Grande é o [D]Senhor`) e aceita cifras antigas com
 acordes sobre a letra. O limite é de 100 mil caracteres. Espaços e quebras de linha são preservados.
 Uma igreja não pode cadastrar duas músicas com o mesmo título normalizado para o mesmo artista.

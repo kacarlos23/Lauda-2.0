@@ -68,4 +68,22 @@ describe("CifraClubImportService", () => {
     expect(() => CifraClubImportService.parseSongPage("<html></html>", "https://www.cifraclub.com.br/a/b/"))
       .toThrow(ValidationError);
   });
+  it("ignora falha do download sem gerar rejeicao nao tratada", async () => {
+    const service = new CifraClubImportService() as unknown as {
+      tryDownloadContent(page: unknown): Promise<string | null>;
+    };
+    const downloadError = new Error("Target page, context or browser has been closed");
+    const page = {
+      getByText: () => ({
+        first: () => ({
+          count: jest.fn().mockResolvedValue(1),
+          click: jest.fn().mockRejectedValue(downloadError),
+        }),
+      }),
+      isClosed: () => false,
+      waitForEvent: jest.fn().mockReturnValue(Promise.reject(downloadError)),
+    };
+
+    await expect(service.tryDownloadContent(page)).resolves.toBeNull();
+  });
 });

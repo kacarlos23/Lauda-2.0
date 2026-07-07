@@ -60,6 +60,9 @@ pnpm-debug.*
 coverage/
 .nyc_output/
 .agent-browser-screenshots/
+playwright-report/
+test-results/
+blob-report/
 
 # OS and editor files
 .DS_Store
@@ -72,3 +75,4 @@ Desktop.ini
 *.tmp
 *.temp
 *.orig.*
+*.download

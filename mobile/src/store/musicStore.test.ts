@@ -17,6 +17,10 @@ const song: Song = {
   id: "s1", title: "Canção", composer: null, originalKey: "C", content: "[C]Letra", bpm: 90, artistId: "a1",
   artist: { id: "a1", name: "Artista", imageUrl: null }, createdAt: "2026-01-01", updatedAt: "2026-01-01",
 };
+const songA = { ...song, id: "a", title: "A" };
+const songB = { ...song, id: "b", title: "B" };
+const songC = { ...song, id: "c", title: "C" };
+const songD = { ...song, id: "d", title: "D" };
 
 describe("musicStore", () => {
   beforeEach(() => { jest.clearAllMocks(); useMusicStore.setState(initial, true); });
@@ -36,6 +40,20 @@ describe("musicStore", () => {
     expect(useMusicStore.getState().saving).toBe(false);
   });
 
+  it("adiciona musica criada sem remover as musicas ja carregadas", async () => {
+    useMusicStore.setState({
+      songs: [songA, songB, songC],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 3 },
+    });
+    mockedService.createSong.mockResolvedValueOnce(songD);
+
+    await useMusicStore.getState().createSong({ title: "D", artistId: "a1", originalKey: "C", content: "[C]" });
+
+    expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["a", "b", "c", "d"]);
+    expect(useMusicStore.getState().pagination.total).toBe(4);
+    expect(useMusicStore.getState().currentSong).toEqual(songD);
+  });
+
   it("atualiza detalhe e item da lista", async () => {
     const updated = { ...song, originalKey: "D" as const };
     useMusicStore.setState({ songs: [song], currentSong: song });
@@ -43,6 +61,40 @@ describe("musicStore", () => {
     await useMusicStore.getState().updateSong(song.id, { originalKey: "D" });
     expect(useMusicStore.getState().currentSong).toEqual(updated);
     expect(useMusicStore.getState().songs[0].originalKey).toBe("D");
+  });
+
+  it("edita uma musica sem remover outras musicas da lista", async () => {
+    const updatedD = { ...songD, title: "D editada" };
+    useMusicStore.setState({
+      songs: [songA, songB, songC, songD],
+      currentSong: songD,
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 4 },
+    });
+    mockedService.updateSong.mockResolvedValueOnce(updatedD);
+
+    await useMusicStore.getState().updateSong(songD.id, { title: "D editada" });
+
+    expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["a", "b", "c", "d"]);
+    expect(useMusicStore.getState().songs.find((item) => item.id === "d")?.title).toBe("D editada");
+    expect(useMusicStore.getState().currentSong).toEqual(updatedD);
+  });
+
+  it("ignora listagem antiga que retorna depois de uma criacao", async () => {
+    let resolveList!: (value: { items: Song[]; pagination: { page: number; limit: number; total: number; totalPages: number } }) => void;
+    mockedService.listSongs.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+    mockedService.createSong.mockResolvedValueOnce(songD);
+    useMusicStore.setState({
+      songs: [songA, songB, songC],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 3 },
+    });
+
+    const listPromise = useMusicStore.getState().loadSongs("", 1);
+    await useMusicStore.getState().createSong({ title: "D", artistId: "a1", originalKey: "C", content: "[C]" });
+    resolveList({ items: [songA, songB, songC], pagination: { page: 1, limit: 20, total: 3, totalPages: 1 } });
+    await listPromise;
+
+    expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["a", "b", "c", "d"]);
+    expect(useMusicStore.getState().loading).toBe(false);
   });
 
   it("ignora resposta atrasada da música aberta anteriormente", async () => {

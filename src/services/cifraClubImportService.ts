@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { chromium, Page } from "playwright";
+import { chromium, Download, Page } from "playwright";
 import { NotFoundError, ValidationError } from "../errors/AppError";
 import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
 
@@ -52,7 +52,7 @@ export class CifraClubImportService {
       if (!items.length) throw new NotFoundError("Nenhuma cifra encontrada no Cifra Club para esta música.");
       return { items };
     } finally {
-      await browser.close();
+      await browser.close().catch(() => undefined);
     }
   }
 
@@ -72,7 +72,7 @@ export class CifraClubImportService {
         source: downloadContent?.trim() ? "download" : "page-fallback",
       };
     } finally {
-      await browser.close();
+      await browser.close().catch(() => undefined);
     }
   }
 
@@ -80,14 +80,19 @@ export class CifraClubImportService {
     const downloadButton = page.getByText(/baixar cifra/i).first();
     if (!await downloadButton.count()) return null;
 
+    if (page.isClosed()) return null;
+
+    let downloadPromise: Promise<Download | null> | null = null;
     try {
-      const downloadPromise = page.waitForEvent("download", { timeout: 8_000 });
+      downloadPromise = page.waitForEvent("download", { timeout: 8_000 }).catch(() => null);
       await downloadButton.click({ timeout: 5_000 });
       const download = await downloadPromise;
+      if (!download) return null;
       const filePath = await download.path();
       if (!filePath) return null;
       return await fs.readFile(filePath, "utf8");
     } catch {
+      await downloadPromise?.catch(() => null);
       return null;
     }
   }
