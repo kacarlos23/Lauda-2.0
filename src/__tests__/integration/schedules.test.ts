@@ -305,6 +305,41 @@ describe("POST /api/schedules", () => {
     });
   });
 
+  it("gera PDF do relatório da escala com músicas e membros", async () => {
+    const tenant = await registerTenant("schedule-report");
+    const ministry = await createMinistry(tenant.token, "Louvor Relatório");
+    const member = await createUserAndLogin("report-member", tenant.tenant.id);
+    const song = await createSong(tenant.tenant.id, "Canção do Relatório");
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto relatório",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [song.id],
+        assignments: [{ userId: member.user.id, role: "Vocal" }],
+      })
+      .expect(201);
+
+    const pdf = await request(app)
+      .get(`/api/schedules/${created.body.data.id}/report`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on("end", () => callback(null, Buffer.concat(chunks)));
+      })
+      .expect(200)
+      .expect("Content-Type", /application\/pdf/);
+
+    expect(Buffer.isBuffer(pdf.body)).toBe(true);
+    expect(pdf.body.subarray(0, 4).toString()).toBe("%PDF");
+    expect(pdf.headers["content-disposition"]).toContain("Escala - Culto relatorio");
+  });
+
   it("permite TENANT_ADMIN editar escala substituindo músicas e membros", async () => {
     const tenant = await registerTenant("admin-update-full");
     const ministry = await createMinistry(tenant.token, "Louvor Update");

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Member } from "../types";
 import { colors, radii, spacing } from "../theme";
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
   row: {
     minHeight: 88,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   compatibleBadge: {
     minHeight: 26,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   },
   instrumentChip: {
     minHeight: 26,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     alignItems: "center",

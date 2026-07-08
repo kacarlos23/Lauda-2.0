@@ -24,7 +24,7 @@ interface AccessTokenPayload {
   userId: string;
   email: string;
   role: string;
-  tenantId: string;
+  tenantId: string | null;
 }
 
 const authRepository = new AuthRepository();
@@ -49,8 +49,8 @@ export class AuthService {
     phone?: string | null;
     avatarUrl?: string | null;
     role: string;
-    tenantId: string;
-    tenant?: { id: string; name: string };
+    tenantId: string | null;
+    tenant?: { id: string; name: string } | null;
     instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
   }) {
     const accessToken = this.generateAccessToken({
@@ -75,7 +75,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
       },
-      tenant: user.tenant,
+        tenant: user.tenant ?? null,
     };
   }
 
@@ -160,6 +160,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedError("Credenciais inválidas");
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedError("Usuário inativo");
     }
 
     if (input.inviteCode) {
@@ -331,13 +335,13 @@ export class AuthService {
     return ministry;
   }
 
-  private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string }) {
+  private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string | null }) {
     const invite = await authRepository.findActiveMemberInviteByCode(inviteCode.trim());
     if (!invite) {
       throw new ValidationError("Convite inválido ou expirado");
     }
 
-    if (invite.tenantId !== user.tenantId) {
+    if (!user.tenantId || invite.tenantId !== user.tenantId) {
       throw new ValidationError("Convite inválido para este usuário");
     }
 

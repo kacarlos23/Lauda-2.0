@@ -3,7 +3,7 @@ import type { ComponentType } from "react";
 import { CalendarClock, Church, Home, Music2, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
-import { colors } from "../../src/theme";
+import { colors, radii, shadow } from "../../src/theme";
 import { canAccessChurchAdmin, canViewMembers } from "../../src/utils/permissions";
 
 type TabIconProps = {
@@ -28,14 +28,19 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.line,
-          height: 64,
-          paddingTop: 6,
-          paddingBottom: 8,
+          borderTopColor: "transparent",
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
+          marginHorizontal: 12,
+          marginBottom: 10,
+          borderRadius: radii.xl,
+          position: "absolute",
+          ...shadow,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700" },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "800" },
         headerStyle: { backgroundColor: colors.background },
         headerShadowVisible: false,
         headerTintColor: colors.ink,

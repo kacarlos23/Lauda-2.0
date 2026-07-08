@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { adminService } from "../services/adminService";
-import { GlobalMinistry, GlobalTenant, GlobalUser } from "../types";
+import { GlobalMinistry, GlobalSchedule, GlobalSong, GlobalTenant, GlobalUser } from "../types";
 
 interface AdminState {
   tenants: GlobalTenant[];
   users: GlobalUser[];
   ministries: GlobalMinistry[];
+  songs: GlobalSong[];
+  schedules: GlobalSchedule[];
   loading: boolean;
   error: string | null;
   loadTenants: () => Promise<void>;
@@ -20,6 +22,8 @@ export const useAdminStore = create<AdminState>((set) => ({
   tenants: [],
   users: [],
   ministries: [],
+  songs: [],
+  schedules: [],
   loading: false,
   error: null,
 
@@ -39,12 +43,14 @@ export const useAdminStore = create<AdminState>((set) => ({
   loadDashboard: async () => {
     set({ loading: true, error: null });
     try {
-      const [tenants, users, ministries] = await Promise.all([
+      const [tenants, users, ministries, songs, schedules] = await Promise.all([
         adminService.getTenants(),
         adminService.getGlobalUsers(),
         adminService.getGlobalMinistries(),
+        adminService.getGlobalSongs(),
+        adminService.getGlobalSchedules(),
       ]);
-      set({ tenants, users, ministries, loading: false, error: null });
+      set({ tenants, users, ministries, songs, schedules, loading: false, error: null });
     } catch (error) {
       set({
         loading: false,

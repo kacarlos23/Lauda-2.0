@@ -69,6 +69,22 @@ function processQueue(error: unknown, token: string | null): void {
   });
 }
 
+function isTenantMissingAuthError(error: AxiosError): boolean {
+  const data = error.response?.data as { error?: string; message?: string } | undefined;
+  const message = data?.error ?? data?.message ?? "";
+  return error.response?.status === 401 && message.toLowerCase().includes("tenant ausente");
+}
+
+function shouldRetryTenantMissingAuth(error: AxiosError, originalRequest?: RetryableRequestConfig): boolean {
+  return Boolean(
+    isTenantMissingAuthError(error) &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/refresh") &&
+      !originalRequest.url?.includes("/auth/login")
+  );
+}
+
 async function clearStoredSession(): Promise<void> {
   await deleteSessionItem("auth_token");
   await deleteSessionItem("refresh_token");
@@ -122,6 +138,21 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (shouldRetryTenantMissingAuth(error, originalRequest) && originalRequest) {
+      originalRequest._retry = true;
+      try {
+        const token = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch {
+        return Promise.reject(error);
+      }
+    }
+
+    if (isTenantMissingAuthError(error)) {
+      return Promise.reject(error);
+    }
 
     if (
       error.response?.status !== 401 ||

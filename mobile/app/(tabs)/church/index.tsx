@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -219,14 +219,14 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   header: { marginBottom: spacing.xl },
   title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.sm },
   subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
   churchCard: {
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.lg,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 46,
     height: 46,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     color: colors.ink,
     fontSize: 17,
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 116,
     backgroundColor: colors.primarySoft,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   manageRow: {
     minHeight: 86,
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.md,
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   manageDescription: { color: colors.muted, fontSize: 12, fontWeight: "700", lineHeight: 18 },
   actionButton: {
     minHeight: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   editActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   primaryButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   secondaryButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.55 },
   stateBox: {
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.xl,

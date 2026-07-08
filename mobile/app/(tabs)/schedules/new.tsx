@@ -9,7 +9,7 @@ import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { combineDisplayDateTimeToIso, maskDateInput, maskTimeInput, toDisplayDate } from "../../../src/utils/dateTimeInput";
 
 function canManageSchedules(role?: string | null) {
@@ -292,14 +292,14 @@ export default function NewScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 100 },
+  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   field: { flex: 1 },
   inputActionRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
@@ -312,19 +312,19 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: 40, borderRadius: radii.sm, backgroundColor: colors.primarySoft, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
+  secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
   secondaryText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  primaryButton: { minHeight: 48, marginTop: spacing.xl, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primaryButton: { minHeight: 52, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, ...buttonShadow },
   primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   disabled: { opacity: 0.65 },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", backgroundColor: "#FDECEC", padding: spacing.md, borderRadius: radii.sm, marginBottom: spacing.md },
+  error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   loader: { marginVertical: spacing.xl },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   selectedChipTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
   selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
-  modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
+  modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.md },
   modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
   modalList: { maxHeight: 440, marginTop: spacing.md },
@@ -335,13 +335,13 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row", marginTop: spacing.md },
   weekday: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 12, fontWeight: "900" },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.sm },
-  calendarDay: { width: `${100 / 7}%`, minHeight: 42, alignItems: "center", justifyContent: "center" },
+  calendarDay: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center" },
   calendarDayText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
-  modalActionSecondary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.sm, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  modalActionPrimary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionSecondary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionPrimary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   keyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  keyChip: { minWidth: 45, height: 36, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  keyChip: { minWidth: 45, height: 36, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   keyChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   keyChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
   keyChipTextActive: { color: colors.surface },

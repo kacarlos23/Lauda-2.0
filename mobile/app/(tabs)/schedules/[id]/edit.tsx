@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
+import { Download } from "lucide-react-native";
 import { memberService } from "../../../../src/services/memberService";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { musicService } from "../../../../src/services/musicService";
 import { useAuthStore } from "../../../../src/store/authStore";
 import { useScheduleStore } from "../../../../src/store/scheduleStore";
+import { scheduleService } from "../../../../src/services/scheduleService";
 import { Member, Ministry, MinistryMember, ScheduleAssignment, Song } from "../../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../../src/theme";
 import { combineDisplayDateTimeToIso, maskDateInput, maskTimeInput, toDisplayDate } from "../../../../src/utils/dateTimeInput";
 
 function canManageSchedules(role?: string | null) {
@@ -39,7 +41,10 @@ export default function EditScheduleScreen() {
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
   const [membersModal, setMembersModal] = useState(false);
   const [songsModal, setSongsModal] = useState(false);
+  const [songOrderModal, setSongOrderModal] = useState(false);
+  const [draggedSongIndex, setDraggedSongIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     void loadSchedules();
@@ -98,6 +103,36 @@ export default function EditScheduleScreen() {
     ? current.filter((item) => item.userId !== userId)
     : [...current, { userId, role: "Membro", status: "PENDING" }]);
 
+  const getSongOrder = (songId: string) => {
+    const index = selectedSongIds.indexOf(songId);
+    return index >= 0 ? index + 1 : null;
+  };
+
+  const reorderSong = (fromIndex: number, toIndex: number) => {
+    setSelectedSongIds((current) => {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= current.length || toIndex >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const moveSong = (index: number, direction: -1 | 1) => {
+    reorderSong(index, index + direction);
+  };
+
+  const getSongDragProps = (index: number) => Platform.OS === "web" ? ({
+    draggable: true,
+    onDragStart: () => setDraggedSongIndex(index),
+    onDragOver: (event: { preventDefault?: () => void }) => event.preventDefault?.(),
+    onDrop: () => {
+      if (draggedSongIndex !== null) reorderSong(draggedSongIndex, index);
+      setDraggedSongIndex(null);
+    },
+    onDragEnd: () => setDraggedSongIndex(null),
+  } as any) : {};
+
   const save = async () => {
     if (!id) return;
     if (!title.trim()) return Alert.alert("Dados incompletos", "Informe o nome da escala.");
@@ -117,6 +152,19 @@ export default function EditScheduleScreen() {
     }
   };
 
+  const exportReport = async () => {
+    if (!schedule) return;
+    setExporting(true);
+    try {
+      const reportDate = new Date(schedule.date).toISOString().slice(0, 10);
+      await scheduleService.exportScheduleReport(schedule.id, `Escala - ${schedule.title} - ${reportDate}.pdf`, schedule);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível gerar o relatório da escala.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!canManageSchedules(user?.role)) {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href="/schedules" /></View>;
   }
@@ -130,16 +178,55 @@ export default function EditScheduleScreen() {
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Editar músicas</Text>
+          <Text style={styles.helper}>O número ao lado indica a ordem atual da música na escala.</Text>
           <ScrollView style={styles.modalList}>
             {songs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
+              const order = getSongOrder(song.id);
               return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)}>
-                <Text style={styles.optionTitle}>{song.title}</Text>
+                <View style={styles.optionTitleRow}>
+                  <Text style={styles.optionTitle}>{song.title}</Text>
+                  {order ? <Text style={styles.orderBadge}>{order}</Text> : null}
+                </View>
                 <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
               </TouchableOpacity>;
             })}
           </ScrollView>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setSongsModal(false)}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.modalActionSecondary} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.modalActionPrimary} onPress={() => setSongsModal(false)}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
+          </View>
+        </View></View>
+      </Modal>
+
+      <Modal visible={songOrderModal} transparent animationType="fade" onRequestClose={() => setSongOrderModal(false)}>
+        <View style={styles.backdrop}><View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Organizar ordem das músicas</Text>
+          <Text style={styles.helper}>Arraste as músicas para reorganizar no desktop ou use os botões subir/descer.</Text>
+          {selectedSongs.length === 0 ? <Text style={styles.emptyText}>Nenhuma música selecionada.</Text> : (
+            <ScrollView style={styles.modalList}>
+              {selectedSongs.map((song, index) => (
+                <View key={song.id} style={[styles.orderItem, draggedSongIndex === index && styles.orderItemDragging]} {...getSongDragProps(index)}>
+                  <View style={styles.orderItemMain}>
+                    <Text style={styles.orderBadgeLarge}>{index + 1}</Text>
+                    <View style={styles.orderItemText}>
+                      <Text style={styles.optionTitle}>{song.title}</Text>
+                      <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.orderActions}>
+                    <TouchableOpacity style={[styles.orderButton, index === 0 && styles.disabled]} disabled={index === 0} onPress={() => moveSong(index, -1)}>
+                      <Text style={styles.orderButtonText}>↑</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.orderButton, index === selectedSongs.length - 1 && styles.disabled]} disabled={index === selectedSongs.length - 1} onPress={() => moveSong(index, 1)}>
+                      <Text style={styles.orderButtonText}>↓</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setSongOrderModal(false)}><Text style={styles.primaryText}>Concluir organização</Text></TouchableOpacity>
         </View></View>
       </Modal>
 
@@ -160,8 +247,22 @@ export default function EditScheduleScreen() {
       </Modal>
 
       <View style={styles.backRow}><AppBackButton href="/schedules" /></View>
-      <Text style={styles.title}>Editar Escala</Text>
-      <Text style={styles.subtitle}>Atualize os dados, músicas e membros da escala.</Text>
+      <View style={styles.titleRow}>
+        <View style={styles.titleGroup}>
+          <Text style={styles.title}>Editar Escala</Text>
+          <Text style={styles.subtitle}>Atualize os dados, músicas e membros da escala.</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.reportButton}
+          onPress={() => void exportReport()}
+          disabled={exporting}
+          accessibilityRole="button"
+          accessibilityLabel="Gerar relatório da escala"
+        >
+          {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+          <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Gerar relatório"}</Text>
+        </TouchableOpacity>
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.card}>
         <Text style={styles.label}>Nome da escala *</Text>
@@ -176,7 +277,16 @@ export default function EditScheduleScreen() {
           <View style={styles.field}><Text style={styles.label}>Dia *</Text><TextInput style={styles.input} value={date} onChangeText={(value) => setDate(maskDateInput(value))} placeholder="DD/MM/AAAA" placeholderTextColor={colors.muted} maxLength={10} /></View>
           <View style={styles.field}><Text style={styles.label}>Horário *</Text><TextInput style={styles.input} value={hour} onChangeText={(value) => setHour(maskTimeInput(value))} placeholder="HH:mm" placeholderTextColor={colors.muted} maxLength={5} /></View>
         </View>
-        <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song) => song.title).join(", ") : "Nenhuma música adicionada."}</Text></View><TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Editar músicas</Text></TouchableOpacity></View>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionText}>
+            <Text style={styles.sectionTitle}>Músicas</Text>
+            <Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song, index) => `${index + 1}. ${song.title}`).join(", ") : "Nenhuma música adicionada."}</Text>
+          </View>
+          <View style={styles.sectionActions}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Editar músicas</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
+          </View>
+        </View>
         <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View><TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Editar membros</Text></TouchableOpacity></View>
         <View style={styles.selectedList}>{selectedMemberDetails.map((entry) => <View key={entry.userId} style={styles.selectedChip}><Text style={styles.selectedChipTitle}>{entry.member?.name}</Text><Text style={styles.selectedChipMeta}>{entry.role}</Text></View>)}</View>
         <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving}><Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar alterações"}</Text></TouchableOpacity>
@@ -186,14 +296,18 @@ export default function EditScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 100 },
+  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
+  titleGroup: { flex: 1 },
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
+  reportButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   field: { flex: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -202,24 +316,40 @@ const styles = StyleSheet.create({
   chipText: { color: colors.text, fontWeight: "800" },
   chipTextActive: { color: colors.surface },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl },
+  sectionText: { flex: 1 },
+  sectionActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: 40, borderRadius: radii.sm, backgroundColor: colors.primarySoft, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
+  secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
   secondaryText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  primaryButton: { minHeight: 48, marginTop: spacing.xl, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primaryButton: { minHeight: 52, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, ...buttonShadow },
   primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   disabled: { opacity: 0.65 },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", backgroundColor: "#FDECEC", padding: spacing.md, borderRadius: radii.sm, marginBottom: spacing.md },
+  error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   selectedChipTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
   selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
-  modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
+  modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  optionTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   optionTitle: { color: colors.ink, fontSize: 15, fontWeight: "900" },
   optionMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
+  orderBadge: { minWidth: 26, height: 26, borderRadius: 13, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: 26, fontSize: 12, fontWeight: "900" },
+  orderBadgeLarge: { width: 34, height: 34, borderRadius: 17, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: 34, fontSize: 14, fontWeight: "900" },
+  orderItem: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  orderItemDragging: { borderColor: colors.primary, backgroundColor: colors.primarySoft, opacity: 0.82 },
+  orderItemMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  orderItemText: { flex: 1 },
+  orderActions: { flexDirection: "row", gap: spacing.xs },
+  orderButton: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center" },
+  orderButtonText: { color: colors.primary, fontSize: 18, fontWeight: "900" },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
+  modalActionSecondary: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionPrimary: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  emptyText: { color: colors.muted, fontSize: 14, fontWeight: "800", paddingVertical: spacing.lg },
 });

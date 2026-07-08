@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -123,15 +123,15 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(16,32,26,0.46)",
   },
   backdropPressable: {
     flex: 1,
   },
   sheet: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
     maxHeight: "90%",
     ...shadow,
   },
@@ -154,15 +154,20 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "900",
     color: colors.ink,
   },
   closeBtn: {
-    padding: spacing.xs,
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   content: {
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   footer: {
     padding: spacing.xl,

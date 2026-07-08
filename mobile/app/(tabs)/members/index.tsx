@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+﻿import { useCallback, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   header: {
     marginBottom: spacing.lg,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 15, color: colors.muted },
   headerButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.primary,
     flexDirection: "row",
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   inviteBox: {
     width: "100%",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.lg,
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   },
   ministryChip: {
     minHeight: 36,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     paddingHorizontal: spacing.md,
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
   ministryChipTextActive: { color: colors.primary },
   inviteField: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.md,
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   emptyBox: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.lg,
     marginBottom: spacing.md,
     flexDirection: "row",
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   },
   instrumentChip: {
     minHeight: 28,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
   permissionButton: {
     alignSelf: "flex-start",
     minHeight: 34,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     marginTop: spacing.md,
     flexDirection: "row",
@@ -771,7 +771,7 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     maxHeight: "92%",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.lg,
@@ -800,8 +800,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   roleOption: {
-    minHeight: 42,
-    borderRadius: radii.sm,
+    minHeight: 44,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   },
   permissionMinistryMain: {
     flex: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
   permissionMinistryStatus: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
   leaderToggle: {
     minWidth: 84,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
   leaderToggleTextActive: { color: colors.surface },
   savePermissionButton: {
     minHeight: 48,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     flexDirection: "row",
     alignItems: "center",

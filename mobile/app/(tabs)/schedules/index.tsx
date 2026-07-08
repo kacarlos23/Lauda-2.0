@@ -1,6 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -11,11 +12,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { CalendarClock, Plus } from "lucide-react-native";
+import { CalendarClock, Download, Plus } from "lucide-react-native";
+import { scheduleService } from "../../../src/services/scheduleService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Schedule, ScheduleAssignment } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { formatAssignmentStatus } from "../../../src/utils/scheduleFormat";
 
 const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
@@ -50,6 +52,7 @@ export default function SchedulesScreen() {
   const { allSchedules, schedules: myAssignments, loading, error, loadSchedules, loadMySchedules, updateScheduleStatus } = useScheduleStore();
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [month, setMonth] = useState(() => new Date());
 
@@ -71,6 +74,18 @@ export default function SchedulesScreen() {
       await loadMySchedules();
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const exportReport = async (schedule: Schedule) => {
+    setExportingId(schedule.id);
+    try {
+      const date = new Date(schedule.date).toISOString().slice(0, 10);
+      await scheduleService.exportScheduleReport(schedule.id, `Escala - ${schedule.title} - ${date}.pdf`, schedule);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível gerar o relatório da escala.");
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -162,30 +177,47 @@ export default function SchedulesScreen() {
           const assignment = assignmentByScheduleId.get(item.id);
           const isPending = assignment?.status === "PENDING";
           const isUpdating = updatingId === assignment?.id;
+          const isExporting = exportingId === item.id;
           const date = new Date(item.date);
           return (
-            <Pressable
-              style={({ hovered, pressed }: any) => [
-                styles.card,
-                canManageSchedules(user?.role) && styles.cardClickable,
-                hovered && canManageSchedules(user?.role) && styles.cardHover,
-                pressed && canManageSchedules(user?.role) && styles.cardPressed,
-              ]}
-              onPress={() => { if (canManageSchedules(user?.role)) router.push(`/schedules/${item.id}/edit` as never); }}
-              accessibilityRole={canManageSchedules(user?.role) ? "button" : undefined}
-              accessibilityLabel={canManageSchedules(user?.role) ? `Editar escala ${item.title}` : undefined}
-            >
-              <View style={styles.summaryDate}>
-                <Text style={styles.dayNumber}>{date.getDate()}</Text>
-                <Text style={styles.weekday}>{weekday.format(date).replace(".", "")}</Text>
+            <View style={styles.card}>
+              <Pressable
+                style={({ hovered, pressed }: any) => [
+                  styles.cardPressArea,
+                  canManageSchedules(user?.role) && styles.cardClickable,
+                  hovered && canManageSchedules(user?.role) && styles.cardHover,
+                  pressed && canManageSchedules(user?.role) && styles.cardPressed,
+                ]}
+                onPress={() => { if (canManageSchedules(user?.role)) router.push(`/schedules/${item.id}/edit` as never); }}
+                accessibilityRole={canManageSchedules(user?.role) ? "button" : undefined}
+                accessibilityLabel={canManageSchedules(user?.role) ? `Editar escala ${item.title}` : undefined}
+              >
+                <View style={styles.summaryDate}>
+                  <Text style={styles.dayNumber}>{date.getDate()}</Text>
+                  <Text style={styles.weekday}>{weekday.format(date).replace(".", "")}</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTime}>{time.format(date)}</Text>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.detail}>Ministério: {item.ministry?.name ?? "Não informado"}</Text>
+                  {item.songs?.length ? <Text style={styles.detail}>Músicas: {item.songs.map((entry) => entry.song.title).join(", ")}</Text> : null}
+                  {item.assignments?.length ? <Text style={styles.detail}>Membros: {item.assignments.map((entry) => entry.user?.name ?? "Membro").join(", ")}</Text> : null}
+                  {assignment ? <Text style={styles.status}>Minha atribuição: {assignment.role} · {formatAssignmentStatus(assignment.status)}</Text> : null}
+                </View>
+              </Pressable>
+              <View style={styles.cardActions}>
+                <TouchableOpacity
+                  style={styles.reportButton}
+                  onPress={() => void exportReport(item)}
+                  disabled={isExporting}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Gerar relatório da escala ${item.title}`}
+                >
+                  {isExporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+                  <Text style={styles.reportButtonText}>{isExporting ? "Gerando..." : "Gerar relatório"}</Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTime}>{time.format(date)}</Text>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.detail}>Ministério: {item.ministry?.name ?? "Não informado"}</Text>
-                {item.songs?.length ? <Text style={styles.detail}>Músicas: {item.songs.map((entry) => entry.song.title).join(", ")}</Text> : null}
-                {item.assignments?.length ? <Text style={styles.detail}>Membros: {item.assignments.map((entry) => entry.user?.name ?? "Membro").join(", ")}</Text> : null}
-                {assignment ? <Text style={styles.status}>Minha atribuição: {assignment.role} · {formatAssignmentStatus(assignment.status)}</Text> : null}
+              <View style={styles.cardBodyOffset}>
                 {isPending && assignment ? (
                   <View style={styles.actions}>
                     <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => void handleStatus(assignment, "ACCEPTED")} disabled={isUpdating}>
@@ -197,7 +229,7 @@ export default function SchedulesScreen() {
                   </View>
                 ) : null}
               </View>
-            </Pressable>
+            </View>
           );
         }}
       />
@@ -207,21 +239,21 @@ export default function SchedulesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: spacing.xxl },
+  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
-  title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "600" },
-  newButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.primary, borderRadius: radii.sm, paddingHorizontal: spacing.md },
+  title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
+  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
+  newButton: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.primary, borderRadius: radii.md, paddingHorizontal: spacing.md, ...buttonShadow },
   newButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
   errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginBottom: spacing.sm },
-  calendarCard: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, marginBottom: spacing.lg, ...shadow },
+  calendarCard: { backgroundColor: colors.surface, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, marginBottom: spacing.lg, ...shadow },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   monthTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", textTransform: "capitalize" },
   monthNav: { color: colors.primary, fontSize: 30, fontWeight: "900", paddingHorizontal: spacing.md },
   weekRow: { flexDirection: "row" },
   weekLabel: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 12, fontWeight: "900", marginBottom: spacing.xs },
   dayGrid: { flexDirection: "row", flexWrap: "wrap" },
-  dayCell: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
+  dayCell: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
   todayCell: { borderWidth: 1, borderColor: colors.primary },
   selectedCell: { backgroundColor: colors.primary },
   dayText: { color: colors.text, fontSize: 14, fontWeight: "800" },
@@ -229,23 +261,28 @@ const styles = StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary, marginTop: 3 },
   selectedDot: { backgroundColor: colors.surface },
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.md },
-  emptyBox: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, borderWidth: 1, borderColor: colors.line, alignItems: "center", gap: spacing.sm },
+  emptyBox: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.xl, borderWidth: 1, borderColor: colors.line, alignItems: "center", gap: spacing.sm, ...shadow },
   emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800" },
   emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
-  card: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.line, ...shadow },
+  card: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.line, ...shadow },
+  cardPressArea: { flexDirection: "row", borderRadius: radii.lg },
   cardClickable: { cursor: "pointer" } as any,
-  cardHover: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  cardHover: { backgroundColor: colors.primarySoft },
   cardPressed: { opacity: 0.86 },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
   dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "900" },
   weekday: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   cardBody: { flex: 1 },
+  cardBodyOffset: { marginLeft: 58 },
   cardTime: { color: colors.primary, fontSize: 13, fontWeight: "900" },
   cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", marginTop: spacing.xs, marginBottom: spacing.xs },
   detail: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: "600" },
   status: { color: colors.primary, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
+  cardActions: { marginLeft: 58, marginTop: spacing.md, alignItems: "flex-start" },
+  reportButton: { alignSelf: "flex-start", minHeight: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  actionButton: { minHeight: 40, borderRadius: radii.sm, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center" },
+  actionButton: { minHeight: 40, borderRadius: radii.md, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center" },
   acceptButton: { backgroundColor: colors.primary },
   declineButton: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.line },
   acceptButtonText: { color: colors.surface, fontSize: 13, fontWeight: "800" },

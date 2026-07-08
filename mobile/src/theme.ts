@@ -1,18 +1,24 @@
 import { Platform } from "react-native";
 
 export const colors = {
-  background: "#F6F7F2",
+  background: "#F8FAF7",
   surface: "#FFFFFF",
-  surfaceMuted: "#EEF1EA",
-  ink: "#17211A",
-  text: "#2D3A31",
-  muted: "#667267",
-  line: "#DDE4DA",
-  primary: "#1F6F55",
-  primaryDark: "#164C3C",
-  primarySoft: "#DDEDE6",
-  accent: "#C0582D",
-  danger: "#B33131",
+  surfaceMuted: "#EEF5F1",
+  ink: "#10201A",
+  text: "#33423B",
+  muted: "#748179",
+  line: "#E2EAE5",
+  primary: "#157A6E",
+  primaryDark: "#0E4F49",
+  primarySoft: "#DDF4EF",
+  accent: "#F26B4F",
+  accentSoft: "#FFE8E1",
+  secondary: "#76B041",
+  secondarySoft: "#EAF6DD",
+  warning: "#F4B740",
+  warningSoft: "#FFF4D9",
+  danger: "#D64545",
+  dangerSoft: "#FFE5E5",
 };
 
 export const spacing = {
@@ -25,9 +31,10 @@ export const spacing = {
 };
 
 export const radii = {
-  sm: 8,
-  md: 10,
-  lg: 12,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
   pill: 999,
 };
 
@@ -38,21 +45,42 @@ export const screen = {
 
 export const shadow = Platform.select({
   web: {
-    boxShadow: "0 8px 16px rgba(14, 27, 20, 0.08)",
+    boxShadow: "0 10px 24px rgba(16, 32, 26, 0.08)",
   },
   ios: {
-    shadowColor: "#0E1B14",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: "#10201A",
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
   },
   android: {
     elevation: 2,
   },
   default: {
-    shadowColor: "#0E1B14",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    shadowColor: "#10201A",
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
+});
+
+export const buttonShadow = Platform.select({
+  web: {
+    boxShadow: "0 8px 18px rgba(14, 79, 73, 0.16)",
+  },
+  ios: {
+    shadowColor: "#0E4F49",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  android: {
+    elevation: 3,
+  },
+  default: {
+    shadowColor: "#0E4F49",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
   },
 });

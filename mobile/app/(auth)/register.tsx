@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Church } from "lucide-react-native";
 import { goBackTo } from "../../src/utils/navigation";
 import { useAuthStore } from "../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 export default function RegisterScreen() {
   const { register } = useAuthStore();
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: "800",
+    fontWeight: "900",
     color: colors.ink,
     marginBottom: spacing.xs,
   },
@@ -189,7 +189,8 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    minHeight: 52,
+    borderRadius: radii.md,
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
     color: colors.ink,
@@ -201,9 +202,11 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: radii.sm,
+    minHeight: 52,
+    borderRadius: radii.md,
     alignItems: "center",
     marginTop: spacing.sm,
+    ...buttonShadow,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: colors.surface, fontSize: 16, fontWeight: "700" },

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { usePreventRemove } from "@react-navigation/native";
@@ -6,7 +6,7 @@ import { ArtistPicker } from "./ArtistPicker";
 import { AppBackButton } from "./AppBackButton";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../types";
 import { CifraClubImportResult, CifraClubSearchResult, musicService, SongPayload } from "../services/musicService";
-import { colors, radii, screen, shadow, spacing } from "../theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../theme";
 
 type Props = {
   initial?: Song;
@@ -187,7 +187,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
                 <Text style={styles.modalSubtitle}>{artist?.name} · {title.trim()}</Text>
               </View>
               <TouchableOpacity style={styles.modalClose} onPress={closeCifraClubModal} accessibilityRole="button" accessibilityLabel="Fechar importação do Cifra Club">
-                <Text style={styles.modalCloseText}>×</Text>
+                <Text style={styles.modalCloseText}></Text>
               </TouchableOpacity>
             </View>
 
@@ -318,35 +318,35 @@ function isValidExternalLink(value: string): boolean {
 }
 
 const styles = StyleSheet.create({
-  container: { width: "100%", maxWidth: screen.maxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 80 },
+  container: { width: "100%", maxWidth: screen.maxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
   editorContainer: { maxWidth: screen.listMaxWidth * 1.1 },
   backRow: { marginBottom: spacing.lg },
   progress: { height: 5, borderRadius: radii.pill, backgroundColor: colors.line, overflow: "hidden", marginBottom: spacing.sm },
   progressBar: { height: "100%", backgroundColor: colors.primary },
   stepLabel: { color: colors.muted, fontSize: 12, fontWeight: "800", marginBottom: spacing.lg },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
-  title: { color: colors.ink, fontSize: 21, fontWeight: "800", marginBottom: spacing.lg },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
+  title: { color: colors.ink, fontSize: 22, fontWeight: "900", marginBottom: spacing.lg },
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginTop: spacing.lg, marginBottom: spacing.sm },
-  input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   keyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  key: { minWidth: 45, height: 38, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  key: { minWidth: 45, height: 40, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   keyActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   keyText: { color: colors.text, fontSize: 13, fontWeight: "800" },
   keyTextActive: { color: colors.surface },
-  importButton: { minHeight: 42, marginTop: spacing.md, borderRadius: radii.sm, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  importButton: { minHeight: 48, marginTop: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   importButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
   sectionTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", marginTop: spacing.xl, marginBottom: spacing.xs },
   helperText: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  primaryButton: { minHeight: 48, marginTop: spacing.xl, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  primaryButton: { minHeight: 52, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, ...buttonShadow },
+  primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   disabled: { opacity: 0.65 },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", backgroundColor: "#FDECEC", padding: spacing.md, borderRadius: radii.sm, marginBottom: spacing.md },
+  error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   summary: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing.md },
   meta: { color: colors.muted, fontSize: 13, fontWeight: "600", marginTop: -spacing.md },
   editLink: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  editor: { minHeight: 496, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: 14, lineHeight: 21, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", web: "monospace" }) },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
-  modalCard: { width: "100%", maxWidth: 680, maxHeight: "90%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.lg, ...shadow },
+  editor: { minHeight: 496, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: 14, lineHeight: 21, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", web: "monospace" }) },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(16, 32, 26, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalCard: { width: "100%", maxWidth: 680, maxHeight: "90%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
   modalTitle: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
   modalSubtitle: { color: colors.muted, fontSize: 13, fontWeight: "700" },
@@ -355,14 +355,14 @@ const styles = StyleSheet.create({
   modalLoader: { marginVertical: spacing.lg },
   modalList: { maxHeight: 420 },
   modalListContent: { gap: spacing.sm },
-  resultCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md },
+  resultCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surfaceMuted, padding: spacing.md },
   resultTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", marginBottom: spacing.xs },
   resultMeta: { color: colors.primary, fontSize: 13, fontWeight: "800", marginBottom: spacing.xs },
   resultUrl: { color: colors.muted, fontSize: 12, fontWeight: "600" },
   previewLabel: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
-  previewText: { maxHeight: 260, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: 13, lineHeight: 19, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", web: "monospace" }) },
+  previewText: { maxHeight: 260, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: 13, lineHeight: 19, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", web: "monospace" }) },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
-  secondaryButton: { minHeight: 42, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   secondaryButtonText: { color: colors.text, fontSize: 13, fontWeight: "900" },
-  primarySmallButton: { minHeight: 42, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primarySmallButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
 });

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+﻿import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -190,7 +190,7 @@ export default function AssignMemberScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: spacing.xl },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxl },
+  content: { padding: spacing.xl, paddingBottom: 120 },
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   iconBtn: { padding: spacing.sm },
   title: { color: colors.ink, fontSize: 24, fontWeight: "800" },
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
   chip: {
     minHeight: 38,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: "center",
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   toggleText: { color: colors.text, fontSize: 15, fontWeight: "700" },
   submitButton: {
     minHeight: 48,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",

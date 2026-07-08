@@ -6,11 +6,12 @@ type PromotionUser = {
   id: string;
   email: string;
   role: Role;
+  tenantId?: string | null;
 };
 
 export type GlobalAdminPromotionRepository = {
   findUserByEmail(email: string): Promise<PromotionUser | null>;
-  updateUserRole(email: string, role: Role): Promise<PromotionUser>;
+  updateUserRole(email: string, role: Role, tenantId: string | null): Promise<PromotionUser>;
 };
 
 export async function promoteGlobalAdmin(
@@ -22,5 +23,5 @@ export async function promoteGlobalAdmin(
     throw new Error("Usuário não encontrado. Crie o usuário pelo fluxo normal antes de promover.");
   }
 
-  return repository.updateUserRole(email, Role.GLOBAL_ADMIN);
+  return repository.updateUserRole(email, Role.GLOBAL_ADMIN, null);
 }

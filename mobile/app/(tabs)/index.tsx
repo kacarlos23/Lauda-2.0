@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { CalendarClock, ClipboardList, UsersRound } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
 import {
   countPendingSchedules,
   formatAssignmentStatus,
@@ -32,30 +32,21 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Hoje</Text>
           <Text style={styles.greeting}>Olá, {firstName}</Text>
-          <Text style={styles.role}>{formatRoleLabel(user?.role)}</Text>
+          <Text style={styles.role}>Veja sua rotina ministerial</Text>
           <Text style={styles.tenant}>
-            {isGlobalAdmin(user) ? "Acesso global ao sistema" : `Igreja atual: ${tenant?.name ?? "Não identificada"}`}
+            {isGlobalAdmin(user)
+              ? "Acesso global ao sistema"
+              : `${formatRoleLabel(user?.role)} · ${tenant?.name ?? "Igreja não identificada"}`}
           </Text>
-        </View>
-
-        <View style={styles.summaryRow}>
-          <View style={styles.metric}>
-            <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{pendingCount}</Text>
-            <Text style={styles.metricLabel}>Escalas pendentes</Text>
-          </View>
-          <View style={styles.metric}>
-            <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
-            <Text style={styles.metricValue}>{schedules.length}</Text>
-            <Text style={styles.metricLabel}>Escalas no app</Text>
-          </View>
         </View>
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <ClipboardList color={colors.primary} size={22} strokeWidth={2.4} />
+            <View style={styles.iconBubble}>
+              <ClipboardList color={colors.primary} size={22} strokeWidth={2.4} />
+            </View>
             <View style={styles.cardHeaderText}>
-              <Text style={styles.cardKicker}>Próximas escalas</Text>
+              <Text style={styles.cardKicker}>Próxima escala</Text>
               <Text style={styles.cardTitle}>
                 {nextSchedule ? nextSchedule.schedule.title : "Sem compromissos agendados"}
               </Text>
@@ -88,6 +79,19 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.summaryRow}>
+          <View style={styles.metric}>
+            <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
+            <Text style={styles.metricValue}>{pendingCount}</Text>
+            <Text style={styles.metricLabel}>Pendentes</Text>
+          </View>
+          <View style={styles.metric}>
+            <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
+            <Text style={styles.metricValue}>{schedules.length}</Text>
+            <Text style={styles.metricLabel}>Escalas</Text>
+          </View>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardKicker}>Ministérios</Text>
           <Text style={styles.cardTitle}>Acompanhe suas equipes</Text>
@@ -107,32 +111,33 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   header: { marginBottom: spacing.xl },
   eyebrow: {
     color: colors.accent,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "900",
     textTransform: "uppercase",
+    letterSpacing: 0.6,
     marginBottom: spacing.xs,
   },
   greeting: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 34,
+    fontWeight: "900",
     color: colors.ink,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   role: {
-    fontSize: 15,
-    color: colors.muted,
-    fontWeight: "600",
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: "700",
   },
   tenant: {
     marginTop: spacing.sm,
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: "700",
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: "800",
   },
   summaryRow: {
     flexDirection: "row",
@@ -142,53 +147,64 @@ const styles = StyleSheet.create({
   metric: {
     flex: 1,
     backgroundColor: colors.primarySoft,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: "#BFE7DE",
   },
   metricValue: {
-    fontSize: 28,
-    fontWeight: "800",
+    fontSize: 30,
+    fontWeight: "900",
     color: colors.primaryDark,
+    marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
-  metricLabel: { color: colors.text, fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  metricLabel: { color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 18 },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
     ...shadow,
   },
+  iconBubble: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   cardHeaderText: { flex: 1 },
   cardKicker: {
     color: colors.primary,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "900",
     textTransform: "uppercase",
+    letterSpacing: 0.6,
     marginBottom: spacing.sm,
   },
   cardTitle: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 21,
+    fontWeight: "900",
     color: colors.ink,
     marginBottom: spacing.sm,
+    lineHeight: 27,
   },
-  cardBody: { fontSize: 15, lineHeight: 22, color: colors.muted },
+  cardBody: { fontSize: 15, lineHeight: 22, color: colors.text, fontWeight: "600" },
   scheduleDetails: { gap: spacing.xs, marginBottom: spacing.md },
   primaryButton: {
     alignSelf: "flex-start",
-    minHeight: 42,
-    borderRadius: radii.sm,
+    minHeight: 52,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     marginTop: spacing.md,
     backgroundColor: colors.primary,
@@ -196,6 +212,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
+    ...buttonShadow,
   },
-  primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
 });

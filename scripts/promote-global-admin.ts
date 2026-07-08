@@ -9,17 +9,17 @@ async function main() {
     findUserByEmail: (email) =>
       basePrisma.user.findUnique({
         where: { email },
-        select: { id: true, email: true, role: true },
+        select: { id: true, email: true, role: true, tenantId: true },
       }),
-    updateUserRole: (email, role: Role) =>
+    updateUserRole: (email, role: Role, tenantId: string | null) =>
       basePrisma.user.update({
         where: { email },
-        data: { role },
-        select: { id: true, email: true, role: true },
+        data: { role, tenantId },
+        select: { id: true, email: true, role: true, tenantId: true },
       }),
   });
 
-  console.log(`Usuário ${user.email} promovido para ${user.role}.`);
+  console.log(`Usuário ${user.email} promovido para ${user.role} sem igreja vinculada.`);
 }
 
 main()

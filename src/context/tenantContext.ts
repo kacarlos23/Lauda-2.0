@@ -4,7 +4,7 @@ import { Role } from "@prisma/client";
 export interface TenantContext {
   userId: string;
   role: Role;
-  tenantId: string;
+  tenantId: string | null;
 }
 
 const tenantStorage = new AsyncLocalStorage<TenantContext>();

@@ -9,6 +9,7 @@ router.use(authMiddleware);
 
 router.get("/me", (req, res) => ctrl.listMine(req, res));
 router.get("/", (req, res) => ctrl.list(req, res));
+router.get("/:id/report", (req, res) => ctrl.exportReport(req, res));
 router.post("/", (req, res) => ctrl.create(req, res));
 router.patch("/:id", (req, res) => ctrl.update(req, res));
 router.post("/:id/assignments", (req, res) => ctrl.addAssignment(req, res));

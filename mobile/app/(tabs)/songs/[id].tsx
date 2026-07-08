@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Download, Edit3, Pause, Play } from "lucide-react-native";
@@ -83,15 +83,15 @@ export default function SongDetailScreen() {
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
       <View style={styles.controls}>
-        <Control label="−1 Tom" onPress={() => chord.transpose(-1)} testID="transpose-down" />
+        <Control label="1 Tom" onPress={() => chord.transpose(-1)} testID="transpose-down" />
         <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
         <Control label="+1 Tom" onPress={() => chord.transpose(1)} testID="transpose-up" />
       </View>
       <View style={styles.controls}>
-        <Control label="A−" onPress={() => chord.changeFontSize(-2)} testID="font-down" />
+        <Control label="A" onPress={() => chord.changeFontSize(-2)} testID="font-down" />
         <Text style={styles.controlValue}>{chord.fontSize}px</Text>
         <Control label="A+" onPress={() => chord.changeFontSize(2)} testID="font-up" />
-        <Control label={`${chord.scrollSpeed.toFixed(2)}×`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
+        <Control label={`${chord.scrollSpeed.toFixed(2)}`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
         <TouchableOpacity style={[styles.play, autoScrolling && styles.playActive]} onPress={toggleAutoScroll} testID="auto-scroll">{autoScrolling ? <Pause color={colors.surface} size={18} /> : <Play color={colors.surface} size={18} />}<Text style={styles.playText}>{autoScrolling ? "Pausar" : "Rolar"}</Text></TouchableOpacity>
       </View>
       <View style={styles.chordCard}><ChordSheetView content={song.content} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>
@@ -105,10 +105,10 @@ function Control({ label, onPress, testID }: { label: string; onPress: () => voi
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
-  top: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: 40, height: 40, borderRadius: radii.sm, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  top: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: 40, height: 40, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   content: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 160 }, title: { color: colors.ink, fontSize: 30, fontWeight: "800" }, artist: { color: colors.primary, fontSize: 17, fontWeight: "700", marginTop: spacing.xs }, metadata: { marginVertical: spacing.lg, gap: spacing.xs }, meta: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   detailLinks: { alignItems: "center", marginBottom: spacing.xl },
-  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }, control: { minHeight: 40, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.sm, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: "800" }, keyControl: { minWidth: 72, alignItems: "center" }, currentKey: { color: colors.ink, fontSize: 22, fontWeight: "900" }, reset: { color: colors.muted, fontSize: 9 }, controlValue: { color: colors.text, fontWeight: "700" },
-  play: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.sm, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: "800" },
-  chordCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, backgroundColor: colors.surface, padding: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
+  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }, control: { minHeight: 40, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: "800" }, keyControl: { minWidth: 72, alignItems: "center" }, currentKey: { color: colors.ink, fontSize: 22, fontWeight: "900" }, reset: { color: colors.muted, fontSize: 9 }, controlValue: { color: colors.text, fontWeight: "700" },
+  play: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: "800" },
+  chordCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, padding: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
 });

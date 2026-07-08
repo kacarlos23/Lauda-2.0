@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.xl,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   ministryInfo: {
     marginBottom: spacing.xl,
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   },
   membersLink: {
     minHeight: 34,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     alignItems: "center",
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   searchInput: {
     minHeight: 46,
     backgroundColor: colors.surface,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   toggleButton: {
     minHeight: 38,
     minWidth: 112,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
@@ -572,10 +572,10 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   toggleError: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -586,10 +586,10 @@ const styles = StyleSheet.create({
   },
   form: { padding: spacing.xl },
   formError: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   saveButton: {
     minHeight: 44,
     minWidth: 96,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",

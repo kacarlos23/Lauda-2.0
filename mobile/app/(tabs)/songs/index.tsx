@@ -8,7 +8,7 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { useMusicStore } from "../../../src/store/musicStore";
 import { musicService } from "../../../src/services/musicService";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 
 export default function SongsScreen() {
   const router = useRouter();
@@ -94,13 +94,13 @@ export default function SongsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, container: { flex: 1, width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg }, title: { color: colors.ink, fontSize: 28, fontWeight: "800" }, subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs },
-  actions: { flexDirection: "row", gap: spacing.sm }, iconButton: { width: 42, height: 42, borderRadius: radii.sm, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, primaryIcon: { width: 42, height: 42, borderRadius: radii.sm, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  searchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surface, paddingHorizontal: spacing.md }, search: { flex: 1, color: colors.ink, fontSize: 15 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg }, title: { color: colors.ink, fontSize: 30, fontWeight: "900" }, subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: spacing.sm }, iconButton: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#BFE7DE" }, primaryIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...buttonShadow },
+  searchRow: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...shadow }, search: { flex: 1, color: colors.ink, fontSize: 15 },
   selectionBar: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   list: { paddingBottom: 120, gap: spacing.sm }, emptyList: { flexGrow: 1, alignItems: "center", justifyContent: "center" }, empty: { color: colors.muted, fontSize: 15 },
-  row: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface }, rowSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, ...shadow }, rowSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted }, avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, info: { flex: 1 }, songTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" }, meta: { color: colors.muted, fontSize: 13, marginTop: spacing.xs }, check: { width: 22, height: 22, borderRadius: 5, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm }, pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg }, pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" }, disabledText: { opacity: 0.35 },
-  exportButton: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: spacing.lg, minHeight: 50, borderRadius: radii.sm, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm }, exportText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  error: { color: colors.danger, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md }, pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg }, pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" }, disabledText: { opacity: 0.35 },
+  exportButton: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: 96, minHeight: 52, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, ...buttonShadow }, exportText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
 });

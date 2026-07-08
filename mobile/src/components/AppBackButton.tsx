@@ -3,7 +3,7 @@ import { BackHandler, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { goBackTo } from "../utils/navigation";
-import { colors, spacing } from "../theme";
+import { colors, radii, spacing } from "../theme";
 
 type Props = {
   href: string;
@@ -36,7 +36,7 @@ export function AppBackButton({ href, label = "Voltar", compact = false }: Props
 }
 
 const styles = StyleSheet.create({
-  button: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  compact: { padding: spacing.sm },
-  label: { color: colors.primary, fontSize: 15, fontWeight: "700" },
+  button: { alignSelf: "flex-start", minHeight: 40, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.primarySoft, borderRadius: radii.md, paddingHorizontal: spacing.md },
+  compact: { width: 42, paddingHorizontal: 0, justifyContent: "center" },
+  label: { color: colors.primary, fontSize: 15, fontWeight: "800" },
 });

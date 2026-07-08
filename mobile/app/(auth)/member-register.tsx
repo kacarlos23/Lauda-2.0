@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Link as LinkIcon, UserPlus } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { goBackTo } from "../../src/utils/navigation";
 
 function isValidEmail(email: string): boolean {
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -244,13 +244,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.lg,
   },
-  title: { fontSize: 32, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
+  title: { fontSize: 32, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
   subtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginBottom: spacing.xl },
   error: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -262,7 +262,8 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    minHeight: 52,
+    borderRadius: radii.md,
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
     color: colors.ink,
@@ -275,7 +276,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderWidth: 1,
@@ -292,10 +293,11 @@ const styles = StyleSheet.create({
     minHeight: 52,
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
     marginTop: spacing.sm,
+    ...buttonShadow,
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: colors.surface, fontSize: 16, fontWeight: "700" },

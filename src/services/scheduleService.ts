@@ -193,6 +193,14 @@ export class ScheduleService {
     return this.scheduleRepository.findSchedulesForUser(userId);
   }
 
+  async getReportData(scheduleId: string) {
+    const schedule = await this.scheduleRepository.findScheduleReportById(scheduleId);
+    if (!schedule) {
+      throw Object.assign(new Error("Escala não encontrada."), { statusCode: 404 });
+    }
+    return schedule;
+  }
+
   private async ensureSongsBelongToTenant(songIds: string[]) {
     const uniqueSongIds = Array.from(new Set(songIds));
     const count = await this.scheduleRepository.countTenantSongs(uniqueSongIds);

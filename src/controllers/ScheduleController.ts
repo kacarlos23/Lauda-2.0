@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
 import { ScheduleService } from "../services/scheduleService";
+import { ScheduleReportPdfService } from "../services/scheduleReportPdfService";
 import {
   assignmentParamsSchema,
   createAssignmentSchema,
@@ -11,6 +12,10 @@ import {
   updateAssignmentStatusSchema,
   uuidParamSchema,
 } from "../validators/schedule.validator";
+
+function safeFilename(value: string): string {
+  return value.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, " ").trim();
+}
 
 export class ScheduleController extends BaseController {
   private buildService(req: Request) {
@@ -57,6 +62,17 @@ export class ScheduleController extends BaseController {
     });
 
     this.handleSuccess(res, schedule);
+  }
+
+  async exportReport(req: Request, res: Response): Promise<void> {
+    const { id } = uuidParamSchema.parse(req.params);
+    const schedule = await this.buildService(req).getReportData(id);
+    const pdf = await new ScheduleReportPdfService().generate(schedule);
+    const filename = `Escala - ${safeFilename(schedule.title)} - ${new Date(schedule.date).toISOString().slice(0, 10)}.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.status(200).send(pdf);
   }
 
   async addAssignment(req: Request, res: Response): Promise<void> {

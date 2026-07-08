@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingVertical: 14,
     paddingHorizontal: spacing.lg,
     color: colors.ink,
@@ -303,10 +303,10 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   error: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderColor: colors.line,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.primaryDark,
     fontSize: 14,
     fontWeight: "800",
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   segment: {
     flexDirection: "row",
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     padding: 4,
     borderWidth: 1,
     borderColor: colors.line,
@@ -339,8 +339,8 @@ const styles = StyleSheet.create({
   },
   segmentButton: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: radii.sm,
+    minHeight: 44,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   ministryBox: {
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceMuted,
     marginBottom: spacing.lg,
     overflow: "hidden",
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

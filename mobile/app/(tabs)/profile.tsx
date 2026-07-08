@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +26,7 @@ import {
   validateInstrumentForm,
 } from "../../src/utils/instrumentCatalog";
 import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "" };
@@ -492,11 +492,11 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   profileCard: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     alignItems: "center",
     padding: spacing.xl,
     borderWidth: 1,
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   section: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.line,
@@ -551,16 +551,16 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
-  profileInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
-  readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
+  profileInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
+  readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
   removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
   removePhotoText: { color: colors.danger, fontSize: 13, fontWeight: "800" },
-  saveProfileButton: { minHeight: 46, borderRadius: radii.sm, backgroundColor: colors.primary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
+  saveProfileButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
   saveProfileText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
   permissionRow: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.lg, paddingTop: spacing.md },
   globalAccessCard: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.line,
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   globalAccessIcon: {
     width: 44,
     height: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   globalAccessText: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 20 },
   globalAccessButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
   },
   editInstrumentsButton: {
     minHeight: 36,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     alignItems: "center",
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   errorText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
   retryButton: {
     minHeight: 38,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     alignItems: "center",
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
   },
   instrumentChip: {
     minHeight: 30,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     maxHeight: "88%",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.lg,
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 40,
     height: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   createInstrumentBox: {
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     marginBottom: spacing.lg,
@@ -685,7 +685,7 @@ const styles = StyleSheet.create({
   createInstrumentTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.md },
   modalInput: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
@@ -696,8 +696,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   createInstrumentButton: {
-    minHeight: 42,
-    borderRadius: radii.sm,
+    minHeight: 44,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
   modalListContent: { gap: spacing.sm },
   modalInstrumentRow: {
     minHeight: 48,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
   modalInstrumentColor: {
     width: 24,
     height: 24,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
   },
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   adminButton: {
     width: "100%",
     minHeight: 46,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   logoutBtn: {
     width: "100%",
     backgroundColor: colors.danger,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",

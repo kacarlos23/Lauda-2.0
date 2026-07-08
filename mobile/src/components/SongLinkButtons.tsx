@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   },
   button: {
     minHeight: 36,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     flexDirection: "row",
     alignItems: "center",
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   buttonCompact: {
-    minHeight: 30,
+    minHeight: 32,
     paddingHorizontal: spacing.sm,
   },
   buttonText: {

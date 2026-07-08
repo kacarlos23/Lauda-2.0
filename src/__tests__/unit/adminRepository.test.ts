@@ -23,22 +23,21 @@ describe("AdminRepository", () => {
 
     await expect(repository.listTenants()).resolves.toEqual(tenants);
 
-    expect(findMany).toHaveBeenCalledWith({
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { createdAt: "desc" },
-      select: {
+      select: expect.objectContaining({
         id: true,
         name: true,
+        domain: true,
+        isActive: true,
+        deletedAt: true,
         createdAt: true,
-        _count: {
-          select: {
-            users: true,
-            ministries: true,
-            schedules: true,
-            instruments: true,
-          },
-        },
-      },
-    });
+        updatedAt: true,
+        _count: { select: { users: true, ministries: true, schedules: true, instruments: true } },
+      }),
+      skip: 0,
+      take: 200,
+    }));
     expect(JSON.stringify(findMany.mock.calls[0][0])).not.toContain("tenantId");
   });
 

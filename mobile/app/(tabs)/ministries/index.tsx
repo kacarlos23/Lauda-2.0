@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+﻿import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,7 +15,7 @@ import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 
 export default function MinistriesScreen() {
   const router = useRouter();
@@ -215,15 +215,15 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: { marginBottom: spacing.lg },
-  title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, color: colors.muted },
+  title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
+  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
   errorText: { color: colors.danger, fontSize: 14, marginTop: spacing.sm },
   emptyBox: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -233,17 +233,18 @@ const styles = StyleSheet.create({
   emptyButton: {
     alignSelf: "flex-start",
     marginTop: spacing.lg,
-    minHeight: 42,
-    borderRadius: radii.sm,
+    minHeight: 52,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
+    ...buttonShadow,
   },
   emptyButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     marginBottom: spacing.md,
     borderWidth: 1,
@@ -275,18 +276,19 @@ const styles = StyleSheet.create({
     right: spacing.xl,
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: radii.pill,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
     ...shadow,
+    ...buttonShadow,
   },
   form: { padding: spacing.xl },
   formError: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -298,7 +300,7 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
@@ -315,7 +317,7 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
@@ -325,7 +327,7 @@ const styles = StyleSheet.create({
   saveButton: {
     minHeight: 44,
     minWidth: 96,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",

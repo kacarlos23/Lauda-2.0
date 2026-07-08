@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
+import { basePrisma } from "../config/prisma";
 import { runWithTenantContext } from "../context/tenantContext";
 import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
 import { isChurchAdmin } from "../utils/permissions";
@@ -11,7 +12,7 @@ interface JwtPayload {
   userId?: string;
   email?: string;
   role: Role;
-  tenantId: string;
+  tenantId?: string | null;
 }
 
 /**
@@ -22,7 +23,7 @@ interface JwtPayload {
  * @param next Next middleware callback executed inside AsyncLocalStorage context.
  * @returns Nothing; the response is ended when authentication fails.
  */
-export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -34,24 +35,42 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
 
   try {
     const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
-    if (!decoded.tenantId) {
-      next(new UnauthorizedError("Tenant ausente no token"));
-      return;
-    }
-
     const userId = decoded.userId ?? decoded.id;
     if (!userId) {
       next(new UnauthorizedError("Usuário ausente no token"));
       return;
     }
 
+    let role = decoded.role;
+    let tenantId = decoded.tenantId ?? null;
+
+    if (!tenantId && role !== Role.GLOBAL_ADMIN) {
+      const currentUser = await basePrisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true, tenantId: true, isActive: true },
+      });
+
+      if (!currentUser?.isActive) {
+        next(new UnauthorizedError("Usuário inativo ou não encontrado"));
+        return;
+      }
+
+      role = currentUser.role;
+      tenantId = currentUser.tenantId;
+    }
+
+    if (!tenantId && role !== Role.GLOBAL_ADMIN) {
+      next(new UnauthorizedError("Tenant ausente no token"));
+      return;
+    }
+
     req.user = {
       id: userId,
-      role: decoded.role,
-      tenantId: decoded.tenantId,
+      role,
+      tenantId: tenantId ?? "",
     };
 
-    runWithTenantContext({ userId, role: decoded.role, tenantId: decoded.tenantId }, () => next());
+    runWithTenantContext({ userId, role, tenantId }, () => next());
   } catch {
     next(new UnauthorizedError("Token inválido"));
   }

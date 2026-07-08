@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   header: { marginBottom: spacing.lg },
   backRow: { marginBottom: spacing.lg },
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   section: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.md },
   input: {
     minHeight: 46,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   colorPreview: {
     width: 46,
     height: 46,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.md,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   formActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   primaryButton: {
     minHeight: 44,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
   secondaryButton: {
     minHeight: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   instrumentList: { gap: spacing.sm },
   instrumentRow: {
     minHeight: 66,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   instrumentColor: {
     width: 28,
     height: 28,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
   },
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 40,
     height: 40,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primarySoft,

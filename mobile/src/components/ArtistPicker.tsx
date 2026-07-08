@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Plus, UserRound } from "lucide-react-native";
 import { Artist } from "../types";
@@ -78,7 +78,7 @@ export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
           {canCreate && !exactMatch ? (
             <TouchableOpacity style={styles.option} onPress={() => void create()} disabled={creating} testID="artist-create-option">
               <View style={styles.avatar}><Plus color={colors.primary} size={18} /></View>
-              <Text style={styles.createText}>{creating ? "Criando..." : `Criar “${query.trim()}”`}</Text>
+              <Text style={styles.createText}>{creating ? "Criando..." : `Criar S${query.trim()}⬝`}</Text>
             </TouchableOpacity>
           ) : null}
           {artists.map((artist) => (
@@ -99,8 +99,8 @@ export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
 const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
   inputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  input: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
-  options: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surface, marginTop: spacing.xs, overflow: "hidden" },
+  input: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  options: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, marginTop: spacing.xs, overflow: "hidden" },
   option: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   image: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceMuted },

@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Lock, LogIn, Mail } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.xl,
     padding: spacing.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 34,
-    fontWeight: "800",
+    fontWeight: "900",
     color: colors.ink,
     marginBottom: spacing.xs,
   },
@@ -215,10 +215,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   error: {
-    backgroundColor: "#FDECEC",
-    borderColor: "#F0B8B8",
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     color: colors.danger,
     fontSize: 14,
     fontWeight: "700",
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderWidth: 1,
@@ -254,12 +254,13 @@ const styles = StyleSheet.create({
     minHeight: 52,
     backgroundColor: colors.primary,
     paddingVertical: 16,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.sm,
+    ...buttonShadow,
   },
   buttonDisabled: {
     opacity: 0.6,

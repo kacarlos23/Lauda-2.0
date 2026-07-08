@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -167,11 +167,11 @@ const styles = StyleSheet.create({
   },
   iconBtn: { padding: spacing.sm },
   title: { color: colors.ink, fontSize: 22, fontWeight: "800" },
-  list: { padding: spacing.xl, paddingBottom: spacing.xxl },
+  list: { padding: spacing.xl, paddingBottom: 120 },
   filters: { marginBottom: spacing.lg },
   searchBox: {
     minHeight: 46,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
     minHeight: 36,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,

@@ -2,9 +2,9 @@ import { Prisma, User } from "@prisma/client";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { prisma } from "./prismaClient";
 
-export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId"> & {
+export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive"> & {
   instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
-  tenant?: { id: string; name: string };
+  tenant?: { id: string; name: string } | null;
 };
 
 export class AuthRepository {
@@ -25,6 +25,7 @@ export class AuthRepository {
         avatarUrl: true,
         password: true,
         role: true,
+        isActive: true,
         tenantId: true,
         tenant: { select: { id: true, name: true } },
         instruments: {
@@ -53,6 +54,7 @@ export class AuthRepository {
         avatarUrl: true,
         password: true,
         role: true,
+        isActive: true,
         tenantId: true,
         tenant: { select: { id: true, name: true } },
         instruments: {
@@ -208,6 +210,7 @@ export class AuthRepository {
           avatarUrl: true,
           password: true,
           role: true,
+          isActive: true,
           tenantId: true,
           instruments: {
             include: {

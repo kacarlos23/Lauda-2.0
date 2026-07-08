@@ -5,6 +5,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import { Role } from "@prisma/client";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { config } from "../../config/unifiedConfig";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
 
 let app: express.Express;
@@ -102,6 +103,27 @@ async function createSchedule(tenantId: string, ministryId: string, title: strin
   });
 }
 
+async function createSong(tenantId: string, title: string) {
+  const artist = await prisma.artist.create({
+    data: {
+      tenantId,
+      name: `Artista ${title}`,
+      normalizedName: `artista ${title.toLowerCase()}`,
+    },
+  });
+
+  return prisma.song.create({
+    data: {
+      tenantId,
+      artistId: artist.id,
+      title,
+      normalizedTitle: title.toLowerCase(),
+      originalKey: "C",
+      content: "[Intro] C",
+    },
+  });
+}
+
 async function createInstrument(token: string, name: string) {
   const response = await request(app)
     .post("/api/instruments")
@@ -153,6 +175,177 @@ afterAll(async () => {
 });
 
 describe("Admin global API", () => {
+  it("executa CRUD global padronizado, lifecycle, log e bloqueia relaÃ§Ãµes entre igrejas", async () => {
+    const tenantA = await registerTenant("ops-a");
+    const tenantB = await registerTenant("ops-b");
+    await prisma.user.update({ where: { id: tenantA.user.id }, data: { role: Role.GLOBAL_ADMIN, tenantId: null } });
+    const globalAdmin = await login(tenantA.user.email);
+    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Ops A");
+    const memberB = await createMember(tenantB.accessToken, "member-ops-b", "MEMBER");
+    const scheduleA = await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Ops A");
+
+    const instrumentCreate = await request(app)
+      .post("/api/admin/instruments")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ tenantId: tenantA.tenant.id, name: "Violão Global Ops", colorHex: "#123456" })
+      .expect(201);
+    expect(instrumentCreate.body.data).toMatchObject({ name: "Violão Global Ops", tenantId: tenantA.tenant.id, isActive: true });
+
+    const instrumentId = instrumentCreate.body.data.id;
+    await request(app)
+      .patch(`/api/admin/instruments/${instrumentId}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ name: "Violão Global Editado" })
+      .expect(200);
+
+    const deactivated = await request(app)
+      .post(`/api/admin/instruments/${instrumentId}/deactivate`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    expect(deactivated.body.data).toMatchObject({ isActive: false });
+    expect(deactivated.body.data.deletedAt).toBeTruthy();
+
+    await request(app)
+      .post(`/api/admin/instruments/${instrumentId}/activate`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+
+    await request(app)
+      .delete(`/api/admin/instruments/${instrumentId}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(400);
+
+    await request(app)
+      .delete(`/api/admin/instruments/${instrumentId}?confirm=permanent`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+
+    const userCreate = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({
+        tenantId: tenantA.tenant.id,
+        name: "Usuário Operação",
+        email: "usuario-operacao@example.com",
+        password: "secret123",
+        role: Role.MEMBER,
+      })
+      .expect(201);
+    expect(JSON.stringify(userCreate.body.data)).not.toContain("secret123");
+    await request(app).post("/api/auth/login").send({ email: "usuario-operacao@example.com", password: "secret123" }).expect(200);
+
+    await request(app)
+      .post(`/api/admin/users/${userCreate.body.data.id}/deactivate`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    await request(app).post("/api/auth/login").send({ email: "usuario-operacao@example.com", password: "secret123" }).expect(401);
+
+    await request(app)
+      .post("/api/admin/schedule-assignments")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ tenantId: tenantA.tenant.id, scheduleId: scheduleA.id, userId: memberB.user.id, role: "Vocal", status: "PENDING" })
+      .expect(400);
+
+    const logs = await request(app)
+      .get("/api/admin/audit-logs?search=instruments")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    expect(logs.body.data.items.some((log: { action: string; resource: string }) => log.action === "create" && log.resource === "instruments")).toBe(true);
+
+    await request(app).post("/api/admin/instruments").set("Authorization", `Bearer ${tenantB.accessToken}`).send({ tenantId: tenantB.tenant.id, name: "Bloqueado" }).expect(403);
+  });
+
+  it("permite GLOBAL_ADMIN sem igreja gerenciar igreja, usuário, música e escala", async () => {
+    const tenant = await registerTenant("global-null-tenant");
+    const member = await createMember(tenant.accessToken, "member-global-edit", "MEMBER");
+    const assignee = await createMember(tenant.accessToken, "member-global-assignee", "MEMBER");
+    const ministry = await createMinistry(tenant.accessToken, "Louvor Edit Global");
+    const song = await createSong(tenant.tenant.id, "Canção Global");
+    const schedule = await createSchedule(tenant.tenant.id, ministry.id, "Culto Global");
+
+    await prisma.user.update({
+      where: { id: tenant.user.id },
+      data: { role: Role.GLOBAL_ADMIN, tenantId: null },
+    });
+    const globalAdmin = await login(tenant.user.email);
+
+    expect(globalAdmin.user.role).toBe(Role.GLOBAL_ADMIN);
+    expect(globalAdmin.user.tenantId).toBeNull();
+    expect(jwt.decode(globalAdmin.accessToken)).toMatchObject({ role: Role.GLOBAL_ADMIN, tenantId: null });
+
+    const tenantsResponse = await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    expect(tenantsResponse.body.data.some((item: { id: string }) => item.id === tenant.tenant.id)).toBe(true);
+
+    const tenantPatch = await request(app)
+      .patch(`/api/admin/tenants/${tenant.tenant.id}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ name: "Igreja Global Editada", domain: "global-editada.local" })
+      .expect(200);
+    expect(tenantPatch.body.data).toMatchObject({ id: tenant.tenant.id, name: "Igreja Global Editada", domain: "global-editada.local" });
+
+    const userPatch = await request(app)
+      .patch(`/api/admin/users/${member.user.id}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({
+        name: "Usuário Global Editado",
+        email: "usuario-global-editado@example.com",
+        role: Role.GLOBAL_ADMIN,
+        tenantId: null,
+        password: "novaSenha123",
+      })
+      .expect(200);
+    expect(userPatch.body.data).toMatchObject({
+      id: member.user.id,
+      name: "Usuário Global Editado",
+      email: "usuario-global-editado@example.com",
+      role: Role.GLOBAL_ADMIN,
+      tenantId: null,
+    });
+    expect(JSON.stringify(userPatch.body.data)).not.toContain("password");
+    await request(app).post("/api/auth/login").send({ email: "usuario-global-editado@example.com", password: "novaSenha123" }).expect(200);
+
+    const songPatch = await request(app)
+      .patch(`/api/admin/songs/${song.id}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ title: "Canção Global Editada", originalKey: "G", cifraUrl: "https://example.com/cifra" })
+      .expect(200);
+    expect(songPatch.body.data).toMatchObject({ id: song.id, title: "Canção Global Editada", originalKey: "G", cifraUrl: "https://example.com/cifra" });
+
+    const schedulePatch = await request(app)
+      .patch(`/api/admin/schedules/${schedule.id}`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({
+        title: "Culto Global Editado",
+        songIds: [song.id],
+        assignments: [{ userId: assignee.user.id, role: "Violão", status: "PENDING" }],
+      })
+      .expect(200);
+    expect(schedulePatch.body.data).toMatchObject({ id: schedule.id, title: "Culto Global Editado" });
+    expect(schedulePatch.body.data.songs).toHaveLength(1);
+    expect(schedulePatch.body.data.assignments).toHaveLength(1);
+  });
+
+  it("aceita GLOBAL_ADMIN sem igreja mesmo quando o token salvo não traz tenantId atualizado", async () => {
+    const tenant = await registerTenant("global-stale-token");
+    await prisma.user.update({
+      where: { id: tenant.user.id },
+      data: { role: Role.GLOBAL_ADMIN, tenantId: null },
+    });
+    const staleToken = jwt.sign(
+      { userId: tenant.user.id, email: tenant.user.email, role: Role.TENANT_ADMIN, tenantId: null },
+      config.auth.jwtSecret,
+      { expiresIn: "15m" }
+    );
+
+    await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${staleToken}`)
+      .expect(200);
+  });
+
   it("permite GLOBAL_ADMIN listar todos os tenants e bloqueia demais roles", async () => {
     const tenantA = await registerTenant("global-a");
     const tenantB = await registerTenant("global-b");

@@ -12,6 +12,7 @@ const scheduleInclude = {
           id: true,
           title: true,
           originalKey: true,
+          bpm: true,
           artistId: true,
           artist: { select: { id: true, name: true, imageUrl: true } },
         },
@@ -66,6 +67,33 @@ export class ScheduleRepository {
     return prisma.user.findFirst({
       where: { id: userId, tenantId: this.tenantId },
       select: { id: true, name: true, tenantId: true },
+    });
+  }
+
+  findScheduleReportById(scheduleId: string) {
+    return prisma.schedule.findFirst({
+      where: { id: scheduleId, tenantId: this.tenantId },
+      include: {
+        ministry: { select: { id: true, name: true } },
+        assignments: {
+          orderBy: { createdAt: "asc" },
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        songs: {
+          orderBy: { order: "asc" },
+          include: {
+            song: {
+              select: {
+                id: true,
+                title: true,
+                originalKey: true,
+                bpm: true,
+                artist: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
