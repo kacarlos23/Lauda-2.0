@@ -109,13 +109,16 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
             <Pressable
               key={item.href}
               onPress={() => router.push(item.href as never)}
-              style={({ pressed, hovered }) => [
-                styles.navItem,
-                isCollapsed && styles.navItemCollapsed,
-                active && styles.navItemActive,
-                hovered && !active && styles.navItemHover,
-                pressed && styles.pressed,
-              ]}
+              style={(state) => {
+                const hovered = Boolean((state as { hovered?: boolean }).hovered);
+                return [
+                  styles.navItem,
+                  isCollapsed && styles.navItemCollapsed,
+                  active && styles.navItemActive,
+                  hovered && !active && styles.navItemHover,
+                  state.pressed && styles.pressed,
+                ];
+              }}
               accessibilityRole="link"
               accessibilityLabel={item.label}
               accessibilityState={{ selected: active }}
@@ -142,12 +145,15 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
         ) : null}
         <Pressable
           onPress={() => void logout()}
-          style={({ pressed, hovered }) => [
-            styles.logoutButton,
-            isCollapsed && styles.navItemCollapsed,
-            hovered && styles.navItemHover,
-            pressed && styles.pressed,
-          ]}
+          style={(state) => {
+            const hovered = Boolean((state as { hovered?: boolean }).hovered);
+            return [
+              styles.logoutButton,
+              isCollapsed && styles.navItemCollapsed,
+              hovered && styles.navItemHover,
+              state.pressed && styles.pressed,
+            ];
+          }}
           accessibilityRole="button"
           accessibilityLabel="Sair da conta"
         >
