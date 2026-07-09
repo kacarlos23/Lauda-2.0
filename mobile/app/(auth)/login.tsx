@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Lock, LogIn, Mail } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { colors, inputReset, radii, screen, shadow, spacing } from "../../src/theme";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -31,6 +31,7 @@ function getErrorMessage(error: unknown): string {
 export default function LoginScreen() {
   const { login, loading, error } = useAuthStore();
   const router = useRouter();
+  const passwordInputRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -38,6 +39,8 @@ export default function LoginScreen() {
   const currentError = localError ?? error;
 
   const handleLogin = async () => {
+    if (loading) return;
+
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!isValidEmail(normalizedEmail)) {
@@ -58,6 +61,14 @@ export default function LoginScreen() {
     } catch (err) {
       setLocalError(getErrorMessage(err));
     }
+  };
+
+  const handleEmailSubmit = () => {
+    passwordInputRef.current?.focus();
+  };
+
+  const handlePasswordSubmit = () => {
+    void handleLogin();
   };
 
   return (
@@ -82,7 +93,7 @@ export default function LoginScreen() {
         <View style={styles.inputGroup}>
           <Mail color={colors.muted} size={18} strokeWidth={2.2} />
           <TextInput
-            style={styles.input}
+            style={[styles.input, inputReset]}
             placeholder="E-mail"
             placeholderTextColor={colors.muted}
             autoCapitalize="none"
@@ -90,11 +101,15 @@ export default function LoginScreen() {
             autoFocus
             keyboardType="email-address"
             textContentType="emailAddress"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            submitBehavior="submit"
             value={email}
             onChangeText={(value) => {
               setEmail(value);
               setLocalError(null);
             }}
+            onSubmitEditing={handleEmailSubmit}
             accessibilityLabel="E-mail"
             testID="login-email"
           />
@@ -104,16 +119,21 @@ export default function LoginScreen() {
         <View style={styles.inputGroup}>
           <Lock color={colors.muted} size={18} strokeWidth={2.2} />
           <TextInput
-            style={styles.input}
+            ref={passwordInputRef}
+            style={[styles.input, inputReset]}
             placeholder="Senha"
             placeholderTextColor={colors.muted}
             secureTextEntry
             textContentType="password"
+            returnKeyType="go"
+            blurOnSubmit={false}
+            submitBehavior="submit"
             value={password}
             onChangeText={(value) => {
               setPassword(value);
               setLocalError(null);
             }}
+            onSubmitEditing={handlePasswordSubmit}
             accessibilityLabel="Senha"
             testID="login-password"
           />
