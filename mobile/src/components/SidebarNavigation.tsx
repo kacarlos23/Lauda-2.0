@@ -34,6 +34,10 @@ type SidebarItem = {
   visible?: boolean;
 };
 
+function navTestId(href: string): string {
+  return `sidebar-nav-${href === "/" ? "home" : href.replace(/^\//, "").replace(/\//g, "-")}`;
+}
+
 type SidebarNavigationProps = {
   isCollapsed: boolean;
   onToggle: () => void;
@@ -115,6 +119,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
               accessibilityRole="link"
               accessibilityLabel={item.label}
               accessibilityState={{ selected: active }}
+              testID={navTestId(item.href)}
             >
               <View style={[styles.activeRail, active && styles.activeRailVisible]} />
               <item.Icon color={iconColor} size={24} strokeWidth={2.4} />

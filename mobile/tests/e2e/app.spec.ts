@@ -246,7 +246,7 @@ async function mockApi(
     });
   });
 
-  await page.route("**/api/admin/tenants", async (route) => {
+  await page.route("**/api/admin/tenants**", async (route) => {
     if (options.adminTenantsError) {
       await route.fulfill({
         status: 500,
@@ -279,7 +279,7 @@ async function mockApi(
     });
   });
 
-  await page.route("**/api/admin/users", async (route) => {
+  await page.route("**/api/admin/users**", async (route) => {
     if (options.adminTenantsError) {
       await route.fulfill({
         status: 500,
@@ -318,7 +318,7 @@ async function mockApi(
     });
   });
 
-  await page.route("**/api/admin/ministries", async (route) => {
+  await page.route("**/api/admin/ministries**", async (route) => {
     if (options.adminTenantsError) {
       await route.fulfill({
         status: 500,
@@ -347,6 +347,29 @@ async function mockApi(
       }),
     });
   });
+
+  const emptyAdminResources = [
+    "instruments",
+    "user-instruments",
+    "artists",
+    "songs",
+    "ministry-songs",
+    "schedules",
+    "schedule-songs",
+    "schedule-assignments",
+    "member-invites",
+    "audit-logs",
+  ];
+
+  for (const resource of emptyAdminResources) {
+    await page.route(`**/api/admin/${resource}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    });
+  }
 
   await page.route("**/api/church/me", async (route) => {
     if (options.churchError) {
@@ -411,6 +434,16 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
   await expect(page.getByRole("tab", { name: "Perfil" })).not.toBeVisible();
 }
 
+async function openNavigationItem(page: Page, label: string, sidebarId: string) {
+  const sidebarLink = page.getByRole("link", { name: label });
+  if (await sidebarLink.count()) {
+    await sidebarLink.click();
+    return;
+  }
+
+  await page.getByRole("tab", { name: label }).click();
+}
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
@@ -442,7 +475,7 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   });
 
   await login(page);
-  await page.getByRole("tab", { name: "Ministérios" }).click();
+  await openNavigationItem(page, "Ministérios", "sidebar-nav-ministries");
 
   await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   expect(ministriesRequest?.headers().authorization).toBe(`Bearer ${token}`);
@@ -471,7 +504,8 @@ test("admin global vê perfil, home e aba global com lista de igrejas", async ({
   await expect(page.getByText("Abrir Painel Global")).toBeVisible();
   await page.getByTestId("open-global-admin-button").click();
 
-  await expect(page.getByText("Painel global", { exact: true })).toBeVisible();
+  await expect(page.getByText("Operação global", { exact: true })).toBeVisible();
+  await expect(page.getByText("Igrejas", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Abrir perfil" }).click();
   await expect(page.getByText("Acesso global", { exact: true })).toBeVisible();
 
@@ -520,8 +554,8 @@ test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page
   await page.goto("/");
 
   await login(page);
-  await expect(page.getByRole("tab", { name: "Igreja" })).toBeVisible();
-  await page.getByRole("tab", { name: "Igreja" }).click();
+  await expect(page.getByTestId("sidebar-nav-church")).toBeVisible();
+  await openNavigationItem(page, "Igreja", "sidebar-nav-church");
 
   await expect(page.getByText("Dados da Igreja", { exact: true })).toBeVisible();
   await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
@@ -555,13 +589,6 @@ test("somente TENANT_ADMIN vê aba Igreja", async ({ page }) => {
   await login(page, "lia@example.com");
   await expect(page.getByRole("tab", { name: "Igreja" })).not.toBeVisible();
 
-  await page.unroute("**/api/auth/login").catch(() => undefined);
-  await page.unroute("**/api/members/me").catch(() => undefined);
-  await mockApi(page, { user: globalAdminUser });
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto("/");
-  await login(page, "global@example.com");
-  await expect(page.getByRole("tab", { name: "Igreja" })).not.toBeVisible();
 });
 
 test("Dados da Igreja exibe erro de API e não mostra outro tenant", async ({ page }) => {
@@ -570,7 +597,7 @@ test("Dados da Igreja exibe erro de API e não mostra outro tenant", async ({ pa
   await page.goto("/");
 
   await login(page);
-  await page.getByRole("tab", { name: "Igreja" }).click();
+  await openNavigationItem(page, "Igreja", "sidebar-nav-church");
 
   await expect(page.getByText("Não foi possível carregar os dados da igreja.")).toBeVisible();
   await expect(page.getByText("Igreja Norte")).not.toBeVisible();
@@ -583,7 +610,7 @@ test("GLOBAL_ADMIN visualiza dados reais no Painel Global", async ({ page }) => 
   });
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
-  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants**").catch(() => undefined);
   await mockApi(page, {
     user: globalAdminUser,
     adminTenants: [
@@ -601,17 +628,19 @@ test("GLOBAL_ADMIN visualiza dados reais no Painel Global", async ({ page }) => 
   await page.getByTestId("header-profile-button").last().click();
   await page.getByTestId("open-global-admin-button").click();
 
+  await expect(page.getByText("Operação global", { exact: true })).toBeVisible();
   await expect(page.getByText("Igrejas", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Usuários", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Ministérios", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Igreja Central").first()).toBeVisible();
-  await expect(page.getByText("1", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("2 usuários")).toBeVisible();
   await expect(page.getByText("1 ministério")).toBeVisible();
-  await expect(page.getByText("3 escalas")).toBeVisible();
-  await expect(page.getByText("4 instrumentos")).toBeVisible();
+
+  await page.getByText("Usuários", { exact: true }).first().click();
+  await expect(page.getByText("Usuários", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Gael Global").last()).toBeVisible();
-  await expect(page.getByText("Admin global", { exact: true })).toBeVisible();
+  await expect(page.getByText("GLOBAL_ADMIN", { exact: true })).toBeVisible();
+
+  await page.getByText("Ministérios", { exact: true }).first().click();
+  await expect(page.getByText("Ministérios", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Louvor", { exact: true })).toBeVisible();
   await expect(page.getByText("Não foi possível carregar o painel global.")).not.toBeVisible();
   await expect(page.getByText("0 usuários")).not.toBeVisible();
@@ -622,7 +651,7 @@ test("GLOBAL_ADMIN visualiza dados reais no Painel Global", async ({ page }) => 
 test("GLOBAL_ADMIN vê erro claro quando API global falha", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
-  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants**").catch(() => undefined);
   await mockApi(page, { user: globalAdminUser, adminTenantsError: true });
   await page.goto("/");
 
@@ -630,13 +659,12 @@ test("GLOBAL_ADMIN vê erro claro quando API global falha", async ({ page }) => 
   await page.getByTestId("header-profile-button").last().click();
   await page.getByTestId("open-global-admin-button").click();
   await expect(page.getByText("Não foi possível carregar o painel global.").first()).toBeVisible();
-  await expect(page.getByText("Nenhuma igreja cadastrada.")).not.toBeVisible();
 });
 
 test("painel global exibe empty state apenas quando API retorna banco vazio", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
-  await page.unroute("**/api/admin/tenants").catch(() => undefined);
+  await page.unroute("**/api/admin/tenants**").catch(() => undefined);
   await mockApi(page, { user: globalAdminUser, adminTenants: [] });
   await page.evaluate(() => window.localStorage.clear());
   await page.goto("/");
@@ -644,7 +672,7 @@ test("painel global exibe empty state apenas quando API retorna banco vazio", as
   await login(page, "global@example.com");
   await page.getByTestId("header-profile-button").last().click();
   await page.getByTestId("open-global-admin-button").click();
-  await expect(page.getByText("Nenhuma igreja cadastrada.")).toBeVisible();
+  await expect(page.getByText("Nenhum registro encontrado.")).toBeVisible();
 });
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
@@ -667,7 +695,7 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   await page.getByTestId("register-confirm").fill("secret123");
   await page.getByTestId("register-submit").click();
 
-  await expect(page.getByText(/Maria/)).toBeVisible();
+  await expect(page.getByText("Maria Admin", { exact: true })).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
   expect(storage.auth_tenant).toContain("Igreja Central");

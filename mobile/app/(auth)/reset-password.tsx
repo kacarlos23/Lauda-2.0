@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "../../src/services/api";
+import { colors, radii, spacing } from "../../src/theme";
 
 export default function ResetPasswordScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -43,21 +44,19 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white justify-center px-8">
-      <View className="mb-10 items-center">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Redefinir Senha</Text>
-        <Text className="text-base text-gray-500 text-center">
-          Insira o código PIN enviado para {email} e sua nova senha.
-        </Text>
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Redefinir Senha</Text>
+        <Text style={styles.subtitle}>Insira o código PIN enviado para {email} e sua nova senha.</Text>
       </View>
 
-      <View className="space-y-4">
+      <View style={styles.form}>
         <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Código PIN (6 dígitos)</Text>
+          <Text style={styles.label}>Código PIN (6 dígitos)</Text>
           <TextInput
-            className="w-full h-14 bg-gray-50 rounded-2xl px-5 border border-gray-200 text-gray-900"
+            style={styles.input}
             placeholder="Ex: 123456"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.muted}
             keyboardType="number-pad"
             maxLength={6}
             value={pin}
@@ -66,11 +65,11 @@ export default function ResetPasswordScreen() {
         </View>
 
         <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Nova Senha</Text>
+          <Text style={styles.label}>Nova Senha</Text>
           <TextInput
-            className="w-full h-14 bg-gray-50 rounded-2xl px-5 border border-gray-200 text-gray-900"
+            style={styles.input}
             placeholder="Digite a nova senha"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.muted}
             secureTextEntry
             value={newPassword}
             onChangeText={setNewPassword}
@@ -78,11 +77,11 @@ export default function ResetPasswordScreen() {
         </View>
 
         <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Confirmar Senha</Text>
+          <Text style={styles.label}>Confirmar Senha</Text>
           <TextInput
-            className="w-full h-14 bg-gray-50 rounded-2xl px-5 border border-gray-200 text-gray-900"
+            style={styles.input}
             placeholder="Confirme a nova senha"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.muted}
             secureTextEntry
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -90,27 +89,92 @@ export default function ResetPasswordScreen() {
         </View>
 
         <TouchableOpacity
-          className={`w-full h-14 bg-indigo-600 rounded-2xl items-center justify-center shadow-sm mt-4 ${
-            loading ? "opacity-70" : ""
-          }`}
+          style={[styles.primaryButton, loading && styles.disabled]}
           onPress={handleResetPassword}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-white font-semibold text-lg">Redefinir</Text>
-          )}
+          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>Redefinir</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity
-          className="w-full h-14 items-center justify-center mt-2"
+          style={styles.secondaryButton}
           onPress={() => router.replace("/(auth)/login")}
           disabled={loading}
         >
-          <Text className="text-indigo-600 font-medium text-base">Cancelar</Text>
+          <Text style={styles.secondaryText}>Cancelar</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    paddingHorizontal: spacing.xxl,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  title: {
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlign: "center",
+  },
+  form: {
+    gap: spacing.lg,
+  },
+  label: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  input: {
+    minHeight: 56,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.background,
+    color: colors.ink,
+    paddingHorizontal: spacing.xl,
+    fontSize: 15,
+  },
+  primaryButton: {
+    minHeight: 56,
+    borderRadius: radii.lg,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.md,
+  },
+  primaryText: {
+    color: colors.surface,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  disabled: {
+    opacity: 0.7,
+  },
+});

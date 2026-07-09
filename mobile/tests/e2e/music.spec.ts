@@ -40,11 +40,15 @@ async function mockMusicApi(page: Page) {
   });
 }
 
+async function openSongs(page: Page) {
+  await page.getByRole("link", { name: /M.*sicas/ }).click();
+}
+
 test("admin cria cifra, edita artista e baixa PDF", async ({ page }) => {
   await authenticated(page, "TENANT_ADMIN");
   await mockMusicApi(page);
   await page.goto("/");
-  await page.getByText("Músicas", { exact: true }).last().click();
+  await openSongs(page);
   await expect(page.getByText("Depois da Guerra", { exact: true })).toBeVisible();
 
   await page.getByLabel("Nova música").click();
@@ -70,7 +74,7 @@ test("admin cria cifra, edita artista e baixa PDF", async ({ page }) => {
   await expect(page.getByTestId("song-title-input")).toHaveValue("");
 
   await page.goto("/");
-  await page.getByText("Músicas", { exact: true }).last().click();
+  await openSongs(page);
   await page.getByText("Selecionar para PDF").click();
   await page.getByText("Depois da Guerra", { exact: true }).click();
   const downloadPromise = page.waitForEvent("download");
@@ -89,7 +93,7 @@ test("membro consulta e exporta, mas não acessa criação ou edição", async (
   await authenticated(page, "MEMBER");
   await mockMusicApi(page);
   await page.goto("/");
-  await page.getByText("Músicas", { exact: true }).last().click();
+  await openSongs(page);
   await expect(page.getByText("Depois da Guerra", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Nova música")).toHaveCount(0);
   await page.goto("/songs/new");

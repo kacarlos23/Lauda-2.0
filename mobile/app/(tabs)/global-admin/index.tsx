@@ -421,7 +421,12 @@ export default function GlobalAdminScreen() {
         <ScrollView style={styles.sidebar} contentContainerStyle={styles.sidebarContent}>
           <Text style={styles.sidebarTitle}>Operação global</Text>
           {resources.map((resource) => (
-            <TouchableOpacity key={resource.name} style={[styles.menuItem, activeResource === resource.name && styles.menuItemActive]} onPress={() => switchResource(resource.name)}>
+            <TouchableOpacity
+              key={resource.name}
+              style={[styles.menuItem, activeResource === resource.name && styles.menuItemActive]}
+              onPress={() => switchResource(resource.name)}
+              testID={`global-resource-${resource.name}`}
+            >
               <Database color={activeResource === resource.name ? "#FFFFFF" : colors.primaryDark} size={16} strokeWidth={2.4} />
               <Text style={[styles.menuText, activeResource === resource.name && styles.menuTextActive]}>{resource.label}</Text>
             </TouchableOpacity>

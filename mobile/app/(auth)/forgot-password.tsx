@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { api } from "../../src/services/api";
+import { colors, radii, spacing } from "../../src/theme";
 import { goBackTo } from "../../src/utils/navigation";
 
 export default function ForgotPasswordScreen() {
@@ -29,21 +30,19 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white justify-center px-8">
-      <View className="mb-10 items-center">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Recuperar Senha</Text>
-        <Text className="text-base text-gray-500 text-center">
-          Insira seu e-mail para receber o código PIN de recuperação.
-        </Text>
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Recuperar Senha</Text>
+        <Text style={styles.subtitle}>Insira seu e-mail para receber o código PIN de recuperação.</Text>
       </View>
 
-      <View className="space-y-4">
+      <View style={styles.form}>
         <View>
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">E-mail</Text>
+          <Text style={styles.label}>E-mail</Text>
           <TextInput
-            className="w-full h-14 bg-gray-50 rounded-2xl px-5 border border-gray-200 text-gray-900"
+            style={styles.input}
             placeholder="Digite seu e-mail"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.muted}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -52,27 +51,91 @@ export default function ForgotPasswordScreen() {
         </View>
 
         <TouchableOpacity
-          className={`w-full h-14 bg-indigo-600 rounded-2xl items-center justify-center shadow-sm ${
-            loading ? "opacity-70" : ""
-          }`}
+          style={[styles.primaryButton, loading && styles.disabled]}
           onPress={handleForgotPassword}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-white font-semibold text-lg">Enviar código</Text>
-          )}
+          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>Enviar código</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity
-          className="w-full h-14 items-center justify-center mt-2"
+          style={styles.secondaryButton}
           onPress={() => goBackTo(router, "/(auth)/login")}
           disabled={loading}
         >
-          <Text className="text-indigo-600 font-medium text-base">Voltar para o login</Text>
+          <Text style={styles.secondaryText}>Voltar para o login</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    paddingHorizontal: spacing.xxl,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  title: {
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    textAlign: "center",
+  },
+  form: {
+    gap: spacing.lg,
+  },
+  label: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  input: {
+    minHeight: 56,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.background,
+    color: colors.ink,
+    paddingHorizontal: spacing.xl,
+    fontSize: 15,
+  },
+  primaryButton: {
+    minHeight: 56,
+    borderRadius: radii.lg,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryText: {
+    color: colors.surface,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  secondaryButton: {
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  disabled: {
+    opacity: 0.7,
+  },
+});
