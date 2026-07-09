@@ -16,5 +16,5 @@ export const config = {
     url: process.env.DATABASE_URL,
   },
   memberInviteBaseUrl:
-    process.env.MEMBER_INVITE_BASE_URL || "lauda://member-register",
+    process.env.MEMBER_INVITE_BASE_URL || "https://laudaapp.com/convite",
 };

@@ -39,8 +39,8 @@ export const radii = {
 };
 
 export const screen = {
-  maxWidth: 560,
-  listMaxWidth: 720,
+  maxWidth: "75%" as const,
+  listMaxWidth: "75%" as const,
 };
 
 export const shadow = Platform.select({

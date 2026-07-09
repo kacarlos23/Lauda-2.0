@@ -324,6 +324,7 @@ export default function MinistryDetailsScreen() {
       <BottomSheet
         isOpen={showEdit}
         onClose={closeEdit}
+        onBack={closeEdit}
         title="Editar ministério"
         footer={
           <View style={styles.sheetActions}>

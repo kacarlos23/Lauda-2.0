@@ -41,13 +41,13 @@ Create a `.env` file in the project root:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5434/lauda2"
 JWT_SECRET="change-this-secret"
 REFRESH_JWT_SECRET="change-this-refresh-secret"
-MEMBER_INVITE_BASE_URL="lauda://member-register"
+MEMBER_INVITE_BASE_URL="https://laudaapp.com/convite"
 PORT=3000
 ```
 
 The `.env` file is intentionally ignored by Git.
 
-`MEMBER_INVITE_BASE_URL` is used by the API to build public member registration links, for example `lauda://member-register?code=...`.
+`MEMBER_INVITE_BASE_URL` is used by the API to build public member registration links, for example `https://laudaapp.com/convite?code=ABCD-1234`.
 
 ## Backend Setup
 

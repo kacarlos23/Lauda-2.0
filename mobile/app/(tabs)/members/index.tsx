@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member, Ministry, Role } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { buildPublicInviteLink } from "../../../src/utils/memberInvite";
 import { canManageMembers, canViewMembers } from "../../../src/utils/permissions";
 
 type EditableRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER" | "TENANT_ADMIN">;
@@ -54,6 +56,28 @@ function readableTextColor(backgroundColor?: string | null): string {
   const blue = parseInt(backgroundColor.slice(5, 7), 16);
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
   return luminance > 0.62 ? colors.ink : colors.surface;
+}
+
+function confirmRegenerateInvite(onConfirm: () => void) {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    if (window.confirm("O link atual deixará de funcionar. Deseja continuar?")) {
+      onConfirm();
+    }
+    return;
+  }
+
+  Alert.alert(
+    "Regenerar link",
+    "O link atual deixará de funcionar. Deseja continuar?",
+    [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Regenerar",
+        style: "destructive",
+        onPress: onConfirm,
+      },
+    ]
+  );
 }
 
 function buildPermissionDraft(member: Member, ministries: Ministry[]): PermissionDraft {
@@ -144,7 +168,7 @@ export default function MembersScreen() {
     setRefreshing(false);
   }, [canManage, loadInvite, loadMembers, loadMinistries]);
 
-  const inviteLink = invite?.inviteLink ?? (invite ? `lauda://member-register?code=${invite.code}` : "");
+  const inviteLink = buildPublicInviteLink(invite);
 
   const handleCopyText = async (value: string, title: string, message: string) => {
     if (!value) return;
@@ -165,28 +189,17 @@ export default function MembersScreen() {
   };
 
   const handleRegenerateInvite = () => {
-    Alert.alert(
-      "Regenerar link",
-      "O link atual deixará de funcionar. Deseja continuar?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Regenerar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setInviteLoading(true);
-              const data = await memberService.regenerateMemberInvite(selectedMinistryId || undefined);
-              setInvite(data);
-            } catch (err) {
-              Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível regenerar o link.");
-            } finally {
-              setInviteLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    confirmRegenerateInvite(async () => {
+      try {
+        setInviteLoading(true);
+        const data = await memberService.regenerateMemberInvite(selectedMinistryId || undefined);
+        setInvite(data);
+      } catch (err) {
+        Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível regenerar o link.");
+      } finally {
+        setInviteLoading(false);
+      }
+    });
   };
 
   const openPermissionEditor = (member: Member) => {

@@ -10,11 +10,12 @@ import {
   View,
 } from "react-native";
 import { colors, radii, shadow, spacing } from "../theme";
-import { X } from "lucide-react-native";
+import { ArrowLeft, X } from "lucide-react-native";
 
 interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
@@ -22,7 +23,7 @@ interface BottomSheetProps {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export function BottomSheet({ isOpen, onClose, title, children, footer }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }: BottomSheetProps) {
   const [modalVisible, setModalVisible] = useState(isOpen);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -103,6 +104,13 @@ export function BottomSheet({ isOpen, onClose, title, children, footer }: Bottom
         >
           <View style={styles.dragHandle} />
           <View style={styles.header}>
+            {onBack ? (
+              <Pressable onPress={onBack} style={styles.backBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Voltar">
+                <ArrowLeft color={colors.ink} size={22} />
+              </Pressable>
+            ) : (
+              <View style={styles.headerPlaceholder} />
+            )}
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={10}>
               <X color={colors.ink} size={24} />
@@ -154,9 +162,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   title: {
+    flex: 1,
     fontSize: 20,
     fontWeight: "900",
     color: colors.ink,
+    textAlign: "center",
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
   },
   closeBtn: {
     width: 38,
@@ -165,6 +183,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerPlaceholder: {
+    width: 38,
+    height: 38,
   },
   content: {
     paddingBottom: 120,

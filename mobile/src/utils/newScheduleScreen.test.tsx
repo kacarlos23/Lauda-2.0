@@ -26,6 +26,16 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: jest.fn() }),
 }));
 
+jest.mock("lucide-react-native", () => {
+  const React = require("react");
+  const Icon = (props: any) => React.createElement("Icon", props);
+  return {
+    ArrowLeft: Icon,
+    Calendar: Icon,
+    Clock: Icon,
+  };
+});
+
 jest.mock("../../src/components/AppBackButton", () => ({
   AppBackButton: () => null,
 }));

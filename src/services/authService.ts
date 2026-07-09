@@ -28,7 +28,8 @@ interface AccessTokenPayload {
 }
 
 const authRepository = new AuthRepository();
-const INVITE_CODE_BYTES = 24;
+const INVITE_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const INVITE_CODE_GROUP_LENGTH = 4;
 const INVITE_CODE_CREATE_ATTEMPTS = 5;
 
 type MemberInviteView = {
@@ -40,6 +41,11 @@ type MemberInviteView = {
   ministryId?: string | null;
   ministry?: { id: string; name: string } | null;
 };
+
+function normalizeInviteCode(code: string): string {
+  const trimmed = code.trim();
+  return /^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(trimmed) ? trimmed.toUpperCase() : trimmed;
+}
 
 export class AuthService {
   private buildAuthResponse(user: {
@@ -112,7 +118,7 @@ export class AuthService {
   }
 
   async registerPublicMember(input: PublicMemberRegisterInput) {
-    const inviteCode = input.inviteCode.trim();
+    const inviteCode = normalizeInviteCode(input.inviteCode);
     const email = input.email.trim().toLowerCase();
     const name = input.name.trim();
     const phone = input.phone?.trim() || undefined;
@@ -292,7 +298,12 @@ export class AuthService {
   }
 
   private generateInviteCode(): string {
-    return crypto.randomBytes(INVITE_CODE_BYTES).toString("base64url");
+    const generateGroup = () => Array.from(
+      { length: INVITE_CODE_GROUP_LENGTH },
+      () => INVITE_CODE_ALPHABET[crypto.randomInt(INVITE_CODE_ALPHABET.length)]
+    ).join("");
+
+    return `${generateGroup()}-${generateGroup()}`;
   }
 
   private async createMemberInviteWithRetry(tenantId: string, ministryId?: string): Promise<MemberInviteView> {
@@ -336,7 +347,7 @@ export class AuthService {
   }
 
   private async applyInviteToExistingUser(inviteCode: string, user: { id: string; tenantId: string | null }) {
-    const invite = await authRepository.findActiveMemberInviteByCode(inviteCode.trim());
+    const invite = await authRepository.findActiveMemberInviteByCode(normalizeInviteCode(inviteCode));
     if (!invite) {
       throw new ValidationError("Convite inválido ou expirado");
     }

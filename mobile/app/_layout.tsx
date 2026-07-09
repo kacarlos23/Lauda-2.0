@@ -43,16 +43,18 @@ export default function RootLayout() {
 
     const currentGroup = segments[0];
     const isAuthRoute = currentGroup === "(auth)";
+    const isPublicInviteRoute = currentGroup === "convite";
 
     if (user && isAuthRoute) {
       router.replace("/(tabs)");
-    } else if (!user && !isAuthRoute) {
+    } else if (!user && !isAuthRoute && !isPublicInviteRoute) {
       router.replace("/(auth)/login");
     }
   }, [user, isLoading, router, segments]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="convite" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
     </Stack>

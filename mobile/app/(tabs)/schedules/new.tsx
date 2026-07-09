@@ -1,8 +1,10 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import { ArrowLeft } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { AppBackButton } from "../../../src/components/AppBackButton";
+import { DateTimeInput } from "../../../src/components/DateTimeInput";
 import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { musicService } from "../../../src/services/musicService";
@@ -180,9 +182,15 @@ export default function NewScheduleScreen() {
 
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Adicionar músicas</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongsModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Adicionar músicas</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <Text style={styles.helper}>Clique nas músicas para adicionar ou remover da escala.</Text>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => setQuickSongModal(true)}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => { setSongsModal(false); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
           <ScrollView style={styles.modalList}>
             {songs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
@@ -198,7 +206,13 @@ export default function NewScheduleScreen() {
 
       <Modal visible={quickSongModal} transparent animationType="fade" onRequestClose={() => setQuickSongModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Adicionar música</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Adicionar música</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <Text style={styles.helper}>A música será criada e adicionada à escala sem apagar os dados já preenchidos.</Text>
           <ArtistPicker selected={quickSongArtist} onSelect={setQuickSongArtist} />
           <Text style={styles.label}>Nome da música *</Text>
@@ -212,7 +226,7 @@ export default function NewScheduleScreen() {
           <Text style={styles.label}>Cifra *</Text>
           <TextInput style={[styles.input, styles.quickSongContent]} value={quickSongContent} onChangeText={setQuickSongContent} multiline textAlignVertical="top" placeholder="[G]Letra da música" placeholderTextColor={colors.muted} />
           <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.modalActionSecondary} onPress={() => setQuickSongModal(false)} disabled={quickSongSaving}><Text style={styles.secondaryText}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.modalActionSecondary} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} disabled={quickSongSaving}><Text style={styles.secondaryText}>Cancelar</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.modalActionPrimary, quickSongSaving && styles.disabled]} onPress={() => void createQuickSong()} disabled={quickSongSaving}><Text style={styles.primaryText}>{quickSongSaving ? "Salvando..." : "Criar e adicionar"}</Text></TouchableOpacity>
           </View>
         </View></View>
@@ -220,7 +234,13 @@ export default function NewScheduleScreen() {
 
       <Modal visible={membersModal} transparent animationType="fade" onRequestClose={() => setMembersModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Adicionar membros</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => setMembersModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Adicionar membros</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <Text style={styles.helper}>{user?.role === "MINISTRY_LEADER" ? "Líderes veem apenas membros do ministério selecionado." : "Administradores podem escolher qualquer membro da igreja."}</Text>
           <ScrollView style={styles.modalList}>
             {availableMembers.map((member) => {
@@ -253,15 +273,25 @@ export default function NewScheduleScreen() {
 
           <View style={styles.rowFields}>
             <View style={styles.field}>
-              <Text style={styles.label}>Dia *</Text>
+              <DateTimeInput
+                type="date"
+                label="Dia *"
+                value={date}
+                onChange={(value) => setDate(maskDateInput(value))}
+                maxLength={10}
+              />
               <View style={styles.inputActionRow}>
-                <TextInput style={[styles.input, styles.actionInput]} value={date} onChangeText={(value) => setDate(maskDateInput(value))} placeholder="DD/MM/AAAA" placeholderTextColor={colors.muted} keyboardType="number-pad" maxLength={10} />
                 <TouchableOpacity style={styles.secondaryButton} onPress={() => setCalendarModal(true)}><Text style={styles.secondaryText}>Calendário</Text></TouchableOpacity>
               </View>
             </View>
             <View style={styles.field}>
-              <Text style={styles.label}>Horário *</Text>
-              <TextInput style={styles.input} value={hour} onChangeText={(value) => setHour(maskTimeInput(value))} placeholder="HH:mm" placeholderTextColor={colors.muted} keyboardType="number-pad" maxLength={5} />
+              <DateTimeInput
+                type="time"
+                label="Horário *"
+                value={hour}
+                onChange={(value) => setHour(maskTimeInput(value))}
+                maxLength={5}
+              />
             </View>
           </View>
 
@@ -326,7 +356,9 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.md },
-  modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
+  modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  modalHeaderSpacer: { width: 40, height: 40 },
+  modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },

@@ -319,7 +319,7 @@ function isValidExternalLink(value: string): boolean {
 
 const styles = StyleSheet.create({
   container: { width: "100%", maxWidth: screen.maxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
-  editorContainer: { maxWidth: screen.listMaxWidth * 1.1 },
+  editorContainer: { width: "100%", maxWidth: "100%" },
   backRow: { marginBottom: spacing.lg },
   progress: { height: 5, borderRadius: radii.pill, backgroundColor: colors.line, overflow: "hidden", marginBottom: spacing.sm },
   progressBar: { height: "100%", backgroundColor: colors.primary },

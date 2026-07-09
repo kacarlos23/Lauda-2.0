@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
-import { Download } from "lucide-react-native";
+import { ArrowLeft, Download } from "lucide-react-native";
+import { DateTimeInput } from "../../../../src/components/DateTimeInput";
 import { memberService } from "../../../../src/services/memberService";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { musicService } from "../../../../src/services/musicService";
@@ -177,7 +178,13 @@ export default function EditScheduleScreen() {
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Editar músicas</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongsModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Editar músicas</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <Text style={styles.helper}>O número ao lado indica a ordem atual da música na escala.</Text>
           <ScrollView style={styles.modalList}>
             {songs.map((song) => {
@@ -201,7 +208,13 @@ export default function EditScheduleScreen() {
 
       <Modal visible={songOrderModal} transparent animationType="fade" onRequestClose={() => setSongOrderModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Organizar ordem das músicas</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongOrderModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Organizar ordem das músicas</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <Text style={styles.helper}>Arraste as músicas para reorganizar no desktop ou use os botões subir/descer.</Text>
           {selectedSongs.length === 0 ? <Text style={styles.emptyText}>Nenhuma música selecionada.</Text> : (
             <ScrollView style={styles.modalList}>
@@ -232,7 +245,13 @@ export default function EditScheduleScreen() {
 
       <Modal visible={membersModal} transparent animationType="fade" onRequestClose={() => setMembersModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Editar membros</Text>
+          <View style={styles.modalHeaderRow}>
+            <TouchableOpacity style={styles.modalBackButton} onPress={() => setMembersModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Editar membros</Text>
+            <View style={styles.modalHeaderSpacer} />
+          </View>
           <ScrollView style={styles.modalList}>
             {availableMembers.map((member) => {
               const selected = selectedMembers.some((entry) => entry.userId === member.id);
@@ -274,8 +293,12 @@ export default function EditScheduleScreen() {
           </TouchableOpacity>
         ))}</View>
         <View style={styles.rowFields}>
-          <View style={styles.field}><Text style={styles.label}>Dia *</Text><TextInput style={styles.input} value={date} onChangeText={(value) => setDate(maskDateInput(value))} placeholder="DD/MM/AAAA" placeholderTextColor={colors.muted} maxLength={10} /></View>
-          <View style={styles.field}><Text style={styles.label}>Horário *</Text><TextInput style={styles.input} value={hour} onChangeText={(value) => setHour(maskTimeInput(value))} placeholder="HH:mm" placeholderTextColor={colors.muted} maxLength={5} /></View>
+          <View style={styles.field}>
+            <DateTimeInput type="date" label="Dia *" value={date} onChange={(value) => setDate(maskDateInput(value))} maxLength={10} />
+          </View>
+          <View style={styles.field}>
+            <DateTimeInput type="time" label="Horário *" value={hour} onChange={(value) => setHour(maskTimeInput(value))} maxLength={5} />
+          </View>
         </View>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionText}>
@@ -332,7 +355,10 @@ const styles = StyleSheet.create({
   selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
-  modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
+  modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  modalHeaderSpacer: { width: 40, height: 40 },
+  modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },

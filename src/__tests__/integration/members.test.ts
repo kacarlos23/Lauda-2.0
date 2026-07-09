@@ -108,8 +108,8 @@ function expectInvitePayload(data: Record<string, unknown>) {
     createdAt: expect.any(String),
     inviteLink: expect.any(String),
   });
-  expect(data.inviteLink).toBe(`lauda://member-register?code=${data.code}`);
-  expect(String(data.code)).toMatch(/^[A-Za-z0-9_-]+$/);
+  expect(data.inviteLink).toBe(`https://laudaapp.com/convite?code=${data.code}`);
+  expect(String(data.code)).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
 }
 
 beforeAll(async () => {
@@ -128,7 +128,7 @@ beforeAll(async () => {
   process.env.REFRESH_JWT_SECRET = "test_refresh_secret";
   process.env.JWT_EXPIRES_IN = "15m";
   process.env.REFRESH_JWT_EXPIRES_IN = "7d";
-  process.env.MEMBER_INVITE_BASE_URL = "lauda://member-register";
+  process.env.MEMBER_INVITE_BASE_URL = "https://laudaapp.com/convite";
   process.env.NODE_ENV = "test";
 
   migrate(databaseUrl);
@@ -580,6 +580,26 @@ describe("Members API", () => {
       tenantId: tenant.user.tenantId,
     });
     expect(response.body.data.user.password).toBeUndefined();
+  });
+
+  it("POST /api/auth/member-register aceita convite novo em minusculas", async () => {
+    const tenant = await registerTenant("public-member-lowercase-invite");
+    const invite = await request(app)
+      .get("/api/auth/member-invite")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    expectInvitePayload(invite.body.data);
+
+    await request(app)
+      .post("/api/auth/member-register")
+      .send({
+        inviteCode: String(invite.body.data.code).toLowerCase(),
+        name: "Membro Minusculo",
+        email: "public-lowercase-invite@example.com",
+        password: "public123",
+      })
+      .expect(201);
   });
 
   it("convite de ministério cadastra membro e vincula automaticamente ao ministério", async () => {

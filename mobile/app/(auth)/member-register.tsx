@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,7 @@ import { ArrowLeft, Link as LinkIcon, UserPlus } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { normalizeInviteCode } from "../../src/utils/memberInvite";
 import { goBackTo } from "../../src/utils/navigation";
 
 function isValidEmail(email: string): boolean {
@@ -33,7 +34,7 @@ function getErrorMessage(error: unknown): string {
 
 export default function PublicMemberRegisterScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ code?: string }>();
+  const params = useLocalSearchParams<{ code?: string | string[] }>();
   const { memberRegister } = useAuthStore();
 
   const [inviteCode, setInviteCode] = useState(String(params.code ?? ""));
@@ -45,9 +46,17 @@ export default function PublicMemberRegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const code = Array.isArray(params.code) ? params.code[0] : params.code;
+    if (code) {
+      setInviteCode(normalizeInviteCode(String(code)));
+      setError(null);
+    }
+  }, [params.code]);
+
   const handleSubmit = async () => {
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedCode = inviteCode.trim();
+    const normalizedCode = normalizeInviteCode(inviteCode);
 
     if (!normalizedCode) {
       setError("Informe o código de convite.");
@@ -126,7 +135,7 @@ export default function PublicMemberRegisterScreen() {
               style={styles.groupInput}
               placeholder="Código do convite"
               placeholderTextColor={colors.muted}
-              autoCapitalize="none"
+              autoCapitalize="characters"
               value={inviteCode}
               onChangeText={(value) => {
                 setInviteCode(value);

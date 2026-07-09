@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+const inviteCodeSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => /^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(value) || value.length >= 16,
+    "Código de convite é obrigatório"
+  );
+
 export const registerSchema = z.object({
   churchName: z.string().min(2, "Nome da igreja é obrigatório"),
   name: z.string().min(2, "Nome é obrigatório"),
@@ -10,7 +18,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
-  inviteCode: z.string().trim().min(16, "Código de convite é obrigatório").optional(),
+  inviteCode: inviteCodeSchema.optional(),
 });
 
 export const refreshTokenSchema = z.object({
@@ -28,7 +36,7 @@ export const resetPasswordSchema = z.object({
 });
 
 export const publicMemberRegisterSchema = z.object({
-  inviteCode: z.string().trim().min(16, "Código de convite é obrigatório"),
+  inviteCode: inviteCodeSchema,
   name: z.string().trim().min(2, "Nome é obrigatório"),
   email: z.string().trim().toLowerCase().email("E-mail inválido"),
   phone: z.string().trim().optional(),

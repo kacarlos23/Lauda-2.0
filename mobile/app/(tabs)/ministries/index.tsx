@@ -156,6 +156,7 @@ export default function MinistriesScreen() {
       <BottomSheet
         isOpen={showCreate}
         onClose={closeCreate}
+        onBack={closeCreate}
         title="Novo ministério"
         footer={
           <View style={styles.sheetActions}>
