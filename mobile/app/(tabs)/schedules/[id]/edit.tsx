@@ -12,7 +12,7 @@ import { useScheduleStore } from "../../../../src/store/scheduleStore";
 import { scheduleService } from "../../../../src/services/scheduleService";
 import { Member, Ministry, MinistryMember, ScheduleAssignment, Song } from "../../../../src/types";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../../src/theme";
-import { combineDisplayDateTimeToIso, maskDateInput, maskTimeInput, toDisplayDate } from "../../../../src/utils/dateTimeInput";
+import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../../src/utils/dateTimeInput";
 
 function canManageSchedules(role?: string | null) {
   return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
@@ -294,10 +294,10 @@ export default function EditScheduleScreen() {
         ))}</View>
         <View style={styles.rowFields}>
           <View style={styles.field}>
-            <DateTimeInput type="date" label="Dia *" value={date} onChange={(value) => setDate(maskDateInput(value))} maxLength={10} />
+            <DateTimeInput type="date" label="Dia *" value={date} onChange={setDate} />
           </View>
           <View style={styles.field}>
-            <DateTimeInput type="time" label="Horário *" value={hour} onChange={(value) => setHour(maskTimeInput(value))} maxLength={5} />
+            <DateTimeInput type="time" label="Horário *" value={hour} onChange={setHour} />
           </View>
         </View>
         <View style={styles.sectionHeader}>
@@ -319,7 +319,7 @@ export default function EditScheduleScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
+  container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },

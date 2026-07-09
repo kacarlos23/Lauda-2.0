@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.maxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.lg },
   backRow: { marginBottom: spacing.lg },

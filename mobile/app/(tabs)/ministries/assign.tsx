@@ -6,7 +6,7 @@ import { Check } from "lucide-react-native";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { MemberStatus, Ministry } from "../../../src/types";
-import { colors, radii, spacing } from "../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 
@@ -190,7 +190,7 @@ export default function AssignMemberScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: spacing.xl },
-  content: { padding: spacing.xl, paddingBottom: 120 },
+  content: { padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   iconBtn: { padding: spacing.sm },
   title: { color: colors.ink, fontSize: 24, fontWeight: "800" },

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { Ministry, MinistryMember } from "../types";
 import { ministryApi } from "../services/ministryApi";
+import { invalidateRelatedData } from "./invalidation";
 
 interface MinistryState {
   ministries: Ministry[];
@@ -18,6 +19,16 @@ interface MinistryState {
   deleteMinistry: (id: string) => Promise<void>;
   addMember: (ministryId: string, userId: string, isLeader?: boolean) => Promise<void>;
   removeMember: (ministryId: string, userId: string) => Promise<void>;
+  toggleMember: (ministryId: string, userId: string) => Promise<"linked" | "unlinked">;
+  assignMember: (data: {
+    ministryId: string;
+    userId: string;
+    role?: string;
+    skills?: string[];
+    status?: MinistryMember["status"];
+    notes?: string;
+    isLeader?: boolean;
+  }) => Promise<void>;
   clearError: () => void;
 }
 
@@ -55,37 +66,79 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
 
   createMinistry: async (data) => {
     set({ loading: true, error: null });
+    const previousMinistries = get().ministries;
     try {
-      await ministryApi.createMinistry(data);
-      await get().fetchMinistries(); // Refresh list
+      const created = await ministryApi.createMinistry(data);
+      set({
+        ministries: [...previousMinistries, created].sort((a, b) =>
+          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
+        ),
+        loading: false,
+        error: null,
+      });
+      await invalidateRelatedData({ reason: "ministry", ministryId: created.id });
     } catch (error: any) {
-      set({ error: error.message, loading: false });
+      set({ ministries: previousMinistries, error: error.message, loading: false });
+      throw error;
     }
   },
 
   updateMinistry: async (id, data) => {
     set({ loading: true, error: null });
+    const previousState = get();
+    const optimisticMinistries = previousState.ministries.map((ministry) =>
+      ministry.id === id ? { ...ministry, ...data } : ministry
+    );
+    const optimisticCurrent =
+      previousState.currentMinistry?.id === id ? { ...previousState.currentMinistry, ...data } : previousState.currentMinistry;
+
+    set({
+      ministries: optimisticMinistries,
+      currentMinistry: optimisticCurrent,
+    });
+
     try {
-      await ministryApi.updateMinistry(id, data);
-      await get().fetchMinistries();
-      if (get().currentMinistry?.id === id) {
-        await get().fetchMinistry(id);
-      }
+      const updated = await ministryApi.updateMinistry(id, data);
+      set({
+        ministries: get().ministries.map((ministry) => (ministry.id === id ? updated : ministry)),
+        currentMinistry: get().currentMinistry?.id === id ? updated : get().currentMinistry,
+        loading: false,
+        error: null,
+      });
+      await invalidateRelatedData({ reason: "ministry", ministryId: id });
     } catch (error: any) {
-      set({ error: error.message, loading: false });
+      set({
+        ministries: previousState.ministries,
+        currentMinistry: previousState.currentMinistry,
+        currentMembers: previousState.currentMembers,
+        error: error.message,
+        loading: false,
+      });
+      throw error;
     }
   },
 
   deleteMinistry: async (id) => {
     set({ loading: true, error: null });
+    const previousState = get();
+    set({
+      ministries: previousState.ministries.filter((ministry) => ministry.id !== id),
+      currentMinistry: previousState.currentMinistry?.id === id ? null : previousState.currentMinistry,
+      currentMembers: previousState.currentMinistry?.id === id ? [] : previousState.currentMembers,
+    });
     try {
       await ministryApi.deleteMinistry(id);
-      await get().fetchMinistries();
-      if (get().currentMinistry?.id === id) {
-        set({ currentMinistry: null, currentMembers: [] });
-      }
+      set({ loading: false, error: null });
+      await invalidateRelatedData({ reason: "ministry", ministryId: id });
     } catch (error: any) {
-      set({ error: error.message, loading: false });
+      set({
+        ministries: previousState.ministries,
+        currentMinistry: previousState.currentMinistry,
+        currentMembers: previousState.currentMembers,
+        error: error.message,
+        loading: false,
+      });
+      throw error;
     }
   },
 
@@ -96,8 +149,11 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
       if (get().currentMinistry?.id === ministryId) {
         await get().fetchMinistry(ministryId);
       }
+      set({ loading: false, error: null });
+      await invalidateRelatedData({ reason: "member", ministryId, userId });
     } catch (error: any) {
       set({ error: error.message, loading: false });
+      throw error;
     }
   },
 
@@ -108,8 +164,41 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
       if (get().currentMinistry?.id === ministryId) {
         await get().fetchMinistry(ministryId);
       }
+      set({ loading: false, error: null });
+      await invalidateRelatedData({ reason: "member", ministryId, userId });
     } catch (error: any) {
       set({ error: error.message, loading: false });
+      throw error;
+    }
+  },
+
+  toggleMember: async (ministryId, userId) => {
+    set({ error: null });
+    try {
+      const response = await ministryApi.toggleMinistryMember(ministryId, userId);
+      if (get().currentMinistry?.id === ministryId) {
+        await get().fetchMinistry(ministryId);
+      }
+      await invalidateRelatedData({ reason: "member", ministryId, userId });
+      return response.status;
+    } catch (error: any) {
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  assignMember: async (data) => {
+    set({ loading: true, error: null });
+    try {
+      await ministryApi.assignMember(data);
+      if (get().currentMinistry?.id === data.ministryId) {
+        await get().fetchMinistry(data.ministryId);
+      }
+      set({ loading: false, error: null });
+      await invalidateRelatedData({ reason: "member", ministryId: data.ministryId, userId: data.userId });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+      throw error;
     }
   },
 }));

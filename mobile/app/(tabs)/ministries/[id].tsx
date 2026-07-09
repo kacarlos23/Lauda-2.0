@@ -17,7 +17,7 @@ import { ministryApi } from "../../../src/services/ministryApi";
 import { memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { colors, radii, spacing } from "../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../src/theme";
 import { Member } from "../../../src/types";
 import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
 import { isChurchAdmin } from "../../../src/utils/permissions";
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   ministryInfo: {
     marginBottom: spacing.xl,

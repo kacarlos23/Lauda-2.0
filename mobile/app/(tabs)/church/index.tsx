@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.xl },
   title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.sm },

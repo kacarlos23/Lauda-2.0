@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AssignmentStatus, Schedule, ScheduleAssignment } from "../types";
 import { scheduleService } from "../services/scheduleService";
+import { invalidateRelatedData } from "./invalidation";
 
 interface ScheduleState {
   allSchedules: Schedule[];
@@ -69,6 +70,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     try {
       const schedule = await scheduleService.createSchedule(payload);
       set({ saving: false, allSchedules: [...get().allSchedules, schedule].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) });
+      await invalidateRelatedData({ reason: "schedule", ministryId: payload.ministryId });
       return schedule;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível criar escala.";
@@ -87,6 +89,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           .map((item) => item.id === id ? schedule : item)
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       });
+      await invalidateRelatedData({ reason: "schedule", ministryId: payload.ministryId });
       return schedule;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível atualizar escala.";
@@ -104,6 +107,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           item.id === assignmentId ? { ...item, ...updated, schedule: updated.schedule ?? item.schedule } : item
         ),
       });
+      await invalidateRelatedData({ reason: "schedule", ministryId: updated.schedule?.ministryId });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível atualizar escala.";
       set({ error: message });

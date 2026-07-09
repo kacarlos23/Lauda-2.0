@@ -7,7 +7,13 @@ jest.mock("../services/ministryApi", () => ({
     deleteMinistry: jest.fn(),
     addMember: jest.fn(),
     removeMember: jest.fn(),
+    toggleMinistryMember: jest.fn(),
+    assignMember: jest.fn(),
   },
+}));
+
+jest.mock("./invalidation", () => ({
+  invalidateRelatedData: jest.fn(() => Promise.resolve()),
 }));
 
 import { ministryApi } from "../services/ministryApi";
@@ -53,9 +59,7 @@ describe("ministryStore", () => {
   });
 
   it("atualiza a lista após criar ministério para evitar tela stale", async () => {
-    mockedApi.getMinistries
-      .mockResolvedValueOnce([louvor])
-      .mockResolvedValueOnce([louvor, recepcao]);
+    mockedApi.getMinistries.mockResolvedValueOnce([louvor]);
     mockedApi.createMinistry.mockResolvedValueOnce(recepcao);
 
     await useMinistryStore.getState().fetchMinistries();
@@ -64,7 +68,28 @@ describe("ministryStore", () => {
     await useMinistryStore.getState().createMinistry({ name: "Recepção" });
 
     expect(mockedApi.createMinistry).toHaveBeenCalledWith({ name: "Recepção" });
-    expect(mockedApi.getMinistries).toHaveBeenCalledTimes(2);
+    expect(mockedApi.getMinistries).toHaveBeenCalledTimes(1);
     expect(useMinistryStore.getState().ministries).toEqual([louvor, recepcao]);
+  });
+
+  it("atualiza currentMinistry com retorno da API ao editar", async () => {
+    const updated = { ...louvor, name: "Louvor e Adoração" };
+    useMinistryStore.setState({ ministries: [louvor], currentMinistry: louvor });
+    mockedApi.updateMinistry.mockResolvedValueOnce(updated);
+
+    await useMinistryStore.getState().updateMinistry(louvor.id, { name: updated.name });
+
+    expect(useMinistryStore.getState().ministries).toEqual([updated]);
+    expect(useMinistryStore.getState().currentMinistry).toEqual(updated);
+  });
+
+  it("faz rollback quando edição de ministério falha", async () => {
+    useMinistryStore.setState({ ministries: [louvor], currentMinistry: louvor });
+    mockedApi.updateMinistry.mockRejectedValueOnce(new Error("Falha"));
+
+    await expect(useMinistryStore.getState().updateMinistry(louvor.id, { name: "Novo nome" })).rejects.toThrow("Falha");
+
+    expect(useMinistryStore.getState().ministries).toEqual([louvor]);
+    expect(useMinistryStore.getState().currentMinistry).toEqual(louvor);
   });
 });

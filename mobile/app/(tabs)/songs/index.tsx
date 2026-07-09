@@ -29,78 +29,149 @@ export default function SongsScreen() {
   const toggle = (id: string) => {
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 50 ? [...current, id] : current);
   };
+
   const exportSelected = async () => {
     if (!selected.length) return;
     setExporting(true);
-    try { await musicService.exportSongs(selected, `Cifras - ${new Date().toISOString().slice(0, 10)}.pdf`); }
-    catch (reason) { Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível exportar as cifras."); }
-    finally { setExporting(false); }
+    try {
+      await musicService.exportSongs(selected, `Cifras - ${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível exportar as cifras.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View><Text style={styles.title}>Músicas</Text><Text style={styles.subtitle}>Cifras da sua igreja</Text></View>
-          <View style={styles.actions}>
-            {canManageMusic(user?.role) ? <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/artists" as never)} accessibilityLabel="Gerenciar artistas"><Settings2 color={colors.primary} size={19} /></TouchableOpacity> : null}
-            {canManageMusic(user?.role) ? <TouchableOpacity style={styles.primaryIcon} onPress={() => router.push("/songs/new" as never)} accessibilityLabel="Nova música"><Plus color={colors.surface} size={20} /></TouchableOpacity> : null}
+        <View style={styles.contentHeader}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Músicas</Text>
+              <Text style={styles.subtitle}>Cifras da sua igreja</Text>
+            </View>
+            <View style={styles.actions}>
+              {canManageMusic(user?.role) ? (
+                <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/artists" as never)} accessibilityLabel="Gerenciar artistas">
+                  <Settings2 color={colors.primary} size={19} />
+                </TouchableOpacity>
+              ) : null}
+              {canManageMusic(user?.role) ? (
+                <TouchableOpacity style={styles.primaryIcon} onPress={() => router.push("/songs/new" as never)} accessibilityLabel="Nova música">
+                  <Plus color={colors.surface} size={20} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        <View style={styles.searchRow}><Search color={colors.muted} size={18} /><TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder="Buscar música ou artista" placeholderTextColor={colors.muted} /></View>
-        <View style={styles.selectionBar}>
-          <TouchableOpacity onPress={() => { setSelectionMode(!selectionMode); setSelected([]); }}><Text style={styles.link}>{selectionMode ? "Cancelar seleção" : "Selecionar para PDF"}</Text></TouchableOpacity>
-          {selectionMode ? <TouchableOpacity onPress={() => setSelected(selected.length === songs.length ? [] : songs.slice(0, 50).map((song) => song.id))}><Text style={styles.link}>{selected.length === songs.length ? "Limpar" : "Selecionar página"}</Text></TouchableOpacity> : null}
+          <View style={styles.searchRow}>
+            <Search color={colors.muted} size={18} />
+            <TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder="Buscar música ou artista" placeholderTextColor={colors.muted} />
+          </View>
+          <View style={styles.selectionBar}>
+            <TouchableOpacity onPress={() => { setSelectionMode(!selectionMode); setSelected([]); }}>
+              <Text style={styles.link}>{selectionMode ? "Cancelar seleção" : "Selecionar para PDF"}</Text>
+            </TouchableOpacity>
+            {selectionMode ? (
+              <TouchableOpacity onPress={() => setSelected(selected.length === songs.length ? [] : songs.slice(0, 50).map((song) => song.id))}>
+                <Text style={styles.link}>{selected.length === songs.length ? "Limpar" : "Selecionar página"}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <FlatList
+          style={styles.listScroller}
           data={songs}
           keyExtractor={(item) => item.id}
           refreshing={loading}
           onRefresh={() => void loadSongs(search, page)}
+          removeClippedSubviews={false}
           contentContainerStyle={songs.length ? styles.list : styles.emptyList}
           ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.empty}>Nenhuma música encontrada.</Text>}
           renderItem={({ item }) => {
             const checked = selected.includes(item.id);
             return (
-              <TouchableOpacity
-                style={[styles.row, checked && styles.rowSelected]}
-                onPress={() => {
-                  if (selectionMode) {
-                    toggle(item.id);
-                    return;
-                  }
-                  primeSong(item);
-                  router.push(`/songs/${item.id}` as never);
-                }}
-              >
-                {item.artist.imageUrl ? <Image source={{ uri: item.artist.imageUrl }} style={styles.avatar} /> : <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={20} /></View>}
-                <View style={styles.info}><Text style={styles.songTitle}>{item.title}</Text><Text style={styles.meta}>{item.artist.name} · Tom {item.originalKey}{item.bpm ? ` · ${item.bpm} BPM` : ""}</Text></View>
-                {!selectionMode ? <SongLinkButtons links={item} compact /> : null}
-                {selectionMode ? checked ? <View style={styles.check}><Check color={colors.surface} size={16} /></View> : <Square color={colors.muted} size={22} /> : null}
-              </TouchableOpacity>
+              <View style={styles.rowShadowFrame}>
+                <TouchableOpacity
+                  style={[styles.row, checked && styles.rowSelected]}
+                  onPress={() => {
+                    if (selectionMode) {
+                      toggle(item.id);
+                      return;
+                    }
+                    primeSong(item);
+                    router.push(`/songs/${item.id}` as never);
+                  }}
+                >
+                  {item.artist.imageUrl ? <Image source={{ uri: item.artist.imageUrl }} style={styles.avatar} /> : <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={20} /></View>}
+                  <View style={styles.info}>
+                    <Text style={styles.songTitle}>{item.title}</Text>
+                    <Text style={styles.meta}>{item.artist.name} · Tom {item.originalKey}{item.bpm ? ` · ${item.bpm} BPM` : ""}</Text>
+                  </View>
+                  {!selectionMode ? <SongLinkButtons links={item} compact /> : null}
+                  {selectionMode ? checked ? <View style={styles.check}><Check color={colors.surface} size={16} /></View> : <Square color={colors.muted} size={22} /> : null}
+                </TouchableOpacity>
+              </View>
             );
           }}
-          ListFooterComponent={pagination.totalPages > 1 ? <View style={styles.pagination}><TouchableOpacity disabled={page <= 1} onPress={() => setPage(page - 1)}><Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text></TouchableOpacity><Text style={styles.pageText}>{page} de {pagination.totalPages}</Text><TouchableOpacity disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}><Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>Próxima</Text></TouchableOpacity></View> : null}
+          ListFooterComponent={pagination.totalPages > 1 ? (
+            <View style={styles.pagination}>
+              <TouchableOpacity disabled={page <= 1} onPress={() => setPage(page - 1)}>
+                <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text>
+              </TouchableOpacity>
+              <Text style={styles.pageText}>{page} de {pagination.totalPages}</Text>
+              <TouchableOpacity disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}>
+                <Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>Próxima</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         />
 
-        {selectionMode && selected.length ? <TouchableOpacity style={styles.exportButton} onPress={() => void exportSelected()} disabled={exporting}><Download color={colors.surface} size={18} /><Text style={styles.exportText}>{exporting ? "Gerando..." : `Exportar ${selected.length} cifra(s)`}</Text></TouchableOpacity> : null}
+        {selectionMode && selected.length ? (
+          <TouchableOpacity style={styles.exportButton} onPress={() => void exportSelected()} disabled={exporting}>
+            <Download color={colors.surface} size={18} />
+            <Text style={styles.exportText}>{exporting ? "Gerando..." : `Exportar ${selected.length} cifra(s)`}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background }, container: { flex: 1, width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg }, title: { color: colors.ink, fontSize: 30, fontWeight: "900" }, subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs, fontWeight: "700" },
-  actions: { flexDirection: "row", gap: spacing.sm }, iconButton: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#BFE7DE" }, primaryIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...buttonShadow },
-  searchRow: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...shadow }, search: { flex: 1, color: colors.ink, fontSize: 15 },
-  selectionBar: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  list: { paddingBottom: 120, gap: spacing.sm }, emptyList: { flexGrow: 1, alignItems: "center", justifyContent: "center" }, empty: { color: colors.muted, fontSize: 15 },
-  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, ...shadow }, rowSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted }, avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, info: { flex: 1 }, songTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" }, meta: { color: colors.muted, fontSize: 13, marginTop: spacing.xs }, check: { width: 22, height: 22, borderRadius: 5, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md }, pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg }, pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" }, disabledText: { opacity: 0.35 },
-  exportButton: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: 96, minHeight: 52, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, ...buttonShadow }, exportText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  safe: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, width: "100%", paddingTop: spacing.lg },
+  contentHeader: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
+  title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
+  subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: spacing.sm },
+  iconButton: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#BFE7DE" },
+  primaryIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...buttonShadow },
+  searchRow: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...shadow },
+  search: { flex: 1, color: colors.ink, fontSize: 15 },
+  selectionBar: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  listScroller: { flex: 1, width: "100%" },
+  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.xs, paddingBottom: screen.contentBottomPadding },
+  emptyList: { flexGrow: 1, width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, paddingBottom: screen.contentBottomPadding },
+  empty: { color: colors.muted, fontSize: 15 },
+  rowShadowFrame: { paddingVertical: spacing.xs, overflow: "visible" },
+  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, ...shadow },
+  rowSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted },
+  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  info: { flex: 1 },
+  songTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
+  meta: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
+  check: { width: 22, height: 22, borderRadius: 5, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  error: { color: colors.danger, fontSize: 13, fontWeight: "700", marginHorizontal: spacing.xl, marginBottom: spacing.sm, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md },
+  pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg },
+  pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
+  disabledText: { opacity: 0.35 },
+  exportButton: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: 96, minHeight: 52, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, ...buttonShadow },
+  exportText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
 });

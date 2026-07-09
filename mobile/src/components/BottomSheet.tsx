@@ -103,16 +103,16 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
           {...panResponder.panHandlers}
         >
           <View style={styles.dragHandle} />
-          <View style={styles.header}>
+          <View style={[styles.header, onBack && styles.headerWithBack]}>
             {onBack ? (
               <Pressable onPress={onBack} style={styles.backBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Voltar">
-                <ArrowLeft color={colors.ink} size={22} />
+                <ArrowLeft color={colors.ink} size={24} />
               </Pressable>
             ) : (
               <View style={styles.headerPlaceholder} />
             )}
             <Text style={styles.title}>{title}</Text>
-            <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={10}>
+            <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar">
               <X color={colors.ink} size={24} />
             </Pressable>
           </View>
@@ -161,6 +161,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
+  headerWithBack: {
+    gap: spacing.md,
+  },
   title: {
     flex: 1,
     fontSize: 20,
@@ -169,24 +172,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceMuted,
+    minWidth: 44,
+    minHeight: 44,
+    padding: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },
   closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primarySoft,
+    minWidth: 44,
+    minHeight: 44,
+    padding: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },
   headerPlaceholder: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
   },
   content: {
     paddingBottom: 120,

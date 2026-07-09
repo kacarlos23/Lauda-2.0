@@ -2,8 +2,10 @@ import { router } from "expo-router";
 import { create } from "zustand";
 import { AxiosError } from "axios";
 import { api } from "../services/api";
+import { memberService } from "../services/memberService";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
 import { Role, Tenant, User } from "../types";
+import { invalidateRelatedData } from "./invalidation";
 
 type AuthResponse = {
   success: boolean;
@@ -232,9 +234,36 @@ export const useAuthStore = create<AuthState>((set) => ({
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) return;
 
-    const nextUser = { ...currentUser, ...partialUser };
-    await setSessionItem("auth_user", JSON.stringify(nextUser));
-    set({ user: nextUser });
+    const previousUser = currentUser;
+    const optimisticUser = { ...currentUser, ...partialUser };
+    const shouldPersistProfile =
+      Object.prototype.hasOwnProperty.call(partialUser, "name") ||
+      Object.prototype.hasOwnProperty.call(partialUser, "phone") ||
+      Object.prototype.hasOwnProperty.call(partialUser, "avatarUrl");
+
+    await setSessionItem("auth_user", JSON.stringify(optimisticUser));
+    set({ user: optimisticUser, error: null });
+
+    if (!shouldPersistProfile) {
+      await invalidateRelatedData({ reason: "user", userId: optimisticUser.id });
+      return;
+    }
+
+    try {
+      const updated = await memberService.updateMyProfile({
+        name: partialUser.name,
+        phone: partialUser.phone,
+        avatarUrl: partialUser.avatarUrl,
+      });
+      const nextUser = { ...optimisticUser, ...updated };
+      await setSessionItem("auth_user", JSON.stringify(nextUser));
+      set({ user: nextUser, error: null });
+      await invalidateRelatedData({ reason: "user", userId: nextUser.id });
+    } catch (error) {
+      await setSessionItem("auth_user", JSON.stringify(previousUser));
+      set({ user: previousUser, error: extractAuthError(error) });
+      throw error;
+    }
   },
 
   logout: async () => {

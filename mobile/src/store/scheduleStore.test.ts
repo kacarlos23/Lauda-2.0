@@ -8,6 +8,10 @@ jest.mock("../services/scheduleService", () => ({
   },
 }));
 
+jest.mock("./invalidation", () => ({
+  invalidateRelatedData: jest.fn(() => Promise.resolve()),
+}));
+
 const { useScheduleStore } = require("./scheduleStore") as typeof import("./scheduleStore");
 const { scheduleService } = require("../services/scheduleService") as typeof import("../services/scheduleService");
 

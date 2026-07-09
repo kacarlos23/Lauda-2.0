@@ -6,7 +6,7 @@ import { Plus, Search, User as UserIcon } from "lucide-react-native";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
-import { colors, radii, spacing } from "../../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../../src/theme";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 
 const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   iconBtn: { padding: spacing.sm },
   title: { color: colors.ink, fontSize: 22, fontWeight: "800" },
-  list: { padding: spacing.xl, paddingBottom: 120 },
+  list: { padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   filters: { marginBottom: spacing.lg },
   searchBox: {
     minHeight: 46,

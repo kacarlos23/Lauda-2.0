@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, Database, Edit3, Plus, RefreshCcw, ShieldAlert, Trash2, X, XCircle } from "lucide-react-native";
+import { DateTimeInput } from "../../../src/components/DateTimeInput";
 import { adminService } from "../../../src/services/adminService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
@@ -623,15 +624,25 @@ function FieldInput({ field, value, references, onChange }: { field: FieldConfig
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{field.label}</Text>
-      <TextInput
-        style={[styles.input, type === "textarea" && styles.textArea]}
-        value={value === null || value === undefined ? "" : String(value)}
-        onChangeText={onChange}
-        multiline={type === "textarea"}
-        keyboardType={type === "number" ? "numeric" : "default"}
-        placeholder={type === "datetime" ? "2026-07-08T20:00:00.000Z" : undefined}
-        placeholderTextColor={colors.muted}
-      />
+      {type === "datetime" ? (
+        <DateTimeInput
+          type="date"
+          value={value === null || value === undefined ? "" : String(value)}
+          onChange={onChange}
+          placeholder="2026-07-08T20:00:00.000Z"
+          keyboardType="default"
+          maskInput={false}
+        />
+      ) : (
+        <TextInput
+          style={[styles.input, type === "textarea" && styles.textArea]}
+          value={value === null || value === undefined ? "" : String(value)}
+          onChangeText={onChange}
+          multiline={type === "textarea"}
+          keyboardType={type === "number" ? "numeric" : "default"}
+          placeholderTextColor={colors.muted}
+        />
+      )}
     </View>
   );
 }
@@ -713,7 +724,7 @@ const styles = StyleSheet.create({
   menuText: { color: colors.text, fontSize: 10, fontWeight: "800", flex: 1, flexShrink: 1, lineHeight: 12 },
   menuTextActive: { color: "#FFFFFF" },
   main: { flex: 1 },
-  mainContent: { padding: spacing.lg, paddingBottom: 120, gap: spacing.lg },
+  mainContent: { padding: spacing.lg, paddingBottom: screen.contentBottomPadding, gap: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, alignItems: "flex-start", flexWrap: "wrap" },
   headerText: { flex: 1, minWidth: 220 },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },

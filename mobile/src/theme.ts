@@ -6,7 +6,7 @@ export const colors = {
   surfaceMuted: "#EEF5F1",
   ink: "#10201A",
   text: "#33423B",
-  muted: "#748179",
+  muted: "#5F6B64",
   line: "#E2EAE5",
   primary: "#157A6E",
   primaryDark: "#0E4F49",
@@ -39,8 +39,9 @@ export const radii = {
 };
 
 export const screen = {
-  maxWidth: "75%" as const,
-  listMaxWidth: "75%" as const,
+  maxWidth: 900,
+  listMaxWidth: 1200,
+  contentBottomPadding: spacing.xxl,
 };
 
 export const shadow = Platform.select({

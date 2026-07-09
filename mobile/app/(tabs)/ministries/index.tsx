@@ -106,7 +106,7 @@ export default function MinistriesScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>Ministérios</Text>
-            <Text style={styles.subtitle}>{ministries.length} grupo(s) ativo(s)</Text>
+            <Text style={styles.subtitle}>{ministries.length} ministério(s) ativo(s)</Text>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
         }
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.lg },
   title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },

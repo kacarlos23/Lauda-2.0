@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   header: {
     marginBottom: spacing.lg,

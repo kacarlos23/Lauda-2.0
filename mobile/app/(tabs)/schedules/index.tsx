@@ -239,7 +239,7 @@ export default function SchedulesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: 120 },
+  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
   title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
   subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },

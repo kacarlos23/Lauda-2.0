@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import type { KeyboardTypeOptions, StyleProp, ViewStyle } from "react-native";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Calendar, Clock } from "lucide-react-native";
 import { colors, radii, spacing } from "../theme";
+import { maskDateInput, maskTimeInput } from "../utils/dateTimeInput";
 
 interface DateTimeInputProps {
   type: "date" | "time";
@@ -13,6 +14,9 @@ interface DateTimeInputProps {
   maxLength?: number;
   keyboardType?: KeyboardTypeOptions;
   containerStyle?: StyleProp<ViewStyle>;
+  error?: string;
+  maskInput?: boolean;
+  testID?: string;
 }
 
 export function DateTimeInput({
@@ -24,24 +28,44 @@ export function DateTimeInput({
   maxLength,
   keyboardType = "number-pad",
   containerStyle,
+  error,
+  maskInput = true,
+  testID,
 }: DateTimeInputProps) {
   const Icon = type === "date" ? Calendar : Clock;
+  const [focused, setFocused] = useState(false);
+  const resolvedMaxLength = maxLength ?? (type === "date" ? 10 : 5);
+
+  const handleChange = (nextValue: string) => {
+    if (!maskInput) {
+      onChange(nextValue);
+      return;
+    }
+
+    onChange(type === "date" ? maskDateInput(nextValue) : maskTimeInput(nextValue));
+  };
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={styles.inputWrapper}>
+      <View style={[styles.inputWrapper, focused && styles.inputWrapperFocused, error && styles.inputWrapperError]}>
         <TextInput
           style={styles.input}
           value={value}
-          onChangeText={onChange}
-          placeholder={placeholder ?? (type === "date" ? "DD/MM/AAAA" : "HH:mm")}
+          onChangeText={handleChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder ?? (type === "date" ? "DD/MM/AAAA" : "HH:MM")}
           placeholderTextColor={colors.muted}
           keyboardType={keyboardType}
-          maxLength={maxLength}
+          maxLength={maskInput ? resolvedMaxLength : maxLength}
+          testID={testID}
         />
-        <Icon color={colors.muted} size={20} strokeWidth={2.3} />
+        <View style={styles.iconBox}>
+          <Icon color={colors.muted} size={20} strokeWidth={2.3} />
+        </View>
       </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -61,18 +85,31 @@ const styles = StyleSheet.create({
     minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: spacing.md,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+  },
+  inputWrapperFocused: {
+    borderColor: colors.primary,
+  },
+  inputWrapperError: {
+    borderColor: colors.danger,
   },
   input: {
     flex: 1,
     minHeight: 50,
     color: colors.ink,
     fontSize: 15,
-    paddingVertical: 0,
+    padding: spacing.md,
+  },
+  iconBox: {
+    paddingRight: spacing.md,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: spacing.xs,
   },
 });

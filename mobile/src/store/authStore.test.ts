@@ -11,6 +11,16 @@ jest.mock("../services/api", () => ({
   },
 }));
 
+jest.mock("../services/memberService", () => ({
+  memberService: {
+    updateMyProfile: jest.fn(),
+  },
+}));
+
+jest.mock("./invalidation", () => ({
+  invalidateRelatedData: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock("../services/sessionStorage", () => ({
   getSessionItem: jest.fn((key: string) => Promise.resolve(mockStorage.get(key) ?? null)),
   setSessionItem: jest.fn((key: string, value: string) => {
@@ -25,6 +35,7 @@ jest.mock("../services/sessionStorage", () => ({
 
 const { useAuthStore } = require("./authStore") as typeof import("./authStore");
 const { api } = require("../services/api") as typeof import("../services/api");
+const { memberService } = require("../services/memberService") as typeof import("../services/memberService");
 const { getSessionItem } = require("../services/sessionStorage") as typeof import("../services/sessionStorage");
 
 const user = {
@@ -56,6 +67,7 @@ describe("authStore session", () => {
     mockStorage.clear();
     mockReplace.mockClear();
     jest.mocked(api.post).mockReset();
+    jest.mocked(memberService.updateMyProfile).mockReset();
     useAuthStore.setState({
       user: null,
       tenant: null,
@@ -147,11 +159,37 @@ describe("authStore session", () => {
     });
 
     expect(useAuthStore.getState().tenant).toEqual(tenant);
+    expect(memberService.updateMyProfile).not.toHaveBeenCalled();
     expect(useAuthStore.getState().user?.instruments).toEqual([
       { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
     ]);
     expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").instruments).toEqual([
       { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
     ]);
+  });
+
+  it("updateCurrentUser persiste dados de perfil no backend", async () => {
+    useAuthStore.setState({ user, tenant });
+    jest.mocked(memberService.updateMyProfile).mockResolvedValueOnce({ ...user, name: "Ana Paula", phone: "11999999999", ministries: [] });
+
+    await useAuthStore.getState().updateCurrentUser({ name: "Ana Paula", phone: "11999999999" });
+
+    expect(memberService.updateMyProfile).toHaveBeenCalledWith({
+      name: "Ana Paula",
+      phone: "11999999999",
+      avatarUrl: undefined,
+    });
+    expect(useAuthStore.getState().user?.name).toBe("Ana Paula");
+    expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").name).toBe("Ana Paula");
+  });
+
+  it("updateCurrentUser faz rollback se perfil falhar no backend", async () => {
+    useAuthStore.setState({ user, tenant });
+    jest.mocked(memberService.updateMyProfile).mockRejectedValueOnce(new Error("Falha ao salvar"));
+
+    await expect(useAuthStore.getState().updateCurrentUser({ name: "Nome inválido" })).rejects.toThrow("Falha ao salvar");
+
+    expect(useAuthStore.getState().user).toEqual(user);
+    expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").name).toBe(user.name);
   });
 });

@@ -96,7 +96,7 @@ export default function DashboardScreen() {
           <Text style={styles.cardKicker}>Ministérios</Text>
           <Text style={styles.cardTitle}>Acompanhe suas equipes</Text>
           <Text style={styles.cardBody}>
-            Use a aba Ministérios para ver grupos, descrições e quantidade de membros.
+            Use a aba Ministérios para ver ministérios, descrições e quantidade de membros.
           </Text>
         </View>
       </ScrollView>
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
-    paddingBottom: 120,
+    paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.xl },
   eyebrow: {
