@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Platform, type TextStyle } from "react-native";
 
 export const colors = {
   background: "#F6F7F2",
@@ -35,6 +35,28 @@ export const screen = {
   maxWidth: 560,
   listMaxWidth: 720,
 };
+
+type WebInputResetStyle = TextStyle & {
+  outline?: string;
+  outlineStyle?: "none";
+  outlineWidth?: number;
+  outlineColor?: string;
+  boxShadow?: string;
+  WebkitAppearance?: "none";
+};
+
+export const inputReset =
+  Platform.select<WebInputResetStyle>({
+    web: {
+      outline: "none",
+      outlineStyle: "none",
+      outlineWidth: 0,
+      outlineColor: "transparent",
+      boxShadow: "none",
+      WebkitAppearance: "none",
+    },
+    default: {},
+  }) ?? {};
 
 export const shadow = Platform.select({
   web: {
