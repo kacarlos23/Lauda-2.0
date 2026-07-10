@@ -16,13 +16,12 @@ export type PermissionUser = {
 };
 
 export async function explicitPermissionKeys(userId: string, tenantId?: string | null): Promise<PermissionKey[]> {
+  if (!tenantId) return [];
+
   const grants = await basePrisma.userPermission.findMany({
     where: {
       userId,
-      OR: [
-        { tenantId: tenantId ?? null },
-        { tenantId: null },
-      ],
+      tenantId,
     },
     select: { permission: { select: { key: true } } },
   });
@@ -30,6 +29,8 @@ export async function explicitPermissionKeys(userId: string, tenantId?: string |
 }
 
 export async function effectivePermissionKeys(user: PermissionUser, tenantId?: string | null): Promise<PermissionKey[]> {
+  if (user.role === Role.GLOBAL_ADMIN) return rolePermissions(Role.GLOBAL_ADMIN);
+
   const roleKeys = rolePermissions(user.role);
   const explicitKeys = await explicitPermissionKeys(user.id, tenantId ?? user.tenantId ?? null);
   return Array.from(new Set([...roleKeys, ...explicitKeys]));
@@ -40,14 +41,13 @@ export async function hasPermission(user: PermissionUser, permissionKey: Permiss
   if (rolePermissions(user.role).includes(permissionKey)) return true;
 
   const resolvedTenantId = tenantId ?? user.tenantId ?? null;
+  if (!resolvedTenantId) return false;
+
   const grant = await basePrisma.userPermission.findFirst({
     where: {
       userId: user.id,
       permission: { key: permissionKey },
-      OR: [
-        { tenantId: resolvedTenantId },
-        { tenantId: null },
-      ],
+      tenantId: resolvedTenantId,
     },
     select: { id: true },
   });
@@ -189,7 +189,7 @@ export class PermissionService {
     return tenantId;
   }
 
-  private async ensureCatalog() {
+  async ensureCatalog() {
     for (const definition of permissionDefinitions) {
       await basePrisma.permission.upsert({
         where: { key: definition.key },

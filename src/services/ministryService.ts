@@ -16,7 +16,7 @@ export class MinistryService {
   constructor(private readonly ministryRepository: MinistryRepository) {}
 
   private async checkAdmin(user: RequestUser, permissionKey: PermissionKey) {
-    if (user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN) return;
+    if (user.role === Role.GLOBAL_ADMIN) return;
     if (await hasPermission(user, permissionKey, user.tenantId)) return;
     throw new ForbiddenError("Apenas administradores podem gerenciar ministérios");
   }
@@ -58,7 +58,7 @@ export class MinistryService {
   }
 
   private checkLeadership(ministry: any, userId: string, role: string) {
-    if (role === Role.GLOBAL_ADMIN || role === Role.TENANT_ADMIN) return;
+    if (role === Role.GLOBAL_ADMIN) return;
 
     const isLeader = ministry.members?.some((m: any) => m.userId === userId && m.isLeader);
     if (!isLeader) {
@@ -73,7 +73,7 @@ export class MinistryService {
   private async ensureCanManageMinistry(ministryId: string, user: RequestUser) {
     const hasExplicitAccess = await hasPermission(user, "ministry:assign_members", user.tenantId);
     const ministry = await this.getById(ministryId);
-    if (hasExplicitAccess && user.role !== Role.MINISTRY_LEADER) {
+    if (hasExplicitAccess) {
       return ministry;
     }
     this.checkLeadership(ministry, user.id, user.role);

@@ -60,6 +60,11 @@ export class AuthController extends BaseController {
     this.handleSuccess(res, result);
   }
 
+  async me(req: Request, res: Response): Promise<void> {
+    const result = await authService.me(req.user!.id);
+    this.handleSuccess(res, result);
+  }
+
   /**
    * Requests a password reset PIN.
    */

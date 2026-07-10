@@ -13,6 +13,8 @@ type RefreshResponse = {
     accessToken?: string;
     token?: string;
     refreshToken: string;
+    user?: unknown;
+    tenant?: unknown;
   };
 };
 
@@ -119,9 +121,20 @@ export async function refreshAccessToken(): Promise<string> {
 
   await setSessionItem("auth_token", accessToken);
   await setSessionItem("refresh_token", response.data.data.refreshToken);
+  if (response.data.data.user) {
+    await setSessionItem("auth_user", JSON.stringify(response.data.data.user));
+  }
+  if (response.data.data.tenant) {
+    await setSessionItem("auth_tenant", JSON.stringify(response.data.data.tenant));
+  }
 
   const { useAuthStore } = require("../store/authStore");
-  useAuthStore.setState({ accessToken, token: accessToken });
+  useAuthStore.setState({
+    accessToken,
+    token: accessToken,
+    ...(response.data.data.user ? { user: response.data.data.user } : {}),
+    ...(response.data.data.tenant ? { tenant: response.data.data.tenant } : {}),
+  });
 
   return accessToken;
 }

@@ -36,30 +36,12 @@ export const permissionDefinitions: Permission[] = [
 
 const allPermissionKeys: PermissionKey[] = permissionDefinitions.map((permission) => permission.key);
 
-const tenantAdminPermissions = allPermissionKeys.filter(
-  (key) => key !== "permissions:manage" && key !== "tenant:manage" && key !== "member:assign_permissions"
-);
-
+// Mirrors backend role inheritance: only GLOBAL_ADMIN gets all permissions.
+// Other roles depend on effective user.permissions plus these self-use defaults.
 export const rolePermissionMap: Record<Role, PermissionKey[]> = {
   GLOBAL_ADMIN: allPermissionKeys,
-  TENANT_ADMIN: tenantAdminPermissions,
-  MINISTRY_LEADER: [
-    "schedule:create",
-    "schedule:view",
-    "schedule:edit",
-    "schedule:assign_members",
-    "schedule:respond",
-    "schedule:view_reports",
-    "song:create",
-    "song:view",
-    "song:edit",
-    "song:attach_to_schedule",
-    "member:view",
-    "ministry:view",
-    "ministry:assign_members",
-    "instrument:view",
-    "reports:view",
-  ],
+  TENANT_ADMIN: ["schedule:respond", "song:view", "ministry:view", "instrument:view"],
+  MINISTRY_LEADER: ["schedule:respond", "song:view", "ministry:view", "instrument:view"],
   MEMBER: ["schedule:respond", "song:view", "ministry:view", "instrument:view"],
 };
 
@@ -97,7 +79,7 @@ export function canAccessGlobalAdminArea(subject?: PermissionSubject): boolean {
 }
 
 export function canAccessChurchAdmin(subject?: PermissionSubject): boolean {
-  return subjectRole(subject) === "TENANT_ADMIN";
+  return canManageChurch(subject);
 }
 
 export function canManageChurch(subject?: PermissionSubject): boolean {

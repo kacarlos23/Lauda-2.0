@@ -24,9 +24,10 @@ describe("ministry member toggle helpers", () => {
     ]);
   });
 
-  it("identifica apenas administradores da igreja", () => {
-    expect(isChurchAdmin({ role: "TENANT_ADMIN" })).toBe(true);
+  it("identifica acesso da igreja por permissões efetivas", () => {
+    expect(isChurchAdmin({ role: "TENANT_ADMIN" })).toBe(false);
     expect(isChurchAdmin({ role: "GLOBAL_ADMIN" })).toBe(true);
+    expect(isChurchAdmin({ role: "MEMBER", permissions: ["member:create"] })).toBe(true);
     expect(isChurchAdmin({ role: "MINISTRY_LEADER" })).toBe(false);
     expect(isChurchAdmin({ role: "MEMBER" })).toBe(false);
     expect(isChurchAdmin(null)).toBe(false);

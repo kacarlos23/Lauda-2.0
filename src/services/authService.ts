@@ -220,6 +220,34 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
+  async me(userId: string) {
+    const user = await authRepository.findUserById(userId);
+    if (!user || !user.isActive) {
+      throw new UnauthorizedError("Usuário inativo ou não encontrado");
+    }
+
+    const permissions = await effectivePermissionKeys(
+      { id: user.id, role: user.role as any, tenantId: user.tenantId },
+      user.tenantId
+    );
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone ?? null,
+        avatarUrl: user.avatarUrl ?? null,
+        role: user.role,
+        tenantId: user.tenantId,
+        instruments: user.instruments?.map((item) => item.instrument) ?? [],
+        permissions,
+      },
+      tenant: user.tenant ?? null,
+      permissions,
+    };
+  }
+
   async getMemberInvite(tenantId: string, ministryId?: string) {
     if (ministryId) {
       await this.ensureMinistryBelongsToTenant(tenantId, ministryId);

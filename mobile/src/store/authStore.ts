@@ -18,6 +18,15 @@ type AuthResponse = {
   };
 };
 
+type CurrentUserResponse = {
+  success: boolean;
+  data: {
+    user: User;
+    tenant?: Tenant | null;
+    permissions?: User["permissions"];
+  };
+};
+
 type JwtUserPayload = {
   userId?: string;
   id?: string;
@@ -147,6 +156,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         loading: false,
         isLoading: false,
       });
+      await useAuthStore.getState().refreshCurrentUser();
     } catch {
       await clearSession();
       set({
@@ -247,9 +257,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!currentUser) return;
 
     try {
-      const currentMember = await memberService.getCurrentMember();
-      const nextUser = { ...currentUser, ...currentMember };
+      const response = await api.get<CurrentUserResponse>("/auth/me");
+      const nextUser = { ...currentUser, ...response.data.data.user };
       await setSessionItem("auth_user", JSON.stringify(nextUser));
+      if (response.data.data.tenant) {
+        await setSessionItem("auth_tenant", JSON.stringify(response.data.data.tenant));
+      }
       set({ user: nextUser, error: null });
       await invalidateRelatedData({ reason: "user", userId: nextUser.id });
     } catch (error) {

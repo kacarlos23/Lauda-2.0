@@ -43,20 +43,20 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
+    const currentUser = await basePrisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, tenantId: true, isActive: true },
+    });
+
+    if (!currentUser?.isActive) {
+      next(new UnauthorizedError("Usuário inativo ou não encontrado"));
+      return;
+    }
+
     let role = decoded.role;
     let tenantId = decoded.tenantId ?? null;
 
     if (!tenantId && role !== Role.GLOBAL_ADMIN) {
-      const currentUser = await basePrisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true, tenantId: true, isActive: true },
-      });
-
-      if (!currentUser?.isActive) {
-        next(new UnauthorizedError("Usuário inativo ou não encontrado"));
-        return;
-      }
-
       role = currentUser.role;
       tenantId = currentUser.tenantId;
     }

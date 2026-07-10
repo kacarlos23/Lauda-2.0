@@ -7,6 +7,7 @@ jest.mock("expo-router", () => ({
 
 jest.mock("../services/api", () => ({
   api: {
+    get: jest.fn(),
     post: jest.fn(),
   },
 }));
@@ -67,6 +68,7 @@ describe("authStore session", () => {
   beforeEach(() => {
     mockStorage.clear();
     mockReplace.mockClear();
+    jest.mocked(api.get).mockReset();
     jest.mocked(api.post).mockReset();
     jest.mocked(memberService.getCurrentMember).mockReset();
     jest.mocked(memberService.updateMyProfile).mockReset();
@@ -79,6 +81,7 @@ describe("authStore session", () => {
       isLoading: true,
       error: null,
     });
+    jest.mocked(api.get).mockResolvedValue({ data: { data: { user, tenant, permissions: [] } } });
   });
 
   it("atualiza instrumentos no usuário atual e persiste auth_user", async () => {
@@ -180,20 +183,24 @@ describe("authStore session", () => {
     expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").name).toBe("Ana Local");
   });
 
-  it("refreshCurrentUser busca /members/me e mantém tenant", async () => {
+  it("refreshCurrentUser busca /auth/me e mantém tenant", async () => {
     useAuthStore.setState({ user, tenant });
-    jest.mocked(memberService.getCurrentMember).mockResolvedValueOnce({
-      ...user,
-      name: "Ana Atualizada",
-      phone: "11999999999",
-      ministries: [],
+    jest.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        data: {
+          user: { ...user, name: "Ana Atualizada", phone: "11999999999", permissions: ["song:create"] },
+          tenant,
+          permissions: ["song:create"],
+        },
+      },
     });
 
     await useAuthStore.getState().refreshCurrentUser();
 
-    expect(memberService.getCurrentMember).toHaveBeenCalled();
+    expect(api.get).toHaveBeenCalledWith("/auth/me");
     expect(useAuthStore.getState().tenant).toEqual(tenant);
     expect(useAuthStore.getState().user?.name).toBe("Ana Atualizada");
+    expect(useAuthStore.getState().user?.permissions).toEqual(["song:create"]);
     expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").phone).toBe("11999999999");
   });
 

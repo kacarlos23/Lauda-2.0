@@ -1,12 +1,18 @@
 import { canManageMusic } from "./musicPermissions";
 
 describe("canManageMusic", () => {
-  it.each(["GLOBAL_ADMIN", "TENANT_ADMIN", "MINISTRY_LEADER"] as const)("permite %s", (role) => {
-    expect(canManageMusic(role)).toBe(true);
+  it("permite GLOBAL_ADMIN", () => {
+    expect(canManageMusic("GLOBAL_ADMIN")).toBe(true);
   });
 
-  it("bloqueia MEMBER e usuário ausente", () => {
+  it("bloqueia roles sem grants e usuário ausente", () => {
+    expect(canManageMusic("TENANT_ADMIN")).toBe(false);
+    expect(canManageMusic("MINISTRY_LEADER")).toBe(false);
     expect(canManageMusic("MEMBER")).toBe(false);
     expect(canManageMusic(undefined)).toBe(false);
+  });
+
+  it("permite usuário comum com grant explícito", () => {
+    expect(canManageMusic({ role: "MEMBER", permissions: ["song:create"] })).toBe(true);
   });
 });

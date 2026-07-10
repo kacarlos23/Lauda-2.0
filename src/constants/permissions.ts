@@ -37,28 +37,23 @@ export const permissionDefinitions = [
 export type PermissionKey = (typeof permissionDefinitions)[number]["key"];
 
 const allPermissionKeys = permissionDefinitions.map((permission) => permission.key);
+export const tenantAdminInitialPermissionKeys = allPermissionKeys.filter(
+  (key) => key !== "permissions:manage" && key !== "tenant:manage" && key !== "member:assign_permissions"
+);
 
+// Permissões herdadas por papel são intencionalmente mínimas.
+// Ações administrativas devem vir de UserPermission tenant-scoped.
 export const rolePermissionMap: Record<Role, PermissionKey[]> = {
   [Role.GLOBAL_ADMIN]: allPermissionKeys,
-  [Role.TENANT_ADMIN]: allPermissionKeys.filter(
-    (key) => key !== "permissions:manage" && key !== "tenant:manage" && key !== "member:assign_permissions"
-  ),
+  [Role.TENANT_ADMIN]: ["schedule:respond", "song:view", "ministry:view", "instrument:view"],
   [Role.MINISTRY_LEADER]: [
-    "schedule:create",
-    "schedule:view",
-    "schedule:edit",
-    "schedule:assign_members",
     "schedule:respond",
-    "schedule:view_reports",
     "song:create",
     "song:view",
     "song:edit",
     "song:attach_to_schedule",
-    "member:view",
     "ministry:view",
-    "ministry:assign_members",
     "instrument:view",
-    "reports:view",
   ],
   [Role.MEMBER]: [
     "schedule:respond",

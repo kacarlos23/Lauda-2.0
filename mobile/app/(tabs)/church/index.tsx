@@ -32,7 +32,7 @@ export default function ChurchAdminScreen() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
 
-  const canAccess = canAccessChurchAdmin(user?.role);
+  const canAccess = canAccessChurchAdmin(user);
   const trimmedName = name.trim();
   const canSave = trimmedName.length > 0 && trimmedName !== summary?.tenant.name && !saving;
 

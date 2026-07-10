@@ -1,4 +1,5 @@
 import { Prisma, User } from "@prisma/client";
+import { permissionDefinitions, tenantAdminInitialPermissionKeys } from "../constants/permissions";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { prisma } from "./prismaClient";
 
@@ -78,25 +79,52 @@ export class AuthRepository {
     email: string;
     hashedPassword: string;
   }): Promise<Prisma.TenantGetPayload<{ include: { users: true } }>> {
-    return prisma.tenant.create({
-      data: {
-        name: data.churchName,
-        users: {
-          create: {
-            name: data.name,
-            email: data.email,
-            password: data.hashedPassword,
-            role: "TENANT_ADMIN",
+    return prisma.$transaction(async (tx) => {
+      for (const definition of permissionDefinitions) {
+        await tx.permission.upsert({
+          where: { key: definition.key },
+          update: { description: definition.description, category: definition.category },
+          create: definition,
+        });
+      }
+
+      const tenant = await tx.tenant.create({
+        data: {
+          name: data.churchName,
+          users: {
+            create: {
+              name: data.name,
+              email: data.email,
+              password: data.hashedPassword,
+              role: "TENANT_ADMIN",
+            },
+          },
+          instruments: {
+            create: DEFAULT_INSTRUMENTS.map((instrument) => ({
+              name: instrument.name,
+              colorHex: instrument.colorHex,
+            })),
           },
         },
-        instruments: {
-          create: DEFAULT_INSTRUMENTS.map((instrument) => ({
-            name: instrument.name,
-            colorHex: instrument.colorHex,
-          })),
-        },
-      },
-      include: { users: true },
+        include: { users: true },
+      });
+
+      const admin = tenant.users[0];
+      const permissions = await tx.permission.findMany({
+        where: { key: { in: tenantAdminInitialPermissionKeys } },
+        select: { id: true },
+      });
+      await tx.userPermission.createMany({
+        data: permissions.map((permission) => ({
+          userId: admin.id,
+          permissionId: permission.id,
+          tenantId: tenant.id,
+          grantedById: admin.id,
+        })),
+        skipDuplicates: true,
+      });
+
+      return tenant;
     });
   }
 

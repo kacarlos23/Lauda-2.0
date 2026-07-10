@@ -34,7 +34,7 @@ export class ScheduleService {
   }
 
   private isAdmin(role: Role) {
-    return role === Role.GLOBAL_ADMIN || role === Role.TENANT_ADMIN;
+    return role === Role.GLOBAL_ADMIN;
   }
 
   private async hasScheduleManagementPermission(user: RequestUser) {
@@ -77,12 +77,15 @@ export class ScheduleService {
     }
 
     await this.ensureSongsBelongToTenant(data.songIds);
-    await requireUserPermission(user, "schedule:create", user.tenantId);
+    const canCreateSchedule = await hasPermission(user, "schedule:create", user.tenantId);
+    if (!canCreateSchedule && user.role !== Role.MINISTRY_LEADER) {
+      await requireUserPermission(user, "schedule:create", user.tenantId);
+    }
     if (data.songIds.length > 0) {
       await requireUserPermission(user, "song:attach_to_schedule", user.tenantId);
     }
 
-    if (this.isAdmin(user.role) || (user.role !== Role.MINISTRY_LEADER && await hasPermission(user, "schedule:assign_members", user.tenantId))) {
+    if (this.isAdmin(user.role) || await hasPermission(user, "schedule:assign_members", user.tenantId)) {
       await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
       return this.scheduleRepository.create(data);
     }
@@ -117,7 +120,7 @@ export class ScheduleService {
       await requireUserPermission(user, "schedule:assign_members", user.tenantId);
     }
 
-    if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
+    if (!await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
       const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
       if (!leadership) {
         throw new ForbiddenError("Líder só pode mover escalas para ministérios que lidera");
@@ -154,7 +157,7 @@ export class ScheduleService {
       throw new NotFoundError("Usuário não encontrado neste tenant");
     }
 
-    if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
+    if (!this.isAdmin(user.role) && !await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
       await this.ensureUserBelongsToMinistry(schedule.ministryId, data.userId);
     }
 
@@ -195,7 +198,12 @@ export class ScheduleService {
       return updated;
     }
 
-    if (this.isAdmin(user.role)) {
+    const canManageStatus =
+      this.isAdmin(user.role) ||
+      await hasPermission(user, "schedule:edit", user.tenantId) ||
+      await hasPermission(user, "schedule:assign_members", user.tenantId);
+
+    if (canManageStatus) {
       const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
       if (!updated) {
         throw new NotFoundError("Atribuição não encontrada");
@@ -267,7 +275,7 @@ export class ScheduleService {
       if (!targetUser) {
         throw new NotFoundError("Usuário não encontrado neste tenant");
       }
-      if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
+      if (!this.isAdmin(user.role) && !await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
         await this.ensureUserBelongsToMinistry(ministryId, assignment.userId);
       }
     }

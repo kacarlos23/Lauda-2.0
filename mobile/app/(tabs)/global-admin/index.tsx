@@ -556,6 +556,7 @@ export default function GlobalAdminScreen() {
         visible={Boolean(permissionUser)}
         user={permissionUser}
         onClose={() => setPermissionUser(null)}
+        onSaved={reloadAll}
       />
     </SafeAreaView>
   );
@@ -733,10 +734,12 @@ function PermissionModal({
   visible,
   user,
   onClose,
+  onSaved,
 }: {
   visible: boolean;
   user: Row | null;
   onClose: () => void;
+  onSaved: () => Promise<void>;
 }) {
   const [catalog, setCatalog] = useState<Permission[]>([]);
   const [activeKeys, setActiveKeys] = useState<PermissionKey[]>([]);
@@ -785,7 +788,10 @@ function PermissionModal({
     setSaving(true);
     setError(null);
     try {
-      await adminService.setUserPermissions(String(user.id), activeKeys, tenantId);
+      const userPermissions = await adminService.setUserPermissions(String(user.id), activeKeys, tenantId);
+      setActiveKeys(userPermissions.grants.map((grant) => grant.permission.key));
+      setEffectiveKeys(userPermissions.effective);
+      await onSaved();
       onClose();
     } catch (saveError) {
       setError(getErrorMessage(saveError, "Não foi possível salvar permissões."));
@@ -820,7 +826,7 @@ function PermissionModal({
               </Text>
               {effectiveKeys.length ? (
                 <Text style={styles.mutedText}>
-                  Efetivas atualmente: {effectiveKeys.length}. Marque abaixo apenas as permissões explícitas adicionais deste usuário.
+                  Efetivas atualmente: {effectiveKeys.length}. Marque abaixo as permissões explícitas deste usuário.
                 </Text>
               ) : null}
               {Object.entries(grouped).map(([category, permissions]) => (
@@ -829,11 +835,10 @@ function PermissionModal({
                   <View style={styles.permissionGrid}>
                     {permissions.map((permission) => {
                       const active = activeKeys.includes(permission.key);
-                      const inherited = !active && effectiveKeys.includes(permission.key);
                       return (
                         <TouchableOpacity
                           key={permission.key}
-                          style={[styles.permissionOption, inherited && styles.permissionOptionInherited, active && styles.permissionOptionActive]}
+                          style={[styles.permissionOption, active && styles.permissionOptionActive]}
                           onPress={() => togglePermission(permission.key)}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: active }}
@@ -842,8 +847,8 @@ function PermissionModal({
                           <Text style={[styles.permissionOptionTitle, active && styles.permissionOptionTitleActive]}>
                             {permission.description}
                           </Text>
-                          <Text style={[styles.permissionOptionKey, (active || inherited) && styles.permissionOptionKeyActive]}>
-                            {permission.key}{inherited ? " · via perfil" : ""}
+                          <Text style={[styles.permissionOptionKey, active && styles.permissionOptionKeyActive]}>
+                            {permission.key}
                           </Text>
                         </TouchableOpacity>
                       );
