@@ -7,6 +7,7 @@ import Animated, { cancelAnimation, Easing, runOnJS, scrollTo, useAnimatedReacti
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { ChordSheetView } from "../../../src/components/ChordSheetView";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
+import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
 import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChordStore } from "../../../src/store/chordStore";
@@ -58,8 +59,8 @@ export default function SongDetailScreen() {
     });
   };
 
-  if (viewState.status === "loading") return <View style={styles.center}><ActivityIndicator color={colors.primary} size="large" /></View>;
-  if (viewState.status === "error") return <View style={styles.center}><Text style={styles.error}>{viewState.message}</Text><AppBackButton href="/songs" /></View>;
+  if (viewState.status === "loading") return <LoadingState message="Carregando música..." />;
+  if (viewState.status === "error") return <View style={styles.center}><ErrorBanner message={viewState.message} style={styles.error} action={id ? <Button title="Tentar novamente" variant="secondary" onPress={() => loadSong(id)} /> : undefined} /><AppBackButton href="/songs" /></View>;
   const song = viewState.song;
 
   const exportPdf = async () => {
@@ -70,7 +71,7 @@ export default function SongDetailScreen() {
   };
 
   return <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-    <View style={styles.top}><AppBackButton href="/songs" compact /><View style={styles.topActions}>{canManageMusic(user?.role) ? <TouchableOpacity accessibilityLabel="Editar música" style={styles.icon} onPress={() => router.push(`/songs/${song.id}/edit` as never)}><Edit3 color={colors.primary} size={19} /></TouchableOpacity> : null}<TouchableOpacity accessibilityLabel="Exportar PDF" style={styles.icon} onPress={() => void exportPdf()} disabled={exporting}>{exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={19} />}</TouchableOpacity></View></View>
+    <View style={styles.top}><AppBackButton href="/songs" compact /><View style={styles.topActions}>{canManageMusic(user, "song:edit") ? <TouchableOpacity accessibilityLabel="Editar música" style={styles.icon} onPress={() => router.push(`/songs/${song.id}/edit` as never)}><Edit3 color={colors.primary} size={19} /></TouchableOpacity> : null}<TouchableOpacity accessibilityLabel="Exportar PDF" style={styles.icon} onPress={() => void exportPdf()} disabled={exporting}>{exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={19} />}</TouchableOpacity></View></View>
     <Animated.ScrollView
       ref={scrollRef}
       onScroll={onScroll}

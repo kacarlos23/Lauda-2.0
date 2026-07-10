@@ -41,6 +41,7 @@ model Tenant {
   artists       Artist[]
   memberInvites MemberInvite[]
   instruments   Instrument[]
+  userPermissions UserPermission[]
 
   ministryMembers     MinistryMember[]
   scheduleAssignments ScheduleAssignment[]
@@ -91,6 +92,8 @@ model User {
   instruments  UserInstrument[]
   createdSongs Song[]               @relation("SongCreatedBy")
   updatedSongs Song[]               @relation("SongUpdatedBy")
+  permissions  UserPermission[]     @relation("UserPermissionUser")
+  grantedPermissions UserPermission[] @relation("UserPermissionGrantedBy")
 
   resetPasswordToken   String?   @unique
   resetPasswordExpires DateTime?
@@ -255,12 +258,55 @@ model ScheduleAssignment {
   status    AssignmentStatus @default(PENDING)
   isActive  Boolean          @default(true)
   deletedAt DateTime?
+  declineReason String?
+  substituteRequestedAt DateTime?
+  substituteResolvedAt DateTime?
+  substituteResolvedById String?
+  substituteResolutionNote String?
   createdAt DateTime         @default(now())
 
   @@unique([scheduleId, userId])
   @@index([tenantId])
   @@index([tenantId, userId])
   @@index([tenantId, status])
+  @@index([tenantId, substituteRequestedAt, substituteResolvedAt])
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserPermission[]
+
+  @@index([category])
+}
+
+model UserPermission {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation("UserPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  grantedById String
+  grantedBy   User   @relation("UserPermissionGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, permissionId, tenantId])
+  @@index([userId, tenantId])
+  @@index([tenantId])
+  @@index([permissionId])
+  @@index([grantedById])
 }
 
 model Song {

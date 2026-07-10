@@ -146,7 +146,7 @@ export default function TabsLayout() {
             title: "Membros",
             tabBarLabel: "Membros",
             tabBarIcon: ({ color }) => tabIcon(Users, color),
-            href: canViewMembers(user?.role) ? "/members" : null,
+            href: canViewMembers(user) ? "/members" : null,
           }}
         />
         <Tabs.Screen
@@ -170,7 +170,7 @@ export default function TabsLayout() {
             title: "Dados da Igreja",
             tabBarLabel: "Igreja",
             tabBarIcon: ({ color }) => tabIcon(Church, color),
-            href: canAccessChurchAdmin(user?.role) ? ("/church" as never) : null,
+            href: canAccessChurchAdmin(user) ? ("/church" as never) : null,
           }}
         />
         <Tabs.Screen

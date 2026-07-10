@@ -8,12 +8,10 @@ import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
 import { colors, radii, screen, spacing } from "../../../../src/theme";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
+import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from "../../../../src/components/ui";
+import { can } from "../../../../src/utils/permissions";
 
 const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
-
-function canAssign(role?: string): boolean {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
-}
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -78,7 +76,7 @@ export default function MinistryMembersScreen() {
       <View style={styles.topBar}>
         <AppBackButton href={`/ministries/${id}`} compact />
         <Text style={styles.title}>Membros</Text>
-        {canAssign(user?.role) ? (
+        {can(user, "ministry:assign_members") ? (
           <TouchableOpacity
             onPress={() => router.push(`/ministries/assign?ministryId=${id}` as never)}
             style={styles.iconBtn}
@@ -119,7 +117,11 @@ export default function MinistryMembersScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <ErrorBanner
+              message={error}
+              style={styles.errorText}
+              action={<Button title="Tentar novamente" variant="secondary" onPress={() => loadMembers(1)} />}
+            />
           </View>
         }
         renderItem={({ item }) => (
@@ -130,7 +132,7 @@ export default function MinistryMembersScreen() {
             <View style={styles.info}>
               <View style={styles.row}>
                 <Text style={styles.name}>{item.user.name}</Text>
-                <Text style={styles.badge}>{statusLabel(item.status)}</Text>
+                <MemberStatusBadge status={item.status} label={statusLabel(item.status)} />
               </View>
               <Text style={styles.email}>{item.user.email}</Text>
               {item.role ? <Text style={styles.meta}>{item.role}</Text> : null}
@@ -141,9 +143,13 @@ export default function MinistryMembersScreen() {
         )}
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator color={colors.primary} style={styles.loader} />
+            <LoadingState centered={false} message="Carregando membros..." style={styles.loader} />
           ) : (
-            <Text style={styles.emptyText}>Nenhum membro encontrado.</Text>
+            <EmptyState
+              title="Nenhum membro encontrado"
+              description="Ajuste os filtros ou vincule membros a este ministério."
+              style={styles.emptyState}
+            />
           )
         }
         onEndReached={() => {
@@ -220,6 +226,7 @@ const styles = StyleSheet.create({
   badge: { color: colors.primary, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
   leader: { color: colors.primary, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
   loader: { marginTop: spacing.xl },
+  emptyState: { marginTop: spacing.xl },
   emptyText: { color: colors.muted, textAlign: "center", marginTop: spacing.xl },
   errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginTop: spacing.md },
 });

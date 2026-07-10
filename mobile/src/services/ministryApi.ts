@@ -18,9 +18,9 @@ function handleApiError(error: unknown): never {
 }
 
 export const ministryApi = {
-  async getMinistries(): Promise<Ministry[]> {
+  async getMinistries(params?: { search?: string }): Promise<Ministry[]> {
     try {
-      const response = await api.get<{ success: boolean; data: Ministry[] }>("/ministries");
+      const response = await api.get<{ success: boolean; data: Ministry[] }>("/ministries", { params });
       return response.data.data;
     } catch (error) {
       handleApiError(error);

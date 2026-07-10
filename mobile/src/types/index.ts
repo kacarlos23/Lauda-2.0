@@ -1,4 +1,36 @@
 export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
+export type PermissionKey =
+  | "schedule:create"
+  | "schedule:view"
+  | "schedule:edit"
+  | "schedule:delete"
+  | "schedule:assign_members"
+  | "schedule:respond"
+  | "schedule:view_reports"
+  | "song:create"
+  | "song:view"
+  | "song:edit"
+  | "song:delete"
+  | "song:attach_to_schedule"
+  | "member:create"
+  | "member:view"
+  | "member:edit"
+  | "member:delete"
+  | "member:invite"
+  | "member:assign_ministry"
+  | "member:assign_permissions"
+  | "ministry:create"
+  | "ministry:view"
+  | "ministry:edit"
+  | "ministry:delete"
+  | "ministry:assign_members"
+  | "instrument:create"
+  | "instrument:view"
+  | "instrument:edit"
+  | "instrument:delete"
+  | "reports:view"
+  | "permissions:manage"
+  | "tenant:manage";
 export type MemberStatus = "PENDING" | "ACTIVE" | "INACTIVE";
 export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 
@@ -29,6 +61,7 @@ export interface User {
   avatarUrl?: string | null;
   role: Role;
   tenantId: string | null;
+  permissions?: PermissionKey[];
   isActive?: boolean;
   deletedAt?: string | null;
   instruments?: Instrument[];
@@ -104,6 +137,11 @@ export interface ScheduleAssignment {
   userId: string;
   role: string;
   status: AssignmentStatus;
+  declineReason?: string | null;
+  substituteRequestedAt?: string | null;
+  substituteResolvedAt?: string | null;
+  substituteResolvedById?: string | null;
+  substituteResolutionNote?: string | null;
   tenantId?: string;
   isActive?: boolean;
   deletedAt?: string | null;
@@ -141,6 +179,29 @@ export interface GlobalUser extends User {
   tenant?: Tenant | null;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface Permission {
+  id: string;
+  key: PermissionKey;
+  description: string;
+  category: string;
+}
+
+export interface UserPermission {
+  id: string;
+  userId: string;
+  tenantId?: string | null;
+  permissionId: string;
+  permission: Permission;
+  grantedById: string;
+  createdAt: string;
+}
+
+export interface UserPermissionsResponse {
+  user: Pick<User, "id" | "name" | "email" | "role" | "tenantId">;
+  grants: UserPermission[];
+  effective: PermissionKey[];
 }
 
 export interface GlobalMinistry extends Ministry {

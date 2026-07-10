@@ -1,10 +1,12 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
+import { ErrorBanner } from "../../../src/components/ui/ErrorBanner";
+import { LoadingState } from "../../../src/components/ui/LoadingState";
 import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { musicService } from "../../../src/services/musicService";
@@ -13,17 +15,24 @@ import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../src/utils/dateTimeInput";
+import { can } from "../../../src/utils/permissions";
 
-function canManageSchedules(role?: string | null) {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
+function dateFromRouteParam(value?: string | string[]) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || !/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return new Date();
+  const [year, month, day] = candidate.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return new Date();
+  return parsed;
 }
 
 export default function NewScheduleScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string | string[] }>();
   const user = useAuthStore((state) => state.user);
   const { createSchedule, saving, error } = useScheduleStore();
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState(() => toDisplayDate(new Date()));
+  const [date, setDate] = useState(() => toDisplayDate(dateFromRouteParam(params.date)));
   const [hour, setHour] = useState("19:00");
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministryId, setMinistryId] = useState("");
@@ -34,8 +43,6 @@ export default function NewScheduleScreen() {
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
   const [membersModal, setMembersModal] = useState(false);
   const [songsModal, setSongsModal] = useState(false);
-  const [calendarModal, setCalendarModal] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [quickSongModal, setQuickSongModal] = useState(false);
   const [quickSongArtist, setQuickSongArtist] = useState<Artist | null>(null);
   const [quickSongTitle, setQuickSongTitle] = useState("");
@@ -45,7 +52,7 @@ export default function NewScheduleScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!canManageSchedules(user?.role)) return;
+    if (!can(user, "schedule:create")) return;
     let mounted = true;
     Promise.all([
       ministryApi.getMinistries(),
@@ -63,7 +70,7 @@ export default function NewScheduleScreen() {
       if (mounted) setLoading(false);
     });
     return () => { mounted = false; };
-  }, [user?.role]);
+  }, [user]);
 
   useEffect(() => {
     if (!ministryId) {
@@ -87,19 +94,7 @@ export default function NewScheduleScreen() {
   );
   const selectedSongs = useMemo(() => selectedSongIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean) as Song[], [songs, selectedSongIds]);
 
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    const first = new Date(year, month, 1);
-    const offset = first.getDay();
-    const count = new Date(year, month + 1, 0).getDate();
-    return [
-      ...Array.from({ length: offset }, () => null),
-      ...Array.from({ length: count }, (_, index) => new Date(year, month, index + 1)),
-    ];
-  }, [calendarMonth]);
-
-  if (!canManageSchedules(user?.role)) {
+  if (!can(user, "schedule:create")) {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para criar escalas.</Text><AppBackButton href="/schedules" /></View>;
   }
 
@@ -162,24 +157,6 @@ export default function NewScheduleScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Modal visible={calendarModal} transparent animationType="fade" onRequestClose={() => setCalendarModal(false)}>
-        <View style={styles.backdrop}><View style={styles.modalCard}>
-          <View style={styles.modalHeaderRow}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}><Text style={styles.secondaryText}>‹</Text></TouchableOpacity>
-            <Text style={styles.modalTitle}>{calendarMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</Text>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}><Text style={styles.secondaryText}>›</Text></TouchableOpacity>
-          </View>
-          <View style={styles.weekRow}>{["D", "S", "T", "Q", "Q", "S", "S"].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekday}>{day}</Text>)}</View>
-          <View style={styles.calendarGrid}>
-            {calendarDays.map((day, index) => day ? (
-              <TouchableOpacity key={day.toISOString()} style={styles.calendarDay} onPress={() => { setDate(toDisplayDate(day)); setCalendarModal(false); }}>
-                <Text style={styles.calendarDayText}>{day.getDate()}</Text>
-              </TouchableOpacity>
-            ) : <View key={`empty-${index}`} style={styles.calendarDay} />)}
-          </View>
-        </View></View>
-      </Modal>
-
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
@@ -258,8 +235,8 @@ export default function NewScheduleScreen() {
       <View style={styles.backRow}><AppBackButton href="/schedules" /></View>
       <Text style={styles.title}>Nova Escala</Text>
       <Text style={styles.subtitle}>Monte a escala com ministério, músicas e membros.</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : (
+      <ErrorBanner message={error} style={styles.error} />
+      {loading ? <LoadingState centered={false} message="Carregando dados da escala..." style={styles.loader} /> : (
         <View style={styles.card}>
           <Text style={styles.label}>Nome da escala *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
@@ -278,10 +255,8 @@ export default function NewScheduleScreen() {
                 label="Dia *"
                 value={date}
                 onChange={setDate}
+                testID="schedule-date"
               />
-              <View style={styles.inputActionRow}>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => setCalendarModal(true)}><Text style={styles.secondaryText}>Calendário</Text></TouchableOpacity>
-              </View>
             </View>
             <View style={styles.field}>
               <DateTimeInput
@@ -289,6 +264,7 @@ export default function NewScheduleScreen() {
                 label="Horário *"
                 value={hour}
                 onChange={setHour}
+                testID="schedule-time"
               />
             </View>
           </View>
@@ -330,8 +306,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   field: { flex: 1 },
-  inputActionRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
-  actionInput: { flex: 1 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: { minHeight: 38, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, justifyContent: "center", paddingHorizontal: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
@@ -362,11 +336,6 @@ const styles = StyleSheet.create({
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   optionTitle: { color: colors.ink, fontSize: 15, fontWeight: "900" },
   optionMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
-  weekRow: { flexDirection: "row", marginTop: spacing.md },
-  weekday: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 12, fontWeight: "900" },
-  calendarGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.sm },
-  calendarDay: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  calendarDayText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
   modalActionSecondary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   modalActionPrimary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },

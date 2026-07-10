@@ -53,6 +53,12 @@ export const CreateAssignmentSchema = z.object({
 
 export const UpdateAssignmentStatusSchema = z.object({
   status: AssignmentStatusSchema,
+  declineReason: z.string().trim().max(500, "Motivo deve ter no máximo 500 caracteres").optional(),
+  requestSubstitute: z.boolean().optional(),
+});
+
+export const ResolveSubstitutionSchema = z.object({
+  note: z.string().trim().max(500, "Observação deve ter no máximo 500 caracteres").optional(),
 });
 
 export type CreateScheduleInput = z.infer<typeof CreateScheduleSchema>;
@@ -60,10 +66,12 @@ export type UpdateScheduleInput = z.infer<typeof UpdateScheduleSchema>;
 export type ListSchedulesInput = z.infer<typeof ListSchedulesSchema>;
 export type CreateAssignmentInput = z.infer<typeof CreateAssignmentSchema>;
 export type UpdateAssignmentStatusInput = z.infer<typeof UpdateAssignmentStatusSchema>;
+export type ResolveSubstitutionInput = z.infer<typeof ResolveSubstitutionSchema>;
 
 export const createScheduleSchema = CreateScheduleSchema;
 export const updateScheduleSchema = UpdateScheduleSchema;
 export const listSchedulesSchema = ListSchedulesSchema;
 export const createAssignmentSchema = CreateAssignmentSchema;
 export const updateAssignmentStatusSchema = UpdateAssignmentStatusSchema;
+export const resolveSubstitutionSchema = ResolveSubstitutionSchema;
 

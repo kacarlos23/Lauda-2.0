@@ -12,6 +12,7 @@ import {
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { Edit3, Plus, Save, Trash2, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppInput, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useInstrumentStore } from "../../../src/store/instrumentStore";
 import {
@@ -26,6 +27,7 @@ import { Instrument } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { safeReturnTo } from "../../../src/utils/navigation";
+import { emptyInstrumentFilters, filterInstruments, hasActiveFilters, InstrumentListFilters } from "../../../src/utils/listFilters";
 
 const emptyForm = { name: "", colorHex: "" };
 
@@ -48,14 +50,20 @@ export default function InstrumentCatalogScreen() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<InstrumentListFilters>(emptyInstrumentFilters);
+  const [draftFilters, setDraftFilters] = useState<InstrumentListFilters>(emptyInstrumentFilters);
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilters = hasActiveFilters(filters);
+  const canApplyFilters = hasActiveFilters(draftFilters);
+  const filteredInstruments = filterInstruments(instruments, filters);
 
   useEffect(() => {
-    if (canManageInstrumentCatalog(user?.role)) {
+    if (canManageInstrumentCatalog(user)) {
       void loadInstruments();
     }
-  }, [loadInstruments, user?.role]);
+  }, [loadInstruments, user]);
 
-  if (!canManageInstrumentCatalog(user?.role)) {
+  if (!canManageInstrumentCatalog(user)) {
     return <Redirect href="/(tabs)/profile" />;
   }
 
@@ -126,8 +134,41 @@ export default function InstrumentCatalogScreen() {
     void loadInstruments();
   };
 
+  const openFilters = () => {
+    setDraftFilters(filters);
+    setShowFilters(true);
+  };
+
+  const clearFilters = () => {
+    setFilters(emptyInstrumentFilters);
+    setDraftFilters(emptyInstrumentFilters);
+    setShowFilters(false);
+  };
+
+  const applyFilters = () => {
+    if (!hasActiveFilters(draftFilters)) return;
+    setFilters(draftFilters);
+    setShowFilters(false);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+      <FilterPanel
+        visible={showFilters}
+        title="Filtrar instrumentos"
+        canApply={canApplyFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilters(false)}
+        onClear={activeFilters || canApplyFilters ? clearFilters : undefined}
+      >
+        <AppInput
+          label="Palavra-chave geral"
+          value={draftFilters.query ?? ""}
+          onChangeText={(query) => setDraftFilters((current) => ({ ...current, query }))}
+          placeholder="Nome ou cor"
+          accessibilityLabel="Buscar instrumentos e cargos"
+        />
+      </FilterPanel>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.backRow}><AppBackButton href={returnTo} /></View>
         <View style={styles.header}>
@@ -168,7 +209,7 @@ export default function InstrumentCatalogScreen() {
               ]}
             />
           </View>
-          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <ErrorBanner message={formError} style={styles.formError} />
           <View style={styles.formActions}>
             <TouchableOpacity
               style={[styles.primaryButton, saving && styles.disabledButton]}
@@ -203,22 +244,44 @@ export default function InstrumentCatalogScreen() {
         <View style={styles.section}>
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Catálogo</Text>
-            {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            <View style={styles.listActions}>
+              <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de instrumentos" />
+              {loading ? <ActivityIndicator color={colors.primary} /> : null}
+            </View>
           </View>
+          {activeFilters ? (
+            <TouchableOpacity style={styles.secondaryButton} onPress={clearFilters} accessibilityRole="button" accessibilityLabel="Limpar filtros de instrumentos">
+              <Text style={styles.secondaryButtonText}>Limpar filtros</Text>
+            </TouchableOpacity>
+          ) : null}
           {error && !loading ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.secondaryButton} onPress={retryLoad} accessibilityRole="button">
-                <Text style={styles.secondaryButtonText}>Tentar novamente</Text>
-              </TouchableOpacity>
+              <ErrorBanner
+                message={error}
+                action={
+                  <TouchableOpacity style={styles.secondaryButton} onPress={retryLoad} accessibilityRole="button" accessibilityLabel="Tentar carregar instrumentos novamente">
+                    <Text style={styles.secondaryButtonText}>Tentar novamente</Text>
+                  </TouchableOpacity>
+                }
+              />
             </View>
           ) : null}
 
-          {!loading && instruments.length === 0 ? (
-            <Text style={styles.emptyText}>Nenhum instrumento cadastrado.</Text>
+          {loading ? (
+            <LoadingState centered={false} message="Carregando instrumentos..." style={styles.inlineLoading} />
+          ) : !error && filteredInstruments.length === 0 ? (
+            <EmptyState
+              title={activeFilters ? "Nenhum instrumento encontrado" : "Nenhum instrumento cadastrado"}
+              description={activeFilters ? "Ajuste ou limpe os filtros para ver outros instrumentos e cargos." : "Crie instrumentos ou cargos para organizar perfis, membros e escalas."}
+              action={activeFilters ? (
+                <TouchableOpacity style={styles.secondaryButton} onPress={clearFilters} accessibilityRole="button" accessibilityLabel="Limpar filtros de instrumentos">
+                  <Text style={styles.secondaryButtonText}>Limpar filtros</Text>
+                </TouchableOpacity>
+              ) : null}
+            />
           ) : (
             <View style={styles.instrumentList}>
-              {instruments.map((instrument) => {
+              {filteredInstruments.map((instrument) => {
                 const isDeleting = deletingId === instrument.id;
                 return (
                   <View key={instrument.id} style={styles.instrumentRow}>
@@ -338,9 +401,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
+  listActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   errorBox: { gap: spacing.sm, marginBottom: spacing.md, alignItems: "flex-start" },
+  formError: { marginBottom: spacing.md },
+  inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
   errorText: { color: colors.danger, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
-  emptyText: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   instrumentList: { gap: spacing.sm },
   instrumentRow: {
     minHeight: 66,

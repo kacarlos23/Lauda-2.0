@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
+import { Button, ErrorBanner, LoadingState } from "../../../../src/components/ui";
 import { ArrowLeft, Download } from "lucide-react-native";
 import { DateTimeInput } from "../../../../src/components/DateTimeInput";
 import { memberService } from "../../../../src/services/memberService";
@@ -13,10 +14,7 @@ import { scheduleService } from "../../../../src/services/scheduleService";
 import { Member, Ministry, MinistryMember, ScheduleAssignment, Song } from "../../../../src/types";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../../src/utils/dateTimeInput";
-
-function canManageSchedules(role?: string | null) {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
-}
+import { can } from "../../../../src/utils/permissions";
 
 function timeValue(value: string) {
   const date = new Date(value);
@@ -28,7 +26,8 @@ export default function EditScheduleScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { allSchedules, loadSchedules, updateSchedule, saving, error } = useScheduleStore();
+  const canDeleteSchedule = can(user, "schedule:delete");
+  const { allSchedules, loadSchedules, updateSchedule, deleteSchedule, saving, error } = useScheduleStore();
   const schedule = allSchedules.find((item) => item.id === id);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -46,6 +45,7 @@ export default function EditScheduleScreen() {
   const [draggedSongIndex, setDraggedSongIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     void loadSchedules();
@@ -63,7 +63,7 @@ export default function EditScheduleScreen() {
   }, [schedule?.id]);
 
   useEffect(() => {
-    if (!canManageSchedules(user?.role)) return;
+    if (!can(user, "schedule:edit")) return;
     let mounted = true;
     Promise.all([ministryApi.getMinistries(), memberService.listMembers(), musicService.listSongs("", 1, 100)])
       .then(([ministryResult, memberResult, songResult]) => {
@@ -166,12 +166,51 @@ export default function EditScheduleScreen() {
     }
   };
 
-  if (!canManageSchedules(user?.role)) {
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await deleteSchedule(id);
+      Alert.alert("Escala excluída", "A escala foi removida das listas ativas.");
+      router.replace("/schedules" as never);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!schedule || deleting) return;
+    Alert.alert(
+      "Excluir escala",
+      "Esta escala será cancelada e removida das listas ativas. As atribuições relacionadas serão desativadas para preservar o histórico de aceite, recusa e pendência.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Excluir escala", style: "destructive", onPress: () => void handleDelete() },
+      ]
+    );
+  };
+
+  if (!can(user, "schedule:edit")) {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href="/schedules" /></View>;
   }
 
-  if (loading || !schedule) {
-    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+  if (loading) {
+    return <LoadingState message="Carregando escala..." />;
+  }
+
+  if (!schedule) {
+    return (
+      <View style={styles.center}>
+        <ErrorBanner
+          message="Escala não encontrada."
+          style={styles.error}
+          action={<Button title="Tentar novamente" variant="secondary" onPress={() => loadSchedules()} />}
+        />
+        <AppBackButton href="/schedules" />
+      </View>
+    );
   }
 
   return (
@@ -313,6 +352,19 @@ export default function EditScheduleScreen() {
         <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View><TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Editar membros</Text></TouchableOpacity></View>
         <View style={styles.selectedList}>{selectedMemberDetails.map((entry) => <View key={entry.userId} style={styles.selectedChip}><Text style={styles.selectedChipTitle}>{entry.member?.name}</Text><Text style={styles.selectedChipMeta}>{entry.role}</Text></View>)}</View>
         <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving}><Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar alterações"}</Text></TouchableOpacity>
+        {canDeleteSchedule ? <View style={styles.dangerZone}>
+          <Text style={styles.dangerTitle}>Área de perigo</Text>
+          <Text style={styles.dangerText}>Excluir a escala remove o item das listas ativas e desativa suas atribuições relacionadas.</Text>
+          <TouchableOpacity
+            style={[styles.dangerButton, deleting && styles.disabled]}
+            onPress={confirmDelete}
+            disabled={deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Excluir escala"
+          >
+            <Text style={styles.dangerButtonText}>{deleting ? "Excluindo..." : "Excluir escala"}</Text>
+          </TouchableOpacity>
+        </View> : null}
       </View>
     </ScrollView>
   );
@@ -353,6 +405,11 @@ const styles = StyleSheet.create({
   selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   selectedChipTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
   selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  dangerZone: { marginTop: spacing.xl, borderWidth: 1, borderColor: colors.danger, borderRadius: radii.md, backgroundColor: colors.dangerSoft, padding: spacing.lg },
+  dangerTitle: { color: colors.danger, fontSize: 16, fontWeight: "900", marginBottom: spacing.xs },
+  dangerText: { color: colors.text, fontSize: 13, fontWeight: "600", lineHeight: 19, marginBottom: spacing.md },
+  dangerButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, alignSelf: "flex-start" },
+  dangerButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },

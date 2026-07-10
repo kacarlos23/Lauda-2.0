@@ -1,9 +1,10 @@
 import { Role } from "@prisma/client";
 import { ScheduleRepository } from "../repositories/ScheduleRepository";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
-import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
+import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, ResolveSubstitutionInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
+import { hasPermission, requireUserPermission } from "./permissionService";
 
-type RequestUser = { id: string; role: Role };
+type RequestUser = { id: string; role: Role; tenantId?: string };
 
 export class ScheduleService {
   constructor(private readonly scheduleRepository: ScheduleRepository) {}
@@ -36,17 +37,28 @@ export class ScheduleService {
     return role === Role.GLOBAL_ADMIN || role === Role.TENANT_ADMIN;
   }
 
+  private async hasScheduleManagementPermission(user: RequestUser) {
+    return (
+      await hasPermission(user, "schedule:edit", user.tenantId) ||
+      await hasPermission(user, "schedule:delete", user.tenantId) ||
+      await hasPermission(user, "schedule:assign_members", user.tenantId)
+    );
+  }
+
   private async ensureCanManageSchedule(scheduleId: string, user: RequestUser) {
     const schedule = await this.scheduleRepository.findScheduleById(scheduleId);
     if (!schedule) {
       throw new NotFoundError("Escala não encontrada");
     }
 
-    if (this.isAdmin(user.role)) {
+    if (this.isAdmin(user.role) || await this.hasScheduleManagementPermission(user)) {
       return schedule;
     }
 
     if (user.role !== Role.MINISTRY_LEADER) {
+      if (false) {
+        throw new ForbiddenError("Usuário sem permissão para escalar membros");
+      }
       throw new ForbiddenError("Perfil sem permissão para gerenciar escalas");
     }
 
@@ -65,8 +77,12 @@ export class ScheduleService {
     }
 
     await this.ensureSongsBelongToTenant(data.songIds);
+    await requireUserPermission(user, "schedule:create", user.tenantId);
+    if (data.songIds.length > 0) {
+      await requireUserPermission(user, "song:attach_to_schedule", user.tenantId);
+    }
 
-    if (this.isAdmin(user.role)) {
+    if (this.isAdmin(user.role) || (user.role !== Role.MINISTRY_LEADER && await hasPermission(user, "schedule:assign_members", user.tenantId))) {
       await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
       return this.scheduleRepository.create(data);
     }
@@ -85,6 +101,7 @@ export class ScheduleService {
   }
 
   async updateForUser(scheduleId: string, data: UpdateScheduleInput, user: RequestUser) {
+    await requireUserPermission(user, "schedule:edit", user.tenantId);
     await this.ensureCanManageSchedule(scheduleId, user);
 
     const ministry = await this.scheduleRepository.findMinistryById(data.ministryId);
@@ -93,8 +110,14 @@ export class ScheduleService {
     }
 
     await this.ensureSongsBelongToTenant(data.songIds);
+    if (data.songIds.length > 0) {
+      await requireUserPermission(user, "song:attach_to_schedule", user.tenantId);
+    }
+    if (data.assignments.length > 0) {
+      await requireUserPermission(user, "schedule:assign_members", user.tenantId);
+    }
 
-    if (!this.isAdmin(user.role)) {
+    if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
       const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
       if (!leadership) {
         throw new ForbiddenError("Líder só pode mover escalas para ministérios que lidera");
@@ -109,7 +132,21 @@ export class ScheduleService {
     return updated;
   }
 
+  async deleteForUser(scheduleId: string, user: RequestUser) {
+    await requireUserPermission(user, "schedule:delete", user.tenantId);
+    await this.ensureCanManageSchedule(scheduleId, user);
+    const deleted = await this.scheduleRepository.deleteSchedule(scheduleId);
+    if (!deleted) {
+      throw new NotFoundError("Escala nÃ£o encontrada");
+    }
+    return {
+      ...deleted,
+      message: "Escala cancelada e removida das listas ativas. As atribuiÃ§Ãµes relacionadas foram desativadas para preservar histÃ³rico.",
+    };
+  }
+
   async addAssignment(scheduleId: string, data: CreateAssignmentInput, user: RequestUser) {
+    await requireUserPermission(user, "schedule:assign_members", user.tenantId);
     const schedule = await this.ensureCanManageSchedule(scheduleId, user);
 
     const targetUser = await this.scheduleRepository.findTenantUserById(data.userId);
@@ -117,7 +154,7 @@ export class ScheduleService {
       throw new NotFoundError("Usuário não encontrado neste tenant");
     }
 
-    if (!this.isAdmin(user.role)) {
+    if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
       await this.ensureUserBelongsToMinistry(schedule.ministryId, data.userId);
     }
 
@@ -141,12 +178,16 @@ export class ScheduleService {
     data: UpdateAssignmentStatusInput,
     user: RequestUser
   ) {
+    await requireUserPermission(user, "schedule:respond", user.tenantId);
     const assignment = await this.scheduleRepository.findAssignment(scheduleId, assignmentId);
     if (!assignment) {
       throw new NotFoundError("Atribuição não encontrada");
     }
 
     if (assignment.userId === user.id) {
+      if (assignment.status !== "PENDING") {
+        throw new ValidationError("Esta escala já foi respondida.");
+      }
       const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
       if (!updated) {
         throw new NotFoundError("Atribuição não encontrada");
@@ -176,7 +217,18 @@ export class ScheduleService {
     throw new ForbiddenError("Você só pode alterar a sua própria atribuição");
   }
 
+  async resolveSubstitution(scheduleId: string, assignmentId: string, data: ResolveSubstitutionInput, user: RequestUser) {
+    await requireUserPermission(user, "schedule:edit", user.tenantId);
+    await this.ensureCanManageSchedule(scheduleId, user);
+    const updated = await this.scheduleRepository.resolveSubstitution(scheduleId, assignmentId, user.id, data.note);
+    if (!updated) {
+      throw new NotFoundError("Solicitação de substituto não encontrada ou já resolvida");
+    }
+    return updated;
+  }
+
   async removeAssignment(scheduleId: string, assignmentId: string, user: RequestUser) {
+    await requireUserPermission(user, "schedule:assign_members", user.tenantId);
     const assignment = await this.scheduleRepository.findAssignment(scheduleId, assignmentId);
     if (!assignment) {
       throw new NotFoundError("Atribuição não encontrada");
@@ -215,7 +267,7 @@ export class ScheduleService {
       if (!targetUser) {
         throw new NotFoundError("Usuário não encontrado neste tenant");
       }
-      if (!this.isAdmin(user.role)) {
+      if (!this.isAdmin(user.role) && user.role === Role.MINISTRY_LEADER) {
         await this.ensureUserBelongsToMinistry(ministryId, assignment.userId);
       }
     }

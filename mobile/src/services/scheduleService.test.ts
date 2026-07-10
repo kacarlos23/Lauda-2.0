@@ -25,6 +25,7 @@ jest.mock("./api", () => ({
     get: jest.fn(),
     post: jest.fn(),
     patch: jest.fn(),
+    delete: jest.fn(),
   },
 }));
 
@@ -108,6 +109,13 @@ describe("scheduleService", () => {
     expect(mockedApi.patch).toHaveBeenCalledWith("/schedules/schedule-1", payload);
   });
 
+  it("deleteSchedule chama DELETE /schedules/:id", async () => {
+    mockedApi.delete.mockResolvedValueOnce({ data: { success: true, data: { id: "schedule-1", message: "Escala cancelada" } } });
+
+    await expect(scheduleService.deleteSchedule("schedule-1")).resolves.toEqual({ id: "schedule-1", message: "Escala cancelada" });
+    expect(mockedApi.delete).toHaveBeenCalledWith("/schedules/schedule-1");
+  });
+
   it("exportScheduleReport baixa PDF da escala e compartilha arquivo", async () => {
     mockedApi.get.mockResolvedValueOnce({ data: new Uint8Array([37, 80, 68, 70]).buffer });
 
@@ -164,6 +172,31 @@ describe("scheduleService", () => {
     expect(mockedApi.patch).toHaveBeenCalledWith(
       "/schedules/schedule-1/assignments/assignment-1/status",
       { status: "DECLINED" }
+    );
+  });
+
+  it("updateAssignmentStatus envia motivo e pedido de substituto", async () => {
+    const updated = { ...makeSchedule("DECLINED"), declineReason: "Estou viajando", substituteRequestedAt: "2026-05-20T10:00:00.000Z" };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });
+
+    await expect(updateAssignmentStatus("schedule-1", "assignment-1", "DECLINED", {
+      declineReason: "Estou viajando",
+      requestSubstitute: true,
+    })).resolves.toEqual(updated);
+    expect(mockedApi.patch).toHaveBeenCalledWith(
+      "/schedules/schedule-1/assignments/assignment-1/status",
+      { status: "DECLINED", declineReason: "Estou viajando", requestSubstitute: true }
+    );
+  });
+
+  it("resolveSubstitution chama PATCH do endpoint de resoluÃ§Ã£o", async () => {
+    const updated = { ...makeSchedule("DECLINED"), substituteResolvedAt: "2026-05-20T11:00:00.000Z" };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });
+
+    await expect(scheduleService.resolveSubstitution("schedule-1", "assignment-1", "Resolvido manualmente")).resolves.toEqual(updated);
+    expect(mockedApi.patch).toHaveBeenCalledWith(
+      "/schedules/schedule-1/assignments/assignment-1/substitution/resolve",
+      { note: "Resolvido manualmente" }
     );
   });
 

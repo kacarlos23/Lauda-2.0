@@ -1,4 +1,5 @@
-import { Role } from "../types";
+import { Role, User } from "../types";
+import { can } from "./permissions";
 
 export const instrumentColorPattern = /^#[0-9A-Fa-f]{6}$/;
 
@@ -7,8 +8,8 @@ export type InstrumentFormValues = {
   colorHex?: string;
 };
 
-export function canManageInstrumentCatalog(role?: Role | string | null): boolean {
-  return role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN";
+export function canManageInstrumentCatalog(subject?: Pick<User, "role" | "permissions"> | Role | string | null): boolean {
+  return can(subject, "instrument:create") || can(subject, "instrument:edit") || can(subject, "instrument:delete");
 }
 
 export function normalizeInstrumentName(name: string): string {

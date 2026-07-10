@@ -22,11 +22,14 @@ jest.mock("react-native", () => {
         {data?.length ? data.map((item: any, index: number) => React.createElement(React.Fragment, { key: item.id ?? index }, renderItem({ item, index }))) : ListEmptyComponent}
       </>
     ),
+    Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Pressable: ({ children, style, ...props }: any) => React.createElement("Pressable", { ...props, style: typeof style === "function" ? style({ hovered: false, pressed: false }) : style }, children),
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
     RefreshControl: create("RefreshControl"),
+    ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
     StyleSheet: { create: (styles: any) => styles },
     Text: create("Text"),
+    TextInput: create("TextInput"),
     TouchableOpacity: create("TouchableOpacity"),
     View: create("View"),
   };
@@ -38,12 +41,13 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
+  useFocusEffect: (callback: () => void) => callback(),
 }));
 
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { CalendarClock: Icon, Download: Icon, Plus: Icon };
+  return { CalendarClock: Icon, Copy: Icon, Download: Icon, Edit3: Icon, Plus: Icon, Search: Icon, SlidersHorizontal: Icon, X: Icon };
 });
 
 jest.mock("../services/scheduleService", () => ({
@@ -75,10 +79,13 @@ jest.mock("../store/scheduleStore", () => ({
     }],
     schedules: [],
     loading: false,
+    refreshing: false,
     error: null,
     loadSchedules: jest.fn(),
     loadMySchedules: jest.fn(),
     updateScheduleStatus: jest.fn(),
+    createSchedule: jest.fn(),
+    resolveSubstitution: jest.fn(),
   }),
 }));
 

@@ -381,6 +381,84 @@ describe("POST /api/schedules", () => {
     expect(updated.body.data.songs).toHaveLength(1);
     expect(updated.body.data.assignments).toHaveLength(1);
   });
+
+  it("permite TENANT_ADMIN excluir escala com soft delete e desativa relacionamentos", async () => {
+    const tenant = await registerTenant("admin-delete-schedule");
+    const ministry = await createMinistry(tenant.token, "Louvor Delete");
+    const member = await createUserAndLogin("delete-schedule-member", tenant.tenant.id);
+    const song = await createSong(tenant.tenant.id, "Música Delete");
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto a excluir",
+        date: "2026-05-07T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [song.id],
+        assignments: [{ userId: member.user.id, role: "Vocal" }],
+      })
+      .expect(201);
+
+    await prisma.scheduleAssignment.updateMany({
+      where: { scheduleId: created.body.data.id },
+      data: { status: "ACCEPTED" },
+    });
+
+    const deleted = await request(app)
+      .delete(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    expect(deleted.body.data).toMatchObject({ id: created.body.data.id, isActive: false });
+
+    const stored = await prisma.schedule.findUnique({ where: { id: created.body.data.id } });
+    expect(stored?.deletedAt).toBeTruthy();
+    expect(await prisma.scheduleAssignment.count({ where: { scheduleId: created.body.data.id, isActive: true } })).toBe(0);
+    expect(await prisma.scheduleSong.count({ where: { scheduleId: created.body.data.id, isActive: true } })).toBe(0);
+
+    await request(app)
+      .get("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.map((item: { id: string }) => item.id)).not.toContain(created.body.data.id);
+      });
+
+    await request(app)
+      .get("/api/schedules/me")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.map((item: { scheduleId: string }) => item.scheduleId)).not.toContain(created.body.data.id);
+      });
+  });
+
+  it("bloqueia membro comum ao tentar excluir escala", async () => {
+    const tenant = await registerTenant("member-delete-denied");
+    const ministry = await createMinistry(tenant.token, "Louvor Bloqueio");
+    const member = await createUserAndLogin("member-delete-denied", tenant.tenant.id);
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto protegido",
+        date: "2026-05-08T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+
+    await request(app)
+      .delete(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(403);
+
+    const stored = await prisma.schedule.findUnique({ where: { id: created.body.data.id } });
+    expect(stored?.isActive).toBe(true);
+    expect(stored?.deletedAt).toBeNull();
+  });
+
   it("permite lÃ­der criar escala somente no ministÃ©rio que lÃ­dera", async () => {
     const tenant = await registerTenant("leader-own");
     const ownMinistry = await createMinistry(tenant.token, "Louvor lÃ­derado");
@@ -516,7 +594,7 @@ describe("Schedule assignments", () => {
     expect(await prisma.scheduleAssignment.count({ where: { scheduleId: scheduleA.body.data.id } })).toBe(0);
   });
 
-  it("permite membro aceitar e recusar a prÃ³pria escala e bloqueia assignment de outro membro", async () => {
+  it("permite resposta da prÃ³pria escala, registra recusa/substituiÃ§Ã£o e bloqueia operaÃ§Ãµes indevidas", async () => {
     const tenant = await registerTenant("assignment-status");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("assignment-member-a", tenant.tenant.id);
@@ -545,23 +623,83 @@ describe("Schedule assignments", () => {
 
     const assignmentId = assignmentResponse.body.data.id as string;
 
-    await request(app)
+    const acceptResponse = await request(app)
       .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
       .set("Authorization", `Bearer ${memberA.token}`)
       .send({ status: "ACCEPTED" })
       .expect(200);
 
+    expect(acceptResponse.body.data).toMatchObject({
+      id: assignmentId,
+      status: "ACCEPTED",
+    });
+
     await request(app)
       .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
       .set("Authorization", `Bearer ${memberA.token}`)
       .send({ status: "DECLINED" })
-      .expect(200);
+      .expect(400);
 
     await request(app)
       .patch(`/api/schedules/${scheduleId}/assignments/${assignmentId}/status`)
       .set("Authorization", `Bearer ${memberB.token}`)
       .send({ status: "ACCEPTED" })
       .expect(403);
+
+    const secondAssignment = await request(app)
+      .post(`/api/schedules/${scheduleId}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        userId: memberB.user.id,
+        role: "ViolÃ£o",
+      })
+      .expect(201);
+
+    const declineResponse = await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${secondAssignment.body.data.id}/status`)
+      .set("Authorization", `Bearer ${memberB.token}`)
+      .send({ status: "DECLINED", declineReason: "Estou viajando", requestSubstitute: true })
+      .expect(200);
+
+    expect(declineResponse.body.data).toMatchObject({
+      id: secondAssignment.body.data.id,
+      status: "DECLINED",
+      declineReason: "Estou viajando",
+    });
+    expect(declineResponse.body.data.substituteRequestedAt).toBeTruthy();
+
+    const storedDecline = await prisma.scheduleAssignment.findUnique({ where: { id: secondAssignment.body.data.id } });
+    expect(storedDecline).toMatchObject({
+      declineReason: "Estou viajando",
+      substituteResolvedAt: null,
+      substituteResolvedById: null,
+    });
+    expect(storedDecline?.substituteRequestedAt).toBeTruthy();
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${secondAssignment.body.data.id}/substitution/resolve`)
+      .set("Authorization", `Bearer ${memberA.token}`)
+      .send({ note: "Sem permissÃ£o" })
+      .expect(403);
+
+    const resolveResponse = await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${secondAssignment.body.data.id}/substitution/resolve`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ note: "Resolvido manualmente" })
+      .expect(200);
+
+    expect(resolveResponse.body.data).toMatchObject({
+      id: secondAssignment.body.data.id,
+      substituteResolvedById: tenant.user.id,
+      substituteResolutionNote: "Resolvido manualmente",
+    });
+    expect(resolveResponse.body.data.substituteResolvedAt).toBeTruthy();
+
+    await request(app)
+      .patch(`/api/schedules/${scheduleId}/assignments/${secondAssignment.body.data.id}/substitution/resolve`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ note: "Duplicado" })
+      .expect(404);
   });
 
   it("GET /api/schedules/me retorna apenas escalas do usuÃ¡rio autenticado", async () => {

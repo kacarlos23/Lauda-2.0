@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
 import { NotFoundError, UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
+import { effectivePermissionKeys } from "./permissionService";
 import {
   RegisterInput,
   LoginInput,
@@ -48,7 +49,7 @@ function normalizeInviteCode(code: string): string {
 }
 
 export class AuthService {
-  private buildAuthResponse(user: {
+  private async buildAuthResponse(user: {
     id: string;
     name: string;
     email: string;
@@ -67,6 +68,11 @@ export class AuthService {
     });
     const refreshToken = this.generateRefreshToken(user.id);
 
+    const permissions = await effectivePermissionKeys(
+      { id: user.id, role: user.role as any, tenantId: user.tenantId },
+      user.tenantId
+    );
+
     return {
       accessToken,
       token: accessToken,
@@ -80,6 +86,7 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
+        permissions,
       },
         tenant: user.tenant ?? null,
     };
@@ -109,7 +116,7 @@ export class AuthService {
     });
 
     const user = tenant.users[0];
-    const auth = this.buildAuthResponse({ ...user, tenantId: tenant.id });
+    const auth = await this.buildAuthResponse({ ...user, tenantId: tenant.id });
 
     return {
       ...auth,
@@ -144,7 +151,7 @@ export class AuthService {
     });
 
     return {
-      ...this.buildAuthResponse(user),
+      ...await this.buildAuthResponse(user),
       tenant: invite.tenant,
     };
   }

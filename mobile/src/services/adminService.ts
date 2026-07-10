@@ -1,6 +1,7 @@
 import { AxiosError } from "axios";
 import { api } from "./api";
-import { AdminResourceListResponse, GlobalMinistry, GlobalResourceName, GlobalSchedule, GlobalSong, GlobalTenant, GlobalUser, Role } from "../types";
+import { AdminResourceListResponse, GlobalMinistry, GlobalResourceName, GlobalSchedule, GlobalSong, GlobalTenant, GlobalUser, Permission, PermissionKey, Role, UserPermissionsResponse } from "../types";
+import { permissionDefinitions } from "../utils/permissions";
 
 function cleanParams<T extends Record<string, unknown>>(params?: T): Partial<T> | undefined {
   if (!params) return undefined;
@@ -22,6 +23,13 @@ function handleApiError(error: unknown): never {
   }
 
   throw new Error("Erro desconhecido de rede");
+}
+
+function apiStatus(error: unknown): number | undefined {
+  if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
+    return (error as AxiosError).response?.status;
+  }
+  return undefined;
 }
 
 export const adminService = {
@@ -196,6 +204,41 @@ export const adminService = {
   ): Promise<GlobalSchedule> {
     try {
       return await this.updateResource<GlobalSchedule>("schedules", scheduleId, payload);
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async listPermissions(): Promise<Permission[]> {
+    try {
+      const response = await api.get<{ success: boolean; data: Permission[] }>("/admin/permissions");
+      return response.data.data;
+    } catch (error) {
+      if (apiStatus(error) === 400 || apiStatus(error) === 404) {
+        return permissionDefinitions;
+      }
+      handleApiError(error);
+    }
+  },
+
+  async listUserPermissions(userId: string, tenantId?: string | null): Promise<UserPermissionsResponse> {
+    try {
+      const response = await api.get<{ success: boolean; data: UserPermissionsResponse }>(`/admin/users/${userId}/permissions`, {
+        params: cleanParams({ tenantId }),
+      });
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async setUserPermissions(userId: string, permissionKeys: PermissionKey[], tenantId?: string | null): Promise<UserPermissionsResponse> {
+    try {
+      const response = await api.put<{ success: boolean; data: UserPermissionsResponse }>(`/admin/users/${userId}/permissions`, {
+        permissionKeys,
+        tenantId,
+      });
+      return response.data.data;
     } catch (error) {
       handleApiError(error);
     }

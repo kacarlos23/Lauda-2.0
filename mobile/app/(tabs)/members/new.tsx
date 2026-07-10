@@ -20,12 +20,9 @@ import { Ministry, Role } from "../../../src/types";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
+import { canManageMembers } from "../../../src/utils/permissions";
 
 type ManagedRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER">;
-
-function canManageMembers(role?: string): boolean {
-  return role === "TENANT_ADMIN" || role === "GLOBAL_ADMIN";
-}
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -59,7 +56,7 @@ export default function NewMemberScreen() {
       .finally(() => setMinistriesLoading(false));
   }, []);
 
-  if (!canManageMembers(user?.role)) {
+  if (!canManageMembers(user)) {
     return <Redirect href="/(tabs)" />;
   }
 

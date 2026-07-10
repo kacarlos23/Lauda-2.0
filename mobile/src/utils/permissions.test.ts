@@ -1,4 +1,5 @@
 import {
+  can,
   canAccessGlobalAdminArea,
   canAccessChurchAdmin,
   canManageChurch,
@@ -48,5 +49,21 @@ describe("member permissions", () => {
     expect(formatRoleLabel("MEMBER")).toBe("Membro");
     expect(canManageChurch("GLOBAL_ADMIN")).toBe(true);
     expect(canManageChurch("MEMBER")).toBe(false);
+  });
+
+  it("respeita permissÃµes explÃ­citas sem exigir role administrativa", () => {
+    const memberWithSongCreate = {
+      role: "MEMBER" as const,
+      permissions: ["song:create" as const],
+    };
+    const memberWithScheduleEdit = {
+      role: "MEMBER" as const,
+      permissions: ["schedule:edit" as const],
+    };
+
+    expect(can(memberWithSongCreate, "song:create")).toBe(true);
+    expect(can(memberWithSongCreate, "song:edit")).toBe(false);
+    expect(can(memberWithScheduleEdit, "schedule:edit")).toBe(true);
+    expect(can(memberWithScheduleEdit, "schedule:create")).toBe(false);
   });
 });

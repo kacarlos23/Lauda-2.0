@@ -66,8 +66,8 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
     { label: "Escalas", href: "/schedules", routePrefix: "/schedules", Icon: CalendarClock },
     { label: "Ministérios", href: "/ministries", routePrefix: "/ministries", Icon: Church },
     { label: "Músicas", href: "/songs", routePrefix: "/songs", Icon: Music2 },
-    { label: "Membros", href: "/members", routePrefix: "/members", Icon: Users, visible: canViewMembers(user?.role) },
-    { label: "Igreja", href: "/church", routePrefix: "/church", Icon: Church, visible: canAccessChurchAdmin(user?.role) },
+    { label: "Membros", href: "/members", routePrefix: "/members", Icon: Users, visible: canViewMembers(user) },
+    { label: "Igreja", href: "/church", routePrefix: "/church", Icon: Church, visible: canAccessChurchAdmin(user) },
     { label: "Perfil", href: "/profile", routePrefix: "/profile", Icon: User },
   ];
 

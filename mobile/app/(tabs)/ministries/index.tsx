@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,13 +9,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, Screen, SectionHeader } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
+import { emptyMinistryFilters, filterMinistries, hasActiveFilters, MinistryListFilters } from "../../../src/utils/listFilters";
+import { can } from "../../../src/utils/permissions";
 
 export default function MinistriesScreen() {
   const router = useRouter();
@@ -36,8 +38,14 @@ export default function MinistriesScreen() {
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [filters, setFilters] = useState<MinistryListFilters>(emptyMinistryFilters);
+  const [draftFilters, setDraftFilters] = useState<MinistryListFilters>(emptyMinistryFilters);
+  const [showFilters, setShowFilters] = useState(false);
 
-  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "GLOBAL_ADMIN";
+  const canCreateMinistry = can(user, "ministry:create");
+  const activeFilters = hasActiveFilters(filters);
+  const canApplyFilters = hasActiveFilters(draftFilters);
+  const filteredMinistries = filterMinistries(ministries, filters);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,6 +59,23 @@ export default function MinistriesScreen() {
     setRefreshing(false);
   }, [fetchMinistries, setRefreshing]);
 
+
+  const openFilters = () => {
+    setDraftFilters(filters);
+    setShowFilters(true);
+  };
+
+  const clearFilters = () => {
+    setFilters(emptyMinistryFilters);
+    setDraftFilters(emptyMinistryFilters);
+    setShowFilters(false);
+  };
+
+  const applyFilters = () => {
+    if (!hasActiveFilters(draftFilters)) return;
+    setFilters(draftFilters);
+    setShowFilters(false);
+  };
   const openCreate = () => {
     clearError();
     setFormError(null);
@@ -89,41 +114,79 @@ export default function MinistriesScreen() {
   };
 
   if (loading && ministries.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando ministérios..." />;
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+    <Screen padded={false}>
+      <FilterPanel
+        visible={showFilters}
+        title="Filtrar ministérios"
+        canApply={canApplyFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilters(false)}
+        onClear={activeFilters || canApplyFilters ? clearFilters : undefined}
+      >
+        <AppInput
+          label="Palavra-chave geral"
+          value={draftFilters.query ?? ""}
+          onChangeText={(query) => setDraftFilters((current) => ({ ...current, query }))}
+          placeholder="Nome ou descrição"
+          accessibilityLabel="Buscar ministérios"
+        />
+      </FilterPanel>
       <FlatList
-        data={ministries}
+        data={filteredMinistries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.title}>Ministérios</Text>
-            <Text style={styles.subtitle}>{ministries.length} ministério(s) ativo(s)</Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <SectionHeader
+              title="Ministérios"
+              subtitle={activeFilters ? `${filteredMinistries.length} de ${ministries.length} ministério(s)` : `${ministries.length} ministério(s) ativo(s)`}
+              action={<FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de ministérios" />}
+              style={styles.sectionHeader}
+            />
+            {activeFilters ? <Button title="Limpar filtros" variant="ghost" size="sm" style={styles.clearFiltersButton} onPress={clearFilters} accessibilityLabel="Limpar filtros de ministérios" /> : null}
+            <ErrorBanner
+              message={error}
+              style={styles.errorText}
+              action={error ? (
+                <Button
+                  title="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  style={styles.retryButton}
+                  onPress={() => void handleRefresh()}
+                  accessibilityLabel="Tentar carregar ministérios novamente"
+                />
+              ) : null}
+            />
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>Nenhum ministério cadastrado</Text>
-            <Text style={styles.emptyText}>
-              {isAdmin
-                ? "Crie o primeiro ministério para organizar equipes e escalas."
-                : "Você ainda não está vinculado a nenhum ministério."}
-            </Text>
-            {isAdmin ? (
-              <TouchableOpacity style={styles.emptyButton} onPress={openCreate} accessibilityRole="button">
-                <Text style={styles.emptyButtonText}>Criar ministério</Text>
-              </TouchableOpacity>
+          <EmptyState
+            title={activeFilters ? "Nenhum ministério encontrado" : "Nenhum ministério cadastrado"}
+            description={
+              activeFilters
+                ? "Ajuste ou limpe os filtros para ver outros ministérios."
+                : canCreateMinistry
+                  ? "Crie o primeiro ministério para organizar equipes e escalas."
+                  : "Você ainda não está vinculado a nenhum ministério."
+            }
+            action={activeFilters ? (
+              <Button title="Limpar filtros" variant="secondary" onPress={clearFilters} accessibilityLabel="Limpar filtros de ministérios" />
+            ) : canCreateMinistry ? (
+              <Button
+                title="Criar ministério"
+                size="lg"
+                style={styles.emptyButton}
+                onPress={openCreate}
+                accessibilityLabel="Criar ministério"
+              />
             ) : null}
-          </View>
+          />
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -147,7 +210,7 @@ export default function MinistriesScreen() {
         )}
       />
 
-      {isAdmin ? (
+      {canCreateMinistry ? (
         <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={openCreate} accessibilityRole="button">
           <Plus color={colors.surface} size={24} />
         </TouchableOpacity>
@@ -174,7 +237,7 @@ export default function MinistriesScreen() {
         }
       >
         <View style={styles.form}>
-          {formError || error ? <Text style={styles.formError}>{formError ?? error}</Text> : null}
+          <ErrorBanner message={formError ?? error} style={styles.formError} />
           <Text style={styles.label}>Nome *</Text>
           <TextInput
             style={styles.input}
@@ -199,18 +262,11 @@ export default function MinistriesScreen() {
           />
         </View>
       </BottomSheet>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  center: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   list: {
     width: "100%",
     maxWidth: screen.listMaxWidth,
@@ -219,30 +275,14 @@ const styles = StyleSheet.create({
     paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.lg },
-  title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
-  errorText: { color: colors.danger, fontSize: 14, marginTop: spacing.sm },
-  emptyBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.sm },
-  emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  sectionHeader: { marginBottom: 0 },
+  clearFiltersButton: { alignSelf: "flex-start" },
+  errorText: { marginTop: spacing.sm },
+  retryButton: { alignSelf: "flex-start", marginTop: spacing.sm },
   emptyButton: {
     alignSelf: "flex-start",
     marginTop: spacing.lg,
-    minHeight: 52,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    ...buttonShadow,
   },
-  emptyButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -259,7 +299,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.sm,
   },
-  cardTitle: { flex: 1, fontSize: 18, fontWeight: "800", color: colors.ink },
+  cardTitle: { ...typography.sectionTitle, flex: 1, color: colors.ink },
   countBadge: {
     minWidth: 34,
     height: 34,
@@ -268,9 +308,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primarySoft,
   },
-  countText: { color: colors.primaryDark, fontSize: 14, fontWeight: "800" },
-  cardDesc: { fontSize: 15, color: colors.text, lineHeight: 22, marginBottom: spacing.md },
-  cardMeta: { fontSize: 12, color: colors.primary, fontWeight: "800", textTransform: "uppercase" },
+  countText: { ...typography.label, color: colors.primaryDark },
+  cardDesc: { ...typography.body, color: colors.text, marginBottom: spacing.md },
+  cardMeta: { ...typography.badge, color: colors.primary, textTransform: "uppercase" },
   fab: {
     position: "absolute",
     bottom: spacing.xxl,
@@ -286,19 +326,9 @@ const styles = StyleSheet.create({
   },
   form: { padding: spacing.xl },
   formError: {
-    backgroundColor: colors.dangerSoft,
-    borderColor: colors.danger,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
     marginBottom: spacing.lg,
   },
-  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  label: { ...typography.label, color: colors.text, marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.md,
@@ -324,7 +354,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.surfaceMuted,
   },
-  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  cancelButtonText: { ...typography.button, color: colors.text },
   saveButton: {
     minHeight: 44,
     minWidth: 96,
@@ -334,6 +364,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
-  saveButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  saveButtonText: { ...typography.button, color: colors.surface },
   buttonDisabled: { opacity: 0.6 },
 });

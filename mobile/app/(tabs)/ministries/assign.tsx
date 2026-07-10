@@ -9,12 +9,9 @@ import { MemberStatus, Ministry } from "../../../src/types";
 import { colors, radii, screen, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
+import { can } from "../../../src/utils/permissions";
 
 const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
-
-function canAssign(role?: string): boolean {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
-}
 
 export default function AssignMemberScreen() {
   const router = useRouter();
@@ -82,7 +79,7 @@ export default function AssignMemberScreen() {
     }
   };
 
-  if (!canAssign(user?.role)) {
+  if (!can(user, "ministry:assign_members")) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Você não tem permissão para atribuir membros.</Text>

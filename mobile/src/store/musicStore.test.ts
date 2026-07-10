@@ -1,4 +1,4 @@
-jest.mock("../services/musicService", () => ({
+﻿jest.mock("../services/musicService", () => ({
   musicService: {
     listSongs: jest.fn(),
     getSong: jest.fn(),
@@ -23,7 +23,14 @@ const songC = { ...song, id: "c", title: "C" };
 const songD = { ...song, id: "d", title: "D" };
 
 describe("musicStore", () => {
-  beforeEach(() => { jest.clearAllMocks(); useMusicStore.setState(initial, true); });
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockedService.listSongs.mockResolvedValue({
+      items: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+    useMusicStore.setState(initial, true);
+  });
 
   it("carrega lista paginada", async () => {
     mockedService.listSongs.mockResolvedValueOnce({ items: [song], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } });
@@ -31,6 +38,28 @@ describe("musicStore", () => {
     expect(mockedService.listSongs).toHaveBeenCalledWith("canção", 1);
     expect(useMusicStore.getState().songs).toEqual([song]);
     expect(useMusicStore.getState().pagination.total).toBe(1);
+    expect(useMusicStore.getState().lastFetchedAt).not.toBeNull();
+  });
+
+  it("mantem lista atual durante refresh em background", async () => {
+    let resolveList!: (value: { items: Song[]; pagination: { page: number; limit: number; total: number; totalPages: number } }) => void;
+    useMusicStore.setState({
+      songs: [songA],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 1 },
+    });
+    mockedService.listSongs.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+
+    const promise = useMusicStore.getState().loadSongs("", 1, { refresh: true });
+
+    expect(useMusicStore.getState().songs).toEqual([songA]);
+    expect(useMusicStore.getState().loading).toBe(false);
+    expect(useMusicStore.getState().refreshing).toBe(true);
+
+    resolveList({ items: [songB], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } });
+    await promise;
+
+    expect(useMusicStore.getState().songs).toEqual([songB]);
+    expect(useMusicStore.getState().refreshing).toBe(false);
   });
 
   it("mantém formulário no chamador ao falhar criação", async () => {
@@ -52,6 +81,44 @@ describe("musicStore", () => {
     expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["a", "b", "c", "d"]);
     expect(useMusicStore.getState().pagination.total).toBe(4);
     expect(useMusicStore.getState().currentSong).toEqual(songD);
+    expect(useMusicStore.getState().listInvalidationVersion).toBe(1);
+    expect(mockedService.listSongs).not.toHaveBeenCalled();
+  });
+
+  it("mantem musica criada quando a revalidacao ainda retorna lista antiga", async () => {
+    useMusicStore.setState({
+      songs: [songA, songB, songC],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 3 },
+    });
+    mockedService.createSong.mockResolvedValueOnce(songD);
+    mockedService.listSongs.mockResolvedValueOnce({
+      items: [songA, songB, songC],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 3 },
+    });
+
+    await useMusicStore.getState().createSong({ title: "D", artistId: "a1", originalKey: "C", content: "[C]" });
+    await useMusicStore.getState().loadSongs("", 1, { refresh: true });
+
+    expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["a", "b", "c", "d"]);
+    expect(useMusicStore.getState().pagination.total).toBe(4);
+  });
+
+  it("nao mistura musicas criadas localmente em paginas posteriores", async () => {
+    useMusicStore.setState({
+      songs: [songA, songB, songC],
+      pagination: { page: 1, limit: 3, totalPages: 2, total: 4 },
+    });
+    mockedService.createSong.mockResolvedValueOnce(songD);
+    mockedService.listSongs.mockResolvedValueOnce({
+      items: [{ ...song, id: "e", title: "E" }],
+      pagination: { page: 2, limit: 3, totalPages: 2, total: 4 },
+    });
+
+    await useMusicStore.getState().createSong({ title: "D", artistId: "a1", originalKey: "C", content: "[C]" });
+    await useMusicStore.getState().loadSongs("", 2, { refresh: true });
+
+    expect(useMusicStore.getState().songs.map((item) => item.id)).toEqual(["e"]);
+    expect(useMusicStore.getState().pagination).toMatchObject({ page: 2, total: 4, totalPages: 2 });
   });
 
   it("atualiza detalhe e item da lista", async () => {
@@ -61,6 +128,8 @@ describe("musicStore", () => {
     await useMusicStore.getState().updateSong(song.id, { originalKey: "D" });
     expect(useMusicStore.getState().currentSong).toEqual(updated);
     expect(useMusicStore.getState().songs[0].originalKey).toBe("D");
+    expect(useMusicStore.getState().listInvalidationVersion).toBe(1);
+    expect(mockedService.listSongs).not.toHaveBeenCalled();
   });
 
   it("edita uma musica sem remover outras musicas da lista", async () => {
@@ -79,9 +148,33 @@ describe("musicStore", () => {
     expect(useMusicStore.getState().currentSong).toEqual(updatedD);
   });
 
+  it("mantem edicao local quando a revalidacao ainda retorna item antigo", async () => {
+    const updatedD = { ...songD, title: "D editada" };
+    useMusicStore.setState({
+      songs: [songA, songB, songC, songD],
+      currentSong: songD,
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 4 },
+    });
+    mockedService.updateSong.mockResolvedValueOnce(updatedD);
+    mockedService.listSongs.mockResolvedValueOnce({
+      items: [songA, songB, songC, songD],
+      pagination: { page: 1, limit: 20, totalPages: 1, total: 4 },
+    });
+
+    await useMusicStore.getState().updateSong(songD.id, { title: "D editada" });
+    await useMusicStore.getState().loadSongs("", 1, { refresh: true });
+
+    expect(useMusicStore.getState().songs.find((item) => item.id === "d")?.title).toBe("D editada");
+    expect(useMusicStore.getState().currentSong).toEqual(updatedD);
+  });
+
   it("ignora listagem antiga que retorna depois de uma criacao", async () => {
     let resolveList!: (value: { items: Song[]; pagination: { page: number; limit: number; total: number; totalPages: number } }) => void;
     mockedService.listSongs.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+    mockedService.listSongs.mockResolvedValueOnce({
+      items: [songA, songB, songC, songD],
+      pagination: { page: 1, limit: 20, total: 4, totalPages: 1 },
+    });
     mockedService.createSong.mockResolvedValueOnce(songD);
     useMusicStore.setState({
       songs: [songA, songB, songC],

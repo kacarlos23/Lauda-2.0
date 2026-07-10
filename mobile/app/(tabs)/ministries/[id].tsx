@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { Button, EmptyState, ErrorBanner, LoadingState } from "../../../src/components/ui";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -20,7 +21,7 @@ import { useMinistryStore } from "../../../src/store/ministryStore";
 import { colors, radii, screen, spacing } from "../../../src/theme";
 import { Member } from "../../../src/types";
 import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
-import { isChurchAdmin } from "../../../src/utils/permissions";
+import { can } from "../../../src/utils/permissions";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 
@@ -51,11 +52,12 @@ export default function MinistryDetailsScreen() {
   const [memberSearch, setMemberSearch] = useState("");
   const [toggleError, setToggleError] = useState<string | null>(null);
 
-  const isAdmin = isChurchAdmin(user);
-  const canManageMinistry = isAdmin;
+  const canEditMinistry = can(user, "ministry:edit");
+  const canDeleteMinistry = can(user, "ministry:delete");
+  const canAssignMembers = can(user, "ministry:assign_members");
 
   const loadAllMembers = useCallback(async () => {
-    if (!isAdmin) {
+    if (!canAssignMembers) {
       setAllMembers([]);
       return;
     }
@@ -66,7 +68,7 @@ export default function MinistryDetailsScreen() {
     } catch (error) {
       setToggleError(error instanceof Error ? error.message : "Não foi possível carregar os membros.");
     }
-  }, [isAdmin]);
+  }, [canAssignMembers]);
 
   useFocusEffect(
     useCallback(() => {
@@ -189,17 +191,17 @@ export default function MinistryDetailsScreen() {
   };
 
   if (loading && !ministry) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando ministério..." />;
   }
 
   if (error || !ministry) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorText}>{error || "Ministério não encontrado"}</Text>
+        <ErrorBanner
+          message={error || "Ministério não encontrado"}
+          style={styles.errorText}
+          action={id ? <Button title="Tentar novamente" variant="secondary" onPress={() => fetchMinistry(id)} /> : undefined}
+        />
         <AppBackButton href="/ministries" />
       </View>
     );
@@ -210,14 +212,14 @@ export default function MinistryDetailsScreen() {
       <View style={styles.topBar}>
         <AppBackButton href="/ministries" compact />
 
-        {canManageMinistry ? (
+        {canEditMinistry || canDeleteMinistry ? (
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={openEdit} style={styles.iconBtn} accessibilityRole="button">
+            {canEditMinistry ? <TouchableOpacity onPress={openEdit} style={styles.iconBtn} accessibilityRole="button">
               <Edit2 color={colors.primary} size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleDelete} style={styles.iconBtn} disabled={deleting} accessibilityRole="button">
+            </TouchableOpacity> : null}
+            {canDeleteMinistry ? <TouchableOpacity onPress={handleDelete} style={styles.iconBtn} disabled={deleting} accessibilityRole="button">
               {deleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={20} />}
-            </TouchableOpacity>
+            </TouchableOpacity> : null}
           </View>
         ) : null}
       </View>
@@ -244,10 +246,10 @@ export default function MinistryDetailsScreen() {
           </View>
         }
         ListFooterComponent={
-          isAdmin ? (
+          canAssignMembers ? (
             <View style={styles.managementSection}>
               <Text style={styles.managementTitle}>Adicionar membros</Text>
-              {toggleError ? <Text style={styles.toggleError}>{toggleError}</Text> : null}
+              <ErrorBanner message={toggleError} style={styles.toggleError} />
 
               <Text style={styles.sectionLabel}>Todos os Membros</Text>
               <TextInput
@@ -315,9 +317,11 @@ export default function MinistryDetailsScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Nenhum membro vinculado a este ministério.</Text>
-          </View>
+          <EmptyState
+            title="Nenhum membro vinculado"
+            description="Vincule membros a este ministério para organizar líderes, funções e escalas."
+            style={styles.emptyBox}
+          />
         }
       />
 
@@ -342,7 +346,7 @@ export default function MinistryDetailsScreen() {
         }
       >
         <View style={styles.form}>
-          {formError || error ? <Text style={styles.formError}>{formError ?? error}</Text> : null}
+          <ErrorBanner message={formError ?? error} style={styles.formError} />
           <Text style={styles.label}>Nome *</Text>
           <TextInput
             style={styles.input}

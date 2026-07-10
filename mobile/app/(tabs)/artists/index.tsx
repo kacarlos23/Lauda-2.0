@@ -27,7 +27,7 @@ export default function ArtistsScreen() {
     finally { setLoading(false); }
   };
   useEffect(() => { const timer = setTimeout(() => void load(search), 250); return () => clearTimeout(timer); }, [search]);
-  if (!canManageMusic(user?.role)) return <Redirect href={"/songs" as never} />;
+  if (!canManageMusic(user, "song:edit")) return <Redirect href={"/songs" as never} />;
 
   const startEdit = (artist: Artist) => { setEditing(artist); setName(artist.name); setImageUrl(artist.imageUrl ?? ""); };
   const cancel = () => { setEditing(null); setName(""); setImageUrl(""); };

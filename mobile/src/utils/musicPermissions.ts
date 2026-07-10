@@ -1,5 +1,6 @@
-import { Role } from "../types";
+import { PermissionKey, Role, User } from "../types";
+import { can } from "./permissions";
 
-export function canManageMusic(role?: Role): boolean {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
+export function canManageMusic(subject?: Pick<User, "role" | "permissions"> | Role | null, permission: PermissionKey = "song:create"): boolean {
+  return can(subject, permission);
 }

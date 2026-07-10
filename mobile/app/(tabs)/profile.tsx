@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,9 +13,10 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, Check, Globe2, LogOut, Plus, Save, Settings2, Shield, Trash2, User, X } from "lucide-react-native";
+import { Camera, Check, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
+import { Button, EmptyState, ErrorBanner, LoadingState, RoleBadge } from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
@@ -26,7 +27,7 @@ import {
   validateInstrumentForm,
 } from "../../src/utils/instrumentCatalog";
 import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { buttonShadow, colors, radii, screen, shadow, spacing, typography } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "" };
@@ -52,12 +53,13 @@ function readableTextColor(backgroundColor?: string | null): string {
 }
 
 export default function ProfileScreen() {
-  const { user, logout, updateCurrentUser } = useAuthStore();
+  const { user, logout, applyCurrentUser, refreshCurrentUser } = useAuthStore();
   const router = useRouter();
   const [availableInstruments, setAvailableInstruments] = useState<Instrument[]>([]);
   const [selectedInstruments, setSelectedInstruments] = useState<Instrument[]>(() => user?.instruments ?? []);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => getInstrumentIds(user?.instruments));
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
+  const [profileRefreshing, setProfileRefreshing] = useState(false);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [instrumentForm, setInstrumentForm] = useState(emptyInstrumentForm);
@@ -68,7 +70,8 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const canManageInstruments = canManageInstrumentCatalog(user?.role);
+  const hasLoadedProfileDataRef = useRef(false);
+  const canManageInstruments = canManageInstrumentCatalog(user);
   const hasGlobalAccess = isGlobalAdmin(user);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -85,10 +88,14 @@ export default function ProfileScreen() {
     setAvatarUrl(user?.avatarUrl ?? null);
   }, [user?.id, user?.name, user?.phone, user?.avatarUrl]);
 
-  const loadInstruments = async () => {
+  const refreshProfileData = useCallback(async (options?: { initial?: boolean }) => {
     try {
       setInstrumentsError(null);
-      setInstrumentsLoading(true);
+      if (options?.initial && !hasLoadedProfileDataRef.current) {
+        setInstrumentsLoading(true);
+      } else {
+        setProfileRefreshing(true);
+      }
       const [instruments, currentMember] = await Promise.all([
         instrumentService.getInstruments(),
         memberService.getCurrentMember(),
@@ -98,7 +105,7 @@ export default function ProfileScreen() {
       setAvailableInstruments(sortInstruments(instruments));
       setSelectedInstruments(currentInstruments);
       setSelectedIds(currentIds);
-      await updateCurrentUser({
+      await applyCurrentUser({
         id: currentMember.id,
         name: currentMember.name,
         email: currentMember.email,
@@ -112,12 +119,17 @@ export default function ProfileScreen() {
       setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
     } finally {
       setInstrumentsLoading(false);
+      setProfileRefreshing(false);
     }
-  };
+  }, [applyCurrentUser]);
 
   useEffect(() => {
-    void loadInstruments();
-  }, []);
+    void refreshProfileData({ initial: true });
+  }, [refreshProfileData]);
+
+  useFocusEffect(useCallback(() => {
+    void refreshProfileData();
+  }, [refreshProfileData]));
 
   const performLogout = async () => {
     await logout();
@@ -164,7 +176,8 @@ export default function ProfileScreen() {
       const result = await instrumentService.updateMyInstruments(nextIds);
       setSelectedIds(getInstrumentIds(result.instruments));
       setSelectedInstruments(result.instruments);
-      await updateCurrentUser({ instruments: result.instruments });
+      await applyCurrentUser({ instruments: result.instruments });
+      void refreshCurrentUser();
     } catch (error) {
       setSelectedIds(previousIds);
       setSelectedInstruments(previousInstruments);
@@ -209,7 +222,8 @@ export default function ProfileScreen() {
     setProfileError(null);
     try {
       const updated = await memberService.updateMyProfile({ name: name.trim(), phone: phone.trim() || null, avatarUrl });
-      await updateCurrentUser({ name: updated.name, phone: updated.phone, avatarUrl: updated.avatarUrl });
+      await applyCurrentUser({ name: updated.name, phone: updated.phone, avatarUrl: updated.avatarUrl });
+      void refreshCurrentUser();
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : "Não foi possível atualizar o perfil.");
     } finally {
@@ -243,7 +257,8 @@ export default function ProfileScreen() {
       setAvailableInstruments((current) => sortInstruments([...current.filter((item) => item.id !== created.id), created]));
       setSelectedIds(getInstrumentIds(result.instruments));
       setSelectedInstruments(result.instruments);
-      await updateCurrentUser({ instruments: result.instruments });
+      await applyCurrentUser({ instruments: result.instruments });
+      void refreshCurrentUser();
       resetInstrumentForm();
     } catch (error) {
       setInstrumentFormError(error instanceof Error ? error.message : "Não foi possível criar o instrumento.");
@@ -263,10 +278,8 @@ export default function ProfileScreen() {
 
           <Text style={styles.name}>{user?.name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
-          <View style={styles.badge}>
-            <Shield color={colors.primaryDark} size={14} strokeWidth={2.4} />
-            <Text style={styles.badgeText}>{formatRoleLabel(user?.role)}</Text>
-          </View>
+          <RoleBadge status={user?.role} label={formatRoleLabel(user?.role)} style={styles.badge} textStyle={styles.badgeText} />
+          {profileRefreshing ? <Text style={styles.refreshingText}>Atualizando dados...</Text> : null}
         </View>
 
         <View style={styles.section}>
@@ -278,7 +291,7 @@ export default function ProfileScreen() {
           <Text style={styles.rowLabel}>E-mail</Text>
           <View style={styles.readonlyInput}><Text style={styles.rowValue}>{user?.email}</Text></View>
           {avatarUrl ? <TouchableOpacity style={styles.removePhotoButton} onPress={() => setAvatarUrl(null)}><Trash2 color={colors.danger} size={16} /><Text style={styles.removePhotoText}>Remover foto</Text></TouchableOpacity> : null}
-          {profileError ? <Text style={styles.errorText}>{profileError}</Text> : null}
+          <ErrorBanner message={profileError} style={styles.profileError} />
           <TouchableOpacity style={[styles.saveProfileButton, profileSaving && styles.buttonDisabled]} onPress={() => void saveProfile()} disabled={profileSaving} testID="profile-save-button">
             {profileSaving ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={17} />}
             <Text style={styles.saveProfileText}>{profileSaving ? "Salvando..." : "Salvar dados"}</Text>
@@ -328,19 +341,37 @@ export default function ProfileScreen() {
             ) : null}
           </View>
           {instrumentsLoading ? (
-            <View style={styles.instrumentLoading}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.instrumentMuted}>Carregando instrumentos...</Text>
-            </View>
+            <LoadingState centered={false} message="Carregando instrumentos..." style={styles.instrumentLoading} />
           ) : instrumentsError ? (
             <View style={styles.instrumentLoading}>
-              <Text style={styles.errorText}>{instrumentsError}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadInstruments} accessibilityRole="button">
-                <Text style={styles.retryButtonText}>Tentar novamente</Text>
-              </TouchableOpacity>
+              <ErrorBanner
+                message={instrumentsError}
+                action={
+                  <Button
+                    title="Tentar novamente"
+                    variant="secondary"
+                    size="sm"
+                    style={styles.retryButton}
+                    onPress={() => void refreshProfileData({ initial: true })}
+                    accessibilityLabel="Tentar carregar instrumentos novamente"
+                  />
+                }
+              />
             </View>
           ) : selectedInstruments.length === 0 ? (
-            <Text style={styles.instrumentMuted}>Nenhum instrumento selecionado</Text>
+            <EmptyState
+              title="Nenhum instrumento selecionado"
+              description="Selecione os instrumentos ou cargos que aparecem no seu perfil."
+              action={
+                <Button
+                  title="Selecionar"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => setPickerVisible(true)}
+                  accessibilityLabel="Selecionar instrumentos e cargos"
+                />
+              }
+            />
           ) : (
             <View style={styles.instrumentList}>
               {selectedInstruments.map((instrument) => (
@@ -413,7 +444,7 @@ export default function ProfileScreen() {
                     autoCapitalize="characters"
                     testID="profile-instrument-color-input"
                   />
-                  {instrumentFormError ? <Text style={styles.errorText}>{instrumentFormError}</Text> : null}
+                  <ErrorBanner message={instrumentFormError} style={styles.profileError} />
                   <TouchableOpacity
                     style={[styles.createInstrumentButton, creatingInstrument && styles.buttonDisabled]}
                     onPress={() => void handleCreateInstrument()}
@@ -433,7 +464,10 @@ export default function ProfileScreen() {
 
               <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
                 {availableInstruments.length === 0 ? (
-                  <Text style={styles.instrumentMuted}>Nenhum instrumento disponível</Text>
+                  <EmptyState
+                    title="Nenhum instrumento disponível"
+                    description="Peça a um administrador para cadastrar instrumentos ou cargos."
+                  />
                 ) : (
                   availableInstruments.map((instrument) => {
                     const selected = selectedSet.has(instrument.id);
@@ -515,18 +549,14 @@ const styles = StyleSheet.create({
   avatarButton: { width: 96, height: 96, marginBottom: spacing.lg, alignItems: "center", justifyContent: "center" },
   avatarImage: { width: 92, height: 92, borderRadius: 46, backgroundColor: colors.surfaceMuted },
   cameraBadge: { position: "absolute", right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 24, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs, textAlign: "center" },
-  email: { fontSize: 14, color: colors.muted, marginBottom: spacing.lg, textAlign: "center" },
+  name: { fontSize: 24, fontWeight: "700", lineHeight: 30, color: colors.ink, marginBottom: spacing.xs, textAlign: "center" },
+  email: { ...typography.metadata, color: colors.muted, marginBottom: spacing.lg, textAlign: "center" },
   badge: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radii.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
-  badgeText: { color: colors.primaryDark, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  badgeText: { ...typography.badge, textTransform: "uppercase" },
+  refreshingText: { ...typography.badge, color: colors.muted, fontWeight: "400", marginTop: spacing.sm },
   section: {
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
@@ -543,20 +573,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionHeaderText: { flex: 1 },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: colors.ink, marginBottom: spacing.md },
+  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
   row: {
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-  rowLabel: { fontSize: 12, fontWeight: "800", color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
-  rowValue: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  rowLabel: { ...typography.badge, color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
+  rowValue: { ...typography.body, color: colors.text },
   profileInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
   readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
   removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
-  removePhotoText: { color: colors.danger, fontSize: 13, fontWeight: "800" },
+  removePhotoText: { ...typography.label, color: colors.danger },
   saveProfileButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
-  saveProfileText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  saveProfileText: { ...typography.button, color: colors.surface },
   permissionRow: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.lg, paddingTop: spacing.md },
   globalAccessCard: {
     backgroundColor: colors.surface,
@@ -582,8 +612,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   globalAccessTextBox: { flex: 1 },
-  globalAccessTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.xs },
-  globalAccessText: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 20 },
+  globalAccessTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
+  globalAccessText: { ...typography.metadata, color: colors.text },
   globalAccessButton: {
     minHeight: 44,
     borderRadius: radii.md,
@@ -592,7 +622,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.md,
   },
-  globalAccessButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  globalAccessButtonText: { ...typography.button, color: colors.surface },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -608,22 +638,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  editInstrumentsButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  editInstrumentsButtonText: { ...typography.label, color: colors.primary },
   instrumentLoading: {
     gap: spacing.sm,
     alignItems: "flex-start",
   },
-  instrumentMuted: { color: colors.muted, fontSize: 14, fontWeight: "600", lineHeight: 20 },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  instrumentMuted: { ...typography.metadata, color: colors.muted },
+  errorText: { ...typography.error, color: colors.danger },
+  profileError: { marginBottom: spacing.md },
   retryButton: {
-    minHeight: 38,
-    borderRadius: radii.md,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
   },
-  retryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  retryButtonText: { ...typography.label, color: colors.primary },
   instrumentList: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -636,8 +662,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  instrumentChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
-  instrumentChipTextSelected: { color: colors.surface, fontSize: 13, fontWeight: "800" },
+  instrumentChipText: { ...typography.label, color: colors.text },
+  instrumentChipTextSelected: { ...typography.label, color: colors.surface },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(23, 33, 26, 0.42)",
@@ -664,8 +690,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   modalTitleGroup: { flex: 1 },
-  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.xs },
-  modalSubtitle: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  modalTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
+  modalSubtitle: { ...typography.metadata, color: colors.muted },
   closeButton: {
     width: 40,
     height: 40,
@@ -682,7 +708,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
-  createInstrumentTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.md },
+  createInstrumentTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.md },
   modalInput: {
     minHeight: 44,
     borderRadius: radii.md,
@@ -690,8 +716,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.surface,
     color: colors.ink,
-    fontSize: 14,
-    fontWeight: "600",
+    ...typography.metadata,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
@@ -706,7 +731,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
-  createInstrumentButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  createInstrumentButtonText: { ...typography.button, color: colors.surface },
   buttonDisabled: { opacity: 0.7 },
   modalList: { flexGrow: 0 },
   modalListContent: { gap: spacing.sm },
@@ -732,7 +757,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  modalInstrumentName: { flex: 1, color: colors.ink, fontSize: 14, fontWeight: "800" },
+  modalInstrumentName: { ...typography.label, flex: 1, color: colors.ink },
   adminButton: {
     width: "100%",
     minHeight: 46,
@@ -744,7 +769,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  adminButtonText: { color: colors.primary, fontSize: 14, fontWeight: "800" },
+  adminButtonText: { ...typography.button, color: colors.primary },
   logoutBtn: {
     width: "100%",
     backgroundColor: colors.danger,
@@ -755,5 +780,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
-  logoutText: { color: colors.surface, fontSize: 16, fontWeight: "800" },
+  logoutText: { ...typography.button, color: colors.surface, fontSize: 16 },
 });

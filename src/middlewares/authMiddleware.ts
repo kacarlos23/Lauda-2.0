@@ -6,6 +6,8 @@ import { basePrisma } from "../config/prisma";
 import { runWithTenantContext } from "../context/tenantContext";
 import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
 import { isChurchAdmin } from "../utils/permissions";
+import { PermissionKey } from "../constants/permissions";
+import { effectivePermissionKeys, hasPermission } from "../services/permissionService";
 
 interface JwtPayload {
   id?: string;
@@ -64,10 +66,13 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
+    const permissions = await effectivePermissionKeys({ id: userId, role, tenantId }, tenantId);
+
     req.user = {
       id: userId,
       role,
       tenantId: tenantId ?? "",
+      permissions,
     };
 
     runWithTenantContext({ userId, role, tenantId }, () => next());
@@ -75,6 +80,26 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     next(new UnauthorizedError("Token inválido"));
   }
 };
+
+export const requirePermission =
+  (permissionKey: PermissionKey, resolveTenantId?: (req: Request) => string | null | undefined) =>
+  async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      next(new UnauthorizedError("Token de autenticação ausente"));
+      return;
+    }
+
+    try {
+      const tenantId = resolveTenantId ? resolveTenantId(req) : req.user.tenantId || null;
+      if (!await hasPermission(req.user, permissionKey, tenantId)) {
+        next(new ForbiddenError("Usuário sem permissão para esta ação"));
+        return;
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 
 export const requireRole =
   (...roles: Role[]) =>

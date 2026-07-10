@@ -178,7 +178,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .send({ name: "Hacked Ministry" });
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("Apenas administradores podem gerenciar ministérios");
+    expect(res.body.error).toBe("Usuário sem permissão para esta ação");
   });
 
   it("PUT e DELETE /api/ministries permitem CRUD completo para admin do tenant", async () => {
@@ -269,7 +269,7 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .send({ userId: user2Id, isLeader: false });
     
     expect(failRes.status).toBe(403);
-    expect(failRes.body.error).toBe("Apenas o líder do ministério ou administradores podem gerenciar membros");
+    expect(failRes.body.error).toContain("administradores podem gerenciar membros");
 
     // Admin adiciona Leader como líder
     await request(app)

@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { Pagination, Song } from "../types";
 import { musicService, SongPayload } from "../services/musicService";
 
@@ -7,14 +7,20 @@ interface MusicState {
   currentSong: Song | null;
   pagination: Pagination;
   loading: boolean;
+  refreshing: boolean;
   detailLoading: boolean;
   saving: boolean;
   error: string | null;
   detailError: string | null;
   requestedSongId: string | null;
   requestedListKey: string | null;
+  currentSearch: string;
+  currentPage: number;
+  lastFetchedAt: number | null;
   listMutationVersion: number;
-  loadSongs: (search?: string, page?: number) => Promise<void>;
+  listInvalidationVersion: number;
+  localMutations: Record<string, Song>;
+  loadSongs: (search?: string, page?: number, options?: { refresh?: boolean }) => Promise<void>;
   loadSong: (id: string) => Promise<void>;
   primeSong: (song: Song) => void;
   createSong: (payload: SongPayload) => Promise<Song>;
@@ -42,18 +48,44 @@ function incrementPaginationTotal(pagination: Pagination): Pagination {
   return { ...pagination, total, totalPages: Math.max(1, Math.ceil(total / pagination.limit)) };
 }
 
+function songMatchesSearch(song: Song, search: string): boolean {
+  const term = search.trim().toLowerCase();
+  if (!term) return true;
+  return [song.title, song.artist.name, song.composer ?? ""].some((value) => value.toLowerCase().includes(term));
+}
+
+function mergeLocalMutations(songs: Song[], localMutations: Record<string, Song>, search: string): { songs: Song[]; inserted: number } {
+  const visibleLocalSongs = Object.values(localMutations).filter((song) => songMatchesSearch(song, search));
+  if (!visibleLocalSongs.length) return { songs, inserted: 0 };
+
+  let inserted = 0;
+  const mergedById = new Map(songs.map((song) => [song.id, song]));
+  visibleLocalSongs.forEach((song) => {
+    if (!mergedById.has(song.id)) inserted += 1;
+    mergedById.set(song.id, song);
+  });
+
+  return { songs: sortSongs([...mergedById.values()]), inserted };
+}
+
 export const useMusicStore = create<MusicState>((set) => ({
   songs: [],
   currentSong: null,
   pagination: { page: 1, limit: 20, totalPages: 0, total: 0 },
   loading: false,
+  refreshing: false,
   detailLoading: false,
   saving: false,
   error: null,
   detailError: null,
   requestedSongId: null,
   requestedListKey: null,
+  currentSearch: "",
+  currentPage: 1,
+  lastFetchedAt: null,
   listMutationVersion: 0,
+  listInvalidationVersion: 0,
+  localMutations: {},
   clearError: () => set({ error: null }),
 
   primeSong: (song) => set({
@@ -62,18 +94,39 @@ export const useMusicStore = create<MusicState>((set) => ({
     detailError: null,
   }),
 
-  loadSongs: async (search = "", page = 1) => {
+  loadSongs: async (search = "", page = 1, options) => {
     const mutationVersion = useMusicStore.getState().listMutationVersion;
     const requestKey = `${search}\u0000${page}\u0000${mutationVersion}`;
-    set({ loading: true, error: null, requestedListKey: requestKey });
+    const shouldRefresh = Boolean(options?.refresh) || useMusicStore.getState().songs.length > 0;
+    set({
+      loading: !shouldRefresh,
+      refreshing: shouldRefresh,
+      error: null,
+      requestedListKey: requestKey,
+      currentSearch: search,
+      currentPage: page,
+    });
+
     try {
       const result = await musicService.listSongs(search, page);
-      set((state) => state.requestedListKey === requestKey
-        ? { songs: result.items, pagination: result.pagination, loading: false }
-        : state);
+      set((state) => {
+        if (state.requestedListKey !== requestKey) return state;
+        const merged = page === 1
+          ? mergeLocalMutations(result.items, state.localMutations, search)
+          : { songs: result.items, inserted: 0 };
+        const total = page === 1 ? Math.max(result.pagination.total, result.pagination.total + merged.inserted) : result.pagination.total;
+        const totalPages = page === 1 ? Math.max(result.pagination.totalPages, Math.ceil(total / result.pagination.limit)) : result.pagination.totalPages;
+        return {
+          songs: merged.songs,
+          pagination: { ...result.pagination, total, totalPages },
+          loading: false,
+          refreshing: false,
+          lastFetchedAt: Date.now(),
+        };
+      });
     } catch (error) {
       set((state) => state.requestedListKey === requestKey
-        ? { loading: false, error: message(error, "Não foi possível carregar as músicas.") }
+        ? { loading: false, refreshing: false, error: message(error, "Não foi possível carregar as músicas.") }
         : state);
     }
   },
@@ -121,6 +174,8 @@ export const useMusicStore = create<MusicState>((set) => ({
           songs: result.songs,
           pagination: result.inserted ? incrementPaginationTotal(state.pagination) : state.pagination,
           listMutationVersion: state.listMutationVersion + 1,
+          listInvalidationVersion: state.listInvalidationVersion + 1,
+          localMutations: { ...state.localMutations, [song.id]: song },
         };
       });
       return song;
@@ -148,6 +203,8 @@ export const useMusicStore = create<MusicState>((set) => ({
           songs: result.songs,
           pagination: result.inserted ? incrementPaginationTotal(state.pagination) : state.pagination,
           listMutationVersion: state.listMutationVersion + 1,
+          listInvalidationVersion: state.listInvalidationVersion + 1,
+          localMutations: { ...state.localMutations, [song.id]: song },
         };
       });
       return song;

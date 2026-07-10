@@ -15,6 +15,6 @@ export default function NewSongScreen() {
     clearError();
     setFormSession((current) => current + 1);
   }, [clearError]));
-  if (!canManageMusic(user?.role)) return <Redirect href={"/songs" as never} />;
+  if (!canManageMusic(user, "song:create")) return <Redirect href={"/songs" as never} />;
   return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["left", "right"]}><SongForm key={formSession} backHref="/songs" saving={saving} error={error} onSave={async (payload) => (await createSong(payload)).id} /></SafeAreaView>;
 }

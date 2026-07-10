@@ -2,13 +2,16 @@ import { z } from "zod";
 import { AssignmentStatus, Role } from "@prisma/client";
 import { MUSICAL_KEYS } from "./song.schema";
 import { adminResourceNames } from "../repositories/AdminRepository";
+import { permissionDefinitions } from "../constants/permissions";
+
+const permissionKeys = permissionDefinitions.map((permission) => permission.key) as [string, ...string[]];
 
 export const adminTenantParamsSchema = z.object({
   tenantId: z.string().uuid("tenantId inválido"),
 });
 
 export const adminUserParamsSchema = z.object({
-  userId: z.string().uuid("userId inválido"),
+  userId: z.string().trim().min(1, "userId inválido"),
 });
 
 export const adminSongParamsSchema = z.object({
@@ -33,6 +36,20 @@ export const adminUsersQuerySchema = z.object({
 
 export const adminTenantScopedQuerySchema = z.object({
   tenantId: z.string().uuid("tenantId inválido").optional(),
+});
+
+export const adminUserPermissionsQuerySchema = z.object({
+  tenantId: z.string().uuid("tenantId invÃ¡lido").optional(),
+});
+
+export const adminGrantPermissionSchema = z.object({
+  permissionKey: z.enum(permissionKeys),
+  tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
+});
+
+export const adminSetPermissionsSchema = z.object({
+  permissionKeys: z.array(z.enum(permissionKeys)),
+  tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
 });
 
 export const adminResourceQuerySchema = z.object({
@@ -110,3 +127,4 @@ export type AdminUpdateTenantInput = z.infer<typeof adminUpdateTenantSchema>;
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
 export type AdminUpdateSongInput = z.infer<typeof adminUpdateSongSchema>;
 export type AdminUpdateScheduleInput = z.infer<typeof adminUpdateScheduleSchema>;
+

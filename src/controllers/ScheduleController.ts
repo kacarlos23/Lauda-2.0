@@ -10,6 +10,7 @@ import {
   listSchedulesSchema,
   updateScheduleSchema,
   updateAssignmentStatusSchema,
+  resolveSubstitutionSchema,
   uuidParamSchema,
 } from "../validators/schedule.validator";
 
@@ -48,6 +49,7 @@ export class ScheduleController extends BaseController {
     const schedule = await this.buildService(req).createForUser(input, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, schedule, 201);
@@ -59,9 +61,21 @@ export class ScheduleController extends BaseController {
     const schedule = await this.buildService(req).updateForUser(id, input, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, schedule);
+  }
+
+  async delete(req: Request, res: Response): Promise<void> {
+    const { id } = uuidParamSchema.parse(req.params);
+    const result = await this.buildService(req).deleteForUser(id, {
+      id: req.user!.id,
+      role: req.user!.role,
+      tenantId: req.user!.tenantId,
+    });
+
+    this.handleSuccess(res, result);
   }
 
   async exportReport(req: Request, res: Response): Promise<void> {
@@ -81,6 +95,7 @@ export class ScheduleController extends BaseController {
     const assignment = await this.buildService(req).addAssignment(id, input, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, assignment, 201);
@@ -96,6 +111,24 @@ export class ScheduleController extends BaseController {
       {
         id: req.user!.id,
         role: req.user!.role,
+        tenantId: req.user!.tenantId,
+      }
+    );
+
+    this.handleSuccess(res, assignment);
+  }
+
+  async resolveSubstitution(req: Request, res: Response): Promise<void> {
+    const params = assignmentParamsSchema.parse(req.params);
+    const input = resolveSubstitutionSchema.parse(req.body);
+    const assignment = await this.buildService(req).resolveSubstitution(
+      params.id,
+      params.assignmentId,
+      input,
+      {
+        id: req.user!.id,
+        role: req.user!.role,
+        tenantId: req.user!.tenantId,
       }
     );
 
@@ -107,6 +140,7 @@ export class ScheduleController extends BaseController {
     await this.buildService(req).removeAssignment(params.id, params.assignmentId, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, { message: "Atribuição removida da escala" });

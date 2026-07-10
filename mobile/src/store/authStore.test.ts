@@ -13,6 +13,7 @@ jest.mock("../services/api", () => ({
 
 jest.mock("../services/memberService", () => ({
   memberService: {
+    getCurrentMember: jest.fn(),
     updateMyProfile: jest.fn(),
   },
 }));
@@ -67,6 +68,7 @@ describe("authStore session", () => {
     mockStorage.clear();
     mockReplace.mockClear();
     jest.mocked(api.post).mockReset();
+    jest.mocked(memberService.getCurrentMember).mockReset();
     jest.mocked(memberService.updateMyProfile).mockReset();
     useAuthStore.setState({
       user: null,
@@ -166,6 +168,33 @@ describe("authStore session", () => {
     expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").instruments).toEqual([
       { id: "instrument-2", name: "Vocal", colorHex: "#10B981" },
     ]);
+  });
+
+  it("applyCurrentUser atualiza store e auth_user sem chamar backend", async () => {
+    useAuthStore.setState({ user, tenant });
+
+    await useAuthStore.getState().applyCurrentUser({ name: "Ana Local" });
+
+    expect(memberService.updateMyProfile).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user?.name).toBe("Ana Local");
+    expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").name).toBe("Ana Local");
+  });
+
+  it("refreshCurrentUser busca /members/me e mantém tenant", async () => {
+    useAuthStore.setState({ user, tenant });
+    jest.mocked(memberService.getCurrentMember).mockResolvedValueOnce({
+      ...user,
+      name: "Ana Atualizada",
+      phone: "11999999999",
+      ministries: [],
+    });
+
+    await useAuthStore.getState().refreshCurrentUser();
+
+    expect(memberService.getCurrentMember).toHaveBeenCalled();
+    expect(useAuthStore.getState().tenant).toEqual(tenant);
+    expect(useAuthStore.getState().user?.name).toBe("Ana Atualizada");
+    expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").phone).toBe("11999999999");
   });
 
   it("updateCurrentUser persiste dados de perfil no backend", async () => {

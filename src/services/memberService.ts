@@ -3,10 +3,12 @@ import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
 import { CreateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyProfileInput } from "../validators/member.schema";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
+import { hasPermission } from "./permissionService";
 
 type RequestUser = {
   id: string;
   role: Role;
+  tenantId?: string;
 };
 
 export class MemberService {
@@ -68,7 +70,8 @@ export class MemberService {
 
     const isSelf = user.id === memberId;
     const isAdmin = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
-    if (!isSelf && !isAdmin) {
+    const canEditMembers = await hasPermission(user, "member:edit", user.tenantId);
+    if (!isSelf && !isAdmin && !canEditMembers) {
       throw new ForbiddenError("Apenas o próprio membro ou administradores podem alterar instrumentos");
     }
 
@@ -101,8 +104,8 @@ export class MemberService {
       throw new ForbiddenError("Não é permitido alterar permissões de administrador global");
     }
 
-    const isAdmin = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
-    if (!isAdmin) {
+    const canManageLegacyPermissions = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
+    if (!canManageLegacyPermissions) {
       throw new ForbiddenError("Apenas administradores podem alterar permissões");
     }
 

@@ -22,6 +22,10 @@ export type UpdateInstrumentPayload = {
   colorHex?: string | null;
 };
 
+export type InstrumentListParams = {
+  search?: string;
+};
+
 function handleApiError(error: unknown): never {
   if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
     const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
@@ -37,9 +41,11 @@ function handleApiError(error: unknown): never {
 }
 
 export const instrumentService = {
-  async getInstruments(): Promise<Instrument[]> {
+  async getInstruments(params?: InstrumentListParams): Promise<Instrument[]> {
     try {
-      const response = await api.get<ApiResponse<Instrument[]>>("/instruments");
+      const response = params
+        ? await api.get<ApiResponse<Instrument[]>>("/instruments", { params })
+        : await api.get<ApiResponse<Instrument[]>>("/instruments");
       return response.data.data;
     } catch (error) {
       handleApiError(error);

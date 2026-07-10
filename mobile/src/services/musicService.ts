@@ -22,6 +22,14 @@ export type SongPayload = {
   videoUrl?: string | null;
 };
 
+export type SongListParams = {
+  search?: string;
+  ministryId?: string;
+  instrumentId?: string;
+  withoutMinistry?: boolean;
+  withoutInstrument?: boolean;
+};
+
 export type CifraClubSearchResult = {
   title: string;
   artist: string;
@@ -76,9 +84,9 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível atualizar o artista."); }
   },
 
-  async listSongs(search = "", page = 1, limit = 20): Promise<Paginated<Song>> {
+  async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams): Promise<Paginated<Song>> {
     try {
-      const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", { params: { search, page, limit } });
+      const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", { params: { ...filters, search, page, limit } });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
   },

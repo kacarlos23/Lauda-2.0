@@ -33,6 +33,8 @@ export class ScheduleRepository {
     return prisma.schedule.findMany({
       where: {
         tenantId: this.tenantId,
+        isActive: true,
+        deletedAt: null,
         ...(filters.ministryId ? { ministryId: filters.ministryId } : {}),
         ...(filters.from || filters.to ? { date: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
       },
@@ -56,7 +58,7 @@ export class ScheduleRepository {
 
   findScheduleById(scheduleId: string) {
     return prisma.schedule.findFirst({
-      where: { id: scheduleId, tenantId: this.tenantId },
+      where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
       include: {
         ministry: { select: { id: true, name: true } },
       },
@@ -72,7 +74,7 @@ export class ScheduleRepository {
 
   findScheduleReportById(scheduleId: string) {
     return prisma.schedule.findFirst({
-      where: { id: scheduleId, tenantId: this.tenantId },
+      where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
       include: {
         ministry: { select: { id: true, name: true } },
         assignments: {
@@ -165,7 +167,7 @@ export class ScheduleRepository {
 
     return prisma.$transaction(async (tx) => {
       const existing = await tx.schedule.findFirst({
-        where: { id: scheduleId, tenantId: this.tenantId },
+        where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
         select: { id: true },
       });
       if (!existing) return null;
@@ -202,7 +204,7 @@ export class ScheduleRepository {
       }
 
       return tx.schedule.findFirst({
-        where: { id: scheduleId, tenantId: this.tenantId },
+        where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
         include: scheduleInclude,
       });
     });
@@ -211,7 +213,7 @@ export class ScheduleRepository {
   createAssignment(scheduleId: string, data: CreateAssignmentInput) {
     return prisma.$transaction(async (tx) => {
       const [schedule, user] = await Promise.all([
-        tx.schedule.findFirst({ where: { id: scheduleId, tenantId: this.tenantId }, select: { id: true } }),
+        tx.schedule.findFirst({ where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null }, select: { id: true } }),
         tx.user.findFirst({ where: { id: data.userId, tenantId: this.tenantId }, select: { id: true } }),
       ]);
 
@@ -248,7 +250,9 @@ export class ScheduleRepository {
         id: assignmentId,
         scheduleId,
         tenantId: this.tenantId,
-        schedule: { tenantId: this.tenantId },
+        isActive: true,
+        deletedAt: null,
+        schedule: { tenantId: this.tenantId, isActive: true, deletedAt: null },
       },
       include: {
         schedule: {
@@ -266,14 +270,24 @@ export class ScheduleRepository {
   }
 
   async updateAssignmentStatus(scheduleId: string, assignmentId: string, data: UpdateAssignmentStatusInput) {
+    const now = new Date();
     const result = await prisma.scheduleAssignment.updateMany({
       where: {
         id: assignmentId,
         scheduleId,
         tenantId: this.tenantId,
-        schedule: { tenantId: this.tenantId },
+        isActive: true,
+        deletedAt: null,
+        schedule: { tenantId: this.tenantId, isActive: true, deletedAt: null },
       },
-      data: { status: data.status },
+      data: {
+        status: data.status,
+        declineReason: data.status === "DECLINED" ? data.declineReason ?? null : null,
+        substituteRequestedAt: data.requestSubstitute ? now : undefined,
+        substituteResolvedAt: data.requestSubstitute ? null : undefined,
+        substituteResolvedById: data.requestSubstitute ? null : undefined,
+        substituteResolutionNote: data.requestSubstitute ? null : undefined,
+      },
     });
 
     if (result.count === 0) {
@@ -289,12 +303,64 @@ export class ScheduleRepository {
     });
   }
 
+  async resolveSubstitution(scheduleId: string, assignmentId: string, userId: string, note?: string) {
+    const result = await prisma.scheduleAssignment.updateMany({
+      where: {
+        id: assignmentId,
+        scheduleId,
+        tenantId: this.tenantId,
+        isActive: true,
+        deletedAt: null,
+        substituteRequestedAt: { not: null },
+        substituteResolvedAt: null,
+        schedule: { tenantId: this.tenantId, isActive: true, deletedAt: null },
+      },
+      data: {
+        substituteResolvedAt: new Date(),
+        substituteResolvedById: userId,
+        substituteResolutionNote: note ?? null,
+      },
+    });
+
+    if (result.count === 0) return null;
+    return this.findAssignment(scheduleId, assignmentId);
+  }
+
+  deleteSchedule(scheduleId: string) {
+    const deletedAt = new Date();
+    return prisma.$transaction(async (tx) => {
+      const schedule = await tx.schedule.findFirst({
+        where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+        select: { id: true, ministryId: true },
+      });
+      if (!schedule) return null;
+
+      await tx.scheduleAssignment.updateMany({
+        where: { scheduleId, tenantId: this.tenantId, deletedAt: null },
+        data: { isActive: false, deletedAt },
+      });
+      await tx.scheduleSong.updateMany({
+        where: { scheduleId, tenantId: this.tenantId, deletedAt: null },
+        data: { isActive: false, deletedAt },
+      });
+      const deleted = await tx.schedule.update({
+        where: { id: scheduleId },
+        data: { isActive: false, deletedAt },
+        select: { id: true, ministryId: true, tenantId: true, deletedAt: true, isActive: true },
+      });
+
+      return deleted;
+    });
+  }
+
   findSchedulesForUser(userId: string) {
     return prisma.scheduleAssignment.findMany({
       where: {
         userId,
         tenantId: this.tenantId,
-        schedule: { tenantId: this.tenantId },
+        isActive: true,
+        deletedAt: null,
+        schedule: { tenantId: this.tenantId, isActive: true, deletedAt: null },
       },
       include: {
         schedule: {

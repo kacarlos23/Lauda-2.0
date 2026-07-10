@@ -44,6 +44,8 @@ interface AuthState {
     phone?: string;
     password: string;
   }) => Promise<void>;
+  applyCurrentUser: (partialUser: Partial<User>) => Promise<void>;
+  refreshCurrentUser: () => Promise<void>;
   updateCurrentUser: (partialUser: Partial<User>) => Promise<void>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
@@ -227,6 +229,31 @@ export const useAuthStore = create<AuthState>((set) => ({
       const message = extractAuthError(error);
       set({ loading: false, isLoading: false, error: message });
       throw error;
+    }
+  },
+
+  applyCurrentUser: async (partialUser) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    const nextUser = { ...currentUser, ...partialUser };
+    await setSessionItem("auth_user", JSON.stringify(nextUser));
+    set({ user: nextUser, error: null });
+    await invalidateRelatedData({ reason: "user", userId: nextUser.id });
+  },
+
+  refreshCurrentUser: async () => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) return;
+
+    try {
+      const currentMember = await memberService.getCurrentMember();
+      const nextUser = { ...currentUser, ...currentMember };
+      await setSessionItem("auth_user", JSON.stringify(nextUser));
+      set({ user: nextUser, error: null });
+      await invalidateRelatedData({ reason: "user", userId: nextUser.id });
+    } catch (error) {
+      set({ error: extractAuthError(error) });
     }
   },
 

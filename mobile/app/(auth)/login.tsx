@@ -1,11 +1,9 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -13,7 +11,8 @@ import { useRouter } from "expo-router";
 import { Lock, LogIn, Mail } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { AppInput, Button, Card, ErrorBanner } from "../../src/components/ui";
+import { colors, radii, screen, spacing, typography } from "../../src/theme";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -65,77 +64,60 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.inner}>
+      <Card style={styles.inner}>
         <View style={styles.brandMark}>
           <LogIn color={colors.surface} size={26} strokeWidth={2.6} />
         </View>
         <Text style={styles.title}>Lauda</Text>
         <Text style={styles.subtitle}>Gestão simples para ministérios, escalas e equipes.</Text>
 
-        {currentError ? (
-          <Text style={styles.error} accessibilityRole="alert" testID="login-error">
-            {currentError}
-          </Text>
-        ) : null}
+        <ErrorBanner message={currentError} style={styles.error} testID="login-error" />
 
-        <Text style={styles.label}>E-mail</Text>
-        <View style={styles.inputGroup}>
-          <Mail color={colors.muted} size={18} strokeWidth={2.2} />
-          <TextInput
-            style={styles.input}
-            placeholder="E-mail"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoFocus
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            value={email}
-            onChangeText={(value) => {
-              setEmail(value);
-              setLocalError(null);
-            }}
-            accessibilityLabel="E-mail"
-            testID="login-email"
-          />
-        </View>
+        <AppInput
+          label="E-mail"
+          icon={<Mail color={colors.muted} size={18} strokeWidth={2.2} />}
+          placeholder="E-mail"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          value={email}
+          onChangeText={(value) => {
+            setEmail(value);
+            setLocalError(null);
+          }}
+          accessibilityLabel="E-mail"
+          testID="login-email"
+          containerStyle={styles.field}
+        />
 
-        <Text style={styles.label}>Senha</Text>
-        <View style={styles.inputGroup}>
-          <Lock color={colors.muted} size={18} strokeWidth={2.2} />
-          <TextInput
-            style={styles.input}
-            placeholder="Senha"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            textContentType="password"
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-              setLocalError(null);
-            }}
-            accessibilityLabel="Senha"
-            testID="login-password"
-          />
-        </View>
+        <AppInput
+          label="Senha"
+          icon={<Lock color={colors.muted} size={18} strokeWidth={2.2} />}
+          placeholder="Senha"
+          secureTextEntry
+          textContentType="password"
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            setLocalError(null);
+          }}
+          accessibilityLabel="Senha"
+          testID="login-password"
+          containerStyle={styles.field}
+        />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+        <Button
+          title="Entrar"
+          icon={<LogIn color={colors.surface} size={18} strokeWidth={2.4} />}
+          loading={loading}
+          size="lg"
+          style={styles.button}
           onPress={handleLogin}
-          disabled={loading}
           accessibilityLabel="Entrar"
-          accessibilityRole="button"
           testID="login-submit"
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.surface} />
-          ) : (
-            <>
-              <LogIn color={colors.surface} size={18} strokeWidth={2.4} />
-              <Text style={styles.buttonText}>Entrar</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        />
 
         <TouchableOpacity
           style={styles.forgotPasswordLink}
@@ -170,7 +152,7 @@ export default function LoginScreen() {
             Não tem conta? <Text style={styles.registerHighlight}>Cadastre sua igreja</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </Card>
     </KeyboardAvoidingView>
   );
 }
@@ -186,12 +168,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: screen.maxWidth,
     alignSelf: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
     padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
   },
   brandMark: {
     width: 52,
@@ -203,72 +180,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 34,
-    fontWeight: "900",
+    ...typography.heroTitle,
     color: colors.ink,
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...typography.subtitle,
     color: colors.muted,
     marginBottom: spacing.xl,
   },
   error: {
-    backgroundColor: colors.dangerSoft,
-    borderColor: colors.danger,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
     marginBottom: spacing.lg,
   },
-  label: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: spacing.sm,
-  },
-  inputGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 15,
-    paddingLeft: spacing.md,
-    color: colors.ink,
-    fontSize: 16,
-  },
+  field: { marginBottom: spacing.lg },
   button: {
-    minHeight: 52,
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: spacing.sm,
     marginTop: spacing.sm,
-    ...buttonShadow,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: "700",
   },
   registerLink: {
     marginTop: spacing.xl,
@@ -280,20 +206,19 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     color: colors.primary,
-    fontSize: 14,
-    fontWeight: "600",
+    ...typography.label,
   },
   memberRegisterLink: {
     marginTop: spacing.lg,
     alignItems: "center",
   },
   registerText: {
+    ...typography.metadata,
     color: colors.muted,
-    fontSize: 14,
     textAlign: "center",
   },
   registerHighlight: {
     color: colors.primary,
-    fontWeight: "700",
+    fontWeight: typography.label.fontWeight,
   },
 });

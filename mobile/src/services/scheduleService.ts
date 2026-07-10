@@ -128,19 +128,33 @@ function openWebScheduleReport(schedule: Schedule): void {
   target.document.close();
 }
 
+export type ScheduleListParams = {
+  search?: string;
+  ministryId?: string;
+  status?: AssignmentStatus | string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+};
+
 export const scheduleService = {
-  async listSchedules(): Promise<Schedule[]> {
+  async listSchedules(params?: ScheduleListParams): Promise<Schedule[]> {
     try {
-      const response = await api.get<ApiResponse<Schedule[]>>("/schedules");
+      const response = params
+        ? await api.get<ApiResponse<Schedule[]>>("/schedules", { params })
+        : await api.get<ApiResponse<Schedule[]>>("/schedules");
       return response.data.data;
     } catch (error) {
       handleApiError(error);
     }
   },
 
-  async getMySchedules(): Promise<ScheduleAssignment[]> {
+  async getMySchedules(params?: ScheduleListParams): Promise<ScheduleAssignment[]> {
     try {
-      const response = await api.get<ApiResponse<ScheduleAssignment[]>>("/schedules/me");
+      const response = params
+        ? await api.get<ApiResponse<ScheduleAssignment[]>>("/schedules/me", { params })
+        : await api.get<ApiResponse<ScheduleAssignment[]>>("/schedules/me");
       return response.data.data;
     } catch (error) {
       handleApiError(error);
@@ -177,17 +191,39 @@ export const scheduleService = {
     }
   },
 
+  async deleteSchedule(id: string): Promise<{ id: string; message?: string }> {
+    try {
+      const response = await api.delete<ApiResponse<{ id: string; message?: string }>>(`/schedules/${id}`);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
   async updateAssignmentStatus(
     scheduleId: string,
     assignmentId: string,
-    status: AssignmentStatus
+    status: AssignmentStatus,
+    options?: { declineReason?: string; requestSubstitute?: boolean }
   ): Promise<ScheduleAssignment> {
     assertAssignmentStatus(status);
 
     try {
       const response = await api.patch<ApiResponse<ScheduleAssignment>>(
         `/schedules/${scheduleId}/assignments/${assignmentId}/status`,
-        { status }
+        { status, ...options }
+      );
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async resolveSubstitution(scheduleId: string, assignmentId: string, note?: string): Promise<ScheduleAssignment> {
+    try {
+      const response = await api.patch<ApiResponse<ScheduleAssignment>>(
+        `/schedules/${scheduleId}/assignments/${assignmentId}/substitution/resolve`,
+        { note }
       );
       return response.data.data;
     } catch (error) {

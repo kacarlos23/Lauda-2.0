@@ -13,6 +13,7 @@ import {
   UsersRound,
   Workflow,
 } from "lucide-react-native";
+import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChurchStore } from "../../../src/store/churchStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
@@ -86,17 +87,22 @@ export default function ChurchAdminScreen() {
         </View>
 
         {loading && !summary ? (
-          <View style={styles.stateBox}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.stateText}>Carregando dados da igreja...</Text>
-          </View>
+          <LoadingState centered={false} message="Carregando dados da igreja..." style={styles.stateBox} />
         ) : error && !summary ? (
           <View style={styles.stateBox}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.actionButton} onPress={loadChurch} accessibilityRole="button">
-              <RefreshCcw color={colors.primary} size={16} strokeWidth={2.5} />
-              <Text style={styles.actionButtonText}>Tentar novamente</Text>
-            </TouchableOpacity>
+            <ErrorBanner
+              message={error}
+              action={
+                <Button
+                  title="Tentar novamente"
+                  icon={<RefreshCcw color={colors.primary} size={16} strokeWidth={2.5} />}
+                  variant="secondary"
+                  size="sm"
+                  onPress={loadChurch}
+                  accessibilityLabel="Tentar carregar dados da igreja novamente"
+                />
+              }
+            />
           </View>
         ) : summary ? (
           <>
@@ -156,7 +162,7 @@ export default function ChurchAdminScreen() {
               )}
             </View>
 
-            {error ? <Text style={styles.inlineError}>{error}</Text> : null}
+            <ErrorBanner message={error} style={styles.inlineError} />
 
             <View style={styles.summaryRow}>
               <Metric icon={UsersRound} label="Membros" value={summary._count.users} />
@@ -332,9 +338,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     ...shadow,
   },
-  stateText: { color: colors.muted, fontSize: 15, fontWeight: "700", lineHeight: 22 },
-  errorText: { color: colors.danger, fontSize: 15, fontWeight: "800", lineHeight: 22 },
-  inlineError: { color: colors.danger, fontSize: 14, fontWeight: "800", marginBottom: spacing.lg },
+  inlineError: { marginBottom: spacing.lg },
   denied: {
     flex: 1,
     padding: spacing.xl,

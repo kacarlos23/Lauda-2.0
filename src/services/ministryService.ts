@@ -2,19 +2,22 @@ import { Role } from "@prisma/client";
 import { MinistryRepository } from "../repositories/MinistryRepository";
 import { NotFoundError, ForbiddenError, ValidationError } from "../errors/AppError";
 import { CreateMinistryInput, UpdateMinistryInput } from "../validators/ministry.schema";
+import { PermissionKey } from "../constants/permissions";
+import { hasPermission } from "./permissionService";
 import {
   AssignMemberToMinistryInput,
   ListMinistryMembersInput,
   UpdateMemberAssignmentInput,
 } from "../validators/member.schema";
 
-type RequestUser = { id: string; role: string };
+type RequestUser = { id: string; role: Role; tenantId?: string };
 
 export class MinistryService {
   constructor(private readonly ministryRepository: MinistryRepository) {}
 
-  private checkAdmin(role: string) {
-    if (role === Role.GLOBAL_ADMIN || role === Role.TENANT_ADMIN) return;
+  private async checkAdmin(user: RequestUser, permissionKey: PermissionKey) {
+    if (user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN) return;
+    if (await hasPermission(user, permissionKey, user.tenantId)) return;
     throw new ForbiddenError("Apenas administradores podem gerenciar ministérios");
   }
 
@@ -30,13 +33,13 @@ export class MinistryService {
     return ministry;
   }
 
-  async create(data: CreateMinistryInput, user: { role: string }) {
-    this.checkAdmin(user.role);
+  async create(data: CreateMinistryInput, user: RequestUser) {
+    await this.checkAdmin(user, "ministry:create");
     return this.ministryRepository.create(data);
   }
 
-  async update(id: string, data: UpdateMinistryInput, user: { role: string }) {
-    this.checkAdmin(user.role);
+  async update(id: string, data: UpdateMinistryInput, user: RequestUser) {
+    await this.checkAdmin(user, "ministry:edit");
     await this.getById(id);
     const result = await this.ministryRepository.update(id, data);
     if (result.count === 0) {
@@ -45,8 +48,8 @@ export class MinistryService {
     return this.ministryRepository.findById(id);
   }
 
-  async delete(id: string, user: { role: string }) {
-    this.checkAdmin(user.role);
+  async delete(id: string, user: RequestUser) {
+    await this.checkAdmin(user, "ministry:delete");
     await this.getById(id);
     const result = await this.ministryRepository.delete(id);
     if (result.count === 0) {
@@ -68,18 +71,17 @@ export class MinistryService {
   }
 
   private async ensureCanManageMinistry(ministryId: string, user: RequestUser) {
-    if (!this.canAssign(user.role)) {
-      throw new ForbiddenError("Você não tem permissão para gerenciar membros de ministérios");
-    }
-
+    const hasExplicitAccess = await hasPermission(user, "ministry:assign_members", user.tenantId);
     const ministry = await this.getById(ministryId);
+    if (hasExplicitAccess && user.role !== Role.MINISTRY_LEADER) {
+      return ministry;
+    }
     this.checkLeadership(ministry, user.id, user.role);
     return ministry;
   }
 
   async addMember(ministryId: string, targetUserId: string, isLeader: boolean, reqUser: RequestUser) {
-    const ministry = await this.getById(ministryId);
-    this.checkLeadership(ministry, reqUser.id, reqUser.role);
+    await this.ensureCanManageMinistry(ministryId, reqUser);
 
     const targetUser = await this.ministryRepository.findUserById(targetUserId);
     if (!targetUser) {
@@ -94,14 +96,13 @@ export class MinistryService {
   }
 
   async removeMember(ministryId: string, targetUserId: string, reqUser: RequestUser) {
-    const ministry = await this.getById(ministryId);
-    this.checkLeadership(ministry, reqUser.id, reqUser.role);
+    await this.ensureCanManageMinistry(ministryId, reqUser);
 
     return this.ministryRepository.removeMember(ministryId, targetUserId);
   }
 
   async toggleMember(ministryId: string, targetUserId: string, reqUser: RequestUser) {
-    this.checkAdmin(reqUser.role);
+    await this.checkAdmin(reqUser, "ministry:assign_members");
 
     await this.getById(ministryId);
 
@@ -189,3 +190,4 @@ export class MinistryService {
     }
   }
 }
+

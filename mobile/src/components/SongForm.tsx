@@ -187,7 +187,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
                 <Text style={styles.modalSubtitle}>{artist?.name} · {title.trim()}</Text>
               </View>
               <TouchableOpacity style={styles.modalClose} onPress={closeCifraClubModal} accessibilityRole="button" accessibilityLabel="Fechar importação do Cifra Club">
-                <Text style={styles.modalCloseText}></Text>
+                <Text style={styles.modalCloseText}>X</Text>
               </TouchableOpacity>
             </View>
 
@@ -284,7 +284,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
         <View style={styles.card}>
           <View style={styles.summary}>
             <View style={{ flex: 1 }}><Text style={styles.title}>{title}</Text><Text style={styles.meta}>{artist?.name} · Tom {originalKey}{bpm ? ` · ${bpm} BPM` : ""}</Text></View>
-            <TouchableOpacity onPress={() => setStep(1)}><Text style={styles.editLink}>Editar dados</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setStep(1)} testID="song-edit-metadata-button"><Text style={styles.editLink}>Editar dados</Text></TouchableOpacity>
           </View>
           <Text style={styles.label}>Cifra *</Text>
           <TextInput

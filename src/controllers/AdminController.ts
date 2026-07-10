@@ -8,6 +8,8 @@ import {
   adminResourceParamsSchema,
   adminResourcePayloadSchema,
   adminResourceQuerySchema,
+  adminGrantPermissionSchema,
+  adminSetPermissionsSchema,
   adminSongParamsSchema,
   adminTenantParamsSchema,
   adminTenantScopedQuerySchema,
@@ -16,11 +18,15 @@ import {
   adminUpdateTenantSchema,
   adminUpdateUserSchema,
   adminUserParamsSchema,
+  adminUserPermissionsQuerySchema,
   adminUsersQuerySchema,
 } from "../validators/admin.schema";
+import { PermissionService } from "../services/permissionService";
+import { PermissionKey } from "../constants/permissions";
 
 export class AdminController extends BaseController {
   private readonly service = new AdminService();
+  private readonly permissionService = new PermissionService();
 
   async listResources(_req: Request, res: Response): Promise<void> {
     this.handleSuccess(res, this.service.listResources());
@@ -86,6 +92,56 @@ export class AdminController extends BaseController {
     const query = adminUsersQuerySchema.parse(req.query);
     const users = await this.service.listUsers(query.tenantId);
     this.handleSuccess(res, users);
+  }
+
+  async listPermissions(_req: Request, res: Response): Promise<void> {
+    this.handleSuccess(res, await this.permissionService.listPermissions());
+  }
+
+  async listUserPermissions(req: Request, res: Response): Promise<void> {
+    const { userId } = adminUserParamsSchema.parse(req.params);
+    const query = adminUserPermissionsQuerySchema.parse(req.query);
+    this.handleSuccess(res, await this.permissionService.listUserPermissions(userId, query.tenantId));
+  }
+
+  async grantUserPermission(req: Request, res: Response): Promise<void> {
+    const { userId } = adminUserParamsSchema.parse(req.params);
+    const input = adminGrantPermissionSchema.parse(req.body);
+    this.handleSuccess(
+      res,
+      await this.permissionService.grantPermission(req.user!, {
+        userId,
+        ...input,
+        permissionKey: input.permissionKey as PermissionKey,
+      }),
+      201
+    );
+  }
+
+  async setUserPermissions(req: Request, res: Response): Promise<void> {
+    const { userId } = adminUserParamsSchema.parse(req.params);
+    const input = adminSetPermissionsSchema.parse(req.body);
+    this.handleSuccess(
+      res,
+      await this.permissionService.setUserPermissions(req.user!, {
+        userId,
+        ...input,
+        permissionKeys: input.permissionKeys as PermissionKey[],
+      })
+    );
+  }
+
+  async revokeUserPermission(req: Request, res: Response): Promise<void> {
+    const { userId } = adminUserParamsSchema.parse(req.params);
+    const input = adminGrantPermissionSchema.parse(req.body);
+    this.handleSuccess(
+      res,
+      await this.permissionService.revokePermission(req.user!, {
+        userId,
+        ...input,
+        permissionKey: input.permissionKey as PermissionKey,
+      })
+    );
   }
 
   async updateUser(req: Request, res: Response): Promise<void> {

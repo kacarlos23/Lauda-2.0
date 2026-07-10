@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Copy, Edit3, RefreshCw, Plus, Save, Users, X } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
@@ -19,9 +18,20 @@ import { MemberInvite, memberService } from "../../../src/services/memberService
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member, Ministry, Role } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, InviteStatusBadge, LoadingState, PermissionStatusBadge, RoleBadge, Screen, SectionHeader } from "../../../src/components/ui";
+import { colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
 import { buildPublicInviteLink } from "../../../src/utils/memberInvite";
-import { canManageMembers, canViewMembers } from "../../../src/utils/permissions";
+import {
+  NO_INSTRUMENT,
+  NO_MINISTRY,
+  emptyMemberFilters,
+  filterMembers,
+  hasActiveFilters,
+  uniqueMemberInstruments,
+  uniqueMemberMinistries,
+  MemberListFilters,
+} from "../../../src/utils/listFilters";
+import { can, canViewMembers, isGlobalAdmin } from "../../../src/utils/permissions";
 
 type EditableRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER" | "TENANT_ADMIN">;
 
@@ -109,7 +119,18 @@ export default function MembersScreen() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
-  const canManage = canManageMembers(user?.role);
+  const [filters, setFilters] = useState<MemberListFilters>(emptyMemberFilters);
+  const [draftFilters, setDraftFilters] = useState<MemberListFilters>(emptyMemberFilters);
+  const [showFilters, setShowFilters] = useState(false);
+  const canCreateMember = can(user, "member:create");
+  const canInviteMember = can(user, "member:invite");
+  const canAssignLegacyAccess = isGlobalAdmin(user);
+  const canLoadManagementData = canInviteMember || canAssignLegacyAccess;
+  const activeFilters = hasActiveFilters(filters);
+  const canApplyFilters = hasActiveFilters(draftFilters);
+  const ministryFilterOptions = uniqueMemberMinistries(members);
+  const instrumentFilterOptions = uniqueMemberInstruments(members);
+  const filteredMembers = filterMembers(members, filters);
 
   const loadMembers = useCallback(async () => {
     try {
@@ -124,7 +145,7 @@ export default function MembersScreen() {
   }, []);
 
   const loadInvite = useCallback(async (ministryId = selectedMinistryId) => {
-    if (!canManage) return;
+    if (!canInviteMember) return;
 
     try {
       setInviteLoading(true);
@@ -135,10 +156,10 @@ export default function MembersScreen() {
     } finally {
       setInviteLoading(false);
     }
-  }, [canManage, selectedMinistryId]);
+  }, [canInviteMember, selectedMinistryId]);
 
   const loadMinistries = useCallback(async () => {
-    if (!canManage) return;
+    if (!canLoadManagementData) return;
 
     try {
       const data = await ministryApi.getMinistries();
@@ -146,27 +167,44 @@ export default function MembersScreen() {
     } catch {
       setMinistries([]);
     }
-  }, [canManage]);
+  }, [canLoadManagementData]);
 
   useFocusEffect(
     useCallback(() => {
       void loadMembers();
-      if (canManage) {
+      if (canLoadManagementData) {
         void loadMinistries();
         void loadInvite();
       }
-    }, [canManage, loadInvite, loadMembers, loadMinistries])
+    }, [canLoadManagementData, loadInvite, loadMembers, loadMinistries])
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMembers();
-    if (canManage) {
+    if (canLoadManagementData) {
       await loadMinistries();
       await loadInvite();
     }
     setRefreshing(false);
-  }, [canManage, loadInvite, loadMembers, loadMinistries]);
+  }, [canLoadManagementData, loadInvite, loadMembers, loadMinistries]);
+
+  const openFilters = () => {
+    setDraftFilters(filters);
+    setShowFilters(true);
+  };
+
+  const clearFilters = () => {
+    setFilters(emptyMemberFilters);
+    setDraftFilters(emptyMemberFilters);
+    setShowFilters(false);
+  };
+
+  const applyFilters = () => {
+    if (!hasActiveFilters(draftFilters)) return;
+    setFilters(draftFilters);
+    setShowFilters(false);
+  };
 
   const inviteLink = buildPublicInviteLink(invite);
 
@@ -268,28 +306,24 @@ export default function MembersScreen() {
       setMembers((current) => current.map((member) => member.id === updated.id ? updated : member));
       setEditingMember(null);
       setPermissionDraft(null);
-      Alert.alert("Permissões atualizadas", "As permissões do membro foram alteradas.");
+      Alert.alert("Acesso atualizado", "O acesso e os vínculos do membro foram alterados.");
     } catch (err) {
-      Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível atualizar as permissões.");
+      Alert.alert("Erro", err instanceof Error ? err.message : "Não foi possível atualizar o acesso.");
     } finally {
       setSavingPermissions(false);
     }
   };
 
-  if (!canViewMembers(user?.role)) {
+  if (!canViewMembers(user)) {
     return <Redirect href="/(tabs)" />;
   }
 
   if (loading && members.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <LoadingState message="Carregando membros..." />;
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+    <Screen padded={false} contentStyle={styles.screenContent}>
       <Modal
         visible={Boolean(editingMember && permissionDraft)}
         transparent
@@ -300,14 +334,14 @@ export default function MembersScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleGroup}>
-                <Text style={styles.modalTitle}>Permissões do membro</Text>
+                <Text style={styles.modalTitle}>Acesso e ministérios</Text>
                 <Text style={styles.modalSubtitle}>{editingMember?.name}</Text>
               </View>
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={closePermissionEditor}
                 accessibilityRole="button"
-                accessibilityLabel="Fechar edição de permissões"
+                accessibilityLabel="Fechar edição de acesso"
               >
                 <X color={colors.text} size={18} />
               </TouchableOpacity>
@@ -350,7 +384,10 @@ export default function MembersScreen() {
                           accessibilityLabel={`Vincular ${editingMember?.name} ao ministério ${ministry.name}`}
                         >
                           <Text style={styles.permissionMinistryName}>{ministry.name}</Text>
-                          <Text style={styles.permissionMinistryStatus}>{state.selected ? "Vinculado" : "Sem vínculo"}</Text>
+                          <PermissionStatusBadge
+                            status={state.selected ? "LINKED" : "UNLINKED"}
+                            style={styles.permissionStatusBadge}
+                          />
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[
@@ -377,83 +414,122 @@ export default function MembersScreen() {
                   onPress={savePermissions}
                   disabled={savingPermissions}
                   accessibilityRole="button"
-                  accessibilityLabel="Salvar permissões"
+                  accessibilityLabel="Salvar acesso"
                 >
                   {savingPermissions ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={18} />}
-                  <Text style={styles.savePermissionButtonText}>Salvar permissões</Text>
+                  <Text style={styles.savePermissionButtonText}>Salvar acesso</Text>
                 </TouchableOpacity>
               </>
             ) : null}
           </View>
         </View>
       </Modal>
+      <FilterPanel
+        visible={showFilters}
+        title="Filtrar membros"
+        canApply={canApplyFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilters(false)}
+        onClear={activeFilters || canApplyFilters ? clearFilters : undefined}
+      >
+        <AppInput
+          label="Palavra-chave geral"
+          value={draftFilters.query ?? ""}
+          onChangeText={(query) => setDraftFilters((current) => ({ ...current, query }))}
+          placeholder="Nome, e-mail, ministério ou instrumento"
+          accessibilityLabel="Buscar membros"
+        />
+        <FilterSection title="Ministério">
+          <Chip label="Sem ministério" active={draftFilters.ministryId === NO_MINISTRY} onPress={() => setDraftFilters((current) => ({ ...current, ministryId: NO_MINISTRY }))} />
+          {ministryFilterOptions.map((ministry) => (
+            <Chip key={ministry.id} label={ministry.name} active={draftFilters.ministryId === ministry.id} onPress={() => setDraftFilters((current) => ({ ...current, ministryId: ministry.id }))} />
+          ))}
+        </FilterSection>
+        <FilterSection title="Instrumento/cargo">
+          <Chip label="Sem instrumento" active={draftFilters.instrumentId === NO_INSTRUMENT} onPress={() => setDraftFilters((current) => ({ ...current, instrumentId: NO_INSTRUMENT }))} />
+          {instrumentFilterOptions.map((instrument) => (
+            <Chip key={instrument.id} label={instrument.name} active={draftFilters.instrumentId === instrument.id} onPress={() => setDraftFilters((current) => ({ ...current, instrumentId: instrument.id }))} />
+          ))}
+        </FilterSection>
+        <FilterSection title="Papel">
+          {(["MEMBER", "MINISTRY_LEADER", "TENANT_ADMIN", "GLOBAL_ADMIN"] as Role[]).map((role) => (
+            <Chip key={role} label={formatRole(role)} active={draftFilters.role === role} onPress={() => setDraftFilters((current) => ({ ...current, role }))} />
+          ))}
+        </FilterSection>
+      </FilterPanel>
       <FlatList
-        data={members}
+        data={filteredMembers}
         keyExtractor={(item) => item.id}
+        style={styles.listScroller}
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Membros</Text>
-              <Text style={styles.subtitle}>{members.length} pessoa(s) cadastrada(s)</Text>
-            </View>
-            {canManage ? (
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={() => router.push("/members/new" as never)}
-                accessibilityRole="button"
-                accessibilityLabel="Cadastrar membro"
-              >
-                <Plus color={colors.surface} size={18} strokeWidth={2.4} />
-                <Text style={styles.headerButtonText}>Novo</Text>
-              </TouchableOpacity>
-            ) : null}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            {canManage ? <View style={styles.inviteBox}>
+            <SectionHeader
+              title="Membros"
+              subtitle={activeFilters ? `${filteredMembers.length} de ${members.length} pessoa(s)` : `${members.length} pessoa(s) cadastrada(s)`}
+              action={canCreateMember ? (
+                <View style={styles.headerActions}>
+                  <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de membros" />
+                  <Button
+                    title="Novo"
+                    icon={<Plus color={colors.surface} size={18} strokeWidth={2.4} />}
+                    onPress={() => router.push("/members/new" as never)}
+                    accessibilityLabel="Cadastrar membro"
+                  />
+                </View>
+              ) : (
+                <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de membros" />
+              )}
+              style={styles.sectionHeader}
+            />
+            {activeFilters ? <Button title="Limpar filtros" variant="ghost" size="sm" style={styles.clearFiltersButton} onPress={clearFilters} accessibilityLabel="Limpar filtros de membros" /> : null}
+            <ErrorBanner
+              message={error}
+              style={styles.errorText}
+              action={error ? (
+                <Button
+                  title="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  style={styles.retryButton}
+                  onPress={() => void handleRefresh()}
+                  accessibilityLabel="Tentar carregar membros novamente"
+                />
+              ) : null}
+            />
+            {canInviteMember ? <Card style={styles.inviteBox}>
               <View style={styles.inviteHeader}>
                 <View style={styles.inviteTitleGroup}>
                   <Text style={styles.inviteTitle}>Link de cadastro de membros</Text>
                   <Text style={styles.inviteText}>Escolha um ministério para que o membro entre nele automaticamente.</Text>
                 </View>
+                <InviteStatusBadge active={invite?.active} loading={inviteLoading} />
                 {inviteLoading ? <ActivityIndicator color={colors.primary} /> : null}
               </View>
               <View style={styles.ministrySelector}>
-                <TouchableOpacity
-                  style={[styles.ministryChip, !selectedMinistryId && styles.ministryChipActive]}
+                <Chip
+                  label="Geral"
+                  active={!selectedMinistryId}
                   onPress={() => {
                     setSelectedMinistryId("");
                     loadInvite("");
                   }}
-                  accessibilityRole="button"
                   accessibilityLabel="Convite geral"
-                >
-                  <Text style={[styles.ministryChipText, !selectedMinistryId && styles.ministryChipTextActive]}>
-                    Geral
-                  </Text>
-                </TouchableOpacity>
+                />
                 {ministries.map((ministry) => (
-                  <TouchableOpacity
+                  <Chip
                     key={ministry.id}
-                    style={[styles.ministryChip, selectedMinistryId === ministry.id && styles.ministryChipActive]}
+                    label={ministry.name}
+                    active={selectedMinistryId === ministry.id}
                     onPress={() => {
                       setSelectedMinistryId(ministry.id);
                       loadInvite(ministry.id);
                     }}
-                    accessibilityRole="button"
                     accessibilityLabel={`Convite para ${ministry.name}`}
-                  >
-                    <Text
-                      style={[
-                        styles.ministryChipText,
-                        selectedMinistryId === ministry.id && styles.ministryChipTextActive,
-                      ]}
-                    >
-                      {ministry.name}
-                    </Text>
-                  </TouchableOpacity>
+                  />
                 ))}
               </View>
               <View style={styles.inviteField}>
@@ -469,68 +545,76 @@ export default function MembersScreen() {
                 </Text>
               </View>
               <View style={styles.inviteActions}>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
+                <Button
+                  title="Copiar link"
+                  icon={<Copy color={colors.primary} size={16} strokeWidth={2.4} />}
+                  variant="secondary"
+                  size="sm"
                   onPress={handleCopyInvite}
                   disabled={!inviteLink}
-                  accessibilityRole="button"
                   accessibilityLabel="Copiar link de cadastro"
-                >
-                  <Copy color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Copiar link</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
+                />
+                <Button
+                  title="Copiar código"
+                  icon={<Copy color={colors.primary} size={16} strokeWidth={2.4} />}
+                  variant="secondary"
+                  size="sm"
                   onPress={handleCopyCode}
                   disabled={!invite?.code}
-                  accessibilityRole="button"
                   accessibilityLabel="Copiar código de cadastro"
-                >
-                  <Copy color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Copiar código</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
+                />
+                <Button
+                  title="Regenerar link"
+                  icon={<RefreshCw color={colors.primary} size={16} strokeWidth={2.4} />}
+                  variant="secondary"
+                  size="sm"
                   onPress={handleRegenerateInvite}
                   disabled={inviteLoading}
-                  accessibilityRole="button"
                   accessibilityLabel="Regenerar link de cadastro"
-                >
-                  <RefreshCw color={colors.primary} size={16} strokeWidth={2.4} />
-                  <Text style={styles.secondaryButtonText}>Regenerar link</Text>
-                </TouchableOpacity>
+                />
               </View>
-            </View> : null}
+            </Card> : null}
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Users color={colors.primary} size={28} strokeWidth={2.3} />
-            <Text style={styles.emptyTitle}>Nenhum membro cadastrado</Text>
-            <Text style={styles.emptyText}>Cadastre pessoas da igreja para organizar equipes e ministérios.</Text>
-          </View>
+          <EmptyState
+            icon={<Users color={colors.primary} size={28} strokeWidth={2.3} />}
+            title={activeFilters ? "Nenhum membro encontrado" : "Nenhum membro cadastrado"}
+            description={activeFilters ? "Ajuste ou limpe os filtros para ver outros membros." : "Cadastre pessoas da igreja para organizar equipes e ministérios."}
+            action={canCreateMember ? (
+              activeFilters ? (
+                <Button title="Limpar filtros" variant="secondary" onPress={() => setFilters(emptyMemberFilters)} accessibilityLabel="Limpar filtros de membros" />
+              ) : (
+                <Button
+                  title="Cadastrar membro"
+                  onPress={() => router.push("/members/new" as never)}
+                  accessibilityLabel="Cadastrar membro"
+                />
+              )
+            ) : null}
+          />
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <View style={styles.avatar}>
               <Text style={styles.avatarLetter}>{item.name[0]?.toUpperCase()}</Text>
             </View>
             <View style={styles.info}>
               <View style={styles.rowTop}>
                 <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.role}>{formatRole(item.role)}</Text>
+                <RoleBadge status={item.role} label={formatRole(item.role)} style={styles.role} textStyle={styles.roleText} />
               </View>
               <Text style={styles.ministries}>{formatMinistries(item)}</Text>
-              {canManage && item.id !== user?.id ? (
-                <TouchableOpacity
+              {canAssignLegacyAccess && item.id !== user?.id ? (
+                <Button
+                  title="Acesso"
+                  icon={<Edit3 color={colors.primary} size={15} strokeWidth={2.4} />}
+                  variant="secondary"
+                  size="sm"
                   style={styles.permissionButton}
                   onPress={() => openPermissionEditor(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Editar permissões de ${item.name}`}
-                >
-                  <Edit3 color={colors.primary} size={15} strokeWidth={2.4} />
-                  <Text style={styles.permissionButtonText}>Permissões</Text>
-                </TouchableOpacity>
+                  accessibilityLabel={`Editar acesso de ${item.name}`}
+                />
               ) : null}
               <View style={styles.instrumentSection}>
                 <Text style={styles.instrumentTitle}>Instrumentos/Cargos</Text>
@@ -561,20 +645,21 @@ export default function MembersScreen() {
                 )}
               </View>
             </View>
-          </View>
+          </Card>
         )}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  center: {
+  screenContent: {
     flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    alignItems: "center",
+    maxWidth: "100%",
+  },
+  listScroller: {
+    flex: 1,
+    width: "100%",
   },
   list: {
     width: "100%",
@@ -585,39 +670,18 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
     gap: spacing.md,
   },
-  title: { fontSize: 28, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, color: colors.muted },
-  headerButton: {
-    minHeight: 44,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  headerButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  sectionHeader: { width: "100%", marginBottom: 0 },
+  headerActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flexWrap: "wrap" },
   errorText: {
     width: "100%",
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
   },
+  retryButton: { alignSelf: "flex-start" },
+  clearFiltersButton: { alignSelf: "flex-start" },
   inviteBox: {
     width: "100%",
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
     padding: spacing.lg,
-    ...shadow,
   },
   inviteHeader: {
     flexDirection: "row",
@@ -627,30 +691,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   inviteTitleGroup: { flex: 1 },
-  inviteTitle: { color: colors.ink, fontSize: 16, fontWeight: "800", marginBottom: spacing.xs },
-  inviteText: { color: colors.text, fontSize: 13, lineHeight: 19 },
+  inviteTitle: { ...typography.cardTitle, color: colors.ink, marginBottom: spacing.xs },
+  inviteText: { ...typography.metadata, color: colors.text },
   ministrySelector: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  ministryChip: {
-    minHeight: 36,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
-  },
-  ministryChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  ministryChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
-  ministryChipTextActive: { color: colors.primary },
   inviteField: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.md,
@@ -660,51 +708,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   inviteLabel: {
+    ...typography.badge,
     color: colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
     marginBottom: spacing.xs,
     textTransform: "uppercase",
   },
-  inviteValue: { color: colors.ink, fontSize: 13, lineHeight: 19 },
-  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  inviteValue: { ...typography.metadata, color: colors.ink },
+  label: { ...typography.label, color: colors.text, marginBottom: spacing.sm },
   inviteActions: {
     flexDirection: "row",
     gap: spacing.sm,
     flexWrap: "wrap",
   },
-  secondaryButton: {
-    minHeight: 40,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primarySoft,
-  },
-  secondaryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  emptyBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800" },
-  emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
     padding: spacing.lg,
     marginBottom: spacing.md,
     flexDirection: "row",
     alignItems: "flex-start",
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
   },
   avatar: {
     width: 48,
@@ -715,7 +735,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: spacing.lg,
   },
-  avatarLetter: { color: colors.primaryDark, fontSize: 20, fontWeight: "800" },
+  avatarLetter: { color: colors.primaryDark, fontSize: 20, fontWeight: "700" },
   info: { flex: 1 },
   rowTop: {
     flexDirection: "row",
@@ -723,23 +743,23 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: spacing.md,
   },
-  name: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
+  name: { ...typography.cardTitle, flex: 1, color: colors.ink, marginBottom: spacing.xs },
   role: {
-    fontSize: 11,
-    color: colors.primary,
-    fontWeight: "800",
+    alignSelf: "flex-start",
+  },
+  roleText: {
+    ...typography.badge,
     textTransform: "uppercase",
     textAlign: "right",
   },
-  ministries: { fontSize: 13, color: colors.text, lineHeight: 19 },
+  ministries: { ...typography.metadata, color: colors.text },
   instrumentSection: {
     marginTop: spacing.md,
     gap: spacing.xs,
   },
   instrumentTitle: {
+    ...typography.badge,
     color: colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
     textTransform: "uppercase",
   },
   instrumentList: {
@@ -756,22 +776,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   instrumentChipText: {
-    fontSize: 12,
-    fontWeight: "800",
+    ...typography.badge,
   },
-  noInstruments: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  noInstruments: { ...typography.badge, color: colors.muted, fontWeight: "400" },
   permissionButton: {
     alignSelf: "flex-start",
     minHeight: 34,
-    borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     marginTop: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primarySoft,
   },
-  permissionButtonText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.46)",
@@ -798,8 +811,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   modalTitleGroup: { flex: 1 },
-  modalTitle: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
-  modalSubtitle: { color: colors.muted, fontSize: 14, fontWeight: "700" },
+  modalTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
+  modalSubtitle: { ...typography.metadata, color: colors.muted },
   iconButton: {
     width: 38,
     height: 38,
@@ -826,7 +839,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
   },
-  roleOptionText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  roleOptionText: { ...typography.label, color: colors.text },
   roleOptionTextActive: { color: colors.primary },
   permissionsMinistryList: {
     gap: spacing.sm,
@@ -850,8 +863,9 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
   },
-  permissionMinistryName: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-  permissionMinistryStatus: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  permissionMinistryName: { ...typography.label, color: colors.ink },
+  permissionMinistryStatus: { ...typography.badge, color: colors.muted, fontWeight: "400", marginTop: 2 },
+  permissionStatusBadge: { marginTop: spacing.xs },
   leaderToggle: {
     minWidth: 84,
     borderRadius: radii.md,
@@ -867,7 +881,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   leaderToggleDisabled: { opacity: 0.45 },
-  leaderToggleText: { color: colors.text, fontSize: 12, fontWeight: "900" },
+  leaderToggleText: { ...typography.badge, color: colors.text },
   leaderToggleTextActive: { color: colors.surface },
   savePermissionButton: {
     minHeight: 48,
@@ -879,5 +893,5 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   savePermissionButtonDisabled: { opacity: 0.65 },
-  savePermissionButtonText: { color: colors.surface, fontSize: 15, fontWeight: "900" },
+  savePermissionButtonText: { ...typography.button, color: colors.surface },
 });

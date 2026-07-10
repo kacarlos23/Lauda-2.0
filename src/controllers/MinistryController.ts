@@ -35,7 +35,7 @@ export class MinistryController extends BaseController {
     const input = createMinistrySchema.parse(req.body);
     const repo = new MinistryRepository(req.user!.tenantId);
     const service = new MinistryService(repo);
-    const ministry = await service.create(input, { role: req.user!.role });
+    const ministry = await service.create(input, { id: req.user!.id, role: req.user!.role, tenantId: req.user!.tenantId });
     this.handleSuccess(res, ministry, 201);
   }
 
@@ -43,14 +43,14 @@ export class MinistryController extends BaseController {
     const input = updateMinistrySchema.parse(req.body);
     const repo = new MinistryRepository(req.user!.tenantId);
     const service = new MinistryService(repo);
-    const ministry = await service.update(String(req.params.id), input, { role: req.user!.role });
+    const ministry = await service.update(String(req.params.id), input, { id: req.user!.id, role: req.user!.role, tenantId: req.user!.tenantId });
     this.handleSuccess(res, ministry);
   }
 
   async remove(req: Request, res: Response): Promise<void> {
     const repo = new MinistryRepository(req.user!.tenantId);
     const service = new MinistryService(repo);
-    await service.delete(String(req.params.id), { role: req.user!.role });
+    await service.delete(String(req.params.id), { id: req.user!.id, role: req.user!.role, tenantId: req.user!.tenantId });
     this.handleSuccess(res, { message: "Ministério removido com sucesso" });
   }
 
@@ -61,6 +61,7 @@ export class MinistryController extends BaseController {
     const assignment = await service.addMember(String(req.params.id), userId, isLeader, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
     this.handleSuccess(res, assignment, 201);
   }
@@ -72,6 +73,7 @@ export class MinistryController extends BaseController {
     await service.removeMember(String(req.params.id), userId, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
     this.handleSuccess(res, { message: "Membro removido do ministério" });
   }
@@ -83,6 +85,7 @@ export class MinistryController extends BaseController {
     const result = await service.toggleMember(String(req.params.id), memberId, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, result);
@@ -95,6 +98,7 @@ export class MinistryController extends BaseController {
     const assignment = await service.assignMember(input, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, assignment, 201);
@@ -107,6 +111,7 @@ export class MinistryController extends BaseController {
     const assignment = await service.updateAssignment(input, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, assignment);
@@ -119,6 +124,7 @@ export class MinistryController extends BaseController {
     await service.removeAssignment(assignmentId, {
       id: req.user!.id,
       role: req.user!.role,
+      tenantId: req.user!.tenantId,
     });
 
     this.handleSuccess(res, { message: "Atribuição removida do ministério" });

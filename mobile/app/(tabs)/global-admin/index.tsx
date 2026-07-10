@@ -3,10 +3,11 @@ import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, Database, Edit3, Plus, RefreshCcw, ShieldAlert, Trash2, X, XCircle } from "lucide-react-native";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
+import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from "../../../src/components/ui";
 import { adminService } from "../../../src/services/adminService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
-import { GlobalResourceName, GlobalTenant, Role } from "../../../src/types";
+import { GlobalResourceName, GlobalTenant, Permission, PermissionKey, Role, UserPermission } from "../../../src/types";
 import { isGlobalAdmin } from "../../../src/utils/permissions";
 
 type Row = Record<string, any>;
@@ -307,6 +308,7 @@ export default function GlobalAdminScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<{ mode: "create" | "edit"; row?: Row } | null>(null);
+  const [permissionUser, setPermissionUser] = useState<Row | null>(null);
 
   const config = resourceByName[activeResource];
 
@@ -463,19 +465,35 @@ export default function GlobalAdminScreen() {
             </ScrollView>
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <ErrorBanner
+            message={error}
+            style={styles.errorText}
+            action={error ? (
+              <Button
+                title="Tentar novamente"
+                variant="secondary"
+                size="sm"
+                style={styles.retryButton}
+                onPress={() => void reloadAll()}
+                accessibilityLabel="Tentar carregar painel global novamente"
+              />
+            ) : null}
+          />
           {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator color={colors.primary} />
-              <Text style={styles.mutedText}>Carregando registros...</Text>
-            </View>
+            <LoadingState centered={false} message="Carregando registros..." style={styles.loadingBox} />
           ) : (
             <View style={styles.table}>
               <View style={styles.tableHeader}>
                 {config.columns.map((column) => <Text key={column.key} style={styles.th}>{column.label}</Text>)}
                 <Text style={styles.actionTh}>Ações</Text>
               </View>
-              {items.length === 0 ? <Text style={styles.emptyText}>Nenhum registro encontrado.</Text> : items.map((row) => (
+              {items.length === 0 ? (
+                <EmptyState
+                  title="Nenhum registro encontrado"
+                  description="Altere os filtros ou crie um novo registro quando este recurso permitir."
+                  style={styles.emptyState}
+                />
+              ) : items.map((row) => (
                 <View key={row.id} style={styles.tableRow}>
                   {config.columns.map((column) => (
                     <Text key={column.key} style={styles.td} numberOfLines={2}>
@@ -487,6 +505,9 @@ export default function GlobalAdminScreen() {
                     {!config.readOnly ? (
                       <>
                         <IconButton label="Editar" icon="edit" onPress={() => setModal({ mode: "edit", row })} />
+                        {activeResource === "users" && row.id !== user?.id ? (
+                          <PermissionButton onPress={() => setPermissionUser(row)} />
+                        ) : null}
                         {rowStatus(row) === "active" ? (
                           <IconButton label="Inativar" icon="deactivate" onPress={() => lifecycle(row, "deactivate")} />
                         ) : (
@@ -530,6 +551,11 @@ export default function GlobalAdminScreen() {
             Alert.alert("Não foi possível salvar", saveError instanceof Error ? saveError.message : "Erro desconhecido.");
           }
         }}
+      />
+      <PermissionModal
+        visible={Boolean(permissionUser)}
+        user={permissionUser}
+        onClose={() => setPermissionUser(null)}
       />
     </SafeAreaView>
   );
@@ -694,8 +720,158 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
   );
 }
 
-function StatusPill({ status }: { status: "active" | "inactive" }) {
-  return <Text style={[styles.statusPill, status === "inactive" && styles.statusPillInactive]}>{status === "active" ? "Ativo" : "Inativo"}</Text>;
+function StatusPill({ status }: { status: "active" | "inactive" | string }) {
+  return (
+    <MemberStatusBadge
+      status={status === "active" ? "ACTIVE" : status === "inactive" ? "INACTIVE" : status}
+      label={status === "active" ? "Ativo" : status === "inactive" ? "Inativo" : undefined}
+    />
+  );
+}
+
+function PermissionModal({
+  visible,
+  user,
+  onClose,
+}: {
+  visible: boolean;
+  user: Row | null;
+  onClose: () => void;
+}) {
+  const [catalog, setCatalog] = useState<Permission[]>([]);
+  const [activeKeys, setActiveKeys] = useState<PermissionKey[]>([]);
+  const [effectiveKeys, setEffectiveKeys] = useState<PermissionKey[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tenantId = user?.tenantId ?? null;
+
+  useEffect(() => {
+    if (!visible || !user?.id) return;
+    const userId = String(user.id);
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [permissions, userPermissions] = await Promise.all([
+          adminService.listPermissions(),
+          adminService.listUserPermissions(userId, tenantId),
+        ]);
+        if (cancelled) return;
+        setCatalog(permissions);
+        setActiveKeys(userPermissions.grants.map((grant) => grant.permission.key));
+        setEffectiveKeys(userPermissions.effective);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(`${getErrorMessage(loadError, "Não foi possível carregar permissões do usuário.")} Verifique se o backend publicado já possui os endpoints /admin/permissions e /admin/users/:id/permissions.`);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, user?.id, visible]);
+
+  function togglePermission(key: PermissionKey) {
+    setActiveKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  }
+
+  async function save() {
+    if (!user?.id) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await adminService.setUserPermissions(String(user.id), activeKeys, tenantId);
+      onClose();
+    } catch (saveError) {
+      setError(getErrorMessage(saveError, "Não foi possível salvar permissões."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const grouped = catalog.reduce<Record<string, Permission[]>>((acc, permission) => {
+    acc[permission.category] = [...(acc[permission.category] ?? []), permission];
+    return acc;
+  }, {});
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <View style={styles.headerText}>
+              <Text style={styles.modalTitle}>Permissões granulares</Text>
+              <Text style={styles.subtitle}>{user?.name ?? "Usuário"} · {user?.email ?? ""}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar permissões"><X color={colors.text} size={22} /></TouchableOpacity>
+          </View>
+          {loading ? (
+            <LoadingState centered={false} message="Carregando permissões..." style={styles.loadingBox} />
+          ) : (
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              <ErrorBanner message={error} />
+              <Text style={styles.mutedText}>
+                Permissões explícitas são aplicadas ao tenant do usuário quando houver igreja vinculada.
+              </Text>
+              {effectiveKeys.length ? (
+                <Text style={styles.mutedText}>
+                  Efetivas atualmente: {effectiveKeys.length}. Marque abaixo apenas as permissões explícitas adicionais deste usuário.
+                </Text>
+              ) : null}
+              {Object.entries(grouped).map(([category, permissions]) => (
+                <View key={category} style={styles.permissionGroup}>
+                  <Text style={styles.fieldLabel}>{category}</Text>
+                  <View style={styles.permissionGrid}>
+                    {permissions.map((permission) => {
+                      const active = activeKeys.includes(permission.key);
+                      const inherited = !active && effectiveKeys.includes(permission.key);
+                      return (
+                        <TouchableOpacity
+                          key={permission.key}
+                          style={[styles.permissionOption, inherited && styles.permissionOptionInherited, active && styles.permissionOptionActive]}
+                          onPress={() => togglePermission(permission.key)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: active }}
+                          accessibilityLabel={permission.description}
+                        >
+                          <Text style={[styles.permissionOptionTitle, active && styles.permissionOptionTitleActive]}>
+                            {permission.description}
+                          </Text>
+                          <Text style={[styles.permissionOptionKey, (active || inherited) && styles.permissionOptionKeyActive]}>
+                            {permission.key}{inherited ? " · via perfil" : ""}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={onClose}><Text style={styles.secondaryButtonText}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={save} disabled={saving || loading}>
+              <Text style={styles.primaryButtonText}>{saving ? "Salvando..." : "Salvar permissões"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function PermissionButton({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.iconButton} onPress={onPress} accessibilityRole="button" accessibilityLabel="Gerenciar permissões granulares">
+      <ShieldAlert color={colors.primary} size={14} strokeWidth={2.5} />
+      <Text style={styles.iconButtonText}>Permissões</Text>
+    </TouchableOpacity>
+  );
 }
 
 function IconButton({ label, icon, danger, onPress }: { label: string; icon: "edit" | "activate" | "deactivate" | "delete"; danger?: boolean; onPress: () => void }) {
@@ -753,18 +929,17 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: "row", padding: spacing.md, gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" },
   td: { flex: 1, color: colors.ink, fontSize: 13, fontWeight: "700" },
   actions: { width: 165, flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", alignItems: "center" },
-  statusPill: { color: colors.primaryDark, backgroundColor: colors.primarySoft, borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, fontSize: 11, fontWeight: "900" },
-  statusPillInactive: { color: colors.danger, backgroundColor: colors.dangerSoft },
   iconButton: { minHeight: 30, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   iconButtonDanger: { backgroundColor: colors.dangerSoft },
   iconButtonText: { color: colors.primary, fontSize: 11, fontWeight: "900" },
   iconButtonTextDanger: { color: colors.danger },
   pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, flexWrap: "wrap" },
   pageText: { color: colors.muted, fontSize: 13, fontWeight: "800" },
-  loadingBox: { padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  loadingBox: { padding: spacing.xl, alignItems: "center" },
   mutedText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: "800" },
-  emptyText: { color: colors.muted, fontSize: 14, fontWeight: "800", padding: spacing.xl },
+  errorText: { marginBottom: spacing.sm },
+  retryButton: { alignSelf: "flex-start" },
+  emptyState: { borderWidth: 0, shadowOpacity: 0, elevation: 0 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(16,32,26,0.38)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: screen.listMaxWidth, maxHeight: "90%", backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, ...shadow },
   modalHeader: { padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -775,6 +950,30 @@ const styles = StyleSheet.create({
   fieldLabel: { color: colors.text, fontSize: 12, fontWeight: "900" },
   input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.ink, fontSize: 14, fontWeight: "700" },
   textArea: { minHeight: 140, textAlignVertical: "top" },
+  permissionGroup: { gap: spacing.sm },
+  permissionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  permissionOption: {
+    width: "48%",
+    minWidth: 220,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+  },
+  permissionOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  permissionOptionInherited: {
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    opacity: 0.72,
+  },
+  permissionOptionTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
+  permissionOptionTitleActive: { color: colors.primaryDark },
+  permissionOptionKey: { color: colors.muted, fontSize: 11, fontWeight: "700", marginTop: spacing.xs },
+  permissionOptionKeyActive: { color: colors.primary },
   disabled: { opacity: 0.6 },
   denied: { flex: 1, padding: spacing.xl, alignItems: "center", justifyContent: "center", gap: spacing.sm },
   deniedTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },

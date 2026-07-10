@@ -195,7 +195,7 @@ describe("Members API", () => {
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({
       success: false,
-      error: "Acesso negado: apenas administradores",
+      error: "Usuário sem permissão para esta ação",
     });
   });
 

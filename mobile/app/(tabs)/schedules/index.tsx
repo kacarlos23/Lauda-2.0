@@ -1,32 +1,28 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
-  Pressable,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { CalendarClock, Download, Plus } from "lucide-react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { CalendarClock, Plus } from "lucide-react-native";
+import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
 import { scheduleService } from "../../../src/services/scheduleService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Schedule, ScheduleAssignment } from "../../../src/types";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
-import { formatAssignmentStatus } from "../../../src/utils/scheduleFormat";
+import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, LoadingState, Screen, SectionHeader } from "../../../src/components/ui";
+import { colors, radii, screen, spacing, typography } from "../../../src/theme";
+import { NO_MINISTRY, emptyScheduleFilters, filterSchedules, hasActiveFilters, ScheduleListFilters, uniqueScheduleMinistries } from "../../../src/utils/listFilters";
+import { can } from "../../../src/utils/permissions";
 
-const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
-const time = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
-
-function canManageSchedules(role?: string | null) {
-  return role === "GLOBAL_ADMIN" || role === "TENANT_ADMIN" || role === "MINISTRY_LEADER";
-}
 
 function dateKey(value: Date | string) {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -46,35 +42,74 @@ function buildCalendarDays(reference: Date) {
   return { firstPadding: first.getDay(), days };
 }
 
+function newScheduleHref(date: string) {
+  return { pathname: "/schedules/new", params: { date } } as never;
+}
+
 export default function SchedulesScreen() {
   const router = useRouter();
   const { tenant, user } = useAuthStore();
-  const { allSchedules, schedules: myAssignments, loading, error, loadSchedules, loadMySchedules, updateScheduleStatus } = useScheduleStore();
-  const [refreshing, setRefreshing] = useState(false);
+  const { allSchedules, schedules: myAssignments, loading, refreshing, error, loadSchedules, loadMySchedules, updateScheduleStatus, createSchedule, resolveSubstitution } = useScheduleStore();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [requestSubstitute, setRequestSubstitute] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
   const [month, setMonth] = useState(() => new Date());
+  const [filters, setFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
+  const [draftFilters, setDraftFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
+  const [showFilters, setShowFilters] = useState(false);
+  const canManage = can(user, "schedule:view") || can(user, "schedule:create") || can(user, "schedule:edit");
+  const canCreateSchedule = can(user, "schedule:create");
+  const defaultRange = useMemo(() => {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = new Date(now.getFullYear(), now.getMonth() + 3, 0);
+    return { dateFrom: dateKey(from), dateTo: dateKey(to), limit: 120 };
+  }, []);
 
   useEffect(() => {
-    void loadSchedules();
-    void loadMySchedules();
-  }, [loadSchedules, loadMySchedules]);
+    if (canManage) {
+      void loadSchedules({ refresh: allSchedules.length > 0, params: defaultRange });
+    }
+    void loadMySchedules({ refresh: myAssignments.length > 0, params: defaultRange });
+  }, [allSchedules.length, canManage, defaultRange, loadSchedules, loadMySchedules, myAssignments.length]);
+
+  useFocusEffect(useCallback(() => {
+    if (canManage) {
+      void loadSchedules({ refresh: true, params: defaultRange });
+    }
+    void loadMySchedules({ refresh: true, params: defaultRange });
+  }, [canManage, defaultRange, loadSchedules, loadMySchedules]));
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([loadSchedules(), loadMySchedules()]);
-    setRefreshing(false);
-  }, [loadSchedules, loadMySchedules]);
+    await Promise.all([
+      canManage ? loadSchedules({ refresh: true, params: defaultRange }) : Promise.resolve(),
+      loadMySchedules({ refresh: true, params: defaultRange }),
+    ]);
+  }, [canManage, defaultRange, loadSchedules, loadMySchedules]);
 
-  const handleStatus = async (item: ScheduleAssignment, status: "ACCEPTED" | "DECLINED") => {
+  const handleStatus = async (item: ScheduleAssignment, status: "ACCEPTED" | "DECLINED", options?: { declineReason?: string; requestSubstitute?: boolean }) => {
     setUpdatingId(item.id);
     try {
-      await updateScheduleStatus(item.scheduleId, item.id, status);
-      await loadMySchedules();
+      await updateScheduleStatus(item.scheduleId, item.id, status, options);
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const submitDecline = async () => {
+    if (!declineAssignment) return;
+    const assignment = declineAssignment;
+    setDeclineAssignment(null);
+    await handleStatus(assignment, "DECLINED", {
+      declineReason: declineReason.trim() || undefined,
+      requestSubstitute,
+    });
+    setDeclineReason("");
+    setRequestSubstitute(false);
   };
 
   const exportReport = async (schedule: Schedule) => {
@@ -89,20 +124,50 @@ export default function SchedulesScreen() {
     }
   };
 
+  const duplicateSchedule = async (schedule: Schedule) => {
+    if (!canCreateSchedule) return;
+    setDuplicatingId(schedule.id);
+    try {
+      await createSchedule({
+        title: `Copia de ${schedule.title}`,
+        date: schedule.date,
+        ministryId: schedule.ministryId,
+        songIds: [...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry) => entry.songId),
+        assignments: (schedule.assignments ?? []).map((assignment) => ({ userId: assignment.userId, role: assignment.role })),
+      });
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível duplicar a escala.");
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
   const assignmentByScheduleId = useMemo(() => {
     const map = new Map<string, ScheduleAssignment>();
     myAssignments.forEach((assignment) => map.set(assignment.scheduleId, assignment));
     return map;
   }, [myAssignments]);
 
+  const visibleSchedules = useMemo(
+    () => canManage ? allSchedules : myAssignments.map((assignment) => assignment.schedule as Schedule),
+    [allSchedules, canManage, myAssignments]
+  );
+  const filteredSchedules = useMemo(
+    () => filterSchedules(visibleSchedules, filters, new Map([...assignmentByScheduleId].map(([id, assignment]) => [id, assignment.status]))),
+    [assignmentByScheduleId, filters, visibleSchedules]
+  );
+  const activeFilters = hasActiveFilters(filters);
+  const canApplyFilters = hasActiveFilters(draftFilters);
+  const ministryFilterOptions = uniqueScheduleMinistries(visibleSchedules);
+
   const schedulesByDay = useMemo(() => {
     const map = new Map<string, Schedule[]>();
-    allSchedules.forEach((schedule) => {
+    filteredSchedules.forEach((schedule) => {
       const key = dateKey(schedule.date);
       map.set(key, [...(map.get(key) ?? []), schedule]);
     });
     return map;
-  }, [allSchedules]);
+  }, [filteredSchedules]);
 
   const selectedSchedules = useMemo(
     () => [...(schedulesByDay.get(selectedDate) ?? [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
@@ -111,29 +176,137 @@ export default function SchedulesScreen() {
   const calendar = useMemo(() => buildCalendarDays(month), [month]);
   const todayKey = dateKey(new Date());
 
+  const openFilters = () => {
+    setDraftFilters(filters);
+    setShowFilters(true);
+  };
+
+  const clearFilters = () => {
+    setFilters(emptyScheduleFilters);
+    setDraftFilters(emptyScheduleFilters);
+    setShowFilters(false);
+  };
+
+  const applyFilters = () => {
+    if (!hasActiveFilters(draftFilters)) return;
+    setFilters(draftFilters);
+    setShowFilters(false);
+  };
+
   return (
-    <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+    <Screen padded={false}>
+      <Modal visible={Boolean(declineAssignment)} transparent animationType="fade" onRequestClose={() => setDeclineAssignment(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Recusar escala</Text>
+            <Text style={styles.modalText}>Informe um motivo opcional e escolha se deseja solicitar substituto.</Text>
+            <TextInput
+              style={styles.reasonInput}
+              value={declineReason}
+              onChangeText={setDeclineReason}
+              placeholder="Motivo da recusa"
+              placeholderTextColor={colors.muted}
+              multiline
+              textAlignVertical="top"
+              accessibilityLabel="Motivo da recusa"
+            />
+            <TouchableOpacity style={styles.checkRow} onPress={() => setRequestSubstitute((current) => !current)} accessibilityRole="checkbox" accessibilityLabel="Solicitar substituto">
+              <View style={[styles.checkbox, requestSubstitute && styles.checkboxActive]} />
+              <Text style={styles.checkText}>Solicitar substituto</Text>
+            </TouchableOpacity>
+            <View style={styles.modalActions}>
+              <Button title="Cancelar" variant="secondary" onPress={() => setDeclineAssignment(null)} accessibilityLabel="Cancelar recusa" />
+              <Button title="Recusar" onPress={() => void submitDecline()} accessibilityLabel="Confirmar recusa" />
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <FilterPanel
+        visible={showFilters}
+        title="Filtrar escalas"
+        canApply={canApplyFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilters(false)}
+        onClear={activeFilters || canApplyFilters ? clearFilters : undefined}
+      >
+        <AppInput
+          label="Palavra-chave geral"
+          value={draftFilters.query ?? ""}
+          onChangeText={(query) => setDraftFilters((current) => ({ ...current, query }))}
+          placeholder="Escala, ministério, música ou membro"
+          accessibilityLabel="Buscar escalas"
+        />
+        <FilterSection title="Ministério">
+          <Chip label="Sem ministério" active={draftFilters.ministryId === NO_MINISTRY} onPress={() => setDraftFilters((current) => ({ ...current, ministryId: NO_MINISTRY }))} />
+          {ministryFilterOptions.map((ministry) => (
+            <Chip key={ministry.id} label={ministry.name} active={draftFilters.ministryId === ministry.id} onPress={() => setDraftFilters((current) => ({ ...current, ministryId: ministry.id }))} />
+          ))}
+        </FilterSection>
+        <FilterSection title="Status">
+          <Chip label="Pendente" active={draftFilters.status === "PENDING"} onPress={() => setDraftFilters((current) => ({ ...current, status: "PENDING" }))} />
+          <Chip label="Aceita" active={draftFilters.status === "ACCEPTED"} onPress={() => setDraftFilters((current) => ({ ...current, status: "ACCEPTED" }))} />
+          <Chip label="Recusada" active={draftFilters.status === "DECLINED"} onPress={() => setDraftFilters((current) => ({ ...current, status: "DECLINED" }))} />
+        </FilterSection>
+        <FilterSection title="Periodo">
+          <AppInput
+            label="Data inicial"
+            value={draftFilters.dateFrom ?? ""}
+            onChangeText={(dateFrom) => setDraftFilters((current) => ({ ...current, dateFrom }))}
+            placeholder="AAAA-MM-DD"
+            accessibilityLabel="Filtrar escalas por data inicial"
+          />
+          <AppInput
+            label="Data final"
+            value={draftFilters.dateTo ?? ""}
+            onChangeText={(dateTo) => setDraftFilters((current) => ({ ...current, dateTo }))}
+            placeholder="AAAA-MM-DD"
+            accessibilityLabel="Filtrar escalas por data final"
+          />
+        </FilterSection>
+      </FilterPanel>
       <FlatList
+        style={styles.flatList}
         data={selectedSchedules}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View>
-            <View style={styles.header}>
-              <View>
-                <Text style={styles.title}>Escalas</Text>
-                <Text style={styles.subtitle}>Igreja atual: {tenant?.name ?? "Não identificada"}</Text>
-              </View>
-              {canManageSchedules(user?.role) ? (
-                <TouchableOpacity style={styles.newButton} onPress={() => router.push("/schedules/new" as never)}>
-                  <Plus color={colors.surface} size={18} />
-                  <Text style={styles.newButtonText}>Nova Escala</Text>
-                </TouchableOpacity>
+            <SectionHeader
+              title="Escalas"
+              subtitle={`Igreja atual: ${tenant?.name ?? "Não identificada"}`}
+              action={canCreateSchedule ? (
+                <View style={styles.headerActions}>
+                  <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
+                  <Button
+                    title="Nova Escala"
+                    icon={<Plus color={colors.surface} size={18} />}
+                    size="lg"
+                    style={styles.newButton}
+                    onPress={() => router.push(newScheduleHref(selectedDate))}
+                    accessibilityLabel="Criar nova escala"
+                  />
+                </View>
+              ) : (
+                <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
+              )}
+            />
+            {activeFilters ? <Button title="Limpar filtros" variant="ghost" size="sm" style={styles.clearFiltersButton} onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" /> : null}
+            <ErrorBanner
+              message={error}
+              style={styles.errorText}
+              action={error ? (
+                <Button
+                  title="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  style={styles.retryButton}
+                  onPress={() => void handleRefresh()}
+                  accessibilityLabel="Tentar carregar escalas novamente"
+                />
               ) : null}
-            </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            <View style={styles.calendarCard}>
+            />
+            <Card style={styles.calendarCard}>
               <View style={styles.monthRow}>
                 <TouchableOpacity onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
                   <Text style={styles.monthNav}>‹</Text>
@@ -161,131 +334,110 @@ export default function SchedulesScreen() {
                   );
                 })}
               </View>
-            </View>
+            </Card>
             <Text style={styles.sectionTitle}>Escalas do dia</Text>
-            {loading && !allSchedules.length ? <ActivityIndicator color={colors.primary} /> : null}
+            {loading && !visibleSchedules.length ? <LoadingState centered={false} style={styles.inlineLoading} /> : null}
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />
-            <Text style={styles.emptyTitle}>Nenhuma escala neste dia</Text>
-            <Text style={styles.emptyText}>Selecione outro dia no calendário ou crie uma nova escala.</Text>
-          </View>
+          <EmptyState
+            icon={<CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />}
+            title={activeFilters ? "Nenhuma escala encontrada" : "Nenhuma escala neste dia"}
+            description={activeFilters ? "Ajuste ou limpe os filtros para ver outras escalas." : "Selecione outro dia no calendário ou crie uma nova escala."}
+            action={canCreateSchedule ? (
+              activeFilters ? (
+                <Button title="Limpar filtros" variant="secondary" onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" />
+              ) : (
+                <Button
+                  title="Criar escala"
+                  size="lg"
+                  onPress={() => router.push(newScheduleHref(selectedDate))}
+                  accessibilityLabel="Criar escala"
+                />
+              )
+            ) : null}
+          />
         }
         renderItem={({ item }) => {
           const assignment = assignmentByScheduleId.get(item.id);
-          const isPending = assignment?.status === "PENDING";
-          const isUpdating = updatingId === assignment?.id;
-          const isExporting = exportingId === item.id;
-          const date = new Date(item.date);
           return (
-            <View style={styles.card}>
-              <Pressable
-                style={({ hovered, pressed }: any) => [
-                  styles.cardPressArea,
-                  canManageSchedules(user?.role) && styles.cardClickable,
-                  hovered && canManageSchedules(user?.role) && styles.cardHover,
-                  pressed && canManageSchedules(user?.role) && styles.cardPressed,
-                ]}
-                onPress={() => { if (canManageSchedules(user?.role)) router.push(`/schedules/${item.id}/edit` as never); }}
-                accessibilityRole={canManageSchedules(user?.role) ? "button" : undefined}
-                accessibilityLabel={canManageSchedules(user?.role) ? `Editar escala ${item.title}` : undefined}
-              >
-                <View style={styles.summaryDate}>
-                  <Text style={styles.dayNumber}>{date.getDate()}</Text>
-                  <Text style={styles.weekday}>{weekday.format(date).replace(".", "")}</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTime}>{time.format(date)}</Text>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  <Text style={styles.detail}>Ministério: {item.ministry?.name ?? "Não informado"}</Text>
-                  {item.songs?.length ? <Text style={styles.detail}>Músicas: {item.songs.map((entry) => entry.song.title).join(", ")}</Text> : null}
-                  {item.assignments?.length ? <Text style={styles.detail}>Membros: {item.assignments.map((entry) => entry.user?.name ?? "Membro").join(", ")}</Text> : null}
-                  {assignment ? <Text style={styles.status}>Minha atribuição: {assignment.role} · {formatAssignmentStatus(assignment.status)}</Text> : null}
-                </View>
-              </Pressable>
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={styles.reportButton}
-                  onPress={() => void exportReport(item)}
-                  disabled={isExporting}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Gerar relatório da escala ${item.title}`}
-                >
-                  {isExporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
-                  <Text style={styles.reportButtonText}>{isExporting ? "Gerando..." : "Gerar relatório"}</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.cardBodyOffset}>
-                {isPending && assignment ? (
-                  <View style={styles.actions}>
-                    <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => void handleStatus(assignment, "ACCEPTED")} disabled={isUpdating}>
-                      <Text style={styles.acceptButtonText}>{isUpdating ? "Atualizando..." : "Aceitar"}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => void handleStatus(assignment, "DECLINED")} disabled={isUpdating}>
-                      <Text style={styles.declineButtonText}>Recusar</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
-            </View>
+            <ScheduleCard
+              schedule={item}
+              assignment={assignment}
+              canManage={can(user, "schedule:edit") || can(user, "schedule:delete") || can(user, "schedule:assign_members")}
+              updating={updatingId === assignment?.id}
+              exporting={exportingId === item.id}
+              duplicating={duplicatingId === item.id}
+              onEdit={() => router.push(`/schedules/${item.id}/edit` as never)}
+              onDuplicate={() => void duplicateSchedule(item)}
+              onExport={() => void exportReport(item)}
+              onAccept={assignment ? () => void handleStatus(assignment, "ACCEPTED") : undefined}
+              onDecline={assignment ? () => setDeclineAssignment(assignment) : undefined}
+              onRequestSubstitute={assignment ? () => {
+                setRequestSubstitute(true);
+                setDeclineAssignment(assignment);
+              } : undefined}
+              onResolveSubstitution={(target) => void resolveSubstitution(item.id, target.id, "Resolvido manualmente")}
+            />
           );
         }}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  flatList: { flex: 1 },
   list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
-  title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
-  newButton: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.primary, borderRadius: radii.md, paddingHorizontal: spacing.md, ...buttonShadow },
-  newButtonText: { color: colors.surface, fontSize: 13, fontWeight: "900" },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginBottom: spacing.sm },
-  calendarCard: { backgroundColor: colors.surface, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, marginBottom: spacing.lg, ...shadow },
+  newButton: { paddingHorizontal: spacing.md },
+  headerActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flexWrap: "wrap" },
+  errorText: { marginBottom: spacing.sm },
+  retryButton: { alignSelf: "flex-start", marginBottom: spacing.md },
+  clearFiltersButton: { alignSelf: "flex-start" },
+  calendarCard: { padding: spacing.lg, marginBottom: spacing.lg },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  monthTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", textTransform: "capitalize" },
-  monthNav: { color: colors.primary, fontSize: 30, fontWeight: "900", paddingHorizontal: spacing.md },
+  monthTitle: { ...typography.cardTitle, color: colors.ink, textTransform: "capitalize" },
+  monthNav: { color: colors.primary, fontSize: 30, fontWeight: "700", paddingHorizontal: spacing.md },
   weekRow: { flexDirection: "row" },
-  weekLabel: { flex: 1, textAlign: "center", color: colors.muted, fontSize: 12, fontWeight: "900", marginBottom: spacing.xs },
+  weekLabel: { ...typography.badge, flex: 1, textAlign: "center", color: colors.muted, marginBottom: spacing.xs },
   dayGrid: { flexDirection: "row", flexWrap: "wrap" },
   dayCell: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
   todayCell: { borderWidth: 1, borderColor: colors.primary },
   selectedCell: { backgroundColor: colors.primary },
-  dayText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  dayText: { ...typography.metadata, color: colors.text, textAlign: "center" },
   selectedDayText: { color: colors.surface },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary, marginTop: 3 },
   selectedDot: { backgroundColor: colors.surface },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.md },
-  emptyBox: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.xl, borderWidth: 1, borderColor: colors.line, alignItems: "center", gap: spacing.sm, ...shadow },
-  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "800" },
-  emptyText: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "center" },
-  card: { backgroundColor: colors.surface, borderRadius: radii.xl, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.line, ...shadow },
+  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
+  inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalCard: { width: "100%", maxWidth: 520, backgroundColor: colors.surface, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, padding: spacing.lg },
+  modalTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.sm },
+  modalText: { ...typography.body, color: colors.text, marginBottom: spacing.md },
+  reasonInput: { minHeight: 96, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, marginBottom: spacing.md },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg },
+  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkText: { ...typography.label, color: colors.text },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, flexWrap: "wrap" },
+  card: { padding: spacing.lg, marginBottom: spacing.md },
   cardPressArea: { flexDirection: "row", borderRadius: radii.lg },
   cardClickable: { cursor: "pointer" } as any,
   cardHover: { backgroundColor: colors.primarySoft },
   cardPressed: { opacity: 0.86 },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
-  dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "900" },
-  weekday: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "700", lineHeight: 33 },
+  weekday: { ...typography.badge, color: colors.muted, textTransform: "uppercase" },
   cardBody: { flex: 1 },
   cardBodyOffset: { marginLeft: 58 },
-  cardTime: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", marginTop: spacing.xs, marginBottom: spacing.xs },
-  detail: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: "600" },
-  status: { color: colors.primary, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
+  cardTime: { ...typography.label, color: colors.primary },
+  cardTitle: { ...typography.cardTitle, color: colors.ink, marginTop: spacing.xs, marginBottom: spacing.xs },
+  detail: { ...typography.metadata, color: colors.text },
+  status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
+  assignmentStatusRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
   cardActions: { marginLeft: 58, marginTop: spacing.md, alignItems: "flex-start" },
-  reportButton: { alignSelf: "flex-start", minHeight: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  reportButton: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.line },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  actionButton: { minHeight: 40, borderRadius: radii.md, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center" },
-  acceptButton: { backgroundColor: colors.primary },
-  declineButton: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.line },
-  acceptButtonText: { color: colors.surface, fontSize: 13, fontWeight: "800" },
-  declineButtonText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  actionButton: { minHeight: 40, paddingHorizontal: spacing.lg },
 });
 

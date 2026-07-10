@@ -29,6 +29,15 @@ export type UpdateMyProfilePayload = {
   avatarUrl?: string | null;
 };
 
+export type MemberListParams = {
+  search?: string;
+  ministryId?: string;
+  instrumentId?: string;
+  role?: Role | string;
+  withoutMinistry?: boolean;
+  withoutInstrument?: boolean;
+};
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -68,9 +77,11 @@ export const memberService = {
     }
   },
 
-  async listMembers(): Promise<Member[]> {
+  async listMembers(params?: MemberListParams): Promise<Member[]> {
     try {
-      const response = await api.get<ApiResponse<Member[]>>("/members");
+      const response = params
+        ? await api.get<ApiResponse<Member[]>>("/members", { params })
+        : await api.get<ApiResponse<Member[]>>("/members");
       return response.data.data;
     } catch (error) {
       handleApiError(error);

@@ -4,6 +4,8 @@ import { Text, TouchableOpacity } from "react-native";
 import NewScheduleScreen from "../../app/(tabs)/schedules/new";
 
 type TestNode = TestRenderer.ReactTestInstance;
+let currentRole = "TENANT_ADMIN";
+let routeParams: { date?: string } = {};
 
 jest.mock("react-native", () => {
   const React = require("react");
@@ -12,7 +14,9 @@ jest.mock("react-native", () => {
     ActivityIndicator: create("ActivityIndicator"),
     Alert: { alert: jest.fn() },
     Modal: ({ visible, children, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
+    Dimensions: { get: () => ({ width: 1024, height: 768 }) },
     Platform: { select: (values: any) => values.web ?? values.default },
+    Pressable: create("Pressable"),
     ScrollView: create("ScrollView"),
     StyleSheet: { create: (styles: any) => styles },
     Text: create("Text"),
@@ -24,6 +28,7 @@ jest.mock("react-native", () => {
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: jest.fn() }),
+  useLocalSearchParams: () => routeParams,
 }));
 
 jest.mock("lucide-react-native", () => {
@@ -45,7 +50,7 @@ jest.mock("../../src/components/ArtistPicker", () => ({
 }));
 
 jest.mock("../../src/store/authStore", () => ({
-  useAuthStore: (selector: any) => selector({ user: { id: "admin-1", role: "TENANT_ADMIN" } }),
+  useAuthStore: (selector: any) => selector({ user: { id: "admin-1", role: currentRole } }),
 }));
 
 jest.mock("../../src/store/scheduleStore", () => ({
@@ -89,6 +94,75 @@ describe("NewScheduleScreen", () => {
 
   afterAll(() => {
     jest.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    currentRole = "TENANT_ADMIN";
+    routeParams = {};
+  });
+
+  it("bloqueia usuario comum na rota administrativa de criacao", async () => {
+    currentRole = "MEMBER";
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(<NewScheduleScreen />);
+    });
+
+    const text = renderer!.root.findAllByType(Text).map((node: TestNode) => node.props.children).flat().join(" ");
+    expect(text).toContain("permiss");
+  });
+  it("usa a data selecionada no calendario como valor inicial", async () => {
+    routeParams = { date: "2026-07-15" };
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(<NewScheduleScreen />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const dateInput = renderer!.root.findByProps({ testID: "schedule-date" });
+    expect(dateInput.props.value).toBe("15/07/2026");
+
+    const allTexts = renderer!.root.findAllByType(Text).map((node: TestNode) => node.props.children).flat().join(" ");
+    expect(allTexts).not.toContain("Calendário");
+  });
+
+  it("fecha calendario e seletor de horario ao tocar fora", async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(<NewScheduleScreen />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ testID: "schedule-date-picker" }).props.onPress();
+    });
+    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Fechar calendário" }).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      renderer!.root.findAllByProps({ accessibilityLabel: "Fechar calendário" })[0].props.onPress();
+    });
+    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Fechar calendário" })).toHaveLength(0);
+
+    await act(async () => {
+      renderer!.root.findByProps({ testID: "schedule-time-picker" }).props.onPress();
+    });
+    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Fechar seletor de horário" }).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      renderer!.root.findAllByProps({ accessibilityLabel: "Fechar seletor de horário" })[0].props.onPress();
+    });
+    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Fechar seletor de horário" })).toHaveLength(0);
   });
 
   it("abre criação rápida de música por cima do modal de seleção e mantém botões com mesmo estilo base", async () => {
