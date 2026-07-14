@@ -40,6 +40,12 @@ export const updateMyProfileSchema = z.object({
   avatarUrl: avatarUrlSchema.nullable().optional(),
 }).refine((input) => Object.keys(input).length > 0, "Informe ao menos um dado para atualizar");
 
+export const updateMemberSchema = z.object({
+  name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max(100).optional(),
+  email: z.string().trim().email("E-mail inválido").max(255).optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+}).refine((input) => Object.keys(input).length > 0, "Informe ao menos um dado para atualizar");
+
 export const toggleMinistryMemberSchema = z.object({
   member_id: z.string().uuid("ID do membro inválido").optional(),
   memberId: z.string().uuid("ID do membro inválido").optional(),
@@ -91,6 +97,7 @@ export type AddMemberMinistryInput = z.infer<typeof addMemberMinistrySchema>;
 export type UpdateMemberInstrumentsInput = z.infer<typeof updateMemberInstrumentsSchema>;
 export type UpdateMemberPermissionsInput = z.infer<typeof updateMemberPermissionsSchema>;
 export type UpdateMyProfileInput = z.infer<typeof updateMyProfileSchema>;
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 export type ToggleMinistryMemberInput = z.infer<typeof toggleMinistryMemberSchema>;
 export type AssignMemberToMinistryInput = z.infer<typeof assignMemberToMinistrySchema>;
 export type UpdateMemberAssignmentInput = z.infer<typeof updateMemberAssignmentSchema>;

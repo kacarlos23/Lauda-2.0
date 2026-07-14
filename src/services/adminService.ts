@@ -116,7 +116,7 @@ export class AdminService {
     return this.repository.listUsers(tenantId);
   }
 
-  async updateUser(userId: string, input: AdminUpdateUserInput) {
+  async updateUser(actor: AdminActor, userId: string, input: AdminUpdateUserInput) {
     const user = await this.repository.findUserById(userId);
     if (!user) throw new NotFoundError("Usuário não encontrado");
 
@@ -126,8 +126,11 @@ export class AdminService {
     }
 
     if (input.tenantId !== undefined && input.tenantId !== null) await this.ensureTenantExists(input.tenantId);
-    if (input.tenantId === null && input.role && input.role !== Role.GLOBAL_ADMIN) throw new ValidationError("Somente GLOBAL_ADMIN pode ficar sem igreja vinculada");
-    if (input.tenantId === null && !input.role && user.role !== Role.GLOBAL_ADMIN) throw new ValidationError("Somente GLOBAL_ADMIN pode ficar sem igreja vinculada");
+    const nextRole = input.role ?? user.role;
+    const nextTenantId = input.tenantId !== undefined ? input.tenantId : user.tenantId;
+    if (nextRole !== Role.GLOBAL_ADMIN && !nextTenantId) {
+      throw new ValidationError("Usuário não-global deve estar vinculado a uma igreja");
+    }
 
     const data: Prisma.UserUpdateInput = {
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -139,7 +142,16 @@ export class AdminService {
       ...(input.password !== undefined ? { password: await bcrypt.hash(input.password, 10) } : {}),
     };
 
-    return this.repository.updateUser(userId, data);
+    const cleanupPermissions = nextRole === Role.GLOBAL_ADMIN || nextTenantId !== user.tenantId;
+    const updated = await this.repository.updateUserAndCleanupPermissions(userId, data, cleanupPermissions);
+    await this.audit(actor, "update", "users", userId, updated.tenantId, {
+      roleBefore: user.role,
+      roleAfter: updated.role,
+      tenantIdBefore: user.tenantId,
+      tenantIdAfter: updated.tenantId,
+      permissionOverridesCleared: cleanupPermissions,
+    });
+    return updated;
   }
 
   listMinistries() {

@@ -1,10 +1,14 @@
 import { z } from "zod";
-import { AssignmentStatus, Role } from "@prisma/client";
+import { AssignmentStatus, PermissionEffect, Role } from "@prisma/client";
 import { MUSICAL_KEYS } from "./song.schema";
 import { adminResourceNames } from "../repositories/AdminRepository";
-import { permissionDefinitions } from "../constants/permissions";
+import { legacyPermissionAliases, normalizePermissionKey, permissionDefinitions } from "../constants/permissions";
 
-const permissionKeys = permissionDefinitions.map((permission) => permission.key) as [string, ...string[]];
+const permissionKeys = [
+  ...permissionDefinitions.map((permission) => permission.key),
+  ...Object.keys(legacyPermissionAliases),
+] as [string, ...string[]];
+const permissionKeySchema = z.enum(permissionKeys).transform((key) => normalizePermissionKey(key)!);
 
 export const adminTenantParamsSchema = z.object({
   tenantId: z.string().uuid("tenantId inválido"),
@@ -42,15 +46,32 @@ export const adminUserPermissionsQuerySchema = z.object({
   tenantId: z.string().uuid("tenantId invÃ¡lido").optional(),
 });
 
-export const adminGrantPermissionSchema = z.object({
+const deprecatedAdminGrantPermissionSchema = z.object({
   permissionKey: z.enum(permissionKeys),
   tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
 });
 
-export const adminSetPermissionsSchema = z.object({
+const deprecatedAdminSetPermissionsSchema = z.object({
   permissionKeys: z.array(z.enum(permissionKeys)),
   tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
 });
+
+export const adminGrantPermissionSchema = z.object({
+  permissionKey: permissionKeySchema,
+  effect: z.enum(PermissionEffect).default(PermissionEffect.ALLOW),
+});
+
+export const adminSetPermissionsSchema = z.union([
+  z.object({
+    overrides: z.array(z.object({ permissionKey: permissionKeySchema, effect: z.enum(PermissionEffect) })),
+  }),
+  z.object({ permissionKeys: z.array(permissionKeySchema) }).transform((input) => ({
+    overrides: input.permissionKeys.map((permissionKey) => ({ permissionKey, effect: PermissionEffect.ALLOW })),
+  })),
+]);
+
+void deprecatedAdminGrantPermissionSchema;
+void deprecatedAdminSetPermissionsSchema;
 
 export const adminResourceQuerySchema = z.object({
   tenantId: z.string().uuid("tenantId inválido").optional(),

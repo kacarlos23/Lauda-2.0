@@ -152,6 +152,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
+    if (error.response?.status === 403 && !originalRequest?.url?.includes("/auth/me")) {
+      const { useAuthStore } = require("../store/authStore");
+      void useAuthStore.getState().refreshCurrentUser();
+      return Promise.reject(error);
+    }
+
     if (shouldRetryTenantMissingAuth(error, originalRequest) && originalRequest) {
       originalRequest._retry = true;
       try {

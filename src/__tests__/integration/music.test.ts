@@ -5,6 +5,7 @@ import request from "supertest";
 import { Role } from "@prisma/client";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import type { prisma as PrismaClientInstance } from "../../config/prisma";
+import { CifraClubImportService } from "../../services/cifraClubImportService";
 
 let app: express.Express;
 let prisma: typeof PrismaClientInstance;
@@ -128,6 +129,42 @@ describe("Artists and songs API", () => {
       .set("Authorization", `Bearer ${tenant.token}`)
       .send({ url: "https://example.com/aline-barros/autor-da-vida/" })
       .expect(400);
+  });
+
+  it("aceita busca no Cifra Club com somente artista, somente música ou ambos", async () => {
+    const tenant = await register("cifra-partial-search");
+    const search = jest.spyOn(CifraClubImportService.prototype, "search").mockResolvedValue({
+      items: [{
+        title: "Autor da Vida",
+        artist: "Oficina G3",
+        url: "https://www.cifraclub.com.br/oficina-g3/autor-da-vida/",
+        originalKey: "G",
+      }],
+    });
+
+    try {
+      const artistOnly = await request(app)
+        .get("/api/songs/cifra-club/search?artist=Oficina%20G3")
+        .set("Authorization", `Bearer ${tenant.token}`)
+        .expect(200);
+      expect(artistOnly.body.data.items).toHaveLength(1);
+      expect(search).toHaveBeenLastCalledWith({ artist: "Oficina G3" });
+
+      const titleOnly = await request(app)
+        .get("/api/songs/cifra-club/search?title=Autor%20da%20Vida")
+        .set("Authorization", `Bearer ${tenant.token}`)
+        .expect(200);
+      expect(titleOnly.body.data.items).toHaveLength(1);
+      expect(search).toHaveBeenLastCalledWith({ title: "Autor da Vida" });
+
+      await request(app)
+        .get("/api/songs/cifra-club/search?artist=Oficina%20G3&title=Autor%20da%20Vida")
+        .set("Authorization", `Bearer ${tenant.token}`)
+        .expect(200);
+      expect(search).toHaveBeenLastCalledWith({ artist: "Oficina G3", title: "Autor da Vida" });
+    } finally {
+      search.mockRestore();
+    }
   });
 
   it("normaliza nomes, ordena busca e rejeita duplicidade por tenant", async () => {

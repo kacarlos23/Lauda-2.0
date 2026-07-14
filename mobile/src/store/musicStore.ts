@@ -25,6 +25,7 @@ interface MusicState {
   primeSong: (song: Song) => void;
   createSong: (payload: SongPayload) => Promise<Song>;
   updateSong: (id: string, payload: Partial<SongPayload>) => Promise<Song>;
+  deleteSong: (id: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -210,6 +211,31 @@ export const useMusicStore = create<MusicState>((set) => ({
       return song;
     } catch (error) {
       const reason = message(error, "Não foi possível atualizar a música.");
+      set({ saving: false, error: reason });
+      throw new Error(reason);
+    }
+  },
+
+  deleteSong: async (id) => {
+    set({ saving: true, error: null });
+    try {
+      await musicService.deleteSong(id);
+      set((state) => {
+        const total = Math.max(0, state.pagination.total - 1);
+        const localMutations = { ...state.localMutations };
+        delete localMutations[id];
+        return {
+          saving: false,
+          songs: state.songs.filter((song) => song.id !== id),
+          currentSong: state.currentSong?.id === id ? null : state.currentSong,
+          pagination: { ...state.pagination, total, totalPages: total ? Math.ceil(total / state.pagination.limit) : 0 },
+          listMutationVersion: state.listMutationVersion + 1,
+          listInvalidationVersion: state.listInvalidationVersion + 1,
+          localMutations,
+        };
+      });
+    } catch (error) {
+      const reason = message(error, "Não foi possível excluir a música.");
       set({ saving: false, error: reason });
       throw new Error(reason);
     }

@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Alert, Text, TouchableOpacity } from "react-native";
 import EditScheduleScreen from "../../app/(tabs)/schedules/[id]/edit";
+import { musicService } from "../../src/services/musicService";
 
 type TestNode = TestRenderer.ReactTestInstance;
 
@@ -30,6 +31,8 @@ jest.mock("react-native", () => {
     Alert: { alert: jest.fn() },
     Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
+    Pressable: create("Pressable"),
+    useWindowDimensions: () => ({ width: 1024, height: 768 }),
     ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
     StyleSheet: { create: (styles: any) => styles },
     Text: create("Text"),
@@ -51,7 +54,7 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { ArrowLeft: Icon, Calendar: Icon, Clock: Icon, Download: Icon };
+  return { ArrowLeft: Icon, Calendar: Icon, Clock: Icon, Download: Icon, Search: Icon, Trash2: Icon, X: Icon };
 });
 
 jest.mock("../../src/components/AppBackButton", () => ({
@@ -118,6 +121,11 @@ function findDeleteButton(renderer: TestRenderer.ReactTestRenderer) {
     .find((node: TestNode) => node.props.accessibilityLabel === "Excluir escala");
 }
 
+function findConfirmButton(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(TouchableOpacity)
+    .find((node: TestNode) => node.props.accessibilityLabel === "Confirmar exclusão da escala");
+}
+
 describe("EditScheduleScreen exclusao", () => {
   beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
@@ -134,6 +142,8 @@ describe("EditScheduleScreen exclusao", () => {
     jest.clearAllMocks();
     currentRole = "TENANT_ADMIN";
     deleteScheduleMock.mockResolvedValue(undefined);
+    (globalThis as any).window = { confirm: jest.fn() };
+    jest.mocked(musicService.listSongs).mockResolvedValue({ items: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } });
   });
 
   it("nao mostra botao para usuario sem permissao", async () => {
@@ -152,13 +162,33 @@ describe("EditScheduleScreen exclusao", () => {
       deleteButton!.props.onPress();
     });
 
-    const alertCall = jest.mocked(Alert.alert).mock.calls[0];
-    expect(alertCall[0]).toBe("Excluir escala");
-    expect(alertCall[1]).toContain("atribuições relacionadas");
-    const cancel = (alertCall[2] as any[])[0];
-    cancel.onPress?.();
+    expect(renderer.root.findByProps({ testID: "delete-schedule-modal" })).toBeTruthy();
+    expect(textContent(renderer)).toContain("Culto exclusao");
+    await act(async () => {
+      renderer.root.findByProps({ accessibilityLabel: "Manter escala" }).props.onPress();
+    });
 
     expect(deleteScheduleMock).not.toHaveBeenCalled();
+    expect(renderer.root.findAllByProps({ testID: "delete-schedule-modal" })).toHaveLength(0);
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("fecha o modal pelo ícone, fundo e ação de voltar", async () => {
+    const renderer = await renderScreen();
+    const open = async () => act(async () => findDeleteButton(renderer)!.props.onPress());
+
+    await open();
+    await act(async () => renderer.root.findByProps({ accessibilityLabel: "Fechar" }).props.onPress());
+    expect(renderer.root.findAllByProps({ testID: "delete-schedule-modal" })).toHaveLength(0);
+
+    await open();
+    await act(async () => renderer.root.findByProps({ testID: "delete-schedule-modal-backdrop" }).props.onPress());
+    expect(renderer.root.findAllByProps({ testID: "delete-schedule-modal" })).toHaveLength(0);
+
+    await open();
+    await act(async () => renderer.root.findByType("Modal" as any).props.onRequestClose());
+    expect(renderer.root.findAllByProps({ testID: "delete-schedule-modal" })).toHaveLength(0);
   });
 
   it("exclui com sucesso e redireciona", async () => {
@@ -167,15 +197,15 @@ describe("EditScheduleScreen exclusao", () => {
     await act(async () => {
       findDeleteButton(renderer)!.props.onPress();
     });
-    const confirm = (jest.mocked(Alert.alert).mock.calls[0][2] as any[])[1];
-
     await act(async () => {
-      await confirm.onPress();
+      findConfirmButton(renderer)!.props.onPress();
+      await Promise.resolve();
     });
 
     expect(deleteScheduleMock).toHaveBeenCalledWith("schedule-1");
-    expect(Alert.alert).toHaveBeenCalledWith("Escala excluída", "A escala foi removida das listas ativas.");
     expect(replaceMock).toHaveBeenCalledWith("/schedules");
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
   });
 
   it("mostra erro quando API falha", async () => {
@@ -185,13 +215,52 @@ describe("EditScheduleScreen exclusao", () => {
     await act(async () => {
       findDeleteButton(renderer)!.props.onPress();
     });
-    const confirm = (jest.mocked(Alert.alert).mock.calls[0][2] as any[])[1];
-
     await act(async () => {
-      await confirm.onPress();
+      findConfirmButton(renderer)!.props.onPress();
+      await Promise.resolve();
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith("Erro", "Falha da API");
+    expect(renderer.root.findByProps({ testID: "delete-schedule-error" })).toBeTruthy();
+    expect(textContent(renderer)).toContain("Falha da API");
+    expect(findConfirmButton(renderer)).toBeTruthy();
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia cliques duplicados enquanto exclui", async () => {
+    let resolveDelete!: () => void;
+    deleteScheduleMock.mockReturnValueOnce(new Promise<void>((resolve) => { resolveDelete = resolve; }));
+    const renderer = await renderScreen();
+    act(() => findDeleteButton(renderer)!.props.onPress());
+
+    act(() => {
+      findConfirmButton(renderer)!.props.onPress();
+      findConfirmButton(renderer)!.props.onPress();
+    });
+
+    expect(deleteScheduleMock).toHaveBeenCalledTimes(1);
+    expect(textContent(renderer)).toContain("Excluindo...");
+    expect(findConfirmButton(renderer)!.props.disabled).toBe(true);
+
+    await act(async () => resolveDelete());
+  });
+
+  it("busca músicas no seletor de edição da escala", async () => {
+    const renderer = await renderScreen();
+    const editSongsButton = renderer.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.findAllByType(Text).some((text: TestNode) => String(text.props.children).includes("Editar m")));
+
+    await act(async () => {
+      editSongsButton!.props.onPress();
+    });
+    act(() => {
+      renderer.root.findByProps({ testID: "schedule-song-search-input" }).props.onChangeText("Vineyard");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    expect(musicService.listSongs).toHaveBeenCalledWith("Vineyard", 1, 100);
+    act(() => renderer.unmount());
   });
 });

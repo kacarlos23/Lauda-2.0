@@ -13,6 +13,7 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { CalendarClock, Plus } from "lucide-react-native";
 import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
+import { musicService } from "../../../src/services/musicService";
 import { scheduleService } from "../../../src/services/scheduleService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
@@ -20,7 +21,14 @@ import { Schedule, ScheduleAssignment } from "../../../src/types";
 import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, LoadingState, Screen, SectionHeader } from "../../../src/components/ui";
 import { colors, radii, screen, spacing, typography } from "../../../src/theme";
 import { NO_MINISTRY, emptyScheduleFilters, filterSchedules, hasActiveFilters, ScheduleListFilters, uniqueScheduleMinistries } from "../../../src/utils/listFilters";
-import { can } from "../../../src/utils/permissions";
+import { canManageMusic } from "../../../src/utils/musicPermissions";
+import {
+  canAssignScheduleMembers,
+  canCreateSchedule,
+  canDeleteSchedule,
+  canEditSchedule,
+  canViewScheduleAdminList,
+} from "../../../src/utils/schedulePermissions";
 
 const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 
@@ -52,6 +60,7 @@ export default function SchedulesScreen() {
   const { allSchedules, schedules: myAssignments, loading, refreshing, error, loadSchedules, loadMySchedules, updateScheduleStatus, createSchedule, resolveSubstitution } = useScheduleStore();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [exportingSongsId, setExportingSongsId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -61,8 +70,9 @@ export default function SchedulesScreen() {
   const [filters, setFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
   const [draftFilters, setDraftFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
   const [showFilters, setShowFilters] = useState(false);
-  const canManage = can(user, "schedule:view") || can(user, "schedule:create") || can(user, "schedule:edit");
-  const canCreateSchedule = can(user, "schedule:create");
+  const canManage = canViewScheduleAdminList(user) || canEditSchedule(user);
+  const canCreateSchedules = canCreateSchedule(user);
+  const canExportSongs = canManageMusic(user, "song:view");
   const defaultRange = useMemo(() => {
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -124,8 +134,28 @@ export default function SchedulesScreen() {
     }
   };
 
+  const exportSongs = async (schedule: Schedule) => {
+    const songIds = [...(schedule.songs ?? [])]
+      .sort((first, second) => first.order - second.order)
+      .map((entry) => entry.songId);
+    if (!songIds.length) return;
+    if (songIds.length > 50) {
+      Alert.alert("Limite de cifras", "É possível exportar até 50 músicas por PDF.");
+      return;
+    }
+    setExportingSongsId(schedule.id);
+    try {
+      const date = new Date(schedule.date).toISOString().slice(0, 10);
+      await musicService.exportSongs(songIds, `Cifras - ${schedule.title} - ${date}.pdf`);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível exportar as cifras da escala.");
+    } finally {
+      setExportingSongsId(null);
+    }
+  };
+
   const duplicateSchedule = async (schedule: Schedule) => {
-    if (!canCreateSchedule) return;
+    if (!canCreateSchedules) return;
     setDuplicatingId(schedule.id);
     try {
       await createSchedule({
@@ -247,7 +277,7 @@ export default function SchedulesScreen() {
           <Chip label="Aceita" active={draftFilters.status === "ACCEPTED"} onPress={() => setDraftFilters((current) => ({ ...current, status: "ACCEPTED" }))} />
           <Chip label="Recusada" active={draftFilters.status === "DECLINED"} onPress={() => setDraftFilters((current) => ({ ...current, status: "DECLINED" }))} />
         </FilterSection>
-        <FilterSection title="Periodo">
+        <FilterSection title="Período">
           <AppInput
             label="Data inicial"
             value={draftFilters.dateFrom ?? ""}
@@ -275,7 +305,7 @@ export default function SchedulesScreen() {
             <SectionHeader
               title="Escalas"
               subtitle={`Igreja atual: ${tenant?.name ?? "Não identificada"}`}
-              action={canCreateSchedule ? (
+              action={canCreateSchedules ? (
                 <View style={styles.headerActions}>
                   <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
                   <Button
@@ -344,7 +374,7 @@ export default function SchedulesScreen() {
             icon={<CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />}
             title={activeFilters ? "Nenhuma escala encontrada" : "Nenhuma escala neste dia"}
             description={activeFilters ? "Ajuste ou limpe os filtros para ver outras escalas." : "Selecione outro dia no calendário ou crie uma nova escala."}
-            action={canCreateSchedule ? (
+            action={canCreateSchedules ? (
               activeFilters ? (
                 <Button title="Limpar filtros" variant="secondary" onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" />
               ) : (
@@ -364,13 +394,15 @@ export default function SchedulesScreen() {
             <ScheduleCard
               schedule={item}
               assignment={assignment}
-              canManage={can(user, "schedule:edit") || can(user, "schedule:delete") || can(user, "schedule:assign_members")}
+              canManage={canEditSchedule(user) || canDeleteSchedule(user) || canAssignScheduleMembers(user)}
               updating={updatingId === assignment?.id}
               exporting={exportingId === item.id}
+              exportingSongs={exportingSongsId === item.id}
               duplicating={duplicatingId === item.id}
               onEdit={() => router.push(`/schedules/${item.id}/edit` as never)}
               onDuplicate={() => void duplicateSchedule(item)}
               onExport={() => void exportReport(item)}
+              onExportSongs={canExportSongs && item.songs?.length ? () => void exportSongs(item) : undefined}
               onAccept={assignment ? () => void handleStatus(assignment, "ACCEPTED") : undefined}
               onDecline={assignment ? () => setDeclineAssignment(assignment) : undefined}
               onRequestSubstitute={assignment ? () => {

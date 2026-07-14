@@ -60,6 +60,8 @@ pnpm-debug.*
 coverage/
 .nyc_output/
 .agent-browser-screenshots/
+.codex-remote-attachments/
+dogfood-output/
 playwright-report/
 test-results/
 blob-report/

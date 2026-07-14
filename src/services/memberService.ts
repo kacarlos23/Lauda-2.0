@@ -1,14 +1,15 @@
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { CreateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyProfileInput } from "../validators/member.schema";
-import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
+import { CreateMemberInput, UpdateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyProfileInput } from "../validators/member.schema";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import { hasPermission } from "./permissionService";
 
 type RequestUser = {
   id: string;
   role: Role;
   tenantId?: string;
+  permissions?: string[];
 };
 
 export class MemberService {
@@ -42,6 +43,24 @@ export class MemberService {
     });
     if (!member) throw new NotFoundError("Membro não encontrado");
     return member;
+  }
+
+  async update(memberId: string, input: UpdateMemberInput, user: RequestUser) {
+    await this.ensureManageableMember(memberId, user);
+    if (input.email) {
+      const existing = await this.memberRepository.findByEmail(input.email.toLowerCase());
+      if (existing && existing.id !== memberId) throw new ConflictError("E-mail já está em uso");
+    }
+    const member = await this.memberRepository.updateMember(memberId, input);
+    if (!member) throw new NotFoundError("Membro não encontrado");
+    return member;
+  }
+
+  async remove(memberId: string, user: RequestUser) {
+    await this.ensureManageableMember(memberId, user);
+    const count = await this.memberRepository.deactivateMember(memberId);
+    if (!count) throw new NotFoundError("Membro não encontrado");
+    return { id: memberId, isActive: false, message: "Membro inativado com sucesso" };
   }
 
   async addMinistry(memberId: string, ministryId: string, isLeader: boolean) {
@@ -103,7 +122,7 @@ export class MemberService {
       throw new ForbiddenError("Não é permitido alterar permissões de administrador global");
     }
 
-    const canManageLegacyPermissions = user.role === Role.GLOBAL_ADMIN || user.role === Role.TENANT_ADMIN;
+    const canManageLegacyPermissions = await hasPermission(user, "member:manage_access", user.tenantId);
     if (!canManageLegacyPermissions) {
       throw new ForbiddenError("Apenas administradores podem alterar permissões");
     }
@@ -131,5 +150,13 @@ export class MemberService {
       throw new NotFoundError("Membro não encontrado");
     }
     return updated;
+  }
+
+  private async ensureManageableMember(memberId: string, user: RequestUser) {
+    if (memberId === user.id) throw new ForbiddenError("Usuário não pode alterar ou inativar a própria conta por esta rota");
+    const member = await this.memberRepository.findById(memberId);
+    if (!member) throw new NotFoundError("Membro não encontrado");
+    if (member.role === Role.GLOBAL_ADMIN) throw new ForbiddenError("Administrador global não pode ser alterado por esta rota");
+    return member;
   }
 }

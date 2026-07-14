@@ -258,7 +258,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const response = await api.get<CurrentUserResponse>("/auth/me");
-      const nextUser = { ...currentUser, ...response.data.data.user };
+      const nextUser = {
+        ...currentUser,
+        ...response.data.data.user,
+        ...(response.data.data.permissions ? { permissions: response.data.data.permissions } : {}),
+      };
       await setSessionItem("auth_user", JSON.stringify(nextUser));
       if (response.data.data.tenant) {
         await setSessionItem("auth_tenant", JSON.stringify(response.data.data.tenant));

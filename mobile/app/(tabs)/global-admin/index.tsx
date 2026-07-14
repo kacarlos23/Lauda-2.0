@@ -7,8 +7,9 @@ import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from
 import { adminService } from "../../../src/services/adminService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
-import { GlobalResourceName, GlobalTenant, Permission, PermissionKey, Role, UserPermission } from "../../../src/types";
+import { GlobalResourceName, GlobalTenant, Permission, PermissionEffect, PermissionKey, Role } from "../../../src/types";
 import { isGlobalAdmin } from "../../../src/utils/permissions";
+import { effectivePermissionsFromOverrides, nextPermissionEffect, PermissionOverrideMap } from "../../../src/utils/permissionOverrides";
 
 type Row = Record<string, any>;
 type FieldType = "text" | "textarea" | "number" | "boolean" | "role" | "status" | "tenant" | "user" | "ministry" | "instrument" | "artist" | "song" | "schedule" | "datetime";
@@ -505,7 +506,7 @@ export default function GlobalAdminScreen() {
                     {!config.readOnly ? (
                       <>
                         <IconButton label="Editar" icon="edit" onPress={() => setModal({ mode: "edit", row })} />
-                        {activeResource === "users" && row.id !== user?.id ? (
+                        {activeResource === "users" && row.id !== user?.id && row.role !== "GLOBAL_ADMIN" ? (
                           <PermissionButton onPress={() => setPermissionUser(row)} />
                         ) : null}
                         {rowStatus(row) === "active" ? (
@@ -742,13 +743,12 @@ function PermissionModal({
   onSaved: () => Promise<void>;
 }) {
   const [catalog, setCatalog] = useState<Permission[]>([]);
-  const [activeKeys, setActiveKeys] = useState<PermissionKey[]>([]);
+  const [baselineKeys, setBaselineKeys] = useState<PermissionKey[]>([]);
+  const [overrideByKey, setOverrideByKey] = useState<PermissionOverrideMap>({});
   const [effectiveKeys, setEffectiveKeys] = useState<PermissionKey[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const tenantId = user?.tenantId ?? null;
-
   useEffect(() => {
     if (!visible || !user?.id) return;
     const userId = String(user.id);
@@ -759,11 +759,14 @@ function PermissionModal({
       try {
         const [permissions, userPermissions] = await Promise.all([
           adminService.listPermissions(),
-          adminService.listUserPermissions(userId, tenantId),
+          adminService.listUserPermissions(userId),
         ]);
         if (cancelled) return;
         setCatalog(permissions);
-        setActiveKeys(userPermissions.grants.map((grant) => grant.permission.key));
+        setBaselineKeys(userPermissions.baseline);
+        setOverrideByKey(Object.fromEntries(
+          userPermissions.overrides.map((override) => [override.permission.key, override.effect])
+        ) as PermissionOverrideMap);
         setEffectiveKeys(userPermissions.effective);
       } catch (loadError) {
         if (!cancelled) {
@@ -777,10 +780,18 @@ function PermissionModal({
     return () => {
       cancelled = true;
     };
-  }, [tenantId, user?.id, visible]);
+  }, [user?.id, visible]);
 
-  function togglePermission(key: PermissionKey) {
-    setActiveKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  function cyclePermission(key: PermissionKey) {
+    setOverrideByKey((current) => {
+      const effect = current[key];
+      const next = nextPermissionEffect(effect);
+      const updated = { ...current };
+      if (next) updated[key] = next;
+      else delete updated[key];
+      setEffectiveKeys(effectivePermissionsFromOverrides(baselineKeys, updated));
+      return updated;
+    });
   }
 
   async function save() {
@@ -788,8 +799,15 @@ function PermissionModal({
     setSaving(true);
     setError(null);
     try {
-      const userPermissions = await adminService.setUserPermissions(String(user.id), activeKeys, tenantId);
-      setActiveKeys(userPermissions.grants.map((grant) => grant.permission.key));
+      const overrides = Object.entries(overrideByKey).map(([permissionKey, effect]) => ({
+        permissionKey: permissionKey as PermissionKey,
+        effect: effect as PermissionEffect,
+      }));
+      const userPermissions = await adminService.setUserPermissions(String(user.id), overrides);
+      setBaselineKeys(userPermissions.baseline);
+      setOverrideByKey(Object.fromEntries(
+        userPermissions.overrides.map((override) => [override.permission.key, override.effect])
+      ) as PermissionOverrideMap);
       setEffectiveKeys(userPermissions.effective);
       await onSaved();
       onClose();
@@ -829,17 +847,24 @@ function PermissionModal({
                   Efetivas atualmente: {effectiveKeys.length}. Marque abaixo as permissões explícitas deste usuário.
                 </Text>
               ) : null}
+              <Text style={styles.mutedText}>Toque para alternar: Herdado → Permitido → Negado.</Text>
               {Object.entries(grouped).map(([category, permissions]) => (
                 <View key={category} style={styles.permissionGroup}>
                   <Text style={styles.fieldLabel}>{category}</Text>
                   <View style={styles.permissionGrid}>
-                    {permissions.map((permission) => {
-                      const active = activeKeys.includes(permission.key);
+                    {permissions.filter((permission) => permission.assignable).map((permission) => {
+                      const effect = overrideByKey[permission.key];
+                      const active = effectiveKeys.includes(permission.key);
+                      const stateLabel = effect === "ALLOW" ? "Permitido" : effect === "DENY" ? "Negado" : "Herdado";
                       return (
                         <TouchableOpacity
                           key={permission.key}
-                          style={[styles.permissionOption, active && styles.permissionOptionActive]}
-                          onPress={() => togglePermission(permission.key)}
+                          style={[
+                            styles.permissionOption,
+                            effect === undefined && styles.permissionOptionInherited,
+                            active && styles.permissionOptionActive,
+                          ]}
+                          onPress={() => cyclePermission(permission.key)}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: active }}
                           accessibilityLabel={permission.description}
@@ -850,6 +875,7 @@ function PermissionModal({
                           <Text style={[styles.permissionOptionKey, active && styles.permissionOptionKeyActive]}>
                             {permission.key}
                           </Text>
+                          <Text style={styles.mutedText}>{stateLabel}</Text>
                         </TouchableOpacity>
                       );
                     })}

@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { TouchableOpacity } from "react-native";
 import SchedulesScreen from "../../app/(tabs)/schedules";
+import { musicService } from "../services/musicService";
 import { scheduleService } from "../services/scheduleService";
 
 type TestNode = TestRenderer.ReactTestInstance;
@@ -56,6 +57,12 @@ jest.mock("../services/scheduleService", () => ({
   },
 }));
 
+jest.mock("../services/musicService", () => ({
+  musicService: {
+    exportSongs: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 jest.mock("../store/authStore", () => ({
   useAuthStore: () => ({
     tenant: { id: "tenant-1", name: "Igreja Teste" },
@@ -74,7 +81,10 @@ jest.mock("../store/scheduleStore", () => ({
       ministryId: "ministry-1",
       tenantId: "tenant-1",
       ministry: { id: "ministry-1", name: "Louvor" },
-      songs: [{ id: "ss-1", scheduleId: "schedule-1", songId: "song-1", order: 0, song: { id: "song-1", title: "Senhor Tu És Bom", originalKey: "G", artistId: "artist-1", artist: { id: "artist-1", name: "Vineyard" } } }],
+      songs: [
+        { id: "ss-1", scheduleId: "schedule-1", songId: "song-1", order: 1, song: { id: "song-1", title: "Senhor Tu És Bom", originalKey: "G", artistId: "artist-1", artist: { id: "artist-1", name: "Vineyard" } } },
+        { id: "ss-2", scheduleId: "schedule-1", songId: "song-2", order: 0, song: { id: "song-2", title: "Bondade de Deus", originalKey: "A", artistId: "artist-2", artist: { id: "artist-2", name: "Isaías Saad" } } },
+      ],
       assignments: [{ id: "assignment-1", scheduleId: "schedule-1", userId: "user-1", role: "Vocal", status: "PENDING", user: { id: "user-1", name: "Carlos" } }],
     }],
     schedules: [],
@@ -128,6 +138,25 @@ describe("SchedulesScreen report button", () => {
       "schedule-1",
       expect.stringMatching(/^Escala - Culto relatório - \d{4}-\d{2}-\d{2}\.pdf$/),
       expect.objectContaining({ id: "schedule-1", title: "Culto relatório" })
+    );
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("exporta as cifras na ordem da escala sem navegar para edição", async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<SchedulesScreen />);
+    });
+    const songsButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Exportar cifras da escala Culto relatório");
+
+    await act(async () => {
+      await songsButton!.props.onPress();
+    });
+
+    expect(musicService.exportSongs).toHaveBeenCalledWith(
+      ["song-2", "song-1"],
+      expect.stringMatching(/^Cifras - Culto relatório - \d{4}-\d{2}-\d{2}\.pdf$/)
     );
     expect(pushMock).not.toHaveBeenCalled();
   });

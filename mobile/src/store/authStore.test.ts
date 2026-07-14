@@ -188,7 +188,7 @@ describe("authStore session", () => {
     jest.mocked(api.get).mockResolvedValueOnce({
       data: {
         data: {
-          user: { ...user, name: "Ana Atualizada", phone: "11999999999", permissions: ["song:create"] },
+          user: { ...user, name: "Ana Atualizada", phone: "11999999999", permissions: [] },
           tenant,
           permissions: ["song:create"],
         },

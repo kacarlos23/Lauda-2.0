@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Text, TouchableOpacity } from "react-native";
+import { Text, TextInput, TouchableOpacity } from "react-native";
 import SongsScreen from "../../app/(tabs)/songs";
 import { musicService } from "../services/musicService";
 import { useMusicStore } from "../store/musicStore";
@@ -65,7 +65,7 @@ jest.mock("expo-router", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { Check: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, Plus: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, UserRound: Icon, X: Icon };
+  return { Check: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, UserRound: Icon, X: Icon };
 });
 
 jest.mock("../services/musicService", () => ({
@@ -87,11 +87,22 @@ function nodeText(node: TestNode): string {
 }
 
 describe("SongsScreen pagination", () => {
+  let renderer: TestRenderer.ReactTestRenderer | null = null;
+
   beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       if (String(args[0]).includes("react-test-renderer is deprecated")) return;
       originalConsoleError(...args);
     });
+  });
+
+  afterEach(() => {
+    if (renderer) {
+      act(() => {
+        renderer!.unmount();
+      });
+      renderer = null;
+    }
   });
 
   afterAll(() => {
@@ -125,8 +136,25 @@ describe("SongsScreen pagination", () => {
     }));
   });
 
+  it("exibe cadastro de música para administrador da igreja no mobile", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const createButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Nova m\u00fasica");
+    expect(createButton).toBeTruthy();
+
+    act(() => {
+      createButton!.props.onPress();
+    });
+
+    expect(pushMock).toHaveBeenCalledWith("/songs/new");
+  });
+
   it("avanca e volta usando axios/service para carregar a pagina correta", async () => {
-    let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(<SongsScreen />);
       await Promise.resolve();
@@ -156,5 +184,54 @@ describe("SongsScreen pagination", () => {
     expect(musicService.listSongs).toHaveBeenCalledWith("", 1);
     expect(musicService.listSongs).toHaveBeenCalledWith("", 2);
     expect(jest.mocked(musicService.listSongs).mock.calls.at(-1)).toEqual(["", 1]);
+  });
+
+  it("busca por musica ou artista em tempo real enquanto o usuario digita", async () => {
+    jest.useFakeTimers();
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(<SongsScreen />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      const searchInput = renderer!.root.findByType(TextInput);
+      act(() => {
+        searchInput.props.onChangeText("Artista");
+      });
+      act(() => {
+        jest.advanceTimersByTime(299);
+      });
+      expect(musicService.listSongs).not.toHaveBeenCalledWith("Artista", 1);
+
+      await act(async () => {
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(musicService.listSongs).toHaveBeenCalledWith("Artista", 1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("exibe ponto entre artista, tom e BPM sem mostrar escape unicode", async () => {
+    jest.mocked(musicService.listSongs).mockResolvedValueOnce({
+      items: [{ ...baseSong, bpm: 120 }],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const metadata = renderer!.root.findAllByType(Text)
+      .map((node: TestNode) => [node.props.children].flat(Infinity).join(""))
+      .find((text) => text.includes("· Tom"));
+    expect(metadata).toBe("Artista · Tom C · 120 BPM");
+    expect(metadata).not.toContain("\\u00b7");
   });
 });

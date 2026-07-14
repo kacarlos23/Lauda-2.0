@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 import { Button, ErrorBanner, LoadingState } from "../../../../src/components/ui";
-import { ArrowLeft, Download } from "lucide-react-native";
+import { ArrowLeft, Download, Search, Trash2, X } from "lucide-react-native";
 import { DateTimeInput } from "../../../../src/components/DateTimeInput";
 import { memberService } from "../../../../src/services/memberService";
 import { ministryApi } from "../../../../src/services/ministryApi";
@@ -14,7 +14,8 @@ import { scheduleService } from "../../../../src/services/scheduleService";
 import { Member, Ministry, MinistryMember, ScheduleAssignment, Song } from "../../../../src/types";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../../src/utils/dateTimeInput";
-import { can } from "../../../../src/utils/permissions";
+import { canManageMusic } from "../../../../src/utils/musicPermissions";
+import { canDeleteSchedule, canEditSchedule } from "../../../../src/utils/schedulePermissions";
 
 function timeValue(value: string) {
   const date = new Date(value);
@@ -22,11 +23,15 @@ function timeValue(value: string) {
 }
 
 export default function EditScheduleScreen() {
+  const { width } = useWindowDimensions();
+  const compactLayout = width < 700;
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const canDeleteSchedule = can(user, "schedule:delete");
+  const canEditSchedules = canEditSchedule(user);
+  const canDeleteSchedules = canDeleteSchedule(user);
+  const canExportSongs = canManageMusic(user, "song:view");
   const { allSchedules, loadSchedules, updateSchedule, deleteSchedule, saving, error } = useScheduleStore();
   const schedule = allSchedules.find((item) => item.id === id);
   const [title, setTitle] = useState("");
@@ -37,6 +42,10 @@ export default function EditScheduleScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [ministryMembers, setMinistryMembers] = useState<MinistryMember[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [visibleSongs, setVisibleSongs] = useState<Song[]>([]);
+  const [songSearch, setSongSearch] = useState("");
+  const [songSearchLoading, setSongSearchLoading] = useState(false);
+  const [songSearchError, setSongSearchError] = useState<string | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<Array<{ userId: string; role: string; status?: ScheduleAssignment["status"] }>>([]);
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
   const [membersModal, setMembersModal] = useState(false);
@@ -45,7 +54,11 @@ export default function EditScheduleScreen() {
   const [draggedSongIndex, setDraggedSongIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingSongs, setExportingSongs] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deletingRef = useRef(false);
 
   useEffect(() => {
     void loadSchedules();
@@ -63,7 +76,7 @@ export default function EditScheduleScreen() {
   }, [schedule?.id]);
 
   useEffect(() => {
-    if (!can(user, "schedule:edit")) return;
+    if (!canEditSchedules) return;
     let mounted = true;
     Promise.all([ministryApi.getMinistries(), memberService.listMembers(), musicService.listSongs("", 1, 100)])
       .then(([ministryResult, memberResult, songResult]) => {
@@ -71,11 +84,39 @@ export default function EditScheduleScreen() {
         setMinistries(ministryResult);
         setMembers(memberResult);
         setSongs(songResult.items);
+        setVisibleSongs(songResult.items);
       })
       .catch((reason) => Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível carregar dados da escala."))
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [user?.role]);
+  }, [canEditSchedules]);
+
+  useEffect(() => {
+    if (!songsModal) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSongSearchLoading(true);
+      setSongSearchError(null);
+      try {
+        const result = await musicService.listSongs(songSearch.trim(), 1, 100);
+        if (cancelled) return;
+        setVisibleSongs(result.items);
+        setSongs((current) => {
+          const merged = new Map(current.map((song) => [song.id, song]));
+          result.items.forEach((song) => merged.set(song.id, song));
+          return [...merged.values()];
+        });
+      } catch (reason) {
+        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "Não foi possível buscar músicas.");
+      } finally {
+        if (!cancelled) setSongSearchLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [songSearch, songsModal]);
 
   useEffect(() => {
     if (!ministryId) {
@@ -100,6 +141,12 @@ export default function EditScheduleScreen() {
   const selectedSongs = useMemo(() => selectedSongIds.map((songId) => songs.find((song) => song.id === songId)).filter(Boolean) as Song[], [selectedSongIds, songs]);
 
   const toggleSong = (songId: string) => setSelectedSongIds((current) => current.includes(songId) ? current.filter((item) => item !== songId) : [...current, songId]);
+  const closeSongsModal = () => {
+    setSongsModal(false);
+    setSongSearch("");
+    setSongSearchError(null);
+    setVisibleSongs(songs);
+  };
   const toggleMember = (userId: string) => setSelectedMembers((current) => current.some((item) => item.userId === userId)
     ? current.filter((item) => item.userId !== userId)
     : [...current, { userId, role: "Membro", status: "PENDING" }]);
@@ -166,33 +213,57 @@ export default function EditScheduleScreen() {
     }
   };
 
+  const exportScheduleSongs = async () => {
+    if (!schedule) return;
+    const songIds = [...(schedule.songs ?? [])]
+      .sort((first, second) => first.order - second.order)
+      .map((entry) => entry.songId);
+    if (!songIds.length) return;
+    if (songIds.length > 50) {
+      Alert.alert("Limite de cifras", "É possível exportar até 50 músicas por PDF.");
+      return;
+    }
+    setExportingSongs(true);
+    try {
+      const reportDate = new Date(schedule.date).toISOString().slice(0, 10);
+      await musicService.exportSongs(songIds, `Cifras - ${schedule.title} - ${reportDate}.pdf`);
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível exportar as cifras da escala.");
+    } finally {
+      setExportingSongs(false);
+    }
+  };
+
   const handleDelete = async () => {
-    if (!id) return;
+    if (!id || deletingRef.current) return;
+    deletingRef.current = true;
     setDeleting(true);
+    setDeleteError(null);
     try {
       await deleteSchedule(id);
-      Alert.alert("Escala excluída", "A escala foi removida das listas ativas.");
+      setDeleteModalVisible(false);
       router.replace("/schedules" as never);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
+      setDeleteError(reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
     } finally {
+      deletingRef.current = false;
       setDeleting(false);
     }
   };
 
-  const confirmDelete = () => {
+  const openDeleteModal = () => {
     if (!schedule || deleting) return;
-    Alert.alert(
-      "Excluir escala",
-      "Esta escala será cancelada e removida das listas ativas. As atribuições relacionadas serão desativadas para preservar o histórico de aceite, recusa e pendência.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Excluir escala", style: "destructive", onPress: () => void handleDelete() },
-      ]
-    );
+    setDeleteError(null);
+    setDeleteModalVisible(true);
   };
 
-  if (!can(user, "schedule:edit")) {
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setDeleteModalVisible(false);
+    setDeleteError(null);
+  };
+
+  if (!canEditSchedules) {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href="/schedules" /></View>;
   }
 
@@ -214,19 +285,98 @@ export default function EditScheduleScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
+    <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+      <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={closeDeleteModal}>
+        <Pressable
+          style={styles.deleteModalBackdrop}
+          onPress={closeDeleteModal}
+          accessible={false}
+          testID="delete-schedule-modal-backdrop"
+        >
+          <Pressable
+            style={[styles.deleteModalCard, compactLayout && styles.deleteModalCardCompact]}
+            onPress={(event) => event.stopPropagation()}
+            accessibilityViewIsModal
+            accessibilityLabel="Confirmação para excluir escala"
+            testID="delete-schedule-modal"
+          >
+            <View style={styles.deleteModalHeader}>
+              <View style={styles.deleteIconCircle}>
+                <Trash2 color={colors.danger} size={26} strokeWidth={2.2} />
+              </View>
+              <TouchableOpacity
+                style={[styles.deleteModalClose, deleting && styles.disabled]}
+                onPress={closeDeleteModal}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar"
+              >
+                <X color={colors.muted} size={22} strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.deleteModalTitle}>Excluir escala?</Text>
+            <Text style={styles.deleteModalScheduleName}>{schedule.title}</Text>
+            <Text style={styles.deleteModalDescription}>
+              A escala sairá das listas ativas. As músicas e atribuições relacionadas serão desativadas para preservar o histórico de aceite, recusa e pendência.
+            </Text>
+            {deleteError ? (
+              <View style={styles.deleteModalError} testID="delete-schedule-error">
+                <Text style={styles.deleteModalErrorTitle}>Não foi possível excluir</Text>
+                <Text style={styles.deleteModalErrorText}>{deleteError}</Text>
+              </View>
+            ) : null}
+            <View style={[styles.deleteModalActions, compactLayout && styles.deleteModalActionsCompact]}>
+              <TouchableOpacity
+                style={[styles.deleteCancelButton, deleting && styles.disabled]}
+                onPress={closeDeleteModal}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Manter escala"
+              >
+                <Text style={styles.deleteCancelButtonText}>Manter escala</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmButton, deleting && styles.disabled]}
+                onPress={() => void handleDelete()}
+                disabled={deleting}
+                accessibilityRole="button"
+                accessibilityLabel="Confirmar exclusão da escala"
+                testID="delete-schedule-confirm-button"
+              >
+                {deleting ? <ActivityIndicator color={colors.surface} size="small" /> : <Trash2 color={colors.surface} size={18} strokeWidth={2.4} />}
+                <Text style={styles.deleteConfirmButtonText}>{deleting ? "Excluindo..." : "Excluir escala"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      <Modal visible={songsModal} transparent animationType="fade" onRequestClose={closeSongsModal}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
-            <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongsModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+            <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Editar músicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
           <Text style={styles.helper}>O número ao lado indica a ordem atual da música na escala.</Text>
+          <View style={styles.songSearchRow}>
+            <Search color={colors.muted} size={19} />
+            <TextInput
+              style={styles.songSearchInput}
+              value={songSearch}
+              onChangeText={setSongSearch}
+              placeholder="Buscar por música ou artista"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Buscar músicas da escala"
+              testID="schedule-song-search-input"
+              returnKeyType="search"
+            />
+            {songSearchLoading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+          </View>
+          {songSearchError ? <Text style={styles.songSearchError}>{songSearchError}</Text> : null}
           <ScrollView style={styles.modalList}>
-            {songs.map((song) => {
+            {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
               const order = getSongOrder(song.id);
               return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)}>
@@ -237,10 +387,11 @@ export default function EditScheduleScreen() {
                 <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
               </TouchableOpacity>;
             })}
+            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma música encontrada.</Text> : null}
           </ScrollView>
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalActionSecondary} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.modalActionPrimary} onPress={() => setSongsModal(false)}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.modalActionPrimary} onPress={closeSongsModal}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>
@@ -305,24 +456,38 @@ export default function EditScheduleScreen() {
       </Modal>
 
       <View style={styles.backRow}><AppBackButton href="/schedules" /></View>
-      <View style={styles.titleRow}>
+      <View style={[styles.titleRow, compactLayout && styles.titleRowCompact]}>
         <View style={styles.titleGroup}>
           <Text style={styles.title}>Editar Escala</Text>
           <Text style={styles.subtitle}>Atualize os dados, músicas e membros da escala.</Text>
         </View>
-        <TouchableOpacity
-          style={styles.reportButton}
-          onPress={() => void exportReport()}
-          disabled={exporting}
-          accessibilityRole="button"
-          accessibilityLabel="Gerar relatório da escala"
-        >
-          {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
-          <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Gerar relatório"}</Text>
-        </TouchableOpacity>
+        <View style={[styles.exportActions, compactLayout && styles.exportActionsCompact]}>
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => void exportReport()}
+            disabled={exporting}
+            accessibilityRole="button"
+            accessibilityLabel="Gerar relatório da escala"
+          >
+            {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+            <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Gerar relatório"}</Text>
+          </TouchableOpacity>
+          {canExportSongs && schedule.songs?.length ? (
+            <TouchableOpacity
+              style={styles.reportButton}
+              onPress={() => void exportScheduleSongs()}
+              disabled={exportingSongs}
+              accessibilityRole="button"
+              accessibilityLabel="Exportar cifras da escala"
+            >
+              {exportingSongs ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+              <Text style={styles.reportButtonText}>{exportingSongs ? "Gerando..." : "Gerar cifras"}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.card}>
+      <View style={[styles.card, compactLayout && styles.cardCompact]}>
         <Text style={styles.label}>Nome da escala *</Text>
         <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
         <Text style={styles.label}>Ministério *</Text>
@@ -331,33 +496,33 @@ export default function EditScheduleScreen() {
             <Text style={[styles.chipText, ministryId === ministry.id && styles.chipTextActive]}>{ministry.name}</Text>
           </TouchableOpacity>
         ))}</View>
-        <View style={styles.rowFields}>
-          <View style={styles.field}>
+        <View style={[styles.rowFields, compactLayout && styles.rowFieldsCompact]}>
+          <View style={compactLayout ? styles.fieldCompact : styles.field}>
             <DateTimeInput type="date" label="Dia *" value={date} onChange={setDate} />
           </View>
-          <View style={styles.field}>
+          <View style={compactLayout ? styles.fieldCompact : styles.field}>
             <DateTimeInput type="time" label="Horário *" value={hour} onChange={setHour} />
           </View>
         </View>
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
           <View style={styles.sectionText}>
             <Text style={styles.sectionTitle}>Músicas</Text>
             <Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song, index) => `${index + 1}. ${song.title}`).join(", ") : "Nenhuma música adicionada."}</Text>
           </View>
-          <View style={styles.sectionActions}>
+          <View style={[styles.sectionActions, compactLayout && styles.sectionActionsCompact]}>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Editar músicas</Text></TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
           </View>
         </View>
-        <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View><TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Editar membros</Text></TouchableOpacity></View>
+        <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}><View style={styles.sectionText}><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View><TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Editar membros</Text></TouchableOpacity></View>
         <View style={styles.selectedList}>{selectedMemberDetails.map((entry) => <View key={entry.userId} style={styles.selectedChip}><Text style={styles.selectedChipTitle}>{entry.member?.name}</Text><Text style={styles.selectedChipMeta}>{entry.role}</Text></View>)}</View>
         <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving}><Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar alterações"}</Text></TouchableOpacity>
-        {canDeleteSchedule ? <View style={styles.dangerZone}>
+        {canDeleteSchedules ? <View style={styles.dangerZone}>
           <Text style={styles.dangerTitle}>Área de perigo</Text>
           <Text style={styles.dangerText}>Excluir a escala remove o item das listas ativas e desativa suas atribuições relacionadas.</Text>
           <TouchableOpacity
             style={[styles.dangerButton, deleting && styles.disabled]}
-            onPress={confirmDelete}
+            onPress={openDeleteModal}
             disabled={deleting}
             accessibilityRole="button"
             accessibilityLabel="Excluir escala"
@@ -372,27 +537,36 @@ export default function EditScheduleScreen() {
 
 const styles = StyleSheet.create({
   container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
+  containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
+  titleRowCompact: { flexDirection: "column" },
   titleGroup: { flex: 1 },
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
+  exportActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: spacing.sm },
+  exportActionsCompact: { width: "100%", justifyContent: "flex-start" },
   reportButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
+  cardCompact: { padding: spacing.lg },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
+  rowFieldsCompact: { flexDirection: "column" },
   field: { flex: 1 },
+  fieldCompact: { width: "100%" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: { minHeight: 38, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, justifyContent: "center", paddingHorizontal: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontWeight: "800" },
   chipTextActive: { color: colors.surface },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl },
+  sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
   sectionActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" },
+  sectionActionsCompact: { justifyContent: "flex-start" },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
   secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
@@ -410,12 +584,33 @@ const styles = StyleSheet.create({
   dangerText: { color: colors.text, fontSize: 13, fontWeight: "600", lineHeight: 19, marginBottom: spacing.md },
   dangerButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, alignSelf: "flex-start" },
   dangerButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  deleteModalBackdrop: { flex: 1, backgroundColor: "rgba(16, 32, 26, 0.56)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  deleteModalCard: { width: "100%", maxWidth: 500, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
+  deleteModalCardCompact: { padding: spacing.lg },
+  deleteModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  deleteIconCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center" },
+  deleteModalClose: { width: 44, height: 44, borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  deleteModalTitle: { color: colors.ink, fontSize: 24, fontWeight: "900", marginBottom: spacing.xs },
+  deleteModalScheduleName: { color: colors.danger, fontSize: 16, fontWeight: "900", marginBottom: spacing.md },
+  deleteModalDescription: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 21 },
+  deleteModalError: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.danger, borderRadius: radii.md, backgroundColor: colors.dangerSoft, padding: spacing.md },
+  deleteModalErrorTitle: { color: colors.danger, fontSize: 13, fontWeight: "900", marginBottom: spacing.xs },
+  deleteModalErrorText: { color: colors.text, fontSize: 13, fontWeight: "600", lineHeight: 19 },
+  deleteModalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.xl },
+  deleteModalActionsCompact: { flexDirection: "column-reverse" },
+  deleteCancelButton: { minHeight: 48, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  deleteCancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  deleteConfirmButton: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.danger, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, ...buttonShadow },
+  deleteConfirmButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   modalHeaderSpacer: { width: 40, height: 40 },
   modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  songSearchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
+  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: 15, outlineStyle: "none" } as any,
+  songSearchError: { color: colors.danger, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },

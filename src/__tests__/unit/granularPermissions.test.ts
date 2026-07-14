@@ -1,75 +1,77 @@
-import { Role } from "@prisma/client";
+import { PermissionEffect, Role } from "@prisma/client";
 import { rolePermissions } from "../../constants/permissions";
 import { basePrisma } from "../../config/prisma";
 import { effectivePermissionKeys, hasPermission } from "../../services/permissionService";
 
 jest.mock("../../config/prisma", () => ({
-  basePrisma: {
-    userPermission: {
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-    },
-  },
+  basePrisma: { userPermission: { findMany: jest.fn() } },
 }));
 
 const userPermission = basePrisma.userPermission as jest.Mocked<typeof basePrisma.userPermission>;
 
 describe("granular permission mappings", () => {
-  it("keeps GLOBAL_ADMIN as the only role with permission management", () => {
+  beforeEach(() => userPermission.findMany.mockReset());
+
+  it("keeps permission management exclusive to GLOBAL_ADMIN", () => {
     expect(rolePermissions(Role.GLOBAL_ADMIN)).toContain("permissions:manage");
     expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("permissions:manage");
     expect(rolePermissions(Role.MINISTRY_LEADER)).not.toContain("permissions:manage");
     expect(rolePermissions(Role.MEMBER)).not.toContain("permissions:manage");
   });
 
-  it("allows specific operational permissions without granting full admin access", () => {
-    expect(rolePermissions(Role.MEMBER)).toContain("schedule:respond");
-    expect(rolePermissions(Role.MEMBER)).toContain("song:view");
-    expect(rolePermissions(Role.MEMBER)).not.toContain("song:create");
-    expect(rolePermissions(Role.MEMBER)).not.toContain("schedule:edit");
+  it("gives tenant admins the complete operational baseline", () => {
+    expect(rolePermissions(Role.TENANT_ADMIN)).toEqual(expect.arrayContaining([
+      "schedule:create", "schedule:edit", "song:edit", "member:manage_access", "tenant:manage",
+    ]));
+    expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("permissions:manage");
   });
 
-  it("does not grant administrative permissions through tenant admin role", () => {
-    expect(rolePermissions(Role.TENANT_ADMIN)).toContain("schedule:respond");
-    expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("schedule:create");
-    expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("song:edit");
-    expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("tenant:manage");
-    expect(rolePermissions(Role.TENANT_ADMIN)).not.toContain("member:assign_permissions");
+  it("applies ALLOW overrides inside the user's tenant", async () => {
+    userPermission.findMany.mockResolvedValueOnce([{
+      effect: PermissionEffect.ALLOW,
+      permission: { key: "schedule:edit", assignable: true },
+    }] as any);
+
+    await expect(hasPermission(
+      { id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" },
+      "schedule:edit",
+      "tenant-a"
+    )).resolves.toBe(true);
+    expect(userPermission.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "user-1", tenantId: "tenant-a" },
+    }));
   });
 
-  it("checks explicit tenant-scoped grants for non-global users", async () => {
-    userPermission.findFirst.mockResolvedValueOnce({ id: "grant-1" } as any);
+  it("applies DENY after an inherited permission", async () => {
+    userPermission.findMany.mockResolvedValueOnce([{
+      effect: PermissionEffect.DENY,
+      permission: { key: "song:view", assignable: true },
+    }] as any);
 
-    await expect(
-      hasPermission({ id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" }, "schedule:create", "tenant-a")
-    ).resolves.toBe(true);
-
-    expect(userPermission.findFirst).toHaveBeenCalledWith({
-      where: {
-        userId: "user-1",
-        permission: { key: "schedule:create" },
-        tenantId: "tenant-a",
-      },
-      select: { id: true },
-    });
+    await expect(effectivePermissionKeys(
+      { id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" }
+    )).resolves.not.toContain("song:view");
   });
 
-  it("denies removed grants and grants from other tenants", async () => {
-    userPermission.findFirst.mockResolvedValue(null);
-
-    await expect(
-      hasPermission({ id: "user-1", role: Role.MEMBER, tenantId: "tenant-b" }, "schedule:create", "tenant-b")
-    ).resolves.toBe(false);
-  });
-
-  it("returns only self-use defaults plus explicit tenant permissions", async () => {
-    userPermission.findMany.mockResolvedValue([
-      { permission: { key: "schedule:edit" } },
-      { permission: { key: "song:create" } },
+  it("combines defaults, allows and denies deterministically", async () => {
+    userPermission.findMany.mockResolvedValueOnce([
+      { effect: PermissionEffect.ALLOW, permission: { key: "song:create", assignable: true } },
+      { effect: PermissionEffect.DENY, permission: { key: "schedule:respond", assignable: true } },
+      { effect: PermissionEffect.ALLOW, permission: { key: "permissions:manage", assignable: false } },
     ] as any);
 
-    await expect(
-      effectivePermissionKeys({ id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" })
-    ).resolves.toEqual(expect.arrayContaining(["schedule:respond", "song:view", "schedule:edit", "song:create"]));
+    const effective = await effectivePermissionKeys(
+      { id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" }
+    );
+    expect(effective).toEqual(expect.arrayContaining(["song:view", "song:create"]));
+    expect(effective).not.toContain("permissions:manage");
+  });
+
+  it("uses the effective set already attached to the request", async () => {
+    await expect(hasPermission(
+      { id: "user-1", role: Role.MEMBER, tenantId: "tenant-a", permissions: [] },
+      "song:view"
+    )).resolves.toBe(false);
+    expect(userPermission.findMany).not.toHaveBeenCalled();
   });
 });

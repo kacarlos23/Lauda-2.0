@@ -1,36 +1,7 @@
+import type { PermissionEffect, PermissionKey } from "../../../src/constants/permissionContract";
+
 export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
-export type PermissionKey =
-  | "schedule:create"
-  | "schedule:view"
-  | "schedule:edit"
-  | "schedule:delete"
-  | "schedule:assign_members"
-  | "schedule:respond"
-  | "schedule:view_reports"
-  | "song:create"
-  | "song:view"
-  | "song:edit"
-  | "song:delete"
-  | "song:attach_to_schedule"
-  | "member:create"
-  | "member:view"
-  | "member:edit"
-  | "member:delete"
-  | "member:invite"
-  | "member:assign_ministry"
-  | "member:assign_permissions"
-  | "ministry:create"
-  | "ministry:view"
-  | "ministry:edit"
-  | "ministry:delete"
-  | "ministry:assign_members"
-  | "instrument:create"
-  | "instrument:view"
-  | "instrument:edit"
-  | "instrument:delete"
-  | "reports:view"
-  | "permissions:manage"
-  | "tenant:manage";
+export type { PermissionEffect, PermissionKey };
 export type MemberStatus = "PENDING" | "ACTIVE" | "INACTIVE";
 export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 
@@ -186,6 +157,7 @@ export interface Permission {
   key: PermissionKey;
   description: string;
   category: string;
+  assignable: boolean;
 }
 
 export interface UserPermission {
@@ -195,12 +167,15 @@ export interface UserPermission {
   permissionId: string;
   permission: Permission;
   grantedById: string;
+  effect: PermissionEffect;
   createdAt: string;
 }
 
 export interface UserPermissionsResponse {
   user: Pick<User, "id" | "name" | "email" | "role" | "tenantId">;
   grants: UserPermission[];
+  baseline: PermissionKey[];
+  overrides: UserPermission[];
   effective: PermissionKey[];
 }
 

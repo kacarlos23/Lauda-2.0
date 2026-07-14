@@ -77,15 +77,17 @@ export class ScheduleService {
     }
 
     await this.ensureSongsBelongToTenant(data.songIds);
-    const canCreateSchedule = await hasPermission(user, "schedule:create", user.tenantId);
-    if (!canCreateSchedule && user.role !== Role.MINISTRY_LEADER) {
-      await requireUserPermission(user, "schedule:create", user.tenantId);
-    }
+    await requireUserPermission(user, "schedule:create", user.tenantId);
     if (data.songIds.length > 0) {
       await requireUserPermission(user, "song:attach_to_schedule", user.tenantId);
     }
 
-    if (this.isAdmin(user.role) || await hasPermission(user, "schedule:assign_members", user.tenantId)) {
+    if (user.role === Role.MINISTRY_LEADER) {
+      const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
+      if (!leadership) throw new ForbiddenError("Líder só pode criar escalas dos ministérios que lidera");
+    }
+
+    if (data.assignments.length === 0 || this.isAdmin(user.role) || await hasPermission(user, "schedule:assign_members", user.tenantId)) {
       await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
       return this.scheduleRepository.create(data);
     }

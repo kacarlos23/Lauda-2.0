@@ -382,6 +382,14 @@ export class AdminRepository {
     return this.updateResource("users", userId, data as Record<string, unknown>);
   }
 
+  updateUserAndCleanupPermissions(userId: string, data: Prisma.UserUpdateInput, cleanupPermissions: boolean) {
+    return this.db.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id: userId }, data, select: userPublicSelect });
+      if (cleanupPermissions) await tx.userPermission.deleteMany({ where: { userId } });
+      return updated;
+    });
+  }
+
   listMinistries() {
     return this.listResource("ministries", { page: 1, limit: 500 });
   }

@@ -14,10 +14,12 @@ type ScheduleCardProps = {
   canManage?: boolean;
   updating?: boolean;
   exporting?: boolean;
+  exportingSongs?: boolean;
   duplicating?: boolean;
   onEdit?: () => void;
   onDuplicate?: () => void;
   onExport?: () => void;
+  onExportSongs?: () => void;
   onAccept?: () => void;
   onDecline?: () => void;
   onRequestSubstitute?: () => void;
@@ -41,10 +43,12 @@ export function ScheduleCard({
   canManage = false,
   updating = false,
   exporting = false,
+  exportingSongs = false,
   duplicating = false,
   onEdit,
   onDuplicate,
   onExport,
+  onExportSongs,
   onAccept,
   onDecline,
   onRequestSubstitute,
@@ -79,7 +83,7 @@ export function ScheduleCard({
             </View>
             {assignment ? <ScheduleStatusBadge status={assignment.status} /> : null}
           </View>
-          <Text style={styles.detail}>Ministerio: {schedule.ministry?.name ?? "Nao informado"}</Text>
+          <Text style={styles.detail}>Ministério: {schedule.ministry?.name ?? "Não informado"}</Text>
           <Text style={styles.detail}>Membros escalados: {schedule.assignments?.length ?? 0}</Text>
           <View style={styles.statusSummary}>
             <Text style={styles.statusText}>Pendentes: {counts.pending}</Text>
@@ -124,6 +128,9 @@ export function ScheduleCard({
         ) : null}
         {onExport ? (
           <Button title={exporting ? "Gerando..." : "Relatório"} icon={<Download color={colors.primary} size={16} />} loading={exporting} variant="secondary" size="sm" onPress={onExport} accessibilityLabel={`Gerar relatório da escala ${schedule.title}`} />
+        ) : null}
+        {onExportSongs ? (
+          <Button title={exportingSongs ? "Gerando..." : "Cifras"} icon={<Download color={colors.primary} size={16} />} loading={exportingSongs} variant="secondary" size="sm" onPress={onExportSongs} accessibilityLabel={`Exportar cifras da escala ${schedule.title}`} />
         ) : null}
       </View>
 

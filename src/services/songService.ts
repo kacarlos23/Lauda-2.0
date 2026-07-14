@@ -79,6 +79,13 @@ export class SongService {
     }
   }
 
+  async delete(id: string) {
+    await this.get(id);
+    const count = await this.repository.delete(id);
+    if (!count) throw new NotFoundError("Música não encontrada");
+    return { id, isActive: false, message: "Música removida com sucesso" };
+  }
+
   async getForExport(ids: string[]) {
     const songs = await this.repository.findByIds(ids);
     if (songs.length !== ids.length) throw new NotFoundError("Uma ou mais músicas não foram encontradas");

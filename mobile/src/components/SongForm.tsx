@@ -21,6 +21,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(initial ? 2 : 1);
   const [artist, setArtist] = useState<Artist | null>(initial ? { ...initial.artist, createdAt: "", updatedAt: "" } : null);
+  const [artistQuery, setArtistQuery] = useState(initial?.artist.name ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [composer, setComposer] = useState(initial?.composer ?? "");
   const [originalKey, setOriginalKey] = useState<MusicalKey>(initial?.originalKey ?? "C");
@@ -85,8 +86,10 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   };
 
   const searchCifraClub = async () => {
-    if (!artist || !title.trim()) {
-      setFormError("Selecione o artista e informe o nome da música antes de buscar no Cifra Club.");
+    const searchedArtist = artistQuery.trim() || artist?.name.trim() || "";
+    const searchedTitle = title.trim();
+    if (!searchedArtist && !searchedTitle) {
+      setFormError("Informe o artista ou o nome da música antes de buscar no Cifra Club.");
       return;
     }
 
@@ -96,7 +99,10 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
       setCifraClubPreview(null);
       setCifraClubLoading(true);
       setCifraClubModalVisible(true);
-      const results = await musicService.searchCifraClub(artist.name, title.trim());
+      const results = await musicService.searchCifraClub({
+        ...(searchedArtist ? { artist: searchedArtist } : {}),
+        ...(searchedTitle ? { title: searchedTitle } : {}),
+      });
       setCifraClubResults(results);
       if (!results.length) setCifraClubError("Nenhuma cifra encontrada para esta música.");
     } catch (reason) {
@@ -119,22 +125,53 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     }
   };
 
+  const resolveImportedArtist = async (name: string): Promise<Artist> => {
+    if (artist && normalizeCatalogName(artist.name) === normalizeCatalogName(name)) return artist;
+
+    const findExact = async () => {
+      const matches = (await musicService.listArtists(name, 1, 100)).items;
+      return matches.find((candidate) => normalizeCatalogName(candidate.name) === normalizeCatalogName(name)) ?? null;
+    };
+    const existing = await findExact();
+    if (existing) return existing;
+
+    try {
+      return await musicService.createArtist({ name });
+    } catch (reason) {
+      const concurrent = await findExact().catch(() => null);
+      if (concurrent) return concurrent;
+      throw reason;
+    }
+  };
+
   const applyCifraClubPreview = () => {
     if (!cifraClubPreview) return;
 
-    const apply = () => {
-      setOriginalKey(cifraClubPreview.originalKey);
-      setCifraUrl(cifraClubPreview.cifraUrl);
-      setContent(cifraClubPreview.content);
-      setStep(2);
-      setCifraClubModalVisible(false);
-      setCifraClubPreview(null);
+    const preview = cifraClubPreview;
+    const apply = async () => {
+      setCifraClubImporting(true);
       setCifraClubError(null);
+      try {
+        const importedArtist = await resolveImportedArtist(preview.artist);
+        setArtist(importedArtist);
+        setArtistQuery(importedArtist.name);
+        setTitle(preview.title);
+        setOriginalKey(preview.originalKey);
+        setCifraUrl(preview.cifraUrl);
+        setContent(preview.content);
+        setStep(2);
+        setCifraClubModalVisible(false);
+        setCifraClubPreview(null);
+      } catch (reason) {
+        setCifraClubError(reason instanceof Error ? reason.message : "Não foi possível vincular o artista importado.");
+      } finally {
+        setCifraClubImporting(false);
+      }
     };
 
     const hasExistingData = Boolean(content.trim() || cifraUrl.trim());
     if (!hasExistingData) {
-      apply();
+      void apply();
       return;
     }
 
@@ -143,7 +180,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
       "A cifra ou o link da cifra já estão preenchidos. Deseja substituir pelos dados importados?",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Substituir", style: "destructive", onPress: apply },
+        { text: "Substituir", style: "destructive", onPress: () => void apply() },
       ]
     );
   };
@@ -184,7 +221,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>Importar do Cifra Club</Text>
-                <Text style={styles.modalSubtitle}>{artist?.name} · {title.trim()}</Text>
+                <Text style={styles.modalSubtitle}>{[artistQuery.trim(), title.trim()].filter(Boolean).join(" · ")}</Text>
               </View>
               <TouchableOpacity style={styles.modalClose} onPress={closeCifraClubModal} accessibilityRole="button" accessibilityLabel="Fechar importação do Cifra Club">
                 <Text style={styles.modalCloseText}>X</Text>
@@ -227,8 +264,9 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
                   <TouchableOpacity style={styles.secondaryButton} onPress={() => setCifraClubPreview(null)} accessibilityRole="button">
                     <Text style={styles.secondaryButtonText}>Voltar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.primarySmallButton} onPress={applyCifraClubPreview} accessibilityRole="button">
-                    <Text style={styles.primaryText}>Usar esta cifra</Text>
+                  <TouchableOpacity style={[styles.primarySmallButton, cifraClubImporting && styles.disabled]} onPress={applyCifraClubPreview} accessibilityRole="button" disabled={cifraClubImporting}>
+                    {cifraClubImporting ? <ActivityIndicator color={colors.surface} size="small" /> : null}
+                    <Text style={styles.primaryText}>{cifraClubImporting ? "Aplicando..." : "Usar esta cifra"}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -244,7 +282,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
       {step === 1 ? (
         <View style={styles.card}>
           <Text style={styles.title}>Dados da música</Text>
-          <ArtistPicker selected={artist} onSelect={setArtist} />
+          <ArtistPicker selected={artist} onSelect={setArtist} onQueryChange={setArtistQuery} />
           <Text style={styles.label}>Nome da música *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} testID="song-title-input" />
           <TouchableOpacity
@@ -308,6 +346,10 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   );
 }
 
+function normalizeCatalogName(value: string): string {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
 function isValidExternalLink(value: string): boolean {
   try {
     const url = new URL(value.trim());
@@ -364,5 +406,5 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
   secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   secondaryButtonText: { color: colors.text, fontSize: 13, fontWeight: "900" },
-  primarySmallButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primarySmallButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
 });

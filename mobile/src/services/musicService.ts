@@ -37,6 +37,11 @@ export type CifraClubSearchResult = {
   originalKey?: string | null;
 };
 
+export type CifraClubSearchParams = {
+  artist?: string;
+  title?: string;
+};
+
 export type CifraClubImportResult = {
   title: string;
   artist: string;
@@ -112,11 +117,20 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível atualizar a música."); }
   },
 
-  async searchCifraClub(artist: string, title: string): Promise<CifraClubSearchResult[]> {
+  async deleteSong(id: string): Promise<void> {
+    try {
+      await api.delete(`/songs/${id}`);
+    } catch (error) { apiError(error, "Não foi possível excluir a música."); }
+  },
+
+  async searchCifraClub({ artist, title }: CifraClubSearchParams): Promise<CifraClubSearchResult[]> {
     try {
       const response = await api.get<ApiResponse<{ items: CifraClubSearchResult[] }>>("/songs/cifra-club/search", {
-        params: { artist, title },
-        timeout: 45000,
+        params: {
+          ...(artist?.trim() ? { artist: artist.trim() } : {}),
+          ...(title?.trim() ? { title: title.trim() } : {}),
+        },
+        timeout: 90000,
       });
       return response.data.data.items;
     } catch (error) { apiError(error, "Não foi possível buscar no Cifra Club. Verifique a conexão com o backend e tente novamente."); }

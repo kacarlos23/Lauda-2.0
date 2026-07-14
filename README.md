@@ -100,6 +100,17 @@ The integration tests use Testcontainers and require Docker to be running.
 
 `MEMBER` visualiza seus dados, escalas e ministérios, e atualiza seus próprios instrumentos/cargos. Ele não gerencia outros usuários e não acessa Dados da Igreja.
 
+Permissões operacionais são calculadas pelo backend a partir do baseline do papel e dos overrides individuais `ALLOW`/`DENY`. `DENY` prevalece sobre o baseline. Somente `GLOBAL_ADMIN` pode editar overrides pelo painel global; a mudança vale na requisição seguinte, sem exigir novo login. `permissions:manage` não é delegável.
+
+Endpoints do contrato granular:
+
+- `GET /api/admin/permissions`: catálogo com a propriedade `assignable`.
+- `GET /api/admin/users/:userId/permissions`: retorna `baseline`, `overrides` e `effective`.
+- `PUT /api/admin/users/:userId/permissions`: substitui overrides com `{ overrides: [{ permissionKey, effect }] }`.
+- O formato legado `{ permissionKeys: [...] }` é aceito temporariamente como overrides `ALLOW`.
+
+Antes de iniciar ou publicar o backend, execute `npx prisma migrate deploy` e confirme `npx prisma migrate status` sem migrations pendentes.
+
 ### Admin Global API
 
 Todas as rotas abaixo exigem `Authorization: Bearer <token>` e role `GLOBAL_ADMIN`; outras roles recebem `403` e usuários anônimos recebem `401`.

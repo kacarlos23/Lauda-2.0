@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Search } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
@@ -15,7 +15,7 @@ import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../src/utils/dateTimeInput";
-import { can } from "../../../src/utils/permissions";
+import { canCreateSchedule } from "../../../src/utils/schedulePermissions";
 
 function dateFromRouteParam(value?: string | string[]) {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -27,10 +27,13 @@ function dateFromRouteParam(value?: string | string[]) {
 }
 
 export default function NewScheduleScreen() {
+  const { width } = useWindowDimensions();
+  const compactLayout = width < 700;
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string | string[] }>();
   const user = useAuthStore((state) => state.user);
   const { createSchedule, saving, error } = useScheduleStore();
+  const canCreateSchedules = canCreateSchedule(user);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => toDisplayDate(dateFromRouteParam(params.date)));
   const [hour, setHour] = useState("19:00");
@@ -39,6 +42,10 @@ export default function NewScheduleScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [ministryMembers, setMinistryMembers] = useState<MinistryMember[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [visibleSongs, setVisibleSongs] = useState<Song[]>([]);
+  const [songSearch, setSongSearch] = useState("");
+  const [songSearchLoading, setSongSearchLoading] = useState(false);
+  const [songSearchError, setSongSearchError] = useState<string | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<Array<{ userId: string; role: string }>>([]);
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
   const [membersModal, setMembersModal] = useState(false);
@@ -52,7 +59,7 @@ export default function NewScheduleScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!can(user, "schedule:create")) return;
+    if (!canCreateSchedules) return;
     let mounted = true;
     Promise.all([
       ministryApi.getMinistries(),
@@ -64,13 +71,41 @@ export default function NewScheduleScreen() {
       setMinistryId(ministryResult[0]?.id ?? "");
       setMembers(memberResult);
       setSongs(songResult.items);
+      setVisibleSongs(songResult.items);
     }).catch((reason) => {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível carregar dados para criar escala.");
     }).finally(() => {
       if (mounted) setLoading(false);
     });
     return () => { mounted = false; };
-  }, [user]);
+  }, [canCreateSchedules]);
+
+  useEffect(() => {
+    if (!songsModal) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSongSearchLoading(true);
+      setSongSearchError(null);
+      try {
+        const result = await musicService.listSongs(songSearch.trim(), 1, 100);
+        if (cancelled) return;
+        setVisibleSongs(result.items);
+        setSongs((current) => {
+          const merged = new Map(current.map((song) => [song.id, song]));
+          result.items.forEach((song) => merged.set(song.id, song));
+          return [...merged.values()];
+        });
+      } catch (reason) {
+        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "Não foi possível buscar músicas.");
+      } finally {
+        if (!cancelled) setSongSearchLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [songSearch, songsModal]);
 
   useEffect(() => {
     if (!ministryId) {
@@ -94,12 +129,19 @@ export default function NewScheduleScreen() {
   );
   const selectedSongs = useMemo(() => selectedSongIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean) as Song[], [songs, selectedSongIds]);
 
-  if (!can(user, "schedule:create")) {
+  if (!canCreateSchedules) {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para criar escalas.</Text><AppBackButton href="/schedules" /></View>;
   }
 
   const toggleSong = (songId: string) => {
     setSelectedSongIds((current) => current.includes(songId) ? current.filter((id) => id !== songId) : [...current, songId]);
+  };
+
+  const closeSongsModal = () => {
+    setSongsModal(false);
+    setSongSearch("");
+    setSongSearchError(null);
+    setVisibleSongs(songs);
   };
 
   const toggleMember = (memberId: string) => {
@@ -123,6 +165,7 @@ export default function NewScheduleScreen() {
         bpm: null,
       });
       setSongs((current) => [created, ...current.filter((song) => song.id !== created.id)]);
+      setVisibleSongs((current) => [created, ...current.filter((song) => song.id !== created.id)]);
       setSelectedSongIds((current) => current.includes(created.id) ? current : [...current, created.id]);
       setQuickSongArtist(null);
       setQuickSongTitle("");
@@ -156,28 +199,44 @@ export default function NewScheduleScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Modal visible={songsModal} transparent animationType="fade" onRequestClose={() => setSongsModal(false)}>
+    <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+      <Modal visible={songsModal} transparent animationType="fade" onRequestClose={closeSongsModal}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
-            <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongsModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
+            <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Adicionar músicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
           <Text style={styles.helper}>Clique nas músicas para adicionar ou remover da escala.</Text>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => { setSongsModal(false); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => { closeSongsModal(); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
+          <View style={styles.songSearchRow}>
+            <Search color={colors.muted} size={19} />
+            <TextInput
+              style={styles.songSearchInput}
+              value={songSearch}
+              onChangeText={setSongSearch}
+              placeholder="Buscar por música ou artista"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Buscar músicas da escala"
+              testID="schedule-song-search-input"
+              returnKeyType="search"
+            />
+            {songSearchLoading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+          </View>
+          {songSearchError ? <Text style={styles.songSearchError}>{songSearchError}</Text> : null}
           <ScrollView style={styles.modalList}>
-            {songs.map((song) => {
+            {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
               return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)}>
                 <Text style={styles.optionTitle}>{song.title}</Text>
                 <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
               </TouchableOpacity>;
             })}
+            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma música encontrada.</Text> : null}
           </ScrollView>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setSongsModal(false)}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={closeSongsModal}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
         </View></View>
       </Modal>
 
@@ -237,7 +296,7 @@ export default function NewScheduleScreen() {
       <Text style={styles.subtitle}>Monte a escala com ministério, músicas e membros.</Text>
       <ErrorBanner message={error} style={styles.error} />
       {loading ? <LoadingState centered={false} message="Carregando dados da escala..." style={styles.loader} /> : (
-        <View style={styles.card}>
+        <View style={[styles.card, compactLayout && styles.cardCompact]}>
           <Text style={styles.label}>Nome da escala *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
 
@@ -248,8 +307,8 @@ export default function NewScheduleScreen() {
             </TouchableOpacity>)}
           </View>
 
-          <View style={styles.rowFields}>
-            <View style={styles.field}>
+          <View style={[styles.rowFields, compactLayout && styles.rowFieldsCompact]}>
+            <View style={compactLayout ? styles.fieldCompact : styles.field}>
               <DateTimeInput
                 type="date"
                 label="Dia *"
@@ -258,7 +317,7 @@ export default function NewScheduleScreen() {
                 testID="schedule-date"
               />
             </View>
-            <View style={styles.field}>
+            <View style={compactLayout ? styles.fieldCompact : styles.field}>
               <DateTimeInput
                 type="time"
                 label="Horário *"
@@ -269,13 +328,13 @@ export default function NewScheduleScreen() {
             </View>
           </View>
 
-          <View style={styles.sectionHeader}>
-            <View><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song) => song.title).join(", ") : "Nenhuma música adicionada."}</Text></View>
+          <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
+            <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song) => song.title).join(", ") : "Nenhuma música adicionada."}</Text></View>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
           </View>
 
-          <View style={styles.sectionHeader}>
-            <View><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View>
+          <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
+            <View style={styles.sectionText}><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Adicionar membros</Text></TouchableOpacity>
           </View>
 
@@ -297,21 +356,27 @@ export default function NewScheduleScreen() {
 
 const styles = StyleSheet.create({
   container: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
+  containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
+  cardCompact: { padding: spacing.lg },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
+  rowFieldsCompact: { flexDirection: "column" },
   field: { flex: 1 },
+  fieldCompact: { width: "100%" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: { minHeight: 38, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, justifyContent: "center", paddingHorizontal: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontWeight: "800" },
   chipTextActive: { color: colors.surface },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl },
+  sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
+  sectionText: { flex: 1 },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
   secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
@@ -331,6 +396,10 @@ const styles = StyleSheet.create({
   modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   modalHeaderSpacer: { width: 40, height: 40 },
   modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
+  songSearchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
+  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: 15, outlineStyle: "none" } as any,
+  songSearchError: { color: colors.danger, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
+  emptyText: { color: colors.muted, fontSize: 13, textAlign: "center", paddingVertical: spacing.lg },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },

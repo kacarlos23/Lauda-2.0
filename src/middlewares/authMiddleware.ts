@@ -53,13 +53,10 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
-    let role = decoded.role;
-    let tenantId = decoded.tenantId ?? null;
-
-    if (!tenantId && role !== Role.GLOBAL_ADMIN) {
-      role = currentUser.role;
-      tenantId = currentUser.tenantId;
-    }
+    // Authorization state is always sourced from the database. The JWT only
+    // identifies the session, so role/tenant changes take effect immediately.
+    const role = currentUser.role;
+    const tenantId = currentUser.tenantId;
 
     if (!tenantId && role !== Role.GLOBAL_ADMIN) {
       next(new UnauthorizedError("Tenant ausente no token"));
@@ -99,6 +96,15 @@ export const requirePermission =
     } catch (error) {
       next(error);
     }
+  };
+
+export const requireSelfOrPermission = (permissionKey: PermissionKey, paramName = "id") =>
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (req.user?.id === String(req.params[paramName])) {
+      next();
+      return;
+    }
+    await requirePermission(permissionKey)(req, res, next);
   };
 
 export const requireRole =

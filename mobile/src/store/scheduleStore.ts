@@ -217,7 +217,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       });
       await invalidateRelatedData({ reason: "schedule" });
     } catch (error) {
-      const reason = message(error, "NÃ£o foi possÃ­vel excluir escala.");
+      const reason = message(error, "Não foi possível excluir escala.");
       set({ saving: false, allSchedules: previousSchedules, schedules: previousAssignments, error: reason });
       throw error;
     }

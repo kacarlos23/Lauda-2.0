@@ -84,4 +84,12 @@ export class SongRepository {
     const result = await prisma.song.updateMany({ where: { id, tenantId: this.tenantId }, data });
     return result.count ? this.findById(id) : null;
   }
+
+  async delete(id: string) {
+    const result = await prisma.song.updateMany({
+      where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null },
+      data: { isActive: false, deletedAt: new Date() },
+    });
+    return result.count;
+  }
 }

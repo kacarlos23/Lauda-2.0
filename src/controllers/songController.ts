@@ -47,6 +47,11 @@ export class SongController extends BaseController {
     this.handleSuccess(res, await this.service(req).update(id, updateSongSchema.parse(req.body)));
   }
 
+  async delete(req: Request, res: Response) {
+    const { id } = songIdSchema.parse(req.params);
+    this.handleSuccess(res, await this.service(req).delete(id));
+  }
+
   async export(req: Request, res: Response) {
     const { songIds, transpositions = {} } = exportSongsSchema.parse(req.body);
     const songs = await this.service(req).getForExport(songIds);

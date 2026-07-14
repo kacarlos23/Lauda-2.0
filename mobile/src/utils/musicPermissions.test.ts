@@ -5,9 +5,12 @@ describe("canManageMusic", () => {
     expect(canManageMusic("GLOBAL_ADMIN")).toBe(true);
   });
 
-  it("bloqueia roles sem grants e usuário ausente", () => {
-    expect(canManageMusic("TENANT_ADMIN")).toBe(false);
-    expect(canManageMusic("MINISTRY_LEADER")).toBe(false);
+  it("permite papéis de administração e liderança musical", () => {
+    expect(canManageMusic("TENANT_ADMIN")).toBe(true);
+    expect(canManageMusic("MINISTRY_LEADER")).toBe(true);
+  });
+
+  it("bloqueia membro sem grants e usuário ausente", () => {
     expect(canManageMusic("MEMBER")).toBe(false);
     expect(canManageMusic(undefined)).toBe(false);
   });

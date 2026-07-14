@@ -13,5 +13,6 @@ router.post("/export", requirePermission("song:view"), (req, res) => controller.
 router.get("/:id", requirePermission("song:view"), (req, res) => controller.get(req, res));
 router.post("/", requirePermission("song:create"), (req, res) => controller.create(req, res));
 router.patch("/:id", requirePermission("song:edit"), (req, res) => controller.update(req, res));
+router.delete("/:id", requirePermission("song:delete"), (req, res) => controller.delete(req, res));
 
 export default router;

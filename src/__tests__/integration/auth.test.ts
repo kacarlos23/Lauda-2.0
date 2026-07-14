@@ -186,7 +186,7 @@ describe("Auth API", () => {
     await request(app)
       .get("/api/admin/tenants")
       .set("Authorization", `Bearer ${oldLogin.body.data.accessToken}`)
-      .expect(403);
+      .expect(200);
 
     const newLogin = await request(app)
       .post("/api/auth/login")
@@ -202,5 +202,14 @@ describe("Auth API", () => {
       .get("/api/admin/tenants")
       .set("Authorization", `Bearer ${newLogin.body.data.accessToken}`)
       .expect(200);
+
+    await prisma.user.update({
+      where: { email: "admin-auth-role-refresh@example.com" },
+      data: { role: Role.TENANT_ADMIN },
+    });
+    await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${newLogin.body.data.accessToken}`)
+      .expect(403);
   });
 });

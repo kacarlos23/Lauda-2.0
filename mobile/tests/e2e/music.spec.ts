@@ -20,6 +20,12 @@ const song = {
   updatedAt: "2026-01-01",
 };
 const createdSongId = "33333333-3333-4333-8333-333333333333";
+const cifraClubResult = {
+  title: "Autor da Vida",
+  artist: "Oficina G3",
+  url: "https://www.cifraclub.com.br/oficina-g3/autor-da-vida/",
+  originalKey: "G",
+};
 
 async function authenticated(page: Page, role: "TENANT_ADMIN" | "MEMBER") {
   await page.addInitScript(({ role }) => {
@@ -41,6 +47,10 @@ async function mockMusicApi(page: Page) {
 
     if (path === "/api/songs/export") {
       await route.fulfill({ status: 200, contentType: "application/pdf", body: Buffer.from("%PDF-test") });
+      return;
+    }
+    if (path === "/api/songs/cifra-club/search" && request.method() === "GET") {
+      await route.fulfill({ json: { success: true, data: { items: [cifraClubResult] } } });
       return;
     }
     if (path === "/api/songs" && request.method() === "GET") {
@@ -110,11 +120,22 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
   await page.getByTestId("song-save-button").last().click();
   await expect(page).toHaveURL(new RegExp(`/songs/${createdSongId}$`));
   await expect(page.getByTestId("current-key")).toContainText("C");
+  await expect(page.getByTestId("transpose-down")).toHaveText("−1 Tom");
+  await expect(page.getByTestId("font-down")).toHaveText("A−");
+  await expect(page.getByTestId("scroll-speed")).toHaveText("1.00×");
   await page.getByTestId("transpose-up").click();
   await expect(page.getByTestId("current-key")).toContainText("C#");
   await page.getByTestId("font-up").click();
   await expect(page.getByText("18px", { exact: true })).toBeVisible();
   await expect(page.getByTestId("auto-scroll")).toBeVisible();
+
+  await page.getByTestId("app-back-button-compact").click();
+  await expect(page).toHaveURL(/\/songs$/);
+  await page.getByTestId(`song-row-${song.id}`).click();
+  await expect(page.getByTestId("current-key")).toContainText("G");
+  await page.getByTestId("app-back-button-compact").click();
+  await page.getByTestId(`song-row-${createdSongId}`).click();
+  await expect(page.getByTestId("current-key")).toContainText("C");
 
   await page.getByLabel("Editar música").click();
   await page.getByTestId("song-edit-metadata-button").last().click();
@@ -128,6 +149,14 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
   await expect(page).toHaveURL(/\/songs$/);
   await expect(page.getByText("Depois da Guerra", { exact: true }).last()).toBeVisible();
   await expect(page.getByText("Nova canção editada", { exact: true }).last()).toBeVisible();
+
+  await page.getByTestId(`song-row-${song.id}`).click();
+  await expect(page).toHaveURL(new RegExp(`/songs/${song.id}$`));
+  await expect(page.getByText("Depois da Guerra", { exact: true }).last()).toBeVisible();
+  await expect(page.getByTestId("current-key")).toContainText("G");
+  await page.getByTestId("app-back-button-compact").click();
+  await expect(page).toHaveURL(/\/songs$/);
+
   await page.getByLabel("Nova música").click();
   await expect(page.getByText("Etapa 1 de 2", { exact: true })).toBeVisible();
   await expect(page.getByTestId("artist-search-input")).toHaveValue("");
@@ -142,7 +171,7 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
   expect((await downloadPromise).suggestedFilename()).toMatch(/Cifras.*\.pdf/);
 
   await page.getByText("Cancelar seleção").click();
-  await page.getByLabel("Gerenciar artistas").click();
+  await page.getByLabel("Gerenciar artistas").last().click();
   await page.getByLabel("Editar Oficina G3").click();
   await page.locator('input[value="Oficina G3"]').fill("Oficina G3 Atualizada");
   await page.getByText("Salvar", { exact: true }).click();
@@ -162,4 +191,40 @@ test("membro consulta e exporta, mas não acessa criação ou edição", async (
   await page.goto(`/songs/${song.id}/edit`);
   await expect(page).not.toHaveURL(new RegExp(`/songs/${song.id}/edit$`));
   await expect(page.getByTestId("song-chord-input")).toHaveCount(0);
+});
+
+test("busca cifras com somente artista, somente música e com ambos", async ({ page }) => {
+  await authenticated(page, "TENANT_ADMIN");
+  await mockMusicApi(page);
+  await page.goto("/");
+  await openSongs(page);
+  await page.getByLabel("Nova música").click();
+  await expect(page.getByText("Etapa 1 de 2", { exact: true })).toBeVisible();
+
+  await page.getByTestId("song-title-input").fill("Autor da Vida");
+  const titleRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/songs/cifra-club/search");
+  await page.getByTestId("song-cifra-club-search-button").click();
+  const titleUrl = new URL((await titleRequest).url());
+  expect(titleUrl.searchParams.get("title")).toBe("Autor da Vida");
+  expect(titleUrl.searchParams.has("artist")).toBe(false);
+  await expect(page.getByLabel("Importar Autor da Vida de Oficina G3")).toBeVisible();
+  await page.getByLabel("Fechar importação do Cifra Club").click();
+
+  await page.getByTestId("song-title-input").fill("");
+  await page.getByTestId("artist-search-input").fill("Oficina G3");
+  const artistRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/songs/cifra-club/search");
+  await page.getByTestId("song-cifra-club-search-button").click();
+  const artistUrl = new URL((await artistRequest).url());
+  expect(artistUrl.searchParams.get("artist")).toBe("Oficina G3");
+  expect(artistUrl.searchParams.has("title")).toBe(false);
+  await expect(page.getByLabel("Importar Autor da Vida de Oficina G3")).toBeVisible();
+  await page.getByLabel("Fechar importação do Cifra Club").click();
+
+  await page.getByTestId("song-title-input").fill("Autor da Vida");
+  const combinedRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/songs/cifra-club/search");
+  await page.getByTestId("song-cifra-club-search-button").click();
+  const combinedUrl = new URL((await combinedRequest).url());
+  expect(combinedUrl.searchParams.get("artist")).toBe("Oficina G3");
+  expect(combinedUrl.searchParams.get("title")).toBe("Autor da Vida");
+  await expect(page.getByLabel("Importar Autor da Vida de Oficina G3")).toBeVisible();
 });

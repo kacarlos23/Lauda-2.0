@@ -4,7 +4,6 @@ import { NotFoundError, ValidationError } from "../errors/AppError";
 import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
 
 const BASE_URL = "https://www.cifraclub.com.br";
-const SEARCH_LIMIT = 8;
 const USER_AGENT = "LaudaApp/1.0 (+authorized-cifraclub-import)";
 
 type MusicalKey = (typeof MUSICAL_KEYS)[number];
@@ -30,26 +29,29 @@ export class CifraClubImportService {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ userAgent: USER_AGENT });
-      const directItems = await this.searchDirectCandidates(page, input);
-      if (directItems.length) return { items: directItems.slice(0, SEARCH_LIMIT) };
+      const results = new Map<string, CifraClubSearchResult>();
+      const merge = (items: CifraClubSearchResult[]) => items.forEach((item) => {
+        const previous = results.get(item.url);
+        results.set(item.url, previous
+          ? { ...previous, originalKey: previous.originalKey ?? item.originalKey ?? null }
+          : item);
+      });
 
-      await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 20_000 });
-
-      const query = `${input.artist} ${input.title}`;
-      const searchInput = page.locator('input[type="search"], input[name="q"], input[placeholder*="tocar" i], input[placeholder*="Pesquisar" i]').first();
-      if (await searchInput.count()) {
-        await searchInput.fill(query);
-        await Promise.all([
-          page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => undefined),
-          page.keyboard.press("Enter"),
-        ]);
-      } else {
-        await page.goto(`${BASE_URL}/busca/?q=${encodeURIComponent(query)}`, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      let artistCatalogItems: CifraClubSearchResult[] = [];
+      if (input.artist) {
+        merge(await this.searchDirectCandidates(page, input));
+        artistCatalogItems = await this.searchArtistSongs(page, input);
+        merge(artistCatalogItems);
       }
 
-      const html = await page.content();
-      const items = CifraClubImportService.parseSearchResults(html, page.url(), input).slice(0, SEARCH_LIMIT);
-      if (!items.length) throw new NotFoundError("Nenhuma cifra encontrada no Cifra Club para esta música.");
+      if (!input.artist || artistCatalogItems.length === 0) {
+        merge(await this.searchGeneralCandidates(page, input));
+      }
+
+      const items = Array.from(results.values())
+        .filter((candidate) => CifraClubImportService.matchesCandidate(candidate, input))
+        .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input));
+      if (!items.length) throw new NotFoundError("Nenhuma cifra encontrada no Cifra Club para os termos informados.");
       return { items };
     } finally {
       await browser.close().catch(() => undefined);
@@ -105,7 +107,7 @@ export class CifraClubImportService {
         if (!response?.ok() || !CifraClubImportService.isSongUrl(page.url())) continue;
         const html = await page.content();
         const parsed = CifraClubImportService.parseSongPage(html, page.url());
-        if (CifraClubImportService.scoreCandidate(parsed, input) < 4) continue;
+        if (!CifraClubImportService.matchesCandidate(parsed, input)) continue;
         results.set(parsed.cifraUrl, {
           title: parsed.title,
           artist: parsed.artist,
@@ -113,28 +115,71 @@ export class CifraClubImportService {
           originalKey: parsed.originalKey,
         });
       } catch {
-        // Candidatos diretos podem não existir; a busca HTML abaixo continua como fallback.
-      }
-    }
-
-    const artistPageUrl = CifraClubImportService.artistPageUrl(input.artist);
-    if (artistPageUrl) {
-      try {
-        const response = await page.goto(artistPageUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
-        if (response?.ok()) {
-          const html = await page.content();
-          for (const item of CifraClubImportService.parseSearchResults(html, page.url(), input)) {
-            const previous = results.get(item.url);
-            results.set(item.url, previous ? { ...previous, originalKey: previous.originalKey ?? item.originalKey ?? null } : item);
-          }
-        }
-      } catch {
-        // Se a página do artista não existir ou mudar, a busca HTML abaixo continua como fallback.
+        // Um candidato direto pode não existir; as demais estratégias continuam normalmente.
       }
     }
 
     return Array.from(results.values())
-      .sort((a, b) => CifraClubImportService.scoreCandidate(b, input) - CifraClubImportService.scoreCandidate(a, input));
+      .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input));
+  }
+
+  private async searchArtistSongs(page: Page, input: CifraClubSearchInput): Promise<CifraClubSearchResult[]> {
+    if (!input.artist) return [];
+    const artistPageUrl = CifraClubImportService.artistPageUrl(input.artist);
+    if (!artistPageUrl) return [];
+
+    try {
+      const response = await page.goto(artistPageUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      if (!response?.ok()) return [];
+      return CifraClubImportService.parseSearchResults(await page.content(), page.url(), input);
+    } catch {
+      return [];
+    }
+  }
+
+  private async searchGeneralCandidates(page: Page, input: CifraClubSearchInput): Promise<CifraClubSearchResult[]> {
+    const query = [input.artist, input.title].filter(Boolean).join(" ");
+    if (!query) return [];
+
+    const results = new Map<string, CifraClubSearchResult>();
+    try {
+      await page.goto(`${BASE_URL}/?q=${encodeURIComponent(query)}`, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await page.waitForSelector(".gsc-webResult.gsc-result", { state: "attached", timeout: 12_000 });
+
+      const collectCurrentPage = async () => {
+        for (const item of CifraClubImportService.parseSearchResults(await page.content(), page.url(), input)) {
+          const previous = results.get(item.url);
+          results.set(item.url, previous
+            ? { ...previous, originalKey: previous.originalKey ?? item.originalKey ?? null }
+            : item);
+        }
+      };
+
+      await collectCurrentPage();
+      const pageNumbers = (await page.locator(".gsc-cursor-page").allTextContents())
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isInteger(value) && value > 1);
+
+      for (const pageNumber of pageNumbers) {
+        const cursor = page.locator(".gsc-cursor-page").filter({ hasText: new RegExp(`^${pageNumber}$`) }).first();
+        if (!await cursor.count()) continue;
+        try {
+          await cursor.click({ timeout: 5_000 });
+          await page.waitForFunction(
+            (expectedPage) => document.querySelector(".gsc-cursor-current-page")?.textContent?.trim() === String(expectedPage),
+            pageNumber,
+            { timeout: 8_000 }
+          );
+          await collectCurrentPage();
+        } catch {
+          // Preserva as páginas já coletadas quando a paginação externa falha.
+        }
+      }
+    } catch {
+      return [];
+    }
+
+    return Array.from(results.values());
   }
 
   static parseSearchResults(html: string, currentUrl: string, input: CifraClubSearchInput): CifraClubSearchResult[] {
@@ -150,17 +195,18 @@ export class CifraClubImportService {
 
       const text = this.cleanText(match[2]);
       const pathParts = new URL(url).pathname.split("/").filter(Boolean);
-      const artist = this.titleCaseSlug(pathParts[0] ?? input.artist);
-      const title = text && !/opções/i.test(text) ? text.replace(/^\d+\s*/, "").trim() : this.titleCaseSlug(pathParts[1] ?? input.title);
+      const { artist, title } = this.candidateLabels(text, pathParts, currentUrl, input);
 
-      const score = this.scoreCandidate({ title, artist }, input);
-      if (!this.titleMatches(title, input.title)) continue;
-      if (score < 4) continue;
-      results.set(url, { title, artist, url, originalKey: this.findNearbyKey(html, match.index) });
+      if (!this.matchesCandidate({ title, artist }, input)) continue;
+      const candidate = { title, artist, url, originalKey: this.findNearbyKey(html, match.index) };
+      const previous = results.get(url);
+      if (!previous || this.labelQuality(candidate) > this.labelQuality(previous)) {
+        results.set(url, candidate);
+      }
     }
 
     return Array.from(results.values())
-      .sort((a, b) => this.scoreCandidate(b, input) - this.scoreCandidate(a, input));
+      .sort((first, second) => this.compareCandidates(first, second, input));
   }
 
   static parseSongPage(html: string, pageUrl: string): CifraClubImportResult {
@@ -290,15 +336,15 @@ export class CifraClubImportService {
   }
 
   private static candidateSearchUrls(input: CifraClubSearchInput): string[] {
-    const artistSlug = this.slugify(input.artist);
-    const titleSlug = this.slugify(input.title);
+    const artistSlug = this.slugify(input.artist ?? "");
+    const titleSlug = this.slugify(input.title ?? "");
     if (!artistSlug || !titleSlug) return [];
     return [`${BASE_URL}/${artistSlug}/${titleSlug}/`];
   }
 
   private static artistPageUrl(artist: string): string | null {
     const artistSlug = this.slugify(artist);
-    return artistSlug ? `${BASE_URL}/${artistSlug}/` : null;
+    return artistSlug ? `${BASE_URL}/${artistSlug}/musicas.html?order=alphabetical` : null;
   }
 
   private static isSongUrl(url: string): boolean {
@@ -350,26 +396,75 @@ export class CifraClubImportService {
       .replace(/^-+|-+$/g, "");
   }
 
-  private static scoreCandidate(candidate: Pick<CifraClubSearchResult, "title" | "artist">, input: CifraClubSearchInput): number {
-    const title = this.normalize(candidate.title);
-    const artist = this.normalize(candidate.artist);
-    const expectedTitle = this.normalize(input.title);
-    const expectedArtist = this.normalize(input.artist);
-    let score = 0;
-    if (title.includes(expectedTitle) || expectedTitle.includes(title)) score += 4;
-    if (artist.includes(expectedArtist) || expectedArtist.includes(artist)) score += 4;
-    expectedTitle.split(" ").forEach((part) => { if (part.length > 2 && title.includes(part)) score += 1; });
-    expectedArtist.split(" ").forEach((part) => { if (part.length > 2 && artist.includes(part)) score += 1; });
-    return score;
+  private static candidateLabels(text: string, pathParts: string[], currentUrl: string, input: CifraClubSearchInput) {
+    const fallbackTitle = this.titleCaseSlug(pathParts[1] ?? input.title ?? "");
+    const fallbackArtist = this.titleCaseSlug(pathParts[0] ?? input.artist ?? "");
+    const conciseText = text.split(/Cifra Club[â€¢•]/i)[0].trim();
+    const googleLabel = conciseText.match(/^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club$/i);
+    if (googleLabel) {
+      return { title: googleLabel[1].trim(), artist: googleLabel[2].trim() };
+    }
+
+    const currentParts = new URL(currentUrl).pathname.split("/").filter(Boolean);
+    const isArtistCatalog = currentParts[0] === pathParts[0] && currentParts.includes("musicas.html");
+    if (isArtistCatalog && conciseText && !/opções/i.test(conciseText)) {
+      return { title: conciseText.trim(), artist: input.artist ?? fallbackArtist };
+    }
+
+    if (conciseText && conciseText.length <= 200 && !/opções/i.test(conciseText)) {
+      return { title: conciseText.replace(/^\d{2}\s+/, "").trim(), artist: fallbackArtist };
+    }
+
+    return { title: fallbackTitle, artist: fallbackArtist };
   }
 
-  private static titleMatches(candidateTitle: string, expectedTitle: string): boolean {
-    const title = this.normalize(candidateTitle);
-    const expected = this.normalize(expectedTitle);
-    if (!title || !expected) return false;
-    if (title.includes(expected) || expected.includes(title)) return true;
+  private static matchesCandidate(candidate: Pick<CifraClubSearchResult, "title" | "artist">, input: CifraClubSearchInput): boolean {
+    if (input.title && !this.fieldMatches(candidate.title, input.title)) return false;
+    if (input.artist && !this.fieldMatches(candidate.artist, input.artist)) return false;
+    return true;
+  }
+
+  private static compareCandidates(first: CifraClubSearchResult, second: CifraClubSearchResult, input: CifraClubSearchInput): number {
+    const scoreDifference = this.scoreCandidate(second, input) - this.scoreCandidate(first, input);
+    if (scoreDifference) return scoreDifference;
+    return first.title.localeCompare(second.title, "pt-BR", { sensitivity: "base" })
+      || first.artist.localeCompare(second.artist, "pt-BR", { sensitivity: "base" });
+  }
+
+  private static scoreCandidate(candidate: Pick<CifraClubSearchResult, "title" | "artist">, input: CifraClubSearchInput): number {
+    return this.fieldScore(candidate.title, input.title, 2) + this.fieldScore(candidate.artist, input.artist, 1);
+  }
+
+  private static fieldScore(candidateValue: string, expectedValue: string | undefined, weight: number): number {
+    if (!expectedValue) return 0;
+    const candidate = this.normalize(candidateValue);
+    const expected = this.normalize(expectedValue);
+    if (!candidate || !expected) return 0;
+    if (candidate === expected) return 20 * weight;
+    if (candidate.startsWith(expected) || expected.startsWith(candidate)) return 12 * weight;
+    if (candidate.includes(expected) || expected.includes(candidate)) return 8 * weight;
+    return expected.split(" ").reduce(
+      (score, part) => score + (part.length > 2 && candidate.includes(part) ? weight : 0),
+      0
+    );
+  }
+
+  private static fieldMatches(candidateValue: string, expectedValue: string): boolean {
+    const candidate = this.normalize(candidateValue);
+    const expected = this.normalize(expectedValue);
+    if (!candidate || !expected) return false;
+    if (candidate.includes(expected) || expected.includes(candidate)) return true;
     const expectedParts = expected.split(" ").filter((part) => part.length > 2);
-    return expectedParts.length > 0 && expectedParts.every((part) => title.includes(part));
+    return expectedParts.length > 0 && expectedParts.every((part) => candidate.includes(part));
+  }
+
+  private static labelQuality(candidate: Pick<CifraClubSearchResult, "title" | "artist">): number {
+    let quality = 0;
+    if (candidate.title && !candidate.title.includes("-")) quality += 1;
+    if (candidate.artist && !candidate.artist.includes("-")) quality += 1;
+    if (/[^a-z0-9 ]/i.test(candidate.title)) quality += 1;
+    if (/[^a-z0-9 ]/i.test(candidate.artist)) quality += 1;
+    return quality;
   }
 
   private static normalize(value: string): string {

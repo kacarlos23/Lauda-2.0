@@ -14,6 +14,17 @@ const createScheduleMock = jest.fn();
 const resolveSubstitutionMock = jest.fn();
 let currentRole: Role = "MEMBER";
 
+function permissionsForRole(role: Role): string[] {
+  switch (role) {
+    case "TENANT_ADMIN":
+      return ["schedule:create", "schedule:view", "schedule:edit"];
+    case "MINISTRY_LEADER":
+      return ["schedule:create", "schedule:view", "schedule:edit"];
+    default:
+      return [];
+  }
+}
+
 const futureDate = new Date().toISOString();
 const schedule = {
   id: "schedule-1",
@@ -80,10 +91,14 @@ jest.mock("../services/scheduleService", () => ({
   scheduleService: { exportScheduleReport: jest.fn(() => Promise.resolve()) },
 }));
 
+jest.mock("../services/musicService", () => ({
+  musicService: { exportSongs: jest.fn(() => Promise.resolve()) },
+}));
+
 jest.mock("../store/authStore", () => ({
   useAuthStore: () => ({
     tenant: { id: "tenant-1", name: "Igreja Teste" },
-    user: { id: "user-1", role: currentRole },
+    user: { id: "user-1", role: currentRole, permissions: permissionsForRole(currentRole) },
   }),
 }));
 

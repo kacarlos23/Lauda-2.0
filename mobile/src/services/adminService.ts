@@ -1,7 +1,6 @@
 import { AxiosError } from "axios";
 import { api } from "./api";
-import { AdminResourceListResponse, GlobalMinistry, GlobalResourceName, GlobalSchedule, GlobalSong, GlobalTenant, GlobalUser, Permission, PermissionKey, Role, UserPermissionsResponse } from "../types";
-import { permissionDefinitions } from "../utils/permissions";
+import { AdminResourceListResponse, GlobalMinistry, GlobalResourceName, GlobalSchedule, GlobalSong, GlobalTenant, GlobalUser, Permission, PermissionEffect, PermissionKey, Role, UserPermissionsResponse } from "../types";
 
 function cleanParams<T extends Record<string, unknown>>(params?: T): Partial<T> | undefined {
   if (!params) return undefined;
@@ -213,18 +212,12 @@ export const adminService = {
     try {
       const response = await api.get<{ success: boolean; data: Permission[] }>("/admin/permissions");
       return response.data.data;
-    } catch (error) {
-      if (apiStatus(error) === 400 || apiStatus(error) === 404) {
-        return permissionDefinitions;
-      }
-      handleApiError(error);
-    }
+    } catch (error) { handleApiError(error); }
   },
 
-  async listUserPermissions(userId: string, tenantId?: string | null): Promise<UserPermissionsResponse> {
+  async listUserPermissions(userId: string): Promise<UserPermissionsResponse> {
     try {
       const response = await api.get<{ success: boolean; data: UserPermissionsResponse }>(`/admin/users/${userId}/permissions`, {
-        params: cleanParams({ tenantId }),
       });
       return response.data.data;
     } catch (error) {
@@ -232,11 +225,13 @@ export const adminService = {
     }
   },
 
-  async setUserPermissions(userId: string, permissionKeys: PermissionKey[], tenantId?: string | null): Promise<UserPermissionsResponse> {
+  async setUserPermissions(
+    userId: string,
+    overrides: Array<{ permissionKey: PermissionKey; effect: PermissionEffect }>
+  ): Promise<UserPermissionsResponse> {
     try {
       const response = await api.put<{ success: boolean; data: UserPermissionsResponse }>(`/admin/users/${userId}/permissions`, {
-        permissionKeys,
-        tenantId,
+        overrides,
       });
       return response.data.data;
     } catch (error) {

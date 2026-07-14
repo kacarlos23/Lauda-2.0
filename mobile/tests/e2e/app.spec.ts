@@ -456,6 +456,21 @@ test("redireciona usuário anônimo para login e bloqueia área autenticada", as
   await expect(page.getByTestId("login-password")).toBeVisible();
 });
 
+test("remove globalmente o contorno nativo de elementos focados", async ({ page }) => {
+  const emailInput = page.getByTestId("login-email");
+  await emailInput.click();
+  await emailInput.fill("ana@example.com");
+
+  await expect(emailInput).toBeFocused();
+  await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+
+  const submitButton = page.getByTestId("login-submit");
+  await submitButton.focus();
+
+  await expect(submitButton).toBeFocused();
+  await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+});
+
 test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {
   let loginRequests = 0;
   page.on("request", (request) => {
@@ -559,10 +574,10 @@ test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page
 
   await expect(page.getByText("Dados da Igreja", { exact: true })).toBeVisible();
   await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
-  await expect(page.getByText("5", { exact: true })).toBeVisible();
-  await expect(page.getByText("2", { exact: true })).toBeVisible();
-  await expect(page.getByText("3", { exact: true })).toBeVisible();
-  await expect(page.getByText("9", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Membros: 5")).toBeVisible();
+  await expect(page.getByLabel("Ministérios: 2")).toBeVisible();
+  await expect(page.getByLabel("Escalas: 3")).toBeVisible();
+  await expect(page.getByLabel("Instrumentos: 9")).toBeVisible();
   await expect(page.getByText("Gerenciar").first()).toBeVisible();
 
   await page.getByText("Editar").click();
@@ -661,6 +676,96 @@ test("GLOBAL_ADMIN vê erro claro quando API global falha", async ({ page }) => 
   await expect(page.getByText("Não foi possível carregar o painel global.").first()).toBeVisible();
 });
 
+test("GLOBAL_ADMIN nega uma permissão herdada pelo controle de três estados", async ({ page }) => {
+  let savedOverrides: Array<{ permissionKey: string; effect: string }> | undefined;
+  const targetUser = {
+    id: "member-2",
+    name: "Bruno Membro",
+    email: "bruno@example.com",
+    role: "MEMBER",
+    tenantId: "tenant-2",
+    tenant: { id: "tenant-2", name: "Igreja Norte" },
+    createdAt: "2026-05-26T00:00:00.000Z",
+  };
+  const memberView = {
+    id: "permission-member-view",
+    key: "member:view",
+    description: "Visualizar membros",
+    category: "Membros",
+    assignable: true,
+  };
+
+  await mockApi(page, { user: globalAdminUser, adminUsers: [targetUser] });
+  await page.route("**/api/admin/permissions", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: [
+          memberView,
+          {
+            id: "permission-manage",
+            key: "permissions:manage",
+            description: "Gerenciar permissões granulares",
+            category: "Admin",
+            assignable: false,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/admin/users/member-2/permissions", async (route) => {
+    const isUpdate = route.request().method() === "PUT";
+    if (isUpdate) {
+      savedOverrides = (route.request().postDataJSON() as { overrides: Array<{ permissionKey: string; effect: string }> }).overrides;
+    }
+    const denyOverride = isUpdate
+      ? [{
+          id: "override-1",
+          userId: targetUser.id,
+          tenantId: targetUser.tenantId,
+          permissionId: memberView.id,
+          permission: memberView,
+          grantedById: globalAdminUser.id,
+          effect: "DENY",
+          createdAt: "2026-07-13T00:00:00.000Z",
+        }]
+      : [];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          user: targetUser,
+          grants: [],
+          baseline: ["member:view"],
+          overrides: denyOverride,
+          effective: isUpdate ? [] : ["member:view"],
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await login(page, "global@example.com");
+  await page.getByTestId("header-profile-button").last().click();
+  await page.getByTestId("open-global-admin-button").click();
+  await page.getByText("Usuários", { exact: true }).first().click();
+  await page.getByLabel("Gerenciar permissões granulares").click();
+
+  const memberViewControl = page.getByLabel("Visualizar membros");
+  await expect(memberViewControl).toBeVisible();
+  await expect(page.getByLabel("Gerenciar permissões granulares")).toHaveCount(1);
+  await memberViewControl.click();
+  await memberViewControl.click();
+  await expect(page.getByText("Negado", { exact: true })).toBeVisible();
+  await page.getByText("Salvar permissões", { exact: true }).click();
+
+  await expect.poll(() => savedOverrides).toEqual([{ permissionKey: "member:view", effect: "DENY" }]);
+});
+
 test("painel global exibe empty state apenas quando API retorna banco vazio", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
@@ -672,7 +777,7 @@ test("painel global exibe empty state apenas quando API retorna banco vazio", as
   await login(page, "global@example.com");
   await page.getByTestId("header-profile-button").last().click();
   await page.getByTestId("open-global-admin-button").click();
-  await expect(page.getByText("Nenhum registro encontrado.")).toBeVisible();
+  await expect(page.getByText("Nenhum registro encontrado", { exact: true })).toBeVisible();
 });
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {

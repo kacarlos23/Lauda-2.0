@@ -1,8 +1,8 @@
 import { Redirect, Tabs, usePathname } from "expo-router";
 import type { ComponentType } from "react";
-import { useState } from "react";
-import { View } from "react-native";
-import { CalendarClock, Church, Home, Music2, Users } from "lucide-react-native";
+import { useEffect, useState } from "react";
+import { AppState, View } from "react-native";
+import { CalendarClock, Church, Ellipsis, Home, Music2, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import {
@@ -25,10 +25,17 @@ const tabIcon = (Icon: ComponentType<TabIconProps>, color: string) => (
 );
 
 export default function TabsLayout() {
-  const { user } = useAuthStore();
+  const { user, refreshCurrentUser } = useAuthStore();
   const { isMobile } = useResponsiveLayout();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshCurrentUser();
+    });
+    return () => subscription.remove();
+  }, [refreshCurrentUser]);
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -155,6 +162,15 @@ export default function TabsLayout() {
             title: "Novo membro",
             href: null,
             headerLeft: () => null,
+          }}
+        />
+        <Tabs.Screen
+          name="more"
+          options={{
+            title: "Mais",
+            tabBarLabel: "Mais",
+            tabBarIcon: ({ color }) => tabIcon(Ellipsis, color),
+            href: "/more" as never,
           }}
         />
         <Tabs.Screen

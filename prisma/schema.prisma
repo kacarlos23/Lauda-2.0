@@ -25,6 +25,11 @@ enum MemberStatus {
   INACTIVE
 }
 
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
 model Tenant {
   id        String   @id @default(uuid())
   name      String
@@ -277,6 +282,7 @@ model Permission {
   key         String   @unique
   description String
   category    String
+  assignable  Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -299,6 +305,8 @@ model UserPermission {
 
   grantedById String
   grantedBy   User   @relation("UserPermissionGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+
+  effect PermissionEffect @default(ALLOW)
 
   createdAt DateTime @default(now())
 

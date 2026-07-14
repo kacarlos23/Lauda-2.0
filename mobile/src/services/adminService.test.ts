@@ -7,6 +7,7 @@ jest.mock("./api", () => ({
     get: jest.fn(),
     post: jest.fn(),
     patch: jest.fn(),
+    put: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -184,6 +185,19 @@ describe("adminService", () => {
     mockedApi.get.mockRejectedValueOnce(makeAxiosError(403, { error: "Acesso negado" }));
 
     await expect(adminService.getTenants()).rejects.toThrow("Acesso negado");
+  });
+
+  it("envia overrides ALLOW/DENY sem tenantId informado pelo cliente", async () => {
+    const response = { user: { id: "user-1" }, baseline: [], overrides: [], grants: [], effective: [] };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: response } });
+    mockedApi.put.mockResolvedValueOnce({ data: { success: true, data: response } });
+
+    await expect(adminService.listUserPermissions("user-1")).resolves.toEqual(response);
+    expect(mockedApi.get).toHaveBeenCalledWith("/admin/users/user-1/permissions", {});
+
+    const overrides = [{ permissionKey: "song:view" as const, effect: "DENY" as const }];
+    await expect(adminService.setUserPermissions("user-1", overrides)).resolves.toEqual(response);
+    expect(mockedApi.put).toHaveBeenCalledWith("/admin/users/user-1/permissions", { overrides });
   });
 
   it.each([401, 403])("lança erro quando a API retorna %i", async (status) => {

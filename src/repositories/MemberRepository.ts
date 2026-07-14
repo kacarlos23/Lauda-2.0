@@ -1,6 +1,6 @@
 import { prisma } from "./prismaClient";
 import { Role } from "@prisma/client";
-import { CreateMemberInput } from "../validators/member.schema";
+import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schema";
 
 const userInstrumentInclude = {
   include: {
@@ -23,7 +23,7 @@ export class MemberRepository {
 
   async findAll() {
     const members = await prisma.user.findMany({
-      where: { tenantId: this.tenantId },
+      where: { tenantId: this.tenantId, isActive: true, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -46,7 +46,7 @@ export class MemberRepository {
 
   async findById(id: string) {
     const member = await prisma.user.findFirst({
-      where: { id, tenantId: this.tenantId },
+      where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -136,6 +136,22 @@ export class MemberRepository {
   async updateProfile(userId: string, data: { name?: string; phone?: string | null; avatarUrl?: string | null }) {
     const result = await prisma.user.updateMany({ where: { id: userId, tenantId: this.tenantId }, data });
     return result.count ? this.findById(userId) : null;
+  }
+
+  async updateMember(userId: string, data: UpdateMemberInput) {
+    const result = await prisma.user.updateMany({
+      where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+      data: { ...data, ...(data.email ? { email: data.email.toLowerCase() } : {}) },
+    });
+    return result.count ? this.findById(userId) : null;
+  }
+
+  async deactivateMember(userId: string) {
+    const result = await prisma.user.updateMany({
+      where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+      data: { isActive: false, deletedAt: new Date() },
+    });
+    return result.count;
   }
 
   async findInstrumentIds(ids: string[]) {

@@ -53,10 +53,10 @@ describe("musicService", () => {
     const items = [{ title: "Autor da Vida", artist: "Aline Barros", url: "https://www.cifraclub.com.br/aline-barros/autor-da-vida/" }];
     mockedApi.get.mockResolvedValueOnce({ data: { data: { items } } });
 
-    await expect(musicService.searchCifraClub("Aline Barros", "Autor da Vida")).resolves.toEqual(items);
+    await expect(musicService.searchCifraClub({ artist: "Aline Barros", title: "Autor da Vida" })).resolves.toEqual(items);
     expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/cifra-club/search", {
       params: { artist: "Aline Barros", title: "Autor da Vida" },
-      timeout: 45000,
+      timeout: 90000,
     });
 
     const imported = {
@@ -71,6 +71,22 @@ describe("musicService", () => {
 
     await expect(musicService.importCifraClub(items[0].url)).resolves.toEqual(imported);
     expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/cifra-club/import", { url: items[0].url }, { timeout: 45000 });
+  });
+
+  it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
+    mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
+
+    await musicService.searchCifraClub({ artist: " Aline Barros " });
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/cifra-club/search", {
+      params: { artist: "Aline Barros" },
+      timeout: 90000,
+    });
+
+    await musicService.searchCifraClub({ title: " Autor da Vida " });
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/cifra-club/search", {
+      params: { title: "Autor da Vida" },
+      timeout: 90000,
+    });
   });
 
   it("exporta PDF com transposição opcional por música", async () => {

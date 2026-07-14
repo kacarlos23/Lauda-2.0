@@ -2,6 +2,8 @@ param(
   [int]$BackendPort = 3000,
   [int]$FrontendPort = 8081,
   [string]$PublicApiUrl,
+  [switch]$Production,
+  [switch]$RestartBackend,
   [switch]$SkipMigrations
 )
 
@@ -163,21 +165,66 @@ function Invoke-LoggedCommand {
 }
 
 function Start-Backend {
-  $outLog = Join-Path $ProjectRoot "backend.dev.out.log"
-  $errLog = Join-Path $ProjectRoot "backend.dev.err.log"
-  $command = "set PORT=$BackendPort&& set DATABASE_URL=postgresql://postgres:postgres@localhost:$DbPort/$DbName&& npm run dev >> `"$outLog`" 2>> `"$errLog`""
+  $mode = if ($Production) { "prod" } else { "dev" }
+  $outLog = Join-Path $ProjectRoot "backend.$mode.out.log"
+  $errLog = Join-Path $ProjectRoot "backend.$mode.err.log"
+  $runCommand = if ($Production) { "npm start" } else { "npm run dev" }
+  $command = "set PORT=$BackendPort&& set DATABASE_URL=postgresql://postgres:postgres@localhost:$DbPort/$DbName&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $ProjectRoot
-  Write-Ok "Backend iniciado em background. PID do launcher: $($process.Id). Logs: backend.dev.out.log / backend.dev.err.log"
+  Write-Ok "Backend $mode iniciado em background. PID do launcher: $($process.Id). Logs: backend.$mode.out.log / backend.$mode.err.log"
+}
+
+function Build-ProductionBackend {
+  Write-Step "Gerando backend de producao atualizado"
+  Push-Location $ProjectRoot
+  try {
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "Build do backend de producao falhou."
+    }
+    Write-Ok "Backend de producao atualizado em dist."
+  } finally {
+    Pop-Location
+  }
 }
 
 function Start-Frontend {
-  $outLog = Join-Path $ProjectRoot "frontend.dev.out.log"
-  $errLog = Join-Path $ProjectRoot "frontend.dev.err.log"
-  $command = "set EXPO_PUBLIC_API_URL=$ApiUrl&& npm run web -- --port $FrontendPort >> `"$outLog`" 2>> `"$errLog`""
+  $mode = if ($Production) { "prod" } else { "dev" }
+  $outLog = Join-Path $ProjectRoot "frontend.$mode.out.log"
+  $errLog = Join-Path $ProjectRoot "frontend.$mode.err.log"
+  $runCommand = if ($Production) {
+    "npm run serve:web -- --listen $FrontendPort"
+  } else {
+    "npm run web -- --port $FrontendPort"
+  }
+  $command = "set EXPO_PUBLIC_API_URL=$ApiUrl&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $MobileRoot
-  Write-Ok "Frontend iniciado em background. PID do launcher: $($process.Id). Logs: frontend.dev.out.log / frontend.dev.err.log"
+  Write-Ok "Frontend $mode iniciado em background. PID do launcher: $($process.Id). Logs: frontend.$mode.out.log / frontend.$mode.err.log"
+}
+
+function Build-ProductionFrontend {
+  Write-Step "Gerando frontend de producao atualizado"
+  $hadApiUrl = Test-Path Env:EXPO_PUBLIC_API_URL
+  $previousApiUrl = $env:EXPO_PUBLIC_API_URL
+
+  Push-Location $MobileRoot
+  try {
+    $env:EXPO_PUBLIC_API_URL = $ApiUrl
+    npm run build:web
+    if ($LASTEXITCODE -ne 0) {
+      throw "Build do frontend de producao falhou."
+    }
+    Write-Ok "Bundle de producao atualizado em mobile/dist."
+  } finally {
+    Pop-Location
+    if ($hadApiUrl) {
+      $env:EXPO_PUBLIC_API_URL = $previousApiUrl
+    } else {
+      Remove-Item Env:EXPO_PUBLIC_API_URL -ErrorAction SilentlyContinue
+    }
+  }
 }
 
 Write-Step "Validando pre-requisitos"
@@ -243,7 +290,27 @@ if (-not $SkipMigrations) {
   Write-Warn "Migrations ignoradas por parametro -SkipMigrations."
 }
 
+if ($Production) {
+  Build-ProductionBackend
+  Build-ProductionFrontend
+}
+
 Write-Step "Verificando backend"
+if ($RestartBackend -and (Test-BackendHealth)) {
+  $backendProcess = Get-PortProcess -Port $BackendPort
+  if ($backendProcess) {
+    Write-Warn "Reiniciando backend para carregar o build atualizado (PID $($backendProcess.Id))."
+    Stop-Process -Id $backendProcess.Id -Force
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Test-TcpPort -HostName $DbHost -Port $BackendPort) -and (Get-Date) -lt $deadline) {
+      Start-Sleep -Milliseconds 250
+    }
+    if (Test-TcpPort -HostName $DbHost -Port $BackendPort) {
+      throw "A porta $BackendPort nao foi liberada apos reiniciar o backend."
+    }
+  }
+}
+
 if (Test-BackendHealth) {
   Write-Ok "Backend ja esta saudavel em $BackendUrl/health."
 } else {
@@ -273,7 +340,8 @@ if (Test-FrontendHealth) {
   }
 
   Start-Frontend
-  $frontendReady = Wait-Until -Name "Frontend" -TimeoutSeconds 90 -Condition { Test-FrontendHealth }
+  $frontendTimeout = if ($Production) { 180 } else { 90 }
+  $frontendReady = Wait-Until -Name "Frontend" -TimeoutSeconds $frontendTimeout -Condition { Test-FrontendHealth }
   if (-not $frontendReady) {
     throw "Frontend nao ficou saudavel. Verifique frontend.dev.err.log."
   }

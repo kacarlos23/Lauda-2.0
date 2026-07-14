@@ -13,6 +13,35 @@ const loadMembersMock = jest.fn();
 let currentRole: Role = "MEMBER";
 let currentMembers: any[] = [];
 
+function permissionsForRole(role: Role): string[] {
+  switch (role) {
+    case "GLOBAL_ADMIN":
+      return [];
+    case "TENANT_ADMIN":
+      return [
+        "schedule:create",
+        "song:create",
+        "song:edit",
+        "member:create",
+        "member:view",
+        "member:invite",
+        "member:assign_ministry",
+        "ministry:create",
+        "instrument:create",
+        "tenant:manage",
+      ];
+    case "MINISTRY_LEADER":
+      return [
+        "schedule:create",
+        "song:create",
+        "song:edit",
+        "member:view",
+      ];
+    default:
+      return [];
+  }
+}
+
 jest.mock("react-native", () => {
   const React = require("react");
   const create = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
@@ -47,6 +76,7 @@ jest.mock("lucide-react-native", () => {
     ClipboardList: Icon,
     Music2: Icon,
     Plus: Icon,
+    Settings2: Icon,
     UserPlus: Icon,
     UsersRound: Icon,
   };
@@ -54,7 +84,13 @@ jest.mock("lucide-react-native", () => {
 
 jest.mock("../store/authStore", () => ({
   useAuthStore: () => ({
-    user: { id: "user-1", name: "Usuário Teste", role: currentRole, tenantId: "tenant-1" },
+    user: {
+      id: "user-1",
+      name: "Usuário Teste",
+      role: currentRole,
+      tenantId: "tenant-1",
+      permissions: permissionsForRole(currentRole),
+    },
     tenant: { id: "tenant-1", name: "Igreja Teste" },
   }),
 }));
@@ -140,19 +176,21 @@ describe("Dashboard central de ações", () => {
     expect(loadMembersMock).not.toHaveBeenCalled();
   });
 
-  it("renderiza dashboard de líder com ações de escala e música", async () => {
+  it("renderiza dashboard de líder com atalhos adicionais de música", async () => {
     const renderer = await renderDashboard("MINISTRY_LEADER");
     const text = textContent(renderer);
 
     expect(text).toContain("Criar escala");
     expect(text).toContain("Cadastrar música");
+    expect(text).toContain("Gerenciar artistas");
     expect(text).toContain("Atenção em membros");
     expect(text).not.toContain("Convidar membro");
     expect(text).not.toContain("Criar ministério");
+    expect(text).not.toContain("Painel global");
     expect(loadMembersMock).not.toHaveBeenCalled();
   });
 
-  it("renderiza dashboard de admin com todas as ações administrativas", async () => {
+  it("renderiza dashboard de admin com atalhos administrativos expandidos", async () => {
     const renderer = await renderDashboard("TENANT_ADMIN");
     const text = textContent(renderer);
 
@@ -160,9 +198,23 @@ describe("Dashboard central de ações", () => {
     expect(text).toContain("Convidar membro");
     expect(text).toContain("Cadastrar música");
     expect(text).toContain("Criar ministério");
+    expect(text).toContain("Gerenciar artistas");
+    expect(text).toContain("Instrumentos");
+    expect(text).toContain("Dados da igreja");
     expect(text).toContain("Sem ministério");
     expect(text).toContain("Sem instrumento/cargo");
+    expect(text).not.toContain("Painel global");
     expect(loadMembersMock).not.toHaveBeenCalled();
+  });
+
+  it("renderiza dashboard global com atalhos globais", async () => {
+    const renderer = await renderDashboard("GLOBAL_ADMIN");
+    const text = textContent(renderer);
+
+    expect(text).toContain("Painel global");
+    expect(text).toContain("Dados da igreja");
+    expect(text).toContain("Gerenciar artistas");
+    expect(text).toContain("Instrumentos");
   });
 
   it("carrega membros apenas para perfil com acesso quando a store esta vazia", async () => {

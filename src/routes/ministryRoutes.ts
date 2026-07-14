@@ -31,6 +31,8 @@ router.get("/:id/members", requirePermission("ministry:view"), (req, res) => ctr
 router.post("/", requirePermission("ministry:create"), (req, res) => ctrl.create(req, res));
 router.put("/:id", requirePermission("ministry:edit"), (req, res) => ctrl.update(req, res));
 router.delete("/:id", requirePermission("ministry:delete"), (req, res) => ctrl.remove(req, res));
+// These two routes also allow the contextual leader of the target ministry;
+// MinistryService enforces either the granular permission or that leadership.
 router.post("/:id/members", (req, res) => ctrl.addMember(req, res));
 router.delete("/:id/members/:userId", (req, res) => ctrl.removeMember(req, res));
 

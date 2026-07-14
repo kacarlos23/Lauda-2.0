@@ -49,10 +49,19 @@ export const exportSongsSchema = z.object({
   transpositions: z.record(z.string().uuid("ID de música inválido"), z.number().int().min(-11).max(11)).optional(),
 });
 
+const optionalSearchTerm = (maximum: number) => z.string()
+  .trim()
+  .max(maximum)
+  .transform((value) => value || undefined)
+  .optional();
+
 export const cifraClubSearchSchema = z.object({
-  artist: z.string().trim().min(1, "Informe o artista").max(120),
-  title: z.string().trim().min(1, "Informe o nome da música").max(200),
-});
+  artist: optionalSearchTerm(120),
+  title: optionalSearchTerm(200),
+}).refine(
+  (input) => Boolean(input.artist || input.title),
+  { message: "Informe o artista ou o nome da música" }
+);
 
 export const cifraClubImportSchema = z.object({
   url: z.string()

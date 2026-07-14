@@ -8,7 +8,7 @@ import {
 
 describe("instrumentCatalog utils", () => {
   it("permite acesso apenas com permissões efetivas", () => {
-    expect(canManageInstrumentCatalog("TENANT_ADMIN")).toBe(false);
+    expect(canManageInstrumentCatalog("TENANT_ADMIN")).toBe(true);
     expect(canManageInstrumentCatalog("GLOBAL_ADMIN")).toBe(true);
     expect(canManageInstrumentCatalog({ role: "MEMBER", permissions: ["instrument:create"] })).toBe(true);
     expect(canManageInstrumentCatalog("MEMBER")).toBe(false);

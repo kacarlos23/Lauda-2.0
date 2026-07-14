@@ -8,15 +8,45 @@ import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
 import { colors, radii, spacing, typography } from "../../src/theme";
 import { countPendingSchedules, formatScheduleDate, getNextSchedule } from "../../src/utils/scheduleFormat";
-import { can, canManageChurch, canManageMembers, canViewMembers, formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
+import { can, canAccessChurchAdmin, canAccessGlobalAdminArea, canManageMembers, canViewMembers, formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
 import { canManageMusic } from "../../src/utils/musicPermissions";
+import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
+import { canCreateSchedule } from "../../src/utils/schedulePermissions";
+
+const TEXT = {
+  userFallback: "Usu\u00e1rio",
+  createSong: "Cadastrar m\u00fasica",
+  createMinistry: "Criar minist\u00e9rio",
+  hello: "Ol\u00e1",
+  central: "Sua central de a\u00e7\u00f5es ministeriais",
+  churchUnknown: "Igreja n\u00e3o identificada",
+  nextSchedule: "Pr\u00f3xima escala",
+  ministryLabel: "Minist\u00e9rio",
+  notInformedMale: "N\u00e3o informado",
+  roleLabel: "Fun\u00e7\u00e3o",
+  notInformedFemale: "N\u00e3o informada",
+  nextScheduleDescription: "Quando uma escala for publicada, ela aparecer\u00e1 aqui com data, hor\u00e1rio e minist\u00e9rio.",
+  quickActions: "A\u00e7\u00f5es r\u00e1pidas",
+  shortcutsAvailable: "Atalhos dispon\u00edveis para o seu perfil",
+  followRoutine: "Acompanhe suas escalas, pend\u00eancias e pr\u00f3ximos compromissos por aqui.",
+  noPendingNow: "Nenhuma pend\u00eancia no momento",
+  roleNotInformed: "Fun\u00e7\u00e3o n\u00e3o informada",
+  pendingDescription: "Quando houver uma escala pendente de resposta, ela aparecer\u00e1 aqui.",
+  membersAttention: "Aten\u00e7\u00e3o em membros",
+  noMinistry: "Sem minist\u00e9rio",
+  recentActivitiesSubtitle: "Dados derivados das informa\u00e7\u00f5es carregadas",
+  nextScheduleDefined: "Pr\u00f3xima escala definida",
+  recentActivitiesDescription: "Assim que houver escalas ou pend\u00eancias carregadas, elas aparecer\u00e3o aqui.",
+  ministries: "Minist\u00e9rios",
+  ministriesDescription: "Use a aba Minist\u00e9rios para ver minist\u00e9rios, descri\u00e7\u00f5es e quantidade de membros.",
+} as const;
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, tenant } = useAuthStore();
   const { schedules, loading, error, loadMySchedules } = useScheduleStore();
   const { members, loading: membersLoading, loadMembers } = useMemberStore();
-  const firstName = user?.name?.split(" ")[0] ?? "Usuário";
+  const firstName = user?.name?.split(" ")[0] ?? TEXT.userFallback;
   const pendingCount = countPendingSchedules(schedules);
   const nextSchedule = getNextSchedule(schedules);
   const pendingSchedules = schedules.filter((item) => item.status === "PENDING").slice(0, 3);
@@ -24,9 +54,13 @@ export default function DashboardScreen() {
   const membersWithoutInstrument = members.filter((member) => !member.instruments?.length);
   const canSeeMembers = canViewMembers(user);
   const canCreateMembers = canManageMembers(user);
-  const canCreateSchedules = can(user, "schedule:create");
+  const canCreateSchedules = canCreateSchedule(user);
   const canCreateSongs = canManageMusic(user, "song:create");
-  const canCreateMinistries = canManageChurch(user);
+  const canCreateMinistries = can(user, "ministry:create");
+  const canManageArtists = canManageMusic(user, "song:edit") || canManageMusic(user, "song:create");
+  const canManageInstruments = canManageInstrumentCatalog(user);
+  const canOpenChurchAdmin = canAccessChurchAdmin(user);
+  const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
 
   useEffect(() => {
     void loadMySchedules();
@@ -57,18 +91,50 @@ export default function DashboardScreen() {
       : null,
     canCreateSongs
       ? {
-          title: "Cadastrar música",
+          title: TEXT.createSong,
           icon: <Music2 color={colors.primary} size={20} strokeWidth={2.4} />,
           onPress: () => router.push("/songs/new" as never),
-          accessibilityLabel: "Cadastrar música",
+          accessibilityLabel: TEXT.createSong,
         }
       : null,
     canCreateMinistries
       ? {
-          title: "Criar ministério",
+          title: TEXT.createMinistry,
           icon: <Church color={colors.primary} size={20} strokeWidth={2.4} />,
           onPress: () => router.push("/ministries" as never),
-          accessibilityLabel: "Criar ministério",
+          accessibilityLabel: TEXT.createMinistry,
+        }
+      : null,
+    canManageArtists
+      ? {
+          title: "Gerenciar artistas",
+          icon: <Music2 color={colors.primary} size={20} strokeWidth={2.4} />,
+          onPress: () => router.push("/artists" as never),
+          accessibilityLabel: "Gerenciar artistas",
+        }
+      : null,
+    canManageInstruments
+      ? {
+          title: "Instrumentos",
+          icon: <Plus color={colors.primary} size={20} strokeWidth={2.4} />,
+          onPress: () => router.push("/instruments?returnTo=/profile" as never),
+          accessibilityLabel: "Gerenciar instrumentos e cargos",
+        }
+      : null,
+    canOpenChurchAdmin
+      ? {
+          title: "Dados da igreja",
+          icon: <Church color={colors.primary} size={20} strokeWidth={2.4} />,
+          onPress: () => router.push("/church" as never),
+          accessibilityLabel: "Abrir dados da igreja",
+        }
+      : null,
+    canOpenGlobalAdmin
+      ? {
+          title: "Painel global",
+          icon: <ClipboardList color={colors.primary} size={20} strokeWidth={2.4} />,
+          onPress: () => router.push("/global-admin" as never),
+          accessibilityLabel: "Abrir painel global",
         }
       : null,
   ].filter(Boolean);
@@ -77,12 +143,12 @@ export default function DashboardScreen() {
     <Screen scroll>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Hoje</Text>
-        <Text style={styles.greeting}>Olá, {firstName}</Text>
-        <Text style={styles.role}>Sua central de ações ministeriais</Text>
+        <Text style={styles.greeting}>{TEXT.hello}, {firstName}</Text>
+        <Text style={styles.role}>{TEXT.central}</Text>
         <Text style={styles.tenant}>
           {isGlobalAdmin(user)
             ? "Acesso global ao sistema"
-            : `${formatRoleLabel(user?.role)} - ${tenant?.name ?? "Igreja não identificada"}`}
+            : `${formatRoleLabel(user?.role)} - ${tenant?.name ?? TEXT.churchUnknown}`}
         </Text>
       </View>
 
@@ -107,7 +173,7 @@ export default function DashboardScreen() {
             <ClipboardList color={colors.primary} size={22} strokeWidth={2.4} />
           </View>
           <View style={styles.cardHeaderText}>
-            <Text style={styles.cardKicker}>Próxima escala</Text>
+            <Text style={styles.cardKicker}>{TEXT.nextSchedule}</Text>
             <Text style={styles.cardTitle}>
               {nextSchedule ? nextSchedule.schedule.title : "Sem compromissos agendados"}
             </Text>
@@ -118,8 +184,8 @@ export default function DashboardScreen() {
           <LoadingState centered={false} style={styles.inlineLoading} />
         ) : nextSchedule ? (
           <View style={styles.scheduleDetails}>
-            <Text style={styles.cardBody}>Ministério: {nextSchedule.schedule.ministry?.name ?? "Não informado"}</Text>
-            <Text style={styles.cardBody}>Função: {nextSchedule.role || "Não informada"}</Text>
+            <Text style={styles.cardBody}>{TEXT.ministryLabel}: {nextSchedule.schedule.ministry?.name ?? TEXT.notInformedMale}</Text>
+            <Text style={styles.cardBody}>{TEXT.roleLabel}: {nextSchedule.role || TEXT.notInformedFemale}</Text>
             <Text style={styles.cardBody}>Data: {formatScheduleDate(nextSchedule.schedule.date)}</Text>
             <View style={styles.statusRow}>
               <Text style={styles.cardBody}>Status:</Text>
@@ -129,7 +195,7 @@ export default function DashboardScreen() {
         ) : (
           <EmptyState
             title="Sem compromissos agendados"
-            description="Quando uma escala for publicada, ela aparecerá aqui com data, horário e ministério."
+            description={TEXT.nextScheduleDescription}
             style={styles.cardEmptyState}
           />
         )}
@@ -159,8 +225,8 @@ export default function DashboardScreen() {
 
       <Card style={styles.card}>
         <SectionHeader
-          title="Ações rápidas"
-          subtitle={quickActions.length ? "Atalhos disponíveis para o seu perfil" : "Resumo da sua rotina ministerial"}
+          title={TEXT.quickActions}
+          subtitle={quickActions.length ? TEXT.shortcutsAvailable : "Resumo da sua rotina ministerial"}
           style={styles.sectionHeader}
         />
         {quickActions.length ? (
@@ -179,14 +245,14 @@ export default function DashboardScreen() {
             ) : null)}
           </View>
         ) : (
-          <Text style={styles.cardBody}>Acompanhe suas escalas, pendências e próximos compromissos por aqui.</Text>
+          <Text style={styles.cardBody}>{TEXT.followRoutine}</Text>
         )}
       </Card>
 
       <Card style={styles.card}>
         <SectionHeader
           title="Escalas pendentes"
-          subtitle={pendingCount ? `${pendingCount} convite(s) aguardando resposta` : "Nenhuma pendência no momento"}
+          subtitle={pendingCount ? `${pendingCount} convite(s) aguardando resposta` : TEXT.noPendingNow}
           style={styles.sectionHeader}
         />
         {loading && schedules.length === 0 ? (
@@ -197,7 +263,7 @@ export default function DashboardScreen() {
               <View key={assignment.id} style={styles.pendingItem}>
                 <View style={styles.pendingText}>
                   <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
-                  <Text style={styles.itemMeta}>{assignment.role || "Função não informada"} - {formatScheduleDate(assignment.schedule.date)}</Text>
+                  <Text style={styles.itemMeta}>{assignment.role || TEXT.roleNotInformed} - {formatScheduleDate(assignment.schedule.date)}</Text>
                 </View>
                 <ScheduleStatusBadge status={assignment.status} />
               </View>
@@ -206,7 +272,7 @@ export default function DashboardScreen() {
         ) : (
           <EmptyState
             title="Tudo em dia"
-            description="Quando houver uma escala pendente de resposta, ela aparecerá aqui."
+            description={TEXT.pendingDescription}
             style={styles.compactEmpty}
           />
         )}
@@ -223,7 +289,7 @@ export default function DashboardScreen() {
       {canSeeMembers ? (
         <Card style={styles.card}>
           <SectionHeader
-            title="Atenção em membros"
+            title={TEXT.membersAttention}
             subtitle={membersLoading && members.length === 0 ? "Carregando membros" : "Cadastros que podem precisar de complemento"}
             style={styles.sectionHeader}
           />
@@ -234,7 +300,7 @@ export default function DashboardScreen() {
               <View style={styles.metricNeutral}>
                 <UsersRound color={colors.warning} size={22} strokeWidth={2.4} />
                 <Text style={styles.metricValue}>{membersWithoutMinistry.length}</Text>
-                <Text style={styles.metricLabel}>Sem ministério</Text>
+                <Text style={styles.metricLabel}>{TEXT.noMinistry}</Text>
               </View>
               <View style={styles.metricNeutral}>
                 <Plus color={colors.info} size={22} strokeWidth={2.4} />
@@ -255,13 +321,13 @@ export default function DashboardScreen() {
       ) : null}
 
       <Card style={styles.card}>
-        <SectionHeader title="Atividades recentes" subtitle="Dados derivados das informações carregadas" style={styles.sectionHeader} />
+        <SectionHeader title="Atividades recentes" subtitle={TEXT.recentActivitiesSubtitle} style={styles.sectionHeader} />
         {nextSchedule ? (
           <View style={styles.activityList}>
             <View style={styles.activityItem}>
               <CalendarClock color={colors.primary} size={18} strokeWidth={2.4} />
               <View style={styles.activityText}>
-                <Text style={styles.itemTitle}>Próxima escala definida</Text>
+                <Text style={styles.itemTitle}>{TEXT.nextScheduleDefined}</Text>
                 <Text style={styles.itemMeta}>{nextSchedule.schedule.title} - {formatScheduleDate(nextSchedule.schedule.date)}</Text>
               </View>
             </View>
@@ -278,18 +344,16 @@ export default function DashboardScreen() {
         ) : (
           <EmptyState
             title="Sem atividades recentes"
-            description="Assim que houver escalas ou pendências carregadas, elas aparecerão aqui."
+            description={TEXT.recentActivitiesDescription}
             style={styles.compactEmpty}
           />
         )}
       </Card>
 
       <Card style={styles.card}>
-        <Text style={styles.cardKicker}>Ministérios</Text>
+        <Text style={styles.cardKicker}>{TEXT.ministries}</Text>
         <Text style={styles.cardTitle}>Acompanhe suas equipes</Text>
-        <Text style={styles.cardBody}>
-          Use a aba Ministérios para ver ministérios, descrições e quantidade de membros.
-        </Text>
+        <Text style={styles.cardBody}>{TEXT.ministriesDescription}</Text>
       </Card>
     </Screen>
   );

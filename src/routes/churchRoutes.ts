@@ -1,13 +1,12 @@
 import { Router } from "express";
-import { Role } from "@prisma/client";
 import { ChurchController } from "../controllers/ChurchController";
-import { authMiddleware, requireRole } from "../middlewares/authMiddleware";
+import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
 
 const router = Router();
 const ctrl = new ChurchController();
 
 router.use(authMiddleware);
-router.use(requireRole(Role.TENANT_ADMIN));
+router.use(requirePermission("tenant:manage"));
 
 router.get("/me", (req, res) => ctrl.getMe(req, res));
 router.patch("/me", (req, res) => ctrl.updateMe(req, res));

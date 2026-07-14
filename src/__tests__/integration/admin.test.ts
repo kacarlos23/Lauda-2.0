@@ -178,9 +178,9 @@ describe("Admin global API", () => {
   it("executa CRUD global padronizado, lifecycle, log e bloqueia relaÃ§Ãµes entre igrejas", async () => {
     const tenantA = await registerTenant("ops-a");
     const tenantB = await registerTenant("ops-b");
+    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Ops A");
     await prisma.user.update({ where: { id: tenantA.user.id }, data: { role: Role.GLOBAL_ADMIN, tenantId: null } });
     const globalAdmin = await login(tenantA.user.email);
-    const ministryA = await createMinistry(tenantA.accessToken, "Louvor Ops A");
     const memberB = await createMember(tenantB.accessToken, "member-ops-b", "MEMBER");
     const scheduleA = await createSchedule(tenantA.tenant.id, ministryA.id, "Culto Ops A");
 
@@ -479,6 +479,65 @@ describe("Admin global API", () => {
       .set("Authorization", `Bearer ${memberA.accessToken}`)
       .expect(200);
     expect(memberResponse.body.data.tenantId).toBe(tenantA.tenant.id);
+  });
+
+  it("aplica overrides ALLOW/DENY imediatamente e audita a alteração", async () => {
+    const actorTenant = await registerTenant("permission-actor");
+    const targetTenant = await registerTenant("permission-target");
+    await prisma.user.update({ where: { id: actorTenant.user.id }, data: { role: Role.GLOBAL_ADMIN } });
+    const globalAdmin = await login(actorTenant.user.email);
+
+    const catalog = await request(app)
+      .get("/api/admin/permissions")
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    expect(catalog.body.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "permissions:manage", assignable: false }),
+      expect.objectContaining({ key: "member:manage_access", assignable: true }),
+    ]));
+    expect(catalog.body.data.some((item: { key: string }) => item.key === "reports:view")).toBe(false);
+
+    const denied = await request(app)
+      .put(`/api/admin/users/${targetTenant.user.id}/permissions`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ overrides: [{ permissionKey: "member:view", effect: "DENY" }] })
+      .expect(200);
+    expect(denied.body.data.baseline).toContain("member:view");
+    expect(denied.body.data.effective).not.toContain("member:view");
+    expect(denied.body.data.overrides).toEqual(expect.arrayContaining([
+      expect.objectContaining({ effect: "DENY", permission: expect.objectContaining({ key: "member:view" }) }),
+    ]));
+
+    await request(app).get("/api/members").set("Authorization", `Bearer ${targetTenant.accessToken}`).expect(403);
+
+    const legacy = await request(app)
+      .put(`/api/admin/users/${targetTenant.user.id}/permissions`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ permissionKeys: ["member:assign_permissions"] })
+      .expect(200);
+    expect(legacy.body.data.overrides[0]).toMatchObject({
+      effect: "ALLOW",
+      permission: { key: "member:manage_access" },
+    });
+    expect(legacy.body.data.effective).toContain("member:view");
+    await request(app).get("/api/members").set("Authorization", `Bearer ${targetTenant.accessToken}`).expect(200);
+
+    await request(app)
+      .post(`/api/admin/users/${targetTenant.user.id}/permissions`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ permissionKey: "permissions:manage", effect: "ALLOW" })
+      .expect(400);
+    await request(app)
+      .put(`/api/admin/users/${actorTenant.user.id}/permissions`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .send({ overrides: [] })
+      .expect(403);
+
+    const audit = await prisma.adminAuditLog.findFirst({
+      where: { actorId: actorTenant.user.id, resource: "user-permissions", resourceId: targetTenant.user.id },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(audit?.action).toBe("set_permission_overrides");
   });
 });
 

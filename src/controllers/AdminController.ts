@@ -100,8 +100,8 @@ export class AdminController extends BaseController {
 
   async listUserPermissions(req: Request, res: Response): Promise<void> {
     const { userId } = adminUserParamsSchema.parse(req.params);
-    const query = adminUserPermissionsQuerySchema.parse(req.query);
-    this.handleSuccess(res, await this.permissionService.listUserPermissions(userId, query.tenantId));
+    adminUserPermissionsQuerySchema.parse(req.query);
+    this.handleSuccess(res, await this.permissionService.listUserPermissions(userId));
   }
 
   async grantUserPermission(req: Request, res: Response): Promise<void> {
@@ -111,8 +111,8 @@ export class AdminController extends BaseController {
       res,
       await this.permissionService.grantPermission(req.user!, {
         userId,
-        ...input,
         permissionKey: input.permissionKey as PermissionKey,
+        effect: input.effect,
       }),
       201
     );
@@ -125,8 +125,10 @@ export class AdminController extends BaseController {
       res,
       await this.permissionService.setUserPermissions(req.user!, {
         userId,
-        ...input,
-        permissionKeys: input.permissionKeys as PermissionKey[],
+        overrides: input.overrides.map((override) => ({
+          permissionKey: override.permissionKey as PermissionKey,
+          effect: override.effect,
+        })),
       })
     );
   }
@@ -138,7 +140,6 @@ export class AdminController extends BaseController {
       res,
       await this.permissionService.revokePermission(req.user!, {
         userId,
-        ...input,
         permissionKey: input.permissionKey as PermissionKey,
       })
     );
@@ -147,7 +148,7 @@ export class AdminController extends BaseController {
   async updateUser(req: Request, res: Response): Promise<void> {
     const { userId } = adminUserParamsSchema.parse(req.params);
     const input = adminUpdateUserSchema.parse(req.body);
-    this.handleSuccess(res, await this.service.updateUser(userId, input));
+    this.handleSuccess(res, await this.service.updateUser(req.user!, userId, input));
   }
 
   async listMinistries(_req: Request, res: Response): Promise<void> {

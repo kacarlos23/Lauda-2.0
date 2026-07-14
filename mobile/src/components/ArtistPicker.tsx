@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React from "react";
 import { Plus, UserRound } from "lucide-react-native";
 import { Artist } from "../types";
 import { musicService } from "../services/musicService";
@@ -8,17 +9,24 @@ import { colors, radii, spacing } from "../theme";
 type Props = {
   selected: Artist | null;
   onSelect: (artist: Artist | null) => void;
+  onQueryChange?: (query: string) => void;
   canCreate?: boolean;
 };
 
 const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 
-export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
+export function ArtistPicker({ selected, onSelect, onQueryChange, canCreate = true }: Props) {
   const [query, setQuery] = useState(selected?.name ?? "");
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selected || normalize(query) === normalize(selected.name)) return;
+    setQuery(selected.name);
+    onQueryChange?.(selected.name);
+  }, [onQueryChange, query, selected]);
 
   useEffect(() => {
     if (selected && normalize(query) === normalize(selected.name)) return;
@@ -38,6 +46,7 @@ export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
 
   const choose = (artist: Artist) => {
     setQuery(artist.name);
+    onQueryChange?.(artist.name);
     onSelect(artist);
     setArtists([]);
   };
@@ -65,7 +74,7 @@ export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
         <TextInput
           style={styles.input}
           value={query}
-          onChangeText={(value) => { setQuery(value); onSelect(null); setError(null); }}
+          onChangeText={(value) => { setQuery(value); onQueryChange?.(value); onSelect(null); setError(null); }}
           placeholder="Digite para buscar ou criar"
           placeholderTextColor={colors.muted}
           autoCapitalize="words"
@@ -78,7 +87,7 @@ export function ArtistPicker({ selected, onSelect, canCreate = true }: Props) {
           {canCreate && !exactMatch ? (
             <TouchableOpacity style={styles.option} onPress={() => void create()} disabled={creating} testID="artist-create-option">
               <View style={styles.avatar}><Plus color={colors.primary} size={18} /></View>
-              <Text style={styles.createText}>{creating ? "Criando..." : `Criar S${query.trim()}⬝`}</Text>
+              <Text style={styles.createText}>{creating ? "Criando..." : `Criar \u201c${query.trim().replace(/\s+/g, " ")}\u201d`}</Text>
             </TouchableOpacity>
           ) : null}
           {artists.map((artist) => (

@@ -17,11 +17,19 @@ export default function RootLayout() {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
 
     const styleId = "lauda-global-hover-styles";
-    if (document.getElementById(styleId)) return;
+    let style = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = styleId;
+      document.head.appendChild(style);
+    }
 
-    const style = document.createElement("style");
-    style.id = styleId;
     style.textContent = `
+      *:focus,
+      *:focus-visible {
+        outline: none !important;
+      }
+
       @media (hover: hover) and (pointer: fine) {
         [role="button"]:not([aria-disabled="true"]),
         [role="link"]:not([aria-disabled="true"]) {
@@ -35,7 +43,6 @@ export default function RootLayout() {
         }
       }
     `;
-    document.head.appendChild(style);
   }, []);
 
   useEffect(() => {

@@ -11,16 +11,19 @@ import {
 } from "./permissions";
 
 describe("member permissions", () => {
-  it("does not grant administrative permissions through tenant admin role", () => {
-    expect(canViewMembers("TENANT_ADMIN")).toBe(false);
-    expect(canManageMembers("TENANT_ADMIN")).toBe(false);
+  it("uses the shared complete operational baseline for tenant admins", () => {
+    expect(canViewMembers("TENANT_ADMIN")).toBe(true);
+    expect(canManageMembers("TENANT_ADMIN")).toBe(true);
+    expect(can("TENANT_ADMIN", "song:create")).toBe(true);
     expect(canViewMembers("GLOBAL_ADMIN")).toBe(true);
     expect(canManageMembers("GLOBAL_ADMIN")).toBe(true);
   });
 
-  it("does not grant member access through ministry leader role", () => {
+  it("keeps ministry leader focused on ministry and music permissions", () => {
     expect(canViewMembers("MINISTRY_LEADER")).toBe(false);
     expect(canManageMembers("MINISTRY_LEADER")).toBe(false);
+    expect(can("MINISTRY_LEADER", "song:create")).toBe(true);
+    expect(can("MINISTRY_LEADER", "song:edit")).toBe(true);
   });
 
   it("keeps common members without member admin access", () => {
@@ -36,7 +39,7 @@ describe("member permissions", () => {
     expect(canAccessGlobalAdminArea("TENANT_ADMIN")).toBe(false);
     expect(canAccessGlobalAdminArea("MINISTRY_LEADER")).toBe(false);
     expect(canAccessGlobalAdminArea("MEMBER")).toBe(false);
-    expect(canAccessChurchAdmin("TENANT_ADMIN")).toBe(false);
+    expect(canAccessChurchAdmin("TENANT_ADMIN")).toBe(true);
     expect(canAccessChurchAdmin("GLOBAL_ADMIN")).toBe(true);
     expect(canAccessChurchAdmin("MINISTRY_LEADER")).toBe(false);
     expect(canAccessChurchAdmin("MEMBER")).toBe(false);
@@ -45,7 +48,7 @@ describe("member permissions", () => {
   it("formats role labels", () => {
     expect(formatRoleLabel("GLOBAL_ADMIN")).toBe("Administrador global");
     expect(formatRoleLabel("TENANT_ADMIN")).toBe("Administrador da igreja");
-    expect(formatRoleLabel("MINISTRY_LEADER")).toBe("Líder de ministério");
+    expect(formatRoleLabel("MINISTRY_LEADER")).toBe("L\u00edder de minist\u00e9rio");
     expect(formatRoleLabel("MEMBER")).toBe("Membro");
     expect(canManageChurch("GLOBAL_ADMIN")).toBe(true);
     expect(canManageChurch("MEMBER")).toBe(false);
@@ -67,10 +70,26 @@ describe("member permissions", () => {
     expect(can(memberWithScheduleEdit, "schedule:create")).toBe(false);
   });
 
+  it("treats the effective permission array as authoritative", () => {
+    const tenantAdminWithEmptyGrants = {
+      role: "TENANT_ADMIN" as const,
+      permissions: [],
+    };
+    const memberWithExplicitGrant = {
+      role: "MEMBER" as const,
+      permissions: ["song:create" as const],
+    };
+
+    expect(can(tenantAdminWithEmptyGrants, "song:create")).toBe(false);
+    expect(can(tenantAdminWithEmptyGrants, "member:create")).toBe(false);
+    expect(can(tenantAdminWithEmptyGrants, "tenant:manage")).toBe(false);
+    expect(can(memberWithExplicitGrant, "song:create")).toBe(true);
+  });
+
   it("uses current effective user permissions to unlock screens", () => {
     const user = {
       role: "MEMBER" as const,
-      permissions: ["member:view" as const, "ministry:create" as const],
+      permissions: ["member:view" as const, "tenant:manage" as const],
     };
 
     expect(canViewMembers(user)).toBe(true);

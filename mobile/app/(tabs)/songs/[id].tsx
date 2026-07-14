@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { Download, Edit3, Pause, Play } from "lucide-react-native";
+import { Download, Edit3, Pause, Play, Trash2 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { cancelAnimation, Easing, runOnJS, scrollTo, useAnimatedReaction, useAnimatedRef, useAnimatedScrollHandler, useSharedValue, withTiming } from "react-native-reanimated";
 import { AppBackButton } from "../../../src/components/AppBackButton";
@@ -21,7 +21,7 @@ export default function SongDetailScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { currentSong, detailLoading, detailError, requestedSongId, loadSong } = useMusicStore();
+  const { currentSong, detailLoading, detailError, requestedSongId, loadSong, deleteSong, saving } = useMusicStore();
   const chord = useChordStore();
   const [exporting, setExporting] = useState(false);
   const [autoScrolling, setAutoScrolling] = useState(false);
@@ -70,8 +70,21 @@ export default function SongDetailScreen() {
     finally { setExporting(false); }
   };
 
+  const confirmDelete = () => {
+    Alert.alert("Excluir música", `Deseja excluir “${song.title}”?`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Excluir",
+        style: "destructive",
+        onPress: () => void deleteSong(song.id)
+          .then(() => router.replace("/songs" as never))
+          .catch((reason) => Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível excluir a música.")),
+      },
+    ]);
+  };
+
   return <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-    <View style={styles.top}><AppBackButton href="/songs" compact /><View style={styles.topActions}>{canManageMusic(user, "song:edit") ? <TouchableOpacity accessibilityLabel="Editar música" style={styles.icon} onPress={() => router.push(`/songs/${song.id}/edit` as never)}><Edit3 color={colors.primary} size={19} /></TouchableOpacity> : null}<TouchableOpacity accessibilityLabel="Exportar PDF" style={styles.icon} onPress={() => void exportPdf()} disabled={exporting}>{exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={19} />}</TouchableOpacity></View></View>
+    <View style={styles.top}><AppBackButton href="/songs" compact /><View style={styles.topActions}>{canManageMusic(user, "song:edit") ? <TouchableOpacity accessibilityLabel="Editar música" style={styles.icon} onPress={() => router.push(`/songs/${song.id}/edit` as never)}><Edit3 color={colors.primary} size={19} /></TouchableOpacity> : null}{canManageMusic(user, "song:delete") ? <TouchableOpacity accessibilityLabel="Excluir música" style={styles.icon} onPress={confirmDelete} disabled={saving}><Trash2 color={colors.danger} size={19} /></TouchableOpacity> : null}<TouchableOpacity accessibilityLabel="Exportar PDF" style={styles.icon} onPress={() => void exportPdf()} disabled={exporting}>{exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={19} />}</TouchableOpacity></View></View>
     <Animated.ScrollView
       ref={scrollRef}
       onScroll={onScroll}
@@ -84,15 +97,15 @@ export default function SongDetailScreen() {
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
       <View style={styles.controls}>
-        <Control label="1 Tom" onPress={() => chord.transpose(-1)} testID="transpose-down" />
+        <Control label={"\u22121 Tom"} onPress={() => chord.transpose(-1)} testID="transpose-down" />
         <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
         <Control label="+1 Tom" onPress={() => chord.transpose(1)} testID="transpose-up" />
       </View>
       <View style={styles.controls}>
-        <Control label="A" onPress={() => chord.changeFontSize(-2)} testID="font-down" />
+        <Control label={"A\u2212"} onPress={() => chord.changeFontSize(-2)} testID="font-down" />
         <Text style={styles.controlValue}>{chord.fontSize}px</Text>
         <Control label="A+" onPress={() => chord.changeFontSize(2)} testID="font-up" />
-        <Control label={`${chord.scrollSpeed.toFixed(2)}`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
+        <Control label={`${chord.scrollSpeed.toFixed(2)}\u00d7`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
         <TouchableOpacity style={[styles.play, autoScrolling && styles.playActive]} onPress={toggleAutoScroll} testID="auto-scroll">{autoScrolling ? <Pause color={colors.surface} size={18} /> : <Play color={colors.surface} size={18} />}<Text style={styles.playText}>{autoScrolling ? "Pausar" : "Rolar"}</Text></TouchableOpacity>
       </View>
       <View style={styles.chordCard}><ChordSheetView content={song.content} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>

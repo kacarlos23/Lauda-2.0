@@ -210,7 +210,7 @@ function Metric({
   value: number;
 }) {
   return (
-    <View style={styles.metric}>
+    <View style={styles.metric} accessible accessibilityLabel={`${label}: ${value}`}>
       <Icon color={colors.primaryDark} size={22} strokeWidth={2.4} />
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
