@@ -9,12 +9,9 @@ import { isChurchAdmin } from "../utils/permissions";
 import { PermissionKey } from "../constants/permissions";
 import { effectivePermissionKeys, hasPermission } from "../services/permissionService";
 
-interface JwtPayload {
+interface JwtIdentityPayload {
   id?: string;
   userId?: string;
-  email?: string;
-  role: Role;
-  tenantId?: string | null;
 }
 
 /**
@@ -36,7 +33,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
+    const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtIdentityPayload;
     const userId = decoded.userId ?? decoded.id;
     if (!userId) {
       next(new UnauthorizedError("Usuário ausente no token"));
@@ -45,7 +42,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
     const currentUser = await basePrisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, tenantId: true, isActive: true },
+      select: { id: true, role: true, tenantId: true, isActive: true },
     });
 
     if (!currentUser?.isActive) {
@@ -63,16 +60,16 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
-    const permissions = await effectivePermissionKeys({ id: userId, role, tenantId }, tenantId);
+    const permissions = await effectivePermissionKeys({ id: currentUser.id, role, tenantId }, tenantId);
 
     req.user = {
-      id: userId,
+      id: currentUser.id,
       role,
       tenantId: tenantId ?? "",
       permissions,
     };
 
-    runWithTenantContext({ userId, role, tenantId }, () => next());
+    runWithTenantContext({ userId: currentUser.id, role, tenantId }, () => next());
   } catch {
     next(new UnauthorizedError("Token inválido"));
   }

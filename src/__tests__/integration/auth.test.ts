@@ -11,6 +11,7 @@ import type { prisma as PrismaClientInstance } from "../../config/prisma";
 let app: express.Express;
 let prisma: typeof PrismaClientInstance;
 let container: StartedTestContainer;
+const TEST_ACCESS_SECRET = "test_access_secret";
 
 function migrate(databaseUrl: string): void {
   const prismaCli = path.resolve("node_modules", "prisma", "build", "index.js");
@@ -59,7 +60,7 @@ beforeAll(async () => {
 
   const databaseUrl = `postgresql://test:test@${container.getHost()}:${container.getMappedPort(5432)}/lauda_auth_test`;
   process.env.DATABASE_URL = databaseUrl;
-  process.env.JWT_SECRET = "test_access_secret";
+  process.env.JWT_SECRET = TEST_ACCESS_SECRET;
   process.env.REFRESH_JWT_SECRET = "test_refresh_secret";
   process.env.JWT_EXPIRES_IN = "15m";
   process.env.REFRESH_JWT_EXPIRES_IN = "7d";
@@ -166,7 +167,7 @@ describe("Auth API", () => {
     await request(app).get("/api/admin/tenants").set("Authorization", `Bearer ${accessToken}`).expect(200);
   });
 
-  it("token antigo TENANT_ADMIN não acessa /api/admin/tenants e novo login reflete role atualizada", async () => {
+  it("aplica promoção e rebaixamento atuais do banco a tokens já emitidos", async () => {
     await registerTenant("auth-role-refresh");
 
     const oldLogin = await request(app)
@@ -211,5 +212,77 @@ describe("Auth API", () => {
       .get("/api/admin/tenants")
       .set("Authorization", `Bearer ${newLogin.body.data.accessToken}`)
       .expect(403);
+  });
+
+  it("ignora role e tenantId do JWT para autorização", async () => {
+    await registerTenant("auth-current-user-a");
+    await registerTenant("auth-current-user-b");
+
+    const [userA, userB] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { email: "admin-auth-current-user-a@example.com" },
+        select: { id: true, role: true, tenantId: true },
+      }),
+      prisma.user.findUniqueOrThrow({
+        where: { email: "admin-auth-current-user-b@example.com" },
+        select: { tenantId: true },
+      }),
+    ]);
+
+    const tokenWithStaleClaims = jwt.sign(
+      { userId: userA.id, role: Role.GLOBAL_ADMIN, tenantId: userB.tenantId },
+      TEST_ACCESS_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    await request(app)
+      .get("/api/admin/tenants")
+      .set("Authorization", `Bearer ${tokenWithStaleClaims}`)
+      .expect(403);
+
+    const church = await request(app)
+      .get("/api/church/me")
+      .set("Authorization", `Bearer ${tokenWithStaleClaims}`)
+      .expect(200);
+
+    expect(userA.role).toBe(Role.TENANT_ADMIN);
+    expect(church.body.data.tenant.id).toBe(userA.tenantId);
+    expect(church.body.data.tenant.id).not.toBe(userB.tenantId);
+  });
+
+  it("nega token já emitido quando o usuário atual está inativo", async () => {
+    await registerTenant("auth-inactive-current-user");
+    const loginResponse = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-auth-inactive-current-user@example.com", password: "secret123" })
+      .expect(200);
+
+    await prisma.user.update({
+      where: { email: "admin-auth-inactive-current-user@example.com" },
+      data: { isActive: false },
+    });
+
+    await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`)
+      .expect(401);
+  });
+
+  it("nega usuário não-global sem tenant atual no banco", async () => {
+    await registerTenant("auth-missing-current-tenant");
+    const loginResponse = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-auth-missing-current-tenant@example.com", password: "secret123" })
+      .expect(200);
+
+    await prisma.user.update({
+      where: { email: "admin-auth-missing-current-tenant@example.com" },
+      data: { tenantId: null },
+    });
+
+    await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`)
+      .expect(401);
   });
 });
