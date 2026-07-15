@@ -39,13 +39,17 @@ Create a `.env` file in the project root:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5434/lauda2"
-JWT_SECRET="change-this-secret"
-REFRESH_JWT_SECRET="change-this-refresh-secret"
+JWT_SECRET="replace-with-at-least-32-random-bytes"
+REFRESH_JWT_SECRET="replace-with-a-different-32-byte-random-secret"
 MEMBER_INVITE_BASE_URL="https://laudaapp.com/convite"
 PORT=3000
 ```
 
 The `.env` file is intentionally ignored by Git.
+
+In production, `JWT_SECRET` and `REFRESH_JWT_SECRET` are both required. Use
+independent, cryptographically random values of at least 32 bytes; neither secret
+falls back to the other.
 
 `MEMBER_INVITE_BASE_URL` is used by the API to build public member registration links, for example `https://laudaapp.com/convite?code=ABCD-1234`.
 
