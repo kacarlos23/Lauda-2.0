@@ -39,6 +39,8 @@ Estas evidencias foram observadas no working tree e no historico disponivel. Alt
 | RBAC-01 Permissoes granulares | `src/__tests__/unit/granularPermissions.test.ts`; `src/__tests__/integration/admin.test.ts` | Recertificacao de contas reais pendente. |
 | CI-01 Build/test | `.github/workflows/backend.yml`; `.github/workflows/mobile.yml` | Branch protection, secret scanning e artifact retention pendentes. |
 
+Registro detalhado da Etapa 1: [`2026-07-16-etapa-1.md`](./2026-07-16-etapa-1.md).
+
 ## Verificacoes de 2026-07-16 existentes no historico documental
 
 - backend: `npm test -- --runInBand` - historico anterior indicava 18 suites e 146 testes aprovados;

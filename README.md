@@ -41,15 +41,39 @@ Create a `.env` file in the project root:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5434/lauda2"
 JWT_SECRET="replace-with-at-least-32-random-bytes"
 REFRESH_JWT_SECRET="replace-with-a-different-32-byte-random-secret"
+PASSWORD_RESET_PEPPER="replace-with-an-independent-32-byte-random-secret"
+PASSWORD_RESET_PEPPER_VERSION="1"
+RATE_LIMIT_HMAC_KEY="replace-with-another-independent-32-byte-random-secret"
+RATE_LIMIT_STORE="memory"
+TRUST_PROXY_HOPS="0"
+HOST="0.0.0.0"
 MEMBER_INVITE_BASE_URL="https://laudaapp.com/convite"
 PORT=3000
 ```
 
 The `.env` file is intentionally ignored by Git.
 
-In production, `JWT_SECRET` and `REFRESH_JWT_SECRET` are both required. Use
-independent, cryptographically random values of at least 32 bytes; neither secret
-falls back to the other.
+In production, the access JWT secret, refresh JWT secret, password-reset pepper,
+and rate-limit HMAC key are all required. Use independent, cryptographically
+random values of at least 32 bytes. Production also requires Redis for the
+distributed rate limiter and SMTP for password-reset delivery. Configure these
+settings through the production secret manager; do not commit them or reuse
+staging credentials. See [`.env.example`](.env.example) for the complete list.
+
+`TRUST_PROXY_HOPS` defaults to `0`. Increase it only when the number of trusted
+reverse proxies in front of Express is known; an incorrect value can make
+IP-based controls trust attacker-supplied forwarding headers. The bundled
+Cloudflare Tunnel launcher sets it to `1`, matching the single local
+`cloudflared` hop, and binds the API to `127.0.0.1` so remote clients cannot
+bypass the proxy directly. This assumption applies only when `cloudflared` and
+the API are host processes on the same trusted machine, with no additional
+reverse proxy. Other deployment topologies must set their own exact value and
+network binding.
+
+`npm start` always runs with `NODE_ENV=production` and fails fast when required
+secrets, Redis, SMTP, or fail-closed rate limiting are missing. `npm run dev`
+explicitly sets `NODE_ENV=development` for local development. Do not bypass the
+production checks by starting `dist/server.js` directly.
 
 `MEMBER_INVITE_BASE_URL` is used by the API to build public member registration links, for example `https://laudaapp.com/convite?code=ABCD-1234`.
 
@@ -92,7 +116,8 @@ Run automated tests:
 npm test
 ```
 
-The integration tests use Testcontainers and require Docker to be running.
+The integration tests use Testcontainers with PostgreSQL and Redis and require
+Docker to be running.
 
 ## Roles e permissões
 
