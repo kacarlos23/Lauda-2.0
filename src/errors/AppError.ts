@@ -42,3 +42,10 @@ export class ConflictError extends AppError {
     Object.setPrototypeOf(this, ConflictError.prototype);
   }
 }
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message = "Serviço temporariamente indisponível") {
+    super(message, 503);
+    Object.setPrototypeOf(this, ServiceUnavailableError.prototype);
+  }
+}

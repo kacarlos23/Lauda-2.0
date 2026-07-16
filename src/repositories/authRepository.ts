@@ -2,9 +2,9 @@ import { Prisma, User } from "@prisma/client";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { prisma } from "./prismaClient";
 
-export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive"> & {
+export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive" | "deletedAt"> & {
   instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
-  tenant?: { id: string; name: string } | null;
+  tenant?: { id: string; name: string; isActive: boolean; deletedAt: Date | null } | null;
 };
 
 export class AuthRepository {
@@ -26,8 +26,9 @@ export class AuthRepository {
         password: true,
         role: true,
         isActive: true,
+        deletedAt: true,
         tenantId: true,
-        tenant: { select: { id: true, name: true } },
+        tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
             instrument: { select: { id: true, name: true, colorHex: true } },
@@ -55,8 +56,9 @@ export class AuthRepository {
         password: true,
         role: true,
         isActive: true,
+        deletedAt: true,
         tenantId: true,
-        tenant: { select: { id: true, name: true } },
+        tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
             instrument: { select: { id: true, name: true, colorHex: true } },
@@ -109,6 +111,9 @@ export class AuthRepository {
       where: {
         code,
         active: true,
+        isActive: true,
+        deletedAt: null,
+        tenant: { isActive: true, deletedAt: null },
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       include: {
@@ -124,6 +129,9 @@ export class AuthRepository {
         tenantId,
         ministryId: ministryId ?? null,
         active: true,
+        isActive: true,
+        deletedAt: null,
+        tenant: { isActive: true, deletedAt: null },
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       orderBy: { createdAt: "desc" },
@@ -215,6 +223,7 @@ export class AuthRepository {
           password: true,
           role: true,
           isActive: true,
+          deletedAt: true,
           tenantId: true,
           instruments: {
             include: {
@@ -250,35 +259,103 @@ export class AuthRepository {
     });
   }
 
-  /**
-   * Saves a password reset token for a user.
-   */
-  async savePasswordResetToken(userId: string, token: string, expiresAt: Date) {
+  async savePasswordResetChallenge(data: {
+    userId: string;
+    tokenHmac: string;
+    challengeId: string;
+    pepperVersion: number;
+    expiresAt: Date;
+  }) {
     return prisma.user.update({
-      where: { id: userId },
-      data: { resetPasswordToken: token, resetPasswordExpires: expiresAt },
-    });
-  }
-
-  /**
-   * Finds a user by their reset token.
-   */
-  async findUserByResetToken(token: string) {
-    return prisma.user.findUnique({
-      where: { resetPasswordToken: token },
-    });
-  }
-
-  /**
-   * Updates the user's password and clears the reset token fields.
-   */
-  async updatePassword(userId: string, hashedPassword: string) {
-    return prisma.user.update({
-      where: { id: userId },
+      where: { id: data.userId },
       data: {
-        password: hashedPassword,
+        resetPasswordToken: data.tokenHmac,
+        resetPasswordChallengeId: data.challengeId,
+        resetPasswordPepperVersion: data.pepperVersion,
+        resetPasswordAttempts: 0,
+        resetPasswordConsumedAt: null,
+        resetPasswordExpires: data.expiresAt,
+      },
+    });
+  }
+
+  async findUserForPasswordReset(email: string) {
+    return prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        resetPasswordToken: true,
+        resetPasswordChallengeId: true,
+        resetPasswordPepperVersion: true,
+        resetPasswordAttempts: true,
+        resetPasswordConsumedAt: true,
+        resetPasswordExpires: true,
+      },
+    });
+  }
+
+  async recordInvalidPasswordResetAttempt(data: {
+    userId: string;
+    challengeId: string;
+    maxAttempts: number;
+    now: Date;
+  }) {
+    return prisma.user.updateMany({
+      where: {
+        id: data.userId,
+        resetPasswordChallengeId: data.challengeId,
+        resetPasswordConsumedAt: null,
+        resetPasswordExpires: { gt: data.now },
+        resetPasswordAttempts: { lt: data.maxAttempts },
+      },
+      data: { resetPasswordAttempts: { increment: 1 } },
+    });
+  }
+
+  async invalidatePasswordResetChallenge(data: {
+    userId: string;
+    challengeId: string;
+    now: Date;
+  }) {
+    return prisma.user.updateMany({
+      where: {
+        id: data.userId,
+        resetPasswordChallengeId: data.challengeId,
+      },
+      data: {
         resetPasswordToken: null,
+        resetPasswordChallengeId: null,
+        resetPasswordPepperVersion: null,
         resetPasswordExpires: null,
+        resetPasswordConsumedAt: data.now,
+      },
+    });
+  }
+
+  async consumePasswordResetChallenge(data: {
+    userId: string;
+    challengeId: string;
+    tokenHmac: string;
+    maxAttempts: number;
+    now: Date;
+    hashedPassword: string;
+  }) {
+    return prisma.user.updateMany({
+      where: {
+        id: data.userId,
+        resetPasswordChallengeId: data.challengeId,
+        resetPasswordToken: data.tokenHmac,
+        resetPasswordConsumedAt: null,
+        resetPasswordExpires: { gt: data.now },
+        resetPasswordAttempts: { lt: data.maxAttempts },
+      },
+      data: {
+        password: data.hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordChallengeId: null,
+        resetPasswordPepperVersion: null,
+        resetPasswordExpires: null,
+        resetPasswordConsumedAt: data.now,
       },
     });
   }

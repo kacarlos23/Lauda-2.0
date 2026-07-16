@@ -3,9 +3,17 @@ import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
-import { NotFoundError, UnauthorizedError, ValidationError } from "../errors/AppError";
+import { UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
 import { effectivePermissionKeys } from "./permissionService";
+import { isEligibleForAuthentication } from "../security/authEligibility";
+import {
+  constantTimeEqual,
+  createPasswordResetChallengeId,
+  createPasswordResetPin,
+  passwordResetHmac,
+} from "../security/passwordReset";
+import { deliverPasswordResetPin } from "./passwordResetDeliveryService";
 import {
   RegisterInput,
   LoginInput,
@@ -29,6 +37,9 @@ interface AccessTokenPayload {
 }
 
 const authRepository = new AuthRepository();
+// Keeps the unknown-user login path close to the password-check cost without
+// relying on a database value or revealing whether the account exists.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("lauda-invalid-login-sentinel", 10);
 const INVITE_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const INVITE_CODE_GROUP_LENGTH = 4;
 const INVITE_CODE_CREATE_ATTEMPTS = 5;
@@ -167,7 +178,8 @@ export class AuthService {
 
     const user = await authRepository.findUserByEmail(email);
     if (!user) {
-      throw new NotFoundError("Usuário não encontrado");
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+      throw new UnauthorizedError("Credenciais inválidas");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -175,8 +187,8 @@ export class AuthService {
       throw new UnauthorizedError("Credenciais inválidas");
     }
 
-    if (!user.isActive) {
-      throw new UnauthorizedError("Usuário inativo");
+    if (!isEligibleForAuthentication(user)) {
+      throw new UnauthorizedError("Usuário ou tenant inativo, excluído ou indisponível");
     }
 
     if (input.inviteCode) {
@@ -213,8 +225,8 @@ export class AuthService {
     }
 
     const user = await authRepository.findUserById(refreshUserId);
-    if (!user) {
-      throw new UnauthorizedError("Usuário não encontrado");
+    if (!isEligibleForAuthentication(user)) {
+      throw new UnauthorizedError("Usuário ou tenant inativo, excluído ou indisponível");
     }
 
     return this.buildAuthResponse(user);
@@ -222,8 +234,8 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await authRepository.findUserById(userId);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedError("Usuário inativo ou não encontrado");
+    if (!isEligibleForAuthentication(user)) {
+      throw new UnauthorizedError("Usuário ou tenant inativo, excluído ou indisponível");
     }
 
     const permissions = await effectivePermissionKeys(
@@ -268,50 +280,95 @@ export class AuthService {
     return this.formatMemberInvite(await this.createMemberInviteWithRetry(tenantId, ministryId));
   }
 
-  /**
-   * Requests a password reset. Generates a 6-digit PIN and simulates email sending.
-   */
+  /** Requests a single-use password reset challenge without logging its PIN. */
   async requestPasswordReset(input: ForgotPasswordInput) {
     const user = await authRepository.findUserByEmail(input.email);
-    if (!user) {
+    if (!isEligibleForAuthentication(user)) {
       // Return generic success message to prevent email enumeration
       return { success: true, message: "Se o e-mail existir, um código foi enviado." };
     }
 
-    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+    const pin = config.auth.passwordResetTestPin ?? createPasswordResetPin();
+    const challengeId = createPasswordResetChallengeId();
+    const tokenHmac = passwordResetHmac({
+      pepper: config.auth.passwordResetPepper,
+      challengeId,
+      userId: user.id,
+      pin,
+    });
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
-    await authRepository.savePasswordResetToken(user.id, pin, expiresAt);
-
-    console.log(`\n[EMAIL SIMULADO] ==========================`);
-    console.log(`Para: ${user.email}`);
-    console.log(`Assunto: Recuperação de Senha`);
-    console.log(`Seu código PIN é: ${pin}`);
-    console.log(`Válido por 15 minutos.`);
-    console.log(`===========================================\n`);
+    await authRepository.savePasswordResetChallenge({
+      userId: user.id,
+      tokenHmac,
+      challengeId,
+      pepperVersion: config.auth.passwordResetPepperVersion,
+      expiresAt,
+    });
+    try {
+      await deliverPasswordResetPin(user.email, pin);
+    } catch {
+      // Delivery failures must not disclose whether the account exists.
+      await authRepository.invalidatePasswordResetChallenge({
+        userId: user.id,
+        challengeId,
+        now: new Date(),
+      }).catch(() => undefined);
+      console.error("[PasswordResetDeliveryError]");
+    }
 
     return { success: true, message: "Se o e-mail existir, um código foi enviado." };
   }
 
-  /**
-   * Resets the password using the provided PIN.
-   */
+  /** Validates and atomically consumes a password reset challenge. */
   async resetPassword(input: ResetPasswordInput) {
     const { email, token, newPassword } = input;
+    const user = await authRepository.findUserForPasswordReset(email);
+    const now = new Date();
+    const hasActiveChallenge = Boolean(
+      user?.resetPasswordToken &&
+      user.resetPasswordChallengeId &&
+      user.resetPasswordPepperVersion === config.auth.passwordResetPepperVersion &&
+      user.resetPasswordExpires &&
+      user.resetPasswordExpires > now &&
+      !user.resetPasswordConsumedAt &&
+      user.resetPasswordAttempts < config.auth.passwordResetMaxAttempts,
+    );
 
-    const user = await authRepository.findUserByResetToken(token);
-
-    if (!user || user.email !== email || !user.resetPasswordExpires) {
+    if (!user || !hasActiveChallenge) {
       throw new ValidationError("PIN inválido ou expirado.");
     }
 
-    if (new Date() > user.resetPasswordExpires) {
-      throw new ValidationError("PIN expirado. Solicite um novo código.");
+    const candidateHmac = passwordResetHmac({
+      pepper: config.auth.passwordResetPepper,
+      challengeId: user.resetPasswordChallengeId!,
+      userId: user.id,
+      pin: token,
+    });
+
+    if (!constantTimeEqual(candidateHmac, user.resetPasswordToken!)) {
+      await authRepository.recordInvalidPasswordResetAttempt({
+        userId: user.id,
+        challengeId: user.resetPasswordChallengeId!,
+        maxAttempts: config.auth.passwordResetMaxAttempts,
+        now,
+      });
+      throw new ValidationError("PIN inválido ou expirado.");
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await authRepository.updatePassword(user.id, hashedPassword);
+    const consumed = await authRepository.consumePasswordResetChallenge({
+      userId: user.id,
+      challengeId: user.resetPasswordChallengeId!,
+      tokenHmac: candidateHmac,
+      maxAttempts: config.auth.passwordResetMaxAttempts,
+      now,
+      hashedPassword,
+    });
+    if (consumed.count !== 1) {
+      throw new ValidationError("PIN inválido ou expirado.");
+    }
 
     return { success: true, message: "Senha atualizada com sucesso." };
   }

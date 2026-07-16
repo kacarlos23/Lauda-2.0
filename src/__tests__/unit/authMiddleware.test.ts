@@ -29,6 +29,8 @@ type StoredUser = {
   role: Role;
   tenantId: string | null;
   isActive: boolean;
+  deletedAt: Date | null;
+  tenant: { isActive: boolean; deletedAt: Date | null } | null;
 };
 
 function signedToken(claims: { userId?: string; id?: string; role: Role; tenantId: string | null }): string {
@@ -48,6 +50,8 @@ function currentUser(overrides: Partial<StoredUser> = {}): StoredUser {
     role: Role.MEMBER,
     tenantId: "tenant-a",
     isActive: true,
+    deletedAt: null,
+    tenant: { isActive: true, deletedAt: null },
     ...overrides,
   };
 }
@@ -138,6 +142,29 @@ describe("authMiddleware current user source of truth", () => {
     expect(effectivePermissions).not.toHaveBeenCalled();
   });
 
+  it("nega usuário excluído logicamente", async () => {
+    findUnique.mockResolvedValue(currentUser({ deletedAt: new Date() }));
+    const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
+
+    const { next } = await authenticate(token);
+
+    expectUnauthorized(next);
+    expect(effectivePermissions).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { isActive: false, deletedAt: null },
+    { isActive: true, deletedAt: new Date() },
+  ])("nega tenant inativo ou excluído", async (tenant) => {
+    findUnique.mockResolvedValue(currentUser({ tenant }));
+    const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
+
+    const { next } = await authenticate(token);
+
+    expectUnauthorized(next);
+    expect(effectivePermissions).not.toHaveBeenCalled();
+  });
+
   it("nega com 401 quando o usuário do JWT não existe mais", async () => {
     findUnique.mockResolvedValue(null);
     const token = signedToken({ userId: "removed-user", role: Role.MEMBER, tenantId: "tenant-a" });
@@ -161,7 +188,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("permite GLOBAL_ADMIN atual sem tenant", async () => {
-    findUnique.mockResolvedValue(currentUser({ role: Role.GLOBAL_ADMIN, tenantId: null }));
+    findUnique.mockResolvedValue(currentUser({ role: Role.GLOBAL_ADMIN, tenantId: null, tenant: null }));
     effectivePermissions.mockResolvedValue(["permissions:manage"]);
     const token = signedToken({ userId: "user-1", role: Role.GLOBAL_ADMIN, tenantId: null });
 
@@ -194,5 +221,17 @@ describe("authMiddleware current user source of truth", () => {
       { id: "user-1", role: Role.MEMBER, tenantId: "tenant-a" },
       "tenant-a"
     );
+  });
+
+  it("propaga falha de banco em vez de convertê-la em 401", async () => {
+    const databaseError = new Error("database unavailable");
+    findUnique.mockRejectedValue(databaseError);
+    const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
+
+    await expect(authMiddleware(
+      requestWithToken(token),
+      {} as Response,
+      jest.fn() as NextFunction,
+    )).rejects.toBe(databaseError);
   });
 });

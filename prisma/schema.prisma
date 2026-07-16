@@ -100,8 +100,12 @@ model User {
   permissions  UserPermission[]     @relation("UserPermissionUser")
   grantedPermissions UserPermission[] @relation("UserPermissionGrantedBy")
 
-  resetPasswordToken   String?   @unique
-  resetPasswordExpires DateTime?
+  resetPasswordToken         String?   @unique
+  resetPasswordChallengeId   String?   @unique
+  resetPasswordPepperVersion Int?
+  resetPasswordAttempts      Int       @default(0)
+  resetPasswordConsumedAt    DateTime?
+  resetPasswordExpires       DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

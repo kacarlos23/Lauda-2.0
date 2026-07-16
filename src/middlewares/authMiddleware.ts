@@ -8,6 +8,7 @@ import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
 import { isChurchAdmin } from "../utils/permissions";
 import { PermissionKey } from "../constants/permissions";
 import { effectivePermissionKeys, hasPermission } from "../services/permissionService";
+import { isEligibleForAuthentication } from "../security/authEligibility";
 
 interface JwtIdentityPayload {
   id?: string;
@@ -32,47 +33,51 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   const token = authHeader.split(" ")[1];
 
+  let decoded: JwtIdentityPayload;
   try {
-    const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtIdentityPayload;
-    const userId = decoded.userId ?? decoded.id;
-    if (!userId) {
-      next(new UnauthorizedError("Usuário ausente no token"));
-      return;
-    }
-
-    const currentUser = await basePrisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true, tenantId: true, isActive: true },
-    });
-
-    if (!currentUser?.isActive) {
-      next(new UnauthorizedError("Usuário inativo ou não encontrado"));
-      return;
-    }
-
-    // Authorization state is always sourced from the database. The JWT only
-    // identifies the session, so role/tenant changes take effect immediately.
-    const role = currentUser.role;
-    const tenantId = currentUser.tenantId;
-
-    if (!tenantId && role !== Role.GLOBAL_ADMIN) {
-      next(new UnauthorizedError("Tenant ausente no token"));
-      return;
-    }
-
-    const permissions = await effectivePermissionKeys({ id: currentUser.id, role, tenantId }, tenantId);
-
-    req.user = {
-      id: currentUser.id,
-      role,
-      tenantId: tenantId ?? "",
-      permissions,
-    };
-
-    runWithTenantContext({ userId: currentUser.id, role, tenantId }, () => next());
+    decoded = jwt.verify(token, config.auth.jwtSecret) as JwtIdentityPayload;
   } catch {
     next(new UnauthorizedError("Token inválido"));
+    return;
   }
+
+  const userId = decoded.userId ?? decoded.id;
+  if (!userId) {
+    next(new UnauthorizedError("Usuário ausente no token"));
+    return;
+  }
+
+  const currentUser = await basePrisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      tenantId: true,
+      isActive: true,
+      deletedAt: true,
+      tenant: { select: { isActive: true, deletedAt: true } },
+    },
+  });
+
+  if (!isEligibleForAuthentication(currentUser)) {
+    next(new UnauthorizedError("Usuário ou tenant inativo, excluído ou não encontrado"));
+    return;
+  }
+
+  // Authorization state is always sourced from the database. The JWT only
+  // identifies the session, so role/tenant changes take effect immediately.
+  const role = currentUser.role;
+  const tenantId = currentUser.tenantId;
+  const permissions = await effectivePermissionKeys({ id: currentUser.id, role, tenantId }, tenantId);
+
+  req.user = {
+    id: currentUser.id,
+    role,
+    tenantId: tenantId ?? "",
+    permissions,
+  };
+
+  runWithTenantContext({ userId: currentUser.id, role, tenantId }, () => next());
 };
 
 export const requirePermission =

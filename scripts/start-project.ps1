@@ -2,6 +2,8 @@ param(
   [int]$BackendPort = 3000,
   [int]$FrontendPort = 8081,
   [string]$PublicApiUrl,
+  [ValidateRange(0, 10)]
+  [int]$TrustProxyHops = 0,
   [switch]$Production,
   [switch]$RestartBackend,
   [switch]$SkipMigrations
@@ -169,7 +171,8 @@ function Start-Backend {
   $outLog = Join-Path $ProjectRoot "backend.$mode.out.log"
   $errLog = Join-Path $ProjectRoot "backend.$mode.err.log"
   $runCommand = if ($Production) { "npm start" } else { "npm run dev" }
-  $command = "set PORT=$BackendPort&& set DATABASE_URL=postgresql://postgres:postgres@localhost:$DbPort/$DbName&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
+  $productionEnvironment = if ($Production) { "set NODE_ENV=production&& set HOST=127.0.0.1&& set TRUST_PROXY_HOPS=$TrustProxyHops&& " } else { "" }
+  $command = "${productionEnvironment}set PORT=$BackendPort&& set DATABASE_URL=postgresql://postgres:postgres@localhost:$DbPort/$DbName&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $ProjectRoot
   Write-Ok "Backend $mode iniciado em background. PID do launcher: $($process.Id). Logs: backend.$mode.out.log / backend.$mode.err.log"

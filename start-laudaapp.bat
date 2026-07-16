@@ -15,7 +15,7 @@ echo ========================================
 echo.
 
 echo [1/4] Verificando DB, backend e frontend...
-powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start-project.ps1" -PublicApiUrl "%PUBLIC_API_URL%" -Production -RestartBackend
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start-project.ps1" -PublicApiUrl "%PUBLIC_API_URL%" -TrustProxyHops 1 -Production -RestartBackend
 if errorlevel 1 (
   echo.
   echo [ERRO] Falha ao iniciar/verificar o projeto.

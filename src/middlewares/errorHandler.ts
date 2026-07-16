@@ -35,7 +35,8 @@ export function errorHandler(
 
   // Fallback for unhandled errors
   const message = error instanceof Error ? error.message : "Erro interno do servidor";
-  console.error("[UnhandledError]", error);
+  const errorName = error instanceof Error ? error.name : "UnknownError";
+  console.error("[UnhandledError]", { name: errorName });
   
   res.status(500).json({
     success: false,

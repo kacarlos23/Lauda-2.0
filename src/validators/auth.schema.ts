@@ -11,12 +11,12 @@ const inviteCodeSchema = z
 export const registerSchema = z.object({
   churchName: z.string().min(2, "Nome da igreja é obrigatório"),
   name: z.string().min(2, "Nome é obrigatório"),
-  email: z.string().email("E-mail inválido"),
+  email: z.string().trim().toLowerCase().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email("E-mail inválido"),
+  email: z.string().trim().toLowerCase().email("E-mail inválido"),
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
   inviteCode: inviteCodeSchema.optional(),
 });
@@ -26,12 +26,12 @@ export const refreshTokenSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("E-mail inválido"),
+  email: z.string().trim().toLowerCase().email("E-mail inválido"),
 });
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email("E-mail inválido"),
-  token: z.string().length(6, "PIN deve ter exatamente 6 dígitos"),
+  email: z.string().trim().toLowerCase().email("E-mail inválido"),
+  token: z.string().regex(/^\d{6}$/, "PIN deve ter exatamente 6 dígitos"),
   newPassword: z.string().min(6, "A nova senha deve ter no mínimo 6 caracteres"),
 });
 

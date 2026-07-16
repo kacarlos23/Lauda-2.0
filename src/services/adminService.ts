@@ -305,7 +305,10 @@ export class AdminService {
   private sanitizeAuditPayload(payload: Record<string, unknown>) {
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(payload)) {
-      sanitized[key] = key.toLowerCase().includes("password") ? "[REDACTED]" : value;
+      const normalizedKey = key.toLowerCase();
+      const isSecret = ["password", "token", "secret", "pin", "code", "authorization", "cookie"]
+        .some((term) => normalizedKey.includes(term));
+      sanitized[key] = isSecret ? "[REDACTED]" : value;
     }
     return sanitized as Prisma.InputJsonObject;
   }

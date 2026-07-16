@@ -62,6 +62,8 @@ beforeAll(async () => {
   process.env.DATABASE_URL = databaseUrl;
   process.env.JWT_SECRET = TEST_ACCESS_SECRET;
   process.env.REFRESH_JWT_SECRET = "test_refresh_secret";
+  process.env.PASSWORD_RESET_PEPPER = "test-password-reset-pepper-that-is-long-enough";
+  process.env.PASSWORD_RESET_TEST_PIN = "123456";
   process.env.JWT_EXPIRES_IN = "15m";
   process.env.REFRESH_JWT_EXPIRES_IN = "7d";
   process.env.NODE_ENV = "test";
@@ -76,6 +78,10 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await cleanDatabase();
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -133,15 +139,23 @@ describe("Auth API", () => {
     expect(response.status).toBe(401);
   });
 
-  it("POST /api/auth/login returns 404 for unknown e-mail", async () => {
-    const response = await request(app)
+  it("POST /api/auth/login does not disclose whether the e-mail exists", async () => {
+    await registerTenant("auth-enumeration");
+    const wrongPassword = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email: "admin-auth-enumeration@example.com",
+        password: "wrong123",
+      });
+    const missingUser = await request(app)
       .post("/api/auth/login")
       .send({
         email: "missing@example.com",
         password: "secret123",
       });
 
-    expect(response.status).toBe(404);
+    expect(missingUser.status).toBe(401);
+    expect(missingUser.body).toEqual(wrongPassword.body);
   });
 
   it("login emite role GLOBAL_ADMIN no usuário, JWT e middleware permite /api/admin/tenants", async () => {
@@ -250,7 +264,7 @@ describe("Auth API", () => {
     expect(church.body.data.tenant.id).not.toBe(userB.tenantId);
   });
 
-  it("nega token já emitido quando o usuário atual está inativo", async () => {
+  it("nega login, refresh e Bearer quando o usuário atual está inativo", async () => {
     await registerTenant("auth-inactive-current-user");
     const loginResponse = await request(app)
       .post("/api/auth/login")
@@ -262,6 +276,14 @@ describe("Auth API", () => {
       data: { isActive: false },
     });
 
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-auth-inactive-current-user@example.com", password: "secret123" })
+      .expect(401);
+    await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: loginResponse.body.data.refreshToken })
+      .expect(401);
     await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`)
@@ -281,8 +303,187 @@ describe("Auth API", () => {
     });
 
     await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-auth-missing-current-tenant@example.com", password: "secret123" })
+      .expect(401);
+    await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: loginResponse.body.data.refreshToken })
+      .expect(401);
+    await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${loginResponse.body.data.accessToken}`)
       .expect(401);
+  });
+
+  it("armazena somente HMAC do PIN e não registra o segredo", async () => {
+    await registerTenant("password-reset-hmac");
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const errorLogSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "admin-password-reset-hmac@example.com" })
+      .expect(200);
+
+    const stored = await prisma.user.findUniqueOrThrow({
+      where: { email: "admin-password-reset-hmac@example.com" },
+      select: {
+        resetPasswordToken: true,
+        resetPasswordChallengeId: true,
+        resetPasswordPepperVersion: true,
+        resetPasswordAttempts: true,
+      },
+    });
+
+    expect(response.body.data.message).toContain("Se o e-mail existir");
+    expect(stored.resetPasswordToken).toEqual(expect.any(String));
+    expect(stored.resetPasswordToken).not.toBe("123456");
+    expect(stored.resetPasswordChallengeId).toEqual(expect.any(String));
+    expect(stored.resetPasswordPepperVersion).toBe(1);
+    expect(stored.resetPasswordAttempts).toBe(0);
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({
+        email: "admin-password-reset-hmac@example.com",
+        token: "123456",
+        newPassword: "new-sensitive-password",
+      })
+      .expect(200);
+    const serializedLogs = JSON.stringify([logSpy.mock.calls, errorLogSpy.mock.calls]);
+    for (const sensitiveValue of [
+      "123456",
+      "new-sensitive-password",
+      "admin-password-reset-hmac@example.com",
+    ]) {
+      expect(serializedLogs).not.toContain(sensitiveValue);
+    }
+  });
+
+  it("consome o PIN uma única vez e atualiza a senha", async () => {
+    await registerTenant("password-reset-consume");
+    const email = "admin-password-reset-consume@example.com";
+    await request(app).post("/api/auth/forgot-password").send({ email }).expect(200);
+
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ email, token: "123456", newPassword: "new-secret-123" })
+      .expect(200);
+
+    const stored = await prisma.user.findUniqueOrThrow({
+      where: { email },
+      select: {
+        resetPasswordToken: true,
+        resetPasswordChallengeId: true,
+        resetPasswordConsumedAt: true,
+      },
+    });
+    expect(stored.resetPasswordToken).toBeNull();
+    expect(stored.resetPasswordChallengeId).toBeNull();
+    expect(stored.resetPasswordConsumedAt).toBeInstanceOf(Date);
+
+    await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(401);
+    await request(app).post("/api/auth/login").send({ email, password: "new-secret-123" }).expect(200);
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ email, token: "123456", newPassword: "reused-secret" })
+      .expect(400);
+  });
+
+  it("permite somente um consumo em duas requisições concorrentes", async () => {
+    await registerTenant("password-reset-concurrent");
+    const email = "admin-password-reset-concurrent@example.com";
+    await request(app).post("/api/auth/forgot-password").send({ email }).expect(200);
+
+    const responses = await Promise.all([
+      request(app).post("/api/auth/reset-password").send({ email, token: "123456", newPassword: "concurrent-secret-a" }),
+      request(app).post("/api/auth/reset-password").send({ email, token: "123456", newPassword: "concurrent-secret-b" }),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    const successfulPassword = responses[0].status === 200 ? "concurrent-secret-a" : "concurrent-secret-b";
+    const rejectedPassword = responses[0].status === 200 ? "concurrent-secret-b" : "concurrent-secret-a";
+    await request(app).post("/api/auth/login").send({ email, password: successfulPassword }).expect(200);
+    await request(app).post("/api/auth/login").send({ email, password: rejectedPassword }).expect(401);
+  });
+
+  it("rejeita PIN expirado sem alterar a senha", async () => {
+    await registerTenant("password-reset-expired");
+    const email = "admin-password-reset-expired@example.com";
+    await request(app).post("/api/auth/forgot-password").send({ email }).expect(200);
+    await prisma.user.update({
+      where: { email },
+      data: { resetPasswordExpires: new Date(Date.now() - 1_000) },
+    });
+
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ email, token: "123456", newPassword: "expired-secret" })
+      .expect(400);
+    await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(200);
+  });
+
+  it("bloqueia o desafio após o limite de tentativas", async () => {
+    await registerTenant("password-reset-attempts");
+    const email = "admin-password-reset-attempts@example.com";
+    await request(app).post("/api/auth/forgot-password").send({ email }).expect(200);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await request(app)
+        .post("/api/auth/reset-password")
+        .send({ email, token: "000000", newPassword: "new-secret-123" })
+        .expect(400);
+    }
+
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ email, token: "123456", newPassword: "new-secret-123" })
+      .expect(400);
+    const stored = await prisma.user.findUniqueOrThrow({ where: { email }, select: { resetPasswordAttempts: true } });
+    expect(stored.resetPasswordAttempts).toBe(5);
+  });
+
+  it("retorna resposta genérica para forgot-password de usuário inexistente", async () => {
+    await registerTenant("password-reset-enumeration");
+    const existing = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "admin-password-reset-enumeration@example.com" })
+      .expect(200);
+    const missing = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "missing-password-reset@example.com" })
+      .expect(200);
+    expect(existing.body.data.message).toBe("Se o e-mail existir, um código foi enviado.");
+    expect(missing.body).toEqual(existing.body);
+  });
+
+  it("revoga login, refresh e Bearer quando o tenant é desativado", async () => {
+    await registerTenant("inactive-tenant");
+    const email = "admin-inactive-tenant@example.com";
+    const login = await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(200);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { tenantId: true } });
+    await prisma.tenant.update({ where: { id: user.tenantId! }, data: { isActive: false } });
+
+    await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(401);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: login.body.data.refreshToken }).expect(401);
+    await request(app).get("/api/auth/me").set("Authorization", `Bearer ${login.body.data.accessToken}`).expect(401);
+  });
+
+  it("revoga login, refresh e Bearer quando usuário ou tenant está excluído logicamente", async () => {
+    await registerTenant("deleted-lifecycle");
+    const email = "admin-deleted-lifecycle@example.com";
+    const firstLogin = await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(200);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email }, select: { id: true, tenantId: true } });
+    await prisma.user.update({ where: { id: user.id }, data: { deletedAt: new Date() } });
+
+    await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(401);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: firstLogin.body.data.refreshToken }).expect(401);
+    await request(app).get("/api/auth/me").set("Authorization", `Bearer ${firstLogin.body.data.accessToken}`).expect(401);
+
+    await prisma.user.update({ where: { id: user.id }, data: { deletedAt: null } });
+    const secondLogin = await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(200);
+    await prisma.tenant.update({ where: { id: user.tenantId! }, data: { deletedAt: new Date() } });
+    await request(app).post("/api/auth/refresh").send({ refreshToken: secondLogin.body.data.refreshToken }).expect(401);
+    await request(app).get("/api/auth/me").set("Authorization", `Bearer ${secondLogin.body.data.accessToken}`).expect(401);
   });
 });

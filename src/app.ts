@@ -12,9 +12,11 @@ import songRoutes from "./routes/songRoutes";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenApiDocument } from "./docs/openapi";
 import { errorHandler } from "./middlewares/errorHandler";
+import { config } from "./config/unifiedConfig";
 
 const app = express();
 
+app.set("trust proxy", config.http.trustProxyHops);
 app.use(cors());
 app.use(express.json({ limit: "4mb" }));
 
