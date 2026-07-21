@@ -10,6 +10,13 @@
     "dev:full": "powershell -ExecutionPolicy Bypass -File scripts/start-project.ps1",
     "debug:admin-tenants": "ts-node scripts/debug-admin-tenants.ts",
     "promote:global-admin": "ts-node scripts/promote-global-admin.ts",
+    "resilience:restore-drill": "node scripts/resilience/backup-restore-drill.cjs",
+    "security:dependencies": "node scripts/security/dependency-audit.cjs",
+    "security:policy": "node scripts/security/validate-policy.cjs",
+    "security:sbom": "node scripts/security/generate-sbom.cjs",
+    "security:sbom:verify": "node scripts/security/generate-sbom.cjs --verify",
+    "security:dast:logical": "node scripts/security/run-logical-dast.cjs",
+    "security:dast:guard": "node scripts/security/validate-dast-target.cjs",
     "build": "tsc",
     "start": "node scripts/start-production.cjs"
   },
@@ -31,8 +38,8 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.20.0",
     "playwright": "^1.61.1",
-    "prisma": "^7.8.0",
     "redis": "^5.12.1",
+    "sanitize-html": "^2.17.6",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.3.6"
   },
@@ -45,15 +52,22 @@
     "@types/node": "^25.6.0",
     "@types/nodemailer": "^7.0.12",
     "@types/pdfkit": "^0.17.6",
+    "@types/sanitize-html": "^2.16.1",
     "@types/supertest": "^7.2.0",
     "@types/swagger-ui-express": "^4.1.8",
     "husky": "^9.1.7",
     "jest": "^30.3.0",
     "lint-staged": "^16.4.0",
+    "prisma": "^7.8.0",
     "supertest": "^7.2.2",
     "testcontainers": "^11.14.0",
     "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "sanitize-html": {
+      "htmlparser2": "9.1.0"
+    }
   }
 }

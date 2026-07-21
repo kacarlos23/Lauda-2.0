@@ -1,0 +1,46 @@
+name: Release security evidence
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Release identifier used in the SBOM manifest
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_ID: ${{ github.event.release.tag_name || inputs.release_id }}
+      SBOM_OUTPUT_DIR: security-artifacts/sbom/release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - name: Prove reproducible CycloneDX generation
+        run: npm run security:sbom:verify
+      - name: Generate release SBOMs and hash manifest
+        run: npm run security:sbom
+      - name: Upload retained workflow evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-${{ github.run_id }}
+          path: security-artifacts/sbom/release/
+          retention-days: 90
+      - name: Attach SBOM set to the GitHub release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_ID" security-artifacts/sbom/release/* --clobber

@@ -1,5 +1,7 @@
 ﻿import { z } from "zod";
 
+import { richTextCommentsSchema } from "./richText.schema";
+
 const isoDateTimeMessage = "Data deve estar em formato ISO datetime válido";
 
 export const uuidParamSchema = z.object({
@@ -26,6 +28,7 @@ export const CreateScheduleSchema = z.object({
     .datetime({ message: isoDateTimeMessage })
     .transform((value) => new Date(value)),
   ministryId: z.string({ error: "Ministério é obrigatório" }).uuid("Ministério deve ser um UUID válido"),
+  comments: richTextCommentsSchema,
   assignments: z.array(z.object({
     userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
     role: z.string().trim().min(2, "Função deve ter ao menos 2 caracteres").default("Membro"),

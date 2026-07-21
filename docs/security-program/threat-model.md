@@ -39,10 +39,10 @@ CI/CD e operadores
 
 | Superficie | Evidencia | Observacao |
 |---|---|---|
-| Auth e reset | `auth.routes.ts`, `authService.ts`, `passwordReset.ts` | JWT stateless; reset com HMAC/pepper; revogacao de sessao pendente. |
+| Auth, sessao e reset | `auth.routes.ts`, `authService.ts`, `authSessionService.ts`, `tokenService.ts`, `passwordReset.ts` | JWT com purpose/issuer/audience/sid/jti; sessao/familia persistidas; reset com HMAC/pepper e revogacao. |
 | Tenant isolation | `config/prisma.ts`, repositories tenant-scoped | Extensao cobre modelos principais; `Tenant`, `UserPermission`, `AdminAuditLog` e admin usam `basePrisma`. |
 | RBAC granular | `permissionContract.ts`, `permissionService.ts` | `GLOBAL_ADMIN` bypass total; overrides ALLOW/DENY por tenant. |
-| Admin global | `adminRoutes.ts`, `AdminService`, `AdminRepository` | CRUD amplo; auditoria parcial; sem MFA/step-up. |
+| Admin global | `adminRoutes.ts`, `AdminService`, `AdminRepository` | MFA produtivo, step-up para mutações, auditoria e transições protegidas; aprovação nominal pendente. |
 | Mobile/web storage | `sessionStorage.ts`, `authStore.ts` | SecureStore nativo; `localStorage` web. |
 | Export/PDF | `SongPdfService`, `ScheduleReportPdfService`, mobile services | Dados pessoais podem sair para arquivo local. |
 | Fornecedores | `.env.example`, `cloudflare`, workflows | Redis/SMTP/Cloudflare/GitHub/Cifra Club/hosting pendentes de review. |
@@ -52,11 +52,11 @@ CI/CD e operadores
 | ID | Ameaca | Ativo/impacto | Controle existente | Teste/evidencia existente | Controle planejado ou lacuna | Prioridade |
 |---|---|---|---|---|---|---|
 | TM-01 | Account takeover | Conta, tenant, escalas, dados pessoais | bcrypt, erro generico login, rate limit, reset HMAC/pepper, auth eligibility | `auth.test.ts`, `passwordReset.test.ts`, `rateLimitMiddleware.test.ts` | MFA/step-up, alertas, device/session registry, revogacao e reuse detection | Alta |
-| TM-02 | Token theft | Access/refresh token no cliente; sessao indevida | JWT curto; refresh secret separado; logout remove cliente | `api.test.ts`, `authStore.test.ts` | Refresh token stateless sem revogacao; web usa `localStorage`; Etapa 2 deve corrigir | Alta |
+| TM-02 | Token theft | Access/refresh token no cliente; sessao indevida | Access curto; segredo separado; hash de refresh; rotacao/reuse; logout e lifecycle servidor-side | `tokenService.test.ts`, `auth.test.ts`, `api.test.ts`, `authStore.test.ts` | Web ainda usa `localStorage`; purge/SIEM/alertas pendentes | Alta |
 | TM-03 | Cross-tenant/BOLA/IDOR | Dados de outro tenant | Prisma tenant extension; repositories filtram tenant; validacoes de relacao | `tenantIsolation.test.ts`, suites `admin`, `members`, `schedules` | Matriz A/B sistematica por endpoint; cobrir `basePrisma`, `UserPermission`, `AdminAuditLog`, admin generic CRUD | Alta |
-| TM-04 | Privilege escalation | Role/permissao indevida, acesso admin | `requirePermission`, `hasPermission`, `permissions:manage` nao assignable, self-edit bloqueado em alguns fluxos | `granularPermissions.test.ts`, `admin.test.ts` | MFA/step-up, recertificacao, limites de `TENANT_ADMIN`, logs completos | Alta |
+| TM-04 | Privilege escalation | Role/permissao indevida, acesso admin | RBAC canônico do banco, não-delegável, MFA/step-up, self-change/último admin protegidos | `granularPermissions.test.ts`, `admin.test.ts`, `privilegedAccess.test.ts` | Recertificação nominal, alertas e revisão independente | Média/Alta |
 | TM-05 | Mass assignment | Alteracao de role/tenant/status/campos protegidos | Zod schemas por rota; `writableFields` admin explicito | Testes parciais de admin/auth | Testar todos POST/PATCH/PUT; revisar admin generic payload e audit payload | Alta |
-| TM-06 | Abuso de `GLOBAL_ADMIN` | Todos os tenants e dados | Rota admin exige `GLOBAL_ADMIN`; audit logs para varias acoes | `admin.test.ts`; `AdminAuditLog` | Sem MFA, step-up, expiracao, break-glass, aprovacao dupla; script hardcoded de promocao | Critica |
+| TM-06 | Abuso de `GLOBAL_ADMIN` | Todos os tenants e dados | MFA produtivo, step-up, auditoria, promoção sem hardcode e suporte por grant scoped/expirável | `admin.test.ts`; `privilegedAccess.test.ts`; `AdminAuditLog` | Aprovação independente, inventário de contas, recuperação MFA e SIEM pendentes | Alta |
 | TM-07 | Abuso de suporte | Leitura/alteracao indevida por operador | Audit logs parciais; access review documental | `access-review.md` | Politica de suporte, escopo por tenant, justificativa, expiracao, revisao e monitoramento | Alta |
 | TM-08 | Insider threat | Exfiltracao por dev/admin/infra | Git repo, CI, logs e scripts separados parcialmente | Workflows sem secrets prod aparentes | Least privilege GitHub/DB/Cloudflare, secret scanning, approvals, break-glass | Alta |
 | TM-09 | Comprometimento CI/CD | Codigo malicioso, secrets, deploy | GitHub Actions build/teste; lockfiles | `.github/workflows/*.yml` | Branch protection, pinned actions policy, SBOM, dependency review, secrets policy | Alta |

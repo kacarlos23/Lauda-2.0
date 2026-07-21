@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { richTextCommentsSchema } from "./richText.schema";
 
 export const createMemberSchema = z.object({
   name: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
@@ -6,6 +7,7 @@ export const createMemberSchema = z.object({
   password: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
   phone: z.string().optional(),
   role: z.enum(["MEMBER", "MINISTRY_LEADER"]).default("MEMBER"),
+  comments: richTextCommentsSchema,
 });
 
 export const addMemberMinistrySchema = z.object({
@@ -44,6 +46,7 @@ export const updateMemberSchema = z.object({
   name: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max(100).optional(),
   email: z.string().trim().email("E-mail inválido").max(255).optional(),
   phone: z.string().trim().max(30).nullable().optional(),
+  comments: richTextCommentsSchema,
 }).refine((input) => Object.keys(input).length > 0, "Informe ao menos um dado para atualizar");
 
 export const toggleMinistryMemberSchema = z.object({

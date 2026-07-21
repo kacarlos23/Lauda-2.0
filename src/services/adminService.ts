@@ -1,9 +1,13 @@
 import bcrypt from "bcryptjs";
+import { revokeTenantSessions, revokeUserSessions } from "./authSessionService";
 import { Prisma, Role } from "@prisma/client";
-import { ConflictError, NotFoundError, ValidationError } from "../errors/AppError";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
+import { config } from "../config/unifiedConfig";
 import { AdminRepository, AdminResourceName, adminResourceNames } from "../repositories/AdminRepository";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { normalizeCatalogText } from "../utils/catalogNormalization";
+import { AdminEventType, buildAdminAuditData } from "../audit/adminAudit";
+import { richTextCommentsSchema } from "../validators/richText.schema";
 import {
   AdminUpdateScheduleInput,
   AdminUpdateSongInput,
@@ -14,17 +18,17 @@ import {
 type AdminActor = { id: string; role: Role };
 
 const writableFields: Record<AdminResourceName, string[]> = {
-  tenants: ["name", "domain", "isActive", "deletedAt"],
-  users: ["name", "email", "phone", "avatarUrl", "role", "tenantId", "password", "isActive", "deletedAt"],
-  ministries: ["name", "description", "tenantId", "isActive", "deletedAt"],
+  tenants: ["name", "domain", "comments", "isActive", "deletedAt"],
+  users: ["name", "email", "phone", "avatarUrl", "comments", "role", "tenantId", "password", "isActive", "deletedAt"],
+  ministries: ["name", "description", "comments", "tenantId", "isActive", "deletedAt"],
   "ministry-members": ["userId", "ministryId", "tenantId", "roleId", "role", "skills", "status", "joinedAt", "notes", "isLeader", "isActive", "deletedAt"],
   "member-invites": ["tenantId", "ministryId", "code", "active", "expiresAt", "isActive", "deletedAt"],
   instruments: ["name", "colorHex", "tenantId", "isActive", "deletedAt"],
   "user-instruments": ["userId", "instrumentId", "tenantId", "isActive", "deletedAt"],
   artists: ["name", "imageUrl", "tenantId", "isActive", "deletedAt"],
-  songs: ["title", "composer", "originalKey", "content", "bpm", "cifraUrl", "letraUrl", "audioUrl", "videoUrl", "artistId", "tenantId", "isActive", "deletedAt"],
+  songs: ["title", "composer", "originalKey", "content", "comments", "bpm", "cifraUrl", "letraUrl", "audioUrl", "videoUrl", "artistId", "tenantId", "isActive", "deletedAt"],
   "ministry-songs": ["songId", "ministryId", "tenantId", "isActive", "deletedAt"],
-  schedules: ["title", "date", "tenantId", "ministryId", "isActive", "deletedAt"],
+  schedules: ["title", "date", "comments", "tenantId", "ministryId", "isActive", "deletedAt"],
   "schedule-songs": ["scheduleId", "songId", "tenantId", "order", "isActive", "deletedAt"],
   "schedule-assignments": ["scheduleId", "userId", "role", "tenantId", "status", "isActive", "deletedAt"],
   "audit-logs": [],
@@ -53,6 +57,9 @@ export class AdminService {
 
   async createResource(actor: AdminActor, resource: AdminResourceName, input: Record<string, unknown>) {
     if (resource === "audit-logs") throw new ValidationError("Logs administrativos não podem ser criados manualmente");
+    if (resource === "users" && input.role === Role.GLOBAL_ADMIN) {
+      throw new ValidationError("Crie o usuário sem poder global e use o fluxo controlado de promoção");
+    }
     const data = await this.prepareResourceData(resource, input, "create");
     await this.validateResourceRelations(resource, data);
     const created = await this.repository.createResource(resource, data);
@@ -82,6 +89,8 @@ export class AdminService {
     if (resource === "audit-logs") throw new ValidationError("Logs administrativos não podem ser inativados");
     await this.getResource(resource, id);
     const updated = await this.repository.deactivateResource(resource, id);
+    if (resource === "users") await revokeUserSessions(id, "user_deactivated");
+    if (resource === "tenants") await revokeTenantSessions(id, "tenant_deactivated");
     await this.audit(actor, "deactivate", resource, id, this.extractTenantId(updated), {});
     return updated;
   }
@@ -104,12 +113,15 @@ export class AdminService {
     return tenant;
   }
 
-  async updateTenant(tenantId: string, input: AdminUpdateTenantInput) {
+  async updateTenant(actor: AdminActor, tenantId: string, input: AdminUpdateTenantInput) {
     await this.ensureTenantExists(tenantId);
-    return this.repository.updateTenant(tenantId, {
+    const updated = await this.repository.updateTenant(tenantId, {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.domain !== undefined ? { domain: input.domain } : {}),
+      ...(input.comments !== undefined ? { comments: input.comments } : {}),
     });
+    await this.audit(actor, "update", "tenants", tenantId, tenantId, input);
+    return updated;
   }
 
   listUsers(tenantId?: string) {
@@ -120,6 +132,10 @@ export class AdminService {
     const user = await this.repository.findUserById(userId);
     if (!user) throw new NotFoundError("Usuário não encontrado");
 
+    if (actor.id === userId && (input.role !== undefined || input.tenantId !== undefined)) {
+      throw new ForbiddenError("Administrador global não pode alterar a própria role ou vínculo de tenant");
+    }
+
     if (input.email && input.email !== user.email) {
       const existing = await this.repository.findUserByEmail(input.email);
       if (existing && existing.id !== userId) throw new ConflictError("E-mail já está em uso");
@@ -128,8 +144,26 @@ export class AdminService {
     if (input.tenantId !== undefined && input.tenantId !== null) await this.ensureTenantExists(input.tenantId);
     const nextRole = input.role ?? user.role;
     const nextTenantId = input.tenantId !== undefined ? input.tenantId : user.tenantId;
+    if (nextRole === Role.GLOBAL_ADMIN && nextTenantId !== null) {
+      throw new ValidationError("GLOBAL_ADMIN deve permanecer sem vínculo de tenant");
+    }
     if (nextRole !== Role.GLOBAL_ADMIN && !nextTenantId) {
       throw new ValidationError("Usuário não-global deve estar vinculado a uma igreja");
+    }
+
+    const globalTransition = input.role !== undefined && input.role !== user.role &&
+      (input.role === Role.GLOBAL_ADMIN || user.role === Role.GLOBAL_ADMIN);
+    if (globalTransition) {
+      const action = input.role === Role.GLOBAL_ADMIN ? "PROMOTE" : "DEMOTE";
+      if (!input.reason || !input.ticketReference || input.confirmation !== `${action} ${user.email}`) {
+        throw new ValidationError(`Transição GLOBAL_ADMIN exige motivo, ticket e confirmação: ${action} ${user.email}`);
+      }
+      if (input.role === Role.GLOBAL_ADMIN && config.auth.mfa.globalAdminRequired && !user.mfaEnabledAt) {
+        throw new ValidationError("MFA deve estar habilitado antes da promoção para GLOBAL_ADMIN");
+      }
+      if (user.role === Role.GLOBAL_ADMIN && await this.repository.countGlobalAdmins() <= 1) {
+        throw new ValidationError("O último GLOBAL_ADMIN ativo não pode ser rebaixado");
+      }
     }
 
     const data: Prisma.UserUpdateInput = {
@@ -137,6 +171,7 @@ export class AdminService {
       ...(input.email !== undefined ? { email: input.email.trim().toLowerCase() } : {}),
       ...(input.phone !== undefined ? { phone: input.phone } : {}),
       ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+      ...(input.comments !== undefined ? { comments: input.comments } : {}),
       ...(input.role !== undefined ? { role: input.role } : {}),
       ...(input.tenantId !== undefined ? input.tenantId === null ? { tenant: { disconnect: true } } : { tenant: { connect: { id: input.tenantId } } } : {}),
       ...(input.password !== undefined ? { password: await bcrypt.hash(input.password, 10) } : {}),
@@ -144,12 +179,17 @@ export class AdminService {
 
     const cleanupPermissions = nextRole === Role.GLOBAL_ADMIN || nextTenantId !== user.tenantId;
     const updated = await this.repository.updateUserAndCleanupPermissions(userId, data, cleanupPermissions);
+    if (input.password !== undefined || globalTransition || nextTenantId !== user.tenantId) {
+      await revokeUserSessions(userId, globalTransition ? "global_admin_role_changed" : "identity_changed_by_admin");
+    }
     await this.audit(actor, "update", "users", userId, updated.tenantId, {
       roleBefore: user.role,
       roleAfter: updated.role,
       tenantIdBefore: user.tenantId,
       tenantIdAfter: updated.tenantId,
       permissionOverridesCleared: cleanupPermissions,
+      reason: input.reason,
+      ticketReference: input.ticketReference,
     });
     return updated;
   }
@@ -162,7 +202,7 @@ export class AdminService {
     return this.repository.listSongs(tenantId);
   }
 
-  async updateSong(songId: string, input: AdminUpdateSongInput) {
+  async updateSong(actor: AdminActor, songId: string, input: AdminUpdateSongInput) {
     const song = await this.repository.getSongById(songId);
     if (!song) throw new NotFoundError("Música não encontrada");
     if (input.artistId !== undefined) {
@@ -170,11 +210,12 @@ export class AdminService {
       if (!artist) throw new ValidationError("Artista não pertence à igreja da música");
     }
 
-    return this.repository.updateSong(songId, {
+    const updated = await this.repository.updateSong(songId, {
       ...(input.title !== undefined ? { title: input.title, normalizedTitle: normalizeCatalogText(input.title) } : {}),
       ...(input.composer !== undefined ? { composer: input.composer } : {}),
       ...(input.originalKey !== undefined ? { originalKey: input.originalKey } : {}),
       ...(input.content !== undefined ? { content: input.content } : {}),
+      ...(input.comments !== undefined ? { comments: input.comments } : {}),
       ...(input.bpm !== undefined ? { bpm: input.bpm } : {}),
       ...(input.cifraUrl !== undefined ? { cifraUrl: input.cifraUrl } : {}),
       ...(input.letraUrl !== undefined ? { letraUrl: input.letraUrl } : {}),
@@ -182,13 +223,15 @@ export class AdminService {
       ...(input.videoUrl !== undefined ? { videoUrl: input.videoUrl } : {}),
       ...(input.artistId !== undefined ? { artist: { connect: { id: input.artistId } } } : {}),
     });
+    await this.audit(actor, "update", "songs", songId, song.tenantId, input);
+    return updated;
   }
 
   listSchedules(tenantId?: string) {
     return this.repository.listSchedules(tenantId);
   }
 
-  async updateSchedule(scheduleId: string, input: AdminUpdateScheduleInput) {
+  async updateSchedule(actor: AdminActor, scheduleId: string, input: AdminUpdateScheduleInput) {
     const schedule = await this.repository.getScheduleById(scheduleId);
     if (!schedule) throw new NotFoundError("Escala não encontrada");
     if (input.ministryId !== undefined) {
@@ -209,22 +252,33 @@ export class AdminService {
       if (count !== uniqueUserIds.length) throw new ValidationError("Um ou mais usuários não pertencem à igreja da escala");
     }
 
-    return this.repository.updateSchedule(
+    const updated = await this.repository.updateSchedule(
       scheduleId,
       {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.date !== undefined ? { date: input.date } : {}),
         ...(input.ministryId !== undefined ? { ministry: { connect: { id: input.ministryId } } } : {}),
+        ...(input.comments !== undefined ? { comments: input.comments } : {}),
       },
       input.songIds,
       input.assignments
     );
+    await this.audit(actor, "update", "schedules", scheduleId, schedule.tenantId, {
+      ...input,
+      ...(input.date ? { date: input.date.toISOString() } : {}),
+    });
+    return updated;
   }
 
   private async prepareResourceData(resource: AdminResourceName, input: Record<string, unknown>, mode: "create" | "update") {
     const data: Record<string, unknown> = {};
     for (const field of writableFields[resource]) {
       if (Object.prototype.hasOwnProperty.call(input, field)) data[field] = input[field];
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "comments")) {
+      const parsedComments = richTextCommentsSchema.safeParse(data.comments);
+      if (!parsedComments.success) throw new ValidationError(parsedComments.error.issues[0]?.message ?? "Comentários inválidos");
+      data.comments = parsedComments.data;
     }
     if (mode === "update" && Object.keys(data).length === 0) throw new ValidationError("Informe ao menos um campo para atualizar");
     if (resource === "users") {
@@ -290,27 +344,16 @@ export class AdminService {
     if (!tenant) throw new NotFoundError("Igreja não encontrada");
   }
 
-  private async audit(actor: AdminActor, action: string, resource: AdminResourceName, resourceId?: string | null, tenantId?: string | null, payload?: Record<string, unknown>) {
-    await this.repository.createAuditLog({
+  private async audit(actor: AdminActor, action: AdminEventType, resource: AdminResourceName, resourceId?: string | null, tenantId?: string | null, payload?: Record<string, unknown>) {
+    await this.repository.createAuditLog(buildAdminAuditData({
       actorId: actor.id,
       actorRole: actor.role,
       action,
       resource,
       resourceId,
       tenantId: tenantId ?? null,
-      payload: this.sanitizeAuditPayload(payload ?? {}),
-    });
-  }
-
-  private sanitizeAuditPayload(payload: Record<string, unknown>) {
-    const sanitized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(payload)) {
-      const normalizedKey = key.toLowerCase();
-      const isSecret = ["password", "token", "secret", "pin", "code", "authorization", "cookie"]
-        .some((term) => normalizedKey.includes(term));
-      sanitized[key] = isSecret ? "[REDACTED]" : value;
-    }
-    return sanitized as Prisma.InputJsonObject;
+      payload,
+    }));
   }
 
   private extractId(item: unknown): string | null {

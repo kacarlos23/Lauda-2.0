@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import jwt from "jsonwebtoken";
-import { Prisma } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
 import { UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
@@ -15,26 +14,38 @@ import {
 } from "../security/passwordReset";
 import { deliverPasswordResetPin } from "./passwordResetDeliveryService";
 import {
+  createServerSession,
+  revokeSession,
+  revokeUserSessions,
+  rotateServerSession,
+  SessionMetadata,
+  markSessionStepUp,
+} from "./authSessionService";
+import {
+  decryptMfaSecret,
+  encryptMfaSecret,
+  generateMfaSecret,
+  mfaOtpAuthUrl,
+  verifyTotpCode,
+} from "../security/mfa";
+import {
+  recordLegacyRefreshRejection,
+  signAccessToken,
+  verifyRefreshToken,
+} from "../security/tokenService";
+import { logger } from "../observability/logger";
+import {
   RegisterInput,
   LoginInput,
   RefreshTokenInput,
   ForgotPasswordInput,
   ResetPasswordInput,
   PublicMemberRegisterInput,
+  ChangePasswordInput,
+  MfaCodeInput,
+  MfaSetupInput,
+  StepUpInput,
 } from "../validators/auth.schema";
-
-interface RefreshTokenPayload {
-  id?: string;
-  userId?: string;
-  type: "refresh";
-}
-
-interface AccessTokenPayload {
-  userId: string;
-  email: string;
-  role: string;
-  tenantId: string | null;
-}
 
 const authRepository = new AuthRepository();
 // Keeps the unknown-user login path close to the password-check cost without
@@ -70,14 +81,19 @@ export class AuthService {
     tenantId: string | null;
     tenant?: { id: string; name: string } | null;
     instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
-  }) {
-    const accessToken = this.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-    });
-    const refreshToken = this.generateRefreshToken(user.id);
+  }, options: {
+    metadata?: SessionMetadata;
+    rotated?: { sessionId: string; refreshToken: string };
+    mfaVerifiedAt?: Date | null;
+  } = {}) {
+    const identity = { id: user.id, email: user.email, role: user.role, tenantId: user.tenantId };
+    const tokenPair = options.rotated
+      ? {
+          accessToken: signAccessToken(identity, options.rotated.sessionId),
+          refreshToken: options.rotated.refreshToken,
+        }
+      : await createServerSession(identity, options.metadata, { mfaVerifiedAt: options.mfaVerifiedAt });
+    const { accessToken, refreshToken } = tokenPair;
 
     const permissions = await effectivePermissionKeys(
       { id: user.id, role: user.role as any, tenantId: user.tenantId },
@@ -98,6 +114,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
         permissions,
+        mfaEnabled: Boolean((user as { mfaEnabledAt?: Date | null }).mfaEnabledAt),
       },
         tenant: user.tenant ?? null,
     };
@@ -109,7 +126,7 @@ export class AuthService {
    * @param input Validated registration payload.
    * @returns Authentication payload with token pair and user data.
    */
-  async register(input: RegisterInput) {
+  async register(input: RegisterInput, metadata?: SessionMetadata) {
     const { churchName, name, email, password } = input;
 
     const existing = await authRepository.findUserByEmail(email);
@@ -127,7 +144,7 @@ export class AuthService {
     });
 
     const user = tenant.users[0];
-    const auth = await this.buildAuthResponse({ ...user, tenantId: tenant.id });
+    const auth = await this.buildAuthResponse({ ...user, tenantId: tenant.id }, { metadata });
 
     return {
       ...auth,
@@ -135,7 +152,7 @@ export class AuthService {
     };
   }
 
-  async registerPublicMember(input: PublicMemberRegisterInput) {
+  async registerPublicMember(input: PublicMemberRegisterInput, metadata?: SessionMetadata) {
     const inviteCode = normalizeInviteCode(input.inviteCode);
     const email = input.email.trim().toLowerCase();
     const name = input.name.trim();
@@ -162,7 +179,7 @@ export class AuthService {
     });
 
     return {
-      ...await this.buildAuthResponse(user),
+      ...await this.buildAuthResponse(user, { metadata }),
       tenant: invite.tenant,
     };
   }
@@ -173,7 +190,7 @@ export class AuthService {
    * @param input Validated login credentials.
    * @returns Authentication payload with token pair and user data.
    */
-  async login(input: LoginInput) {
+  async login(input: LoginInput, metadata?: SessionMetadata) {
     const { email, password } = input;
 
     const user = await authRepository.findUserByEmail(email);
@@ -191,11 +208,68 @@ export class AuthService {
       throw new UnauthorizedError("Usuário ou tenant inativo, excluído ou indisponível");
     }
 
+    let mfaVerifiedAt: Date | null = null;
+    if (user.role === Role.GLOBAL_ADMIN && config.auth.mfa.globalAdminRequired) {
+      if (!user.mfaEnabledAt || !user.mfaSecretEncrypted || !input.mfaCode) {
+        throw new UnauthorizedError("MFA obrigatório para administrador global");
+      }
+      if (!verifyTotpCode(decryptMfaSecret(user.mfaSecretEncrypted), input.mfaCode)) {
+        throw new UnauthorizedError("Credenciais inválidas");
+      }
+      mfaVerifiedAt = new Date();
+    }
+
     if (input.inviteCode) {
       await this.applyInviteToExistingUser(input.inviteCode, user);
     }
 
-    return this.buildAuthResponse(user);
+    return this.buildAuthResponse(user, { metadata, mfaVerifiedAt });
+  }
+
+  async setupMfa(userId: string, input: MfaSetupInput) {
+    const user = await authRepository.findUserById(userId);
+    if (!isEligibleForAuthentication(user) || !await bcrypt.compare(input.currentPassword, user.password)) {
+      throw new UnauthorizedError("Senha atual inválida");
+    }
+    const secret = generateMfaSecret();
+    const saved = await authRepository.savePendingMfaSecret(userId, encryptMfaSecret(secret));
+    if (saved.count !== 1) throw new UnauthorizedError("Usuário indisponível");
+    return { secret, otpAuthUrl: mfaOtpAuthUrl(user.email, secret) };
+  }
+
+  async confirmMfa(userId: string, sessionId: string, input: MfaCodeInput) {
+    const user = await authRepository.findUserById(userId);
+    if (!isEligibleForAuthentication(user) || !user.mfaSecretEncrypted) {
+      throw new ValidationError("Configuração MFA não iniciada");
+    }
+    if (!verifyTotpCode(decryptMfaSecret(user.mfaSecretEncrypted), input.code)) {
+      throw new UnauthorizedError("Código MFA inválido");
+    }
+    const enabled = await authRepository.enableMfa(userId);
+    if (enabled.count !== 1) throw new ValidationError("Não foi possível habilitar MFA");
+    const verifiedAt = new Date();
+    const stepUpExpiresAt = new Date(verifiedAt.getTime() + config.auth.mfa.stepUpTtlMinutes * 60_000);
+    await markSessionStepUp(sessionId, userId, verifiedAt, stepUpExpiresAt);
+    return { enabled: true, verifiedAt, stepUpExpiresAt };
+  }
+
+  async stepUp(userId: string, sessionId: string, input: StepUpInput) {
+    const user = await authRepository.findUserById(userId);
+    if (
+      !isEligibleForAuthentication(user) ||
+      !user.mfaEnabledAt ||
+      !user.mfaSecretEncrypted ||
+      !await bcrypt.compare(input.currentPassword, user.password) ||
+      !verifyTotpCode(decryptMfaSecret(user.mfaSecretEncrypted), input.code)
+    ) {
+      throw new UnauthorizedError("Não foi possível elevar a sessão");
+    }
+    const verifiedAt = new Date();
+    const expiresAt = new Date(verifiedAt.getTime() + config.auth.mfa.stepUpTtlMinutes * 60_000);
+    if (!await markSessionStepUp(sessionId, userId, verifiedAt, expiresAt)) {
+      throw new UnauthorizedError("Sessão inválida");
+    }
+    return { verifiedAt, expiresAt };
   }
 
   /**
@@ -205,31 +279,51 @@ export class AuthService {
    * @returns Authentication payload with renewed token pair and user data.
    */
   async refresh(input: RefreshTokenInput) {
-    let decoded: RefreshTokenPayload;
+    let decoded;
     try {
-      decoded = jwt.verify(
-        input.refreshToken,
-        config.auth.refreshJwtSecret
-      ) as RefreshTokenPayload;
+      decoded = verifyRefreshToken(input.refreshToken);
     } catch {
+      recordLegacyRefreshRejection(input.refreshToken);
+      throw new UnauthorizedError("Refresh token inválido");
+    }
+    const rotation = await rotateServerSession(input.refreshToken, decoded);
+    if (rotation.status === "reuse") {
+      logger.warn("auth_refresh_reuse_detected", { category: "security", outcome: "revoked" });
+      throw new UnauthorizedError("Refresh token reutilizado; sessão revogada");
+    }
+    if (rotation.status !== "rotated") {
       throw new UnauthorizedError("Refresh token inválido");
     }
 
-    if (decoded.type !== "refresh") {
-      throw new UnauthorizedError("Refresh token inválido");
-    }
-
-    const refreshUserId = decoded.userId ?? decoded.id;
-    if (!refreshUserId) {
-      throw new UnauthorizedError("Refresh token inválido");
-    }
-
-    const user = await authRepository.findUserById(refreshUserId);
+    const user = await authRepository.findUserById(rotation.userId);
     if (!isEligibleForAuthentication(user)) {
+      await revokeUserSessions(rotation.userId, "authentication_ineligible");
       throw new UnauthorizedError("Usuário ou tenant inativo, excluído ou indisponível");
     }
 
-    return this.buildAuthResponse(user);
+    return this.buildAuthResponse(user, {
+      rotated: { sessionId: rotation.sessionId, refreshToken: rotation.refreshToken },
+    });
+  }
+
+  async logout(userId: string, sessionId: string) {
+    await revokeSession(sessionId, userId, "logout");
+    return { success: true, message: "Sessão encerrada com sucesso." };
+  }
+
+  async logoutAll(userId: string) {
+    const revokedSessions = await revokeUserSessions(userId, "logout_global");
+    return { success: true, revokedSessions, message: "Todas as sessões foram encerradas." };
+  }
+
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    const user = await authRepository.findUserById(userId);
+    if (!isEligibleForAuthentication(user) || !await bcrypt.compare(input.currentPassword, user.password)) {
+      throw new UnauthorizedError("Senha atual inválida");
+    }
+    const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+    await authRepository.changePasswordAndRevokeSessions(userId, hashedPassword);
+    return { success: true, message: "Senha atualizada; todas as sessões foram encerradas." };
   }
 
   async me(userId: string) {
@@ -254,6 +348,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
         permissions,
+        mfaEnabled: Boolean(user.mfaEnabledAt),
       },
       tenant: user.tenant ?? null,
       permissions,
@@ -315,7 +410,7 @@ export class AuthService {
         challengeId,
         now: new Date(),
       }).catch(() => undefined);
-      console.error("[PasswordResetDeliveryError]");
+      logger.error("password_reset_delivery_failed", { category: "security", outcome: "error" });
     }
 
     return { success: true, message: "Se o e-mail existir, um código foi enviado." };
@@ -371,22 +466,6 @@ export class AuthService {
     }
 
     return { success: true, message: "Senha atualizada com sucesso." };
-  }
-
-  private generateAccessToken(payload: AccessTokenPayload): string {
-    return jwt.sign(
-      payload,
-      config.auth.jwtSecret,
-      { expiresIn: config.auth.jwtExpiresIn } as jwt.SignOptions
-    );
-  }
-
-  private generateRefreshToken(userId: string): string {
-    return jwt.sign(
-      { userId, type: "refresh" },
-      config.auth.refreshJwtSecret,
-      { expiresIn: config.auth.refreshJwtExpiresIn } as jwt.SignOptions
-    );
   }
 
   private generateInviteCode(): string {

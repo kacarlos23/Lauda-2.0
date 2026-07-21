@@ -7,6 +7,7 @@ import { AppBackButton } from "./AppBackButton";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../types";
 import { CifraClubImportResult, CifraClubSearchResult, musicService, SongPayload } from "../services/musicService";
 import { buttonShadow, colors, radii, screen, shadow, spacing } from "../theme";
+import { RichCommentEditor } from "./ui/RichCommentEditor";
 
 type Props = {
   initial?: Song;
@@ -31,6 +32,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [letraUrl, setLetraUrl] = useState(initial?.letraUrl ?? "");
   const [audioUrl, setAudioUrl] = useState(initial?.audioUrl ?? "");
   const [videoUrl, setVideoUrl] = useState(initial?.videoUrl ?? "");
+  const [comments, setComments] = useState(initial?.comments ?? "");
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [cifraClubModalVisible, setCifraClubModalVisible] = useState(false);
@@ -40,7 +42,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [cifraClubResults, setCifraClubResults] = useState<CifraClubSearchResult[]>([]);
   const [cifraClubPreview, setCifraClubPreview] = useState<CifraClubImportResult | null>(null);
 
-  const currentSnapshot = useMemo(() => JSON.stringify({ artistId: artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl }), [artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl]);
+  const currentSnapshot = useMemo(() => JSON.stringify({ artistId: artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments }), [artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments]);
   const initialSnapshot = useMemo(() => JSON.stringify({
     artistId: initial?.artistId,
     title: initial?.title ?? "",
@@ -52,6 +54,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     letraUrl: initial?.letraUrl ?? "",
     audioUrl: initial?.audioUrl ?? "",
     videoUrl: initial?.videoUrl ?? "",
+    comments: initial?.comments ?? "",
   }), [initial]);
   const dirty = currentSnapshot !== initialSnapshot;
 
@@ -207,6 +210,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
         letraUrl: normalizeLink(letraUrl),
         audioUrl: normalizeLink(audioUrl),
         videoUrl: normalizeLink(videoUrl),
+        comments: comments || null,
       });
       setSubmitted(true);
       setTimeout(() => router.replace(`/songs/${songId}` as never), 0);
@@ -316,6 +320,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           <TextInput style={styles.input} value={audioUrl} onChangeText={setAudioUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-audio-url-input" />
           <Text style={styles.label}>Vídeo</Text>
           <TextInput style={styles.input} value={videoUrl} onChangeText={setVideoUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-video-url-input" />
+          <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Observações sobre a música, execução ou repertório..." testID="song-comments-input" /></View>
           <TouchableOpacity style={styles.primaryButton} onPress={next} testID="song-next-button"><Text style={styles.primaryText}>Continuar para a cifra</Text></TouchableOpacity>
         </View>
       ) : (
@@ -369,6 +374,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   title: { color: colors.ink, fontSize: 22, fontWeight: "900", marginBottom: spacing.lg },
   label: { color: colors.text, fontSize: 13, fontWeight: "800", marginTop: spacing.lg, marginBottom: spacing.sm },
+  commentsEditor: { marginTop: spacing.lg },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   keyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   key: { minWidth: 45, height: 40, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },

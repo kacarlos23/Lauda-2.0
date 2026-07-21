@@ -4,6 +4,7 @@ import { basePrisma } from "../config/prisma";
 const tenantSelect = {
   id: true,
   name: true,
+  comments: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.TenantSelect;
@@ -13,6 +14,7 @@ const memberSelect = {
   name: true,
   email: true,
   phone: true,
+  comments: true,
   role: true,
   tenantId: true,
   createdAt: true,
@@ -58,10 +60,10 @@ export class ChurchRepository {
     });
   }
 
-  async update(data: { name: string }) {
+  async update(data: { name: string; comments?: string | null }) {
     const result = await basePrisma.tenant.updateMany({
       where: { id: this.tenantId },
-      data: { name: data.name },
+      data,
     });
 
     if (result.count === 0) {
@@ -93,6 +95,7 @@ export class ChurchRepository {
           id: true,
           name: true,
           description: true,
+          comments: true,
           tenantId: true,
           createdAt: true,
           _count: { select: { members: true } },
@@ -110,6 +113,7 @@ export class ChurchRepository {
           id: true,
           title: true,
           date: true,
+          comments: true,
           ministryId: true,
           tenantId: true,
           ministry: { select: { id: true, name: true } },

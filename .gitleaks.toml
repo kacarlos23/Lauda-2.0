@@ -1,0 +1,24 @@
+title = "Lauda 2.0 secret scanning policy"
+
+[extend]
+useDefault = true
+
+# Deterministic sentinel used only by the CI self-test. The value is assembled
+# at runtime outside the repository, so no secret-like fixture is committed.
+[[rules]]
+id = "lauda-confirmed-secret-test"
+description = "Lauda CI confirmed-secret gate sentinel"
+regex = '''LAUDA_CONFIRMED_SECRET_[A-Z0-9]{32}'''
+secretGroup = 0
+keywords = ["LAUDA_CONFIRMED_SECRET_"]
+
+# SEC-FP-2026-001: one exact, non-functional JWT-shaped value exercises
+# redaction in a unit test. Matching requires both this path and exact line;
+# other generic-api-key findings in this file remain enabled.
+[[allowlists]]
+description = "SEC-FP-2026-001 synthetic truncated JWT; expires 2026-10-18"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^src/__tests__/unit/rateLimitMiddleware\.test\.ts$''']
+regexTarget = "line"
+regexes = ['''\["refresh token", "eyJhbGciOiJIUzI1NiJ9\.sensitive\.signature"\]''']

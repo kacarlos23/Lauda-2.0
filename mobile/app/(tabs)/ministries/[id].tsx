@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
-import { Button, EmptyState, ErrorBanner, LoadingState } from "../../../src/components/ui";
+import { Button, EmptyState, ErrorBanner, LoadingState, RichCommentEditor, RichCommentView } from "../../../src/components/ui";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -43,6 +43,7 @@ export default function MinistryDetailsScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editComments, setEditComments] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -101,6 +102,7 @@ export default function MinistryDetailsScreen() {
     setFormError(null);
     setEditName(ministry.name);
     setEditDescription(ministry.description ?? "");
+    setEditComments(ministry.comments ?? "");
     setShowEdit(true);
   };
 
@@ -125,6 +127,7 @@ export default function MinistryDetailsScreen() {
     await updateMinistry(id, {
       name: trimmedName,
       description: trimmedDescription || undefined,
+      comments: editComments || null,
     });
     setSubmitting(false);
 
@@ -232,6 +235,7 @@ export default function MinistryDetailsScreen() {
           <View style={styles.ministryInfo}>
             <Text style={styles.title}>{ministry.name}</Text>
             {ministry.description ? <Text style={styles.description}>{ministry.description}</Text> : null}
+            {ministry.comments ? <View style={styles.commentsCard}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={ministry.comments} /></View> : null}
 
             <View style={styles.membersHeader}>
               <Text style={styles.membersTitle}>Membros ({members.length})</Text>
@@ -368,6 +372,7 @@ export default function MinistryDetailsScreen() {
             multiline
             textAlignVertical="top"
           />
+          <RichCommentEditor value={editComments} onChange={setEditComments} label="Comentários" placeholder="Orientações e observações sobre o ministério..." testID="ministry-comments-input" />
         </View>
       </BottomSheet>
     </SafeAreaView>
@@ -417,6 +422,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: spacing.lg,
   },
+  commentsCard: { marginTop: spacing.md, marginBottom: spacing.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, backgroundColor: colors.surfaceMuted },
+  commentsTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", marginBottom: spacing.sm },
   membersHeader: {
     flexDirection: "row",
     alignItems: "center",

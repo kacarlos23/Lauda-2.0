@@ -1,0 +1,60 @@
+name: Traditional DAST - isolated staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type STAGING_SYNTHETIC_DATA_ONLY to authorize the active scan
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  zap-full-scan:
+    if: inputs.confirmation == 'STAGING_SYNTHETIC_DATA_ONLY' && vars.STAGING_DAST_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging-security
+    env:
+      STAGING_BASE_URL: ${{ vars.STAGING_BASE_URL }}
+      DAST_ALLOWED_HOSTS: ${{ vars.DAST_ALLOWED_HOSTS }}
+      SYNTHETIC_DATASET_ID: ${{ vars.SYNTHETIC_DATASET_ID }}
+      STAGING_PRODUCTION_DATA: ${{ vars.STAGING_PRODUCTION_DATA }}
+      STAGING_DAST_TOKEN: ${{ secrets.STAGING_DAST_TOKEN }}
+      ZAP_AUTH_HEADER_VALUE: Bearer ${{ secrets.STAGING_DAST_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Fail closed unless target and dataset are approved staging
+        run: npm run security:dast:guard
+      - name: Run authenticated active ZAP 2.17.0 scan in observation mode
+        id: zap
+        shell: bash
+        run: |
+          mkdir -p security-artifacts/dast-traditional
+          host="$(node -e "console.log(new URL(process.env.STAGING_BASE_URL).hostname)")"
+          set +e
+          docker run --rm \
+            -e ZAP_AUTH_HEADER=Authorization \
+            -e ZAP_AUTH_HEADER_VALUE \
+            -e ZAP_AUTH_HEADER_SITE="$host" \
+            -v "$PWD/security-artifacts/dast-traditional:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy@sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2 \
+            zap-full-scan.py -t "$STAGING_BASE_URL" -a -m 10 \
+            -J report.json -r report.html -w report.md
+          status=$?
+          set -e
+          node -e "require('fs').writeFileSync('security-artifacts/dast-traditional/status.json', JSON.stringify({scanner:'OWASP ZAP',version:'2.17.0',exit_code:Number(process.argv[1]),mode:'observation',dataset:process.env.SYNTHETIC_DATASET_ID},null,2)+'\n')" "$status"
+          if [ "${{ vars.DAST_ENFORCE }}" = "true" ] && [ "$status" -ne 0 ]; then exit "$status"; fi
+      - name: Upload traditional DAST evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: traditional-dast-${{ github.run_id }}
+          path: security-artifacts/dast-traditional/
+          if-no-files-found: error
+          retention-days: 90

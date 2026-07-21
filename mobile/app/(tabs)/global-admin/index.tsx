@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, Database, Edit3, Plus, RefreshCcw, ShieldAlert, Trash2, X, XCircle } from "lucide-react-native";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
-import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from "../../../src/components/ui";
+import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge, RichCommentEditor } from "../../../src/components/ui";
 import { adminService } from "../../../src/services/adminService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
@@ -12,7 +12,7 @@ import { isGlobalAdmin } from "../../../src/utils/permissions";
 import { effectivePermissionsFromOverrides, nextPermissionEffect, PermissionOverrideMap } from "../../../src/utils/permissionOverrides";
 
 type Row = Record<string, any>;
-type FieldType = "text" | "textarea" | "number" | "boolean" | "role" | "status" | "tenant" | "user" | "ministry" | "instrument" | "artist" | "song" | "schedule" | "datetime";
+type FieldType = "text" | "textarea" | "richtext" | "number" | "boolean" | "role" | "status" | "tenant" | "user" | "ministry" | "instrument" | "artist" | "song" | "schedule" | "datetime";
 type FieldConfig = { key: string; label: string; type?: FieldType; createOnly?: boolean; optional?: boolean };
 type ResourceConfig = {
   name: GlobalResourceName;
@@ -35,6 +35,7 @@ const resources: ResourceConfig[] = [
     fields: [
       { key: "name", label: "Nome" },
       { key: "domain", label: "Domínio", optional: true },
+      { key: "comments", label: "Comentários", type: "richtext", optional: true },
     ],
     columns: [
       { key: "name", label: "Nome" },
@@ -51,6 +52,7 @@ const resources: ResourceConfig[] = [
       { key: "name", label: "Nome" },
       { key: "email", label: "E-mail" },
       { key: "phone", label: "Telefone", optional: true },
+      { key: "comments", label: "Comentários", type: "richtext", optional: true },
       { key: "password", label: "Nova senha", optional: true },
       { key: "role", label: "Nível de acesso", type: "role" },
       { key: "tenantId", label: "Igreja", type: "tenant", optional: true },
@@ -69,6 +71,7 @@ const resources: ResourceConfig[] = [
     fields: [
       { key: "name", label: "Nome" },
       { key: "description", label: "Descrição", type: "textarea", optional: true },
+      { key: "comments", label: "Comentários", type: "richtext", optional: true },
       { key: "tenantId", label: "Igreja", type: "tenant" },
     ],
     columns: [
@@ -170,6 +173,7 @@ const resources: ResourceConfig[] = [
       { key: "originalKey", label: "Tom original" },
       { key: "bpm", label: "BPM", type: "number", optional: true },
       { key: "content", label: "Cifra", type: "textarea" },
+      { key: "comments", label: "Comentários", type: "richtext", optional: true },
       { key: "cifraUrl", label: "Link cifra", optional: true },
       { key: "letraUrl", label: "Link letra", optional: true },
       { key: "audioUrl", label: "Link áudio", optional: true },
@@ -189,6 +193,7 @@ const resources: ResourceConfig[] = [
     fields: [
       { key: "tenantId", label: "Igreja", type: "tenant" },
       { key: "ministryId", label: "Ministério", type: "ministry" },
+      { key: "comments", label: "Comentários", type: "richtext", optional: true },
       { key: "songId", label: "Música", type: "song" },
     ],
     columns: [
@@ -641,6 +646,9 @@ function ResourceModal({
 
 function FieldInput({ field, value, references, onChange }: { field: FieldConfig; value: any; references: Record<string, Row[]>; onChange: (value: unknown) => void }) {
   const type = field.type ?? "text";
+  if (type === "richtext") {
+    return <View style={styles.field}><RichCommentEditor value={value === null || value === undefined ? "" : String(value)} onChange={onChange} label={field.label} /></View>;
+  }
   if (["tenant", "user", "ministry", "instrument", "artist", "song", "schedule", "role", "status", "boolean"].includes(type)) {
     const options = getOptions(type, references);
     return (

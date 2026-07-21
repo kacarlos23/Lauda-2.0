@@ -1,0 +1,13 @@
+export const basePrismaAllowlist = [
+  { path: "src/config/prisma.ts", owner: "Platform Engineering", context: "Constructs the scoped client from the sole raw Prisma client." },
+  { path: "src/middlewares/authMiddleware.ts", owner: "Identity Engineering", context: "Resolves current session and canonical authorization state before tenant context exists." },
+  { path: "src/repositories/AdminRepository.ts", owner: "Security Engineering", context: "GLOBAL_ADMIN repository; every route is role-gated, MFA-gated in production, step-up gated for writes, and audited." },
+  { path: "src/repositories/authRepository.ts", owner: "Identity Engineering", context: "Pre-auth identity lookup, password recovery, MFA enrollment, and atomic session revocation." },
+  { path: "src/repositories/ChurchRepository.ts", owner: "Tenant Platform", context: "Accesses the Tenant root model; every query receives the authenticated tenantId explicitly." },
+  { path: "src/repositories/MemberRepository.ts", owner: "Identity Engineering", context: "Atomic member deactivation plus server-session revocation with explicit tenant predicate." },
+  { path: "src/services/authSessionService.ts", owner: "Identity Engineering", context: "Server-side sessions and refresh-token families are system-scoped identity records." },
+  { path: "src/services/permissionService.ts", owner: "Security Engineering", context: "Loads canonical permission overrides before/independent of tenant-scoped request queries and writes audited GLOBAL_ADMIN changes." },
+  { path: "src/services/privilegedAccessService.ts", owner: "Security Engineering", context: "Issues, binds, expires, revokes, and audits scoped support grants." },
+  { path: "scripts/debug-admin-tenants.ts", owner: "Platform Engineering", context: "Local-only tenant diagnostics; production execution is prohibited." },
+  { path: "scripts/promote-global-admin.ts", owner: "Security Engineering", context: "Non-production bootstrap only; explicit actor/target/reason/ticket/confirmation and audit are mandatory." },
+] as const;

@@ -20,6 +20,12 @@ router.post("/member-register", memberRegistrationRateLimit, (req, res) => authC
 router.post("/login", loginRateLimit, (req, res) => authController.login(req, res));
 router.post("/refresh", refreshRateLimit, (req, res) => authController.refresh(req, res));
 router.get("/me", authMiddleware, (req, res) => authController.me(req, res));
+router.post("/logout", authMiddleware, (req, res) => authController.logout(req, res));
+router.post("/logout-all", authMiddleware, (req, res) => authController.logoutAll(req, res));
+router.post("/change-password", authMiddleware, (req, res) => authController.changePassword(req, res));
+router.post("/mfa/setup", authMiddleware, (req, res) => authController.setupMfa(req, res));
+router.post("/mfa/confirm", authMiddleware, (req, res) => authController.confirmMfa(req, res));
+router.post("/step-up", authMiddleware, (req, res) => authController.stepUp(req, res));
 router.post("/forgot-password", forgotPasswordRateLimit, (req, res) => authController.forgotPassword(req, res));
 router.post("/reset-password", resetPasswordRateLimit, (req, res) => authController.resetPassword(req, res));
 

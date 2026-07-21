@@ -12,7 +12,7 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
-import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, Screen, SectionHeader } from "../../../src/components/ui";
+import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, RichCommentEditor, Screen, SectionHeader } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
 import { buttonShadow, colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
@@ -36,6 +36,7 @@ export default function MinistriesScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [comments, setComments] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [filters, setFilters] = useState<MinistryListFilters>(emptyMinistryFilters);
@@ -81,6 +82,7 @@ export default function MinistriesScreen() {
     setFormError(null);
     setName("");
     setDescription("");
+    setComments("");
     setShowCreate(true);
   };
 
@@ -103,6 +105,7 @@ export default function MinistriesScreen() {
     await createMinistry({
       name: trimmedName,
       description: trimmedDescription || undefined,
+      comments: comments || null,
     });
     setSubmitting(false);
 
@@ -110,6 +113,7 @@ export default function MinistriesScreen() {
       setShowCreate(false);
       setName("");
       setDescription("");
+      setComments("");
     }
   };
 
@@ -260,6 +264,7 @@ export default function MinistriesScreen() {
             multiline
             textAlignVertical="top"
           />
+          <RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações e observações sobre o ministério..." testID="ministry-comments-input" />
         </View>
       </BottomSheet>
     </Screen>

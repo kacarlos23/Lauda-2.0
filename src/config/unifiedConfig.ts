@@ -6,10 +6,12 @@ const LOCAL_JWT_SECRET = "local-access-secret-for-non-production-only";
 const LOCAL_REFRESH_JWT_SECRET = "local-refresh-secret-for-non-production-only";
 const LOCAL_PASSWORD_RESET_PEPPER = "local-password-reset-pepper-for-non-production-only";
 const LOCAL_RATE_LIMIT_HMAC_KEY = "local-rate-limit-hmac-key-for-non-production-only";
+const LOCAL_MFA_ENCRYPTION_KEY = "local-mfa-encryption-key-for-non-production-only";
 
 type RateLimitStore = "memory" | "redis";
 type RateLimitFailureMode = "open" | "closed";
 type PasswordResetDeliveryMode = "disabled" | "smtp";
+type SecretsProvider = "local" | "aws-secrets-manager" | "gcp-secret-manager" | "azure-key-vault";
 
 function resolveJwtSecret(
   environment: NodeJS.ProcessEnv,
@@ -40,7 +42,7 @@ function resolveJwtSecret(
 
 function resolveSecuritySecret(
   environment: NodeJS.ProcessEnv,
-  variableName: "PASSWORD_RESET_PEPPER" | "RATE_LIMIT_HMAC_KEY",
+  variableName: "PASSWORD_RESET_PEPPER" | "RATE_LIMIT_HMAC_KEY" | "MFA_ENCRYPTION_KEY",
   localDefault: string,
   isProduction: boolean,
 ): string {
@@ -82,6 +84,25 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     throw new Error("NODE_ENV must be development, test, or production");
   }
   const isProduction = appEnv === "production";
+  const deploymentEnvironment = environment.DEPLOYMENT_ENVIRONMENT?.trim() || appEnv;
+  const secretsProvider = (environment.SECRETS_PROVIDER?.trim() || "local") as SecretsProvider;
+  if (!("local,aws-secrets-manager,gcp-secret-manager,azure-key-vault".split(",") as string[]).includes(secretsProvider)) {
+    throw new Error("SECRETS_PROVIDER must be local, aws-secrets-manager, gcp-secret-manager, or azure-key-vault");
+  }
+  if (isProduction && deploymentEnvironment !== "production") {
+    throw new Error("DEPLOYMENT_ENVIRONMENT must be production when NODE_ENV is production");
+  }
+  if (isProduction && secretsProvider === "local") {
+    throw new Error("Production secrets must be injected by a managed secrets provider");
+  }
+  const secretNamespace = environment.SECRET_NAMESPACE?.trim() || null;
+  const kmsKeyId = environment.KMS_KEY_ID?.trim() || null;
+  if (isProduction && (!secretNamespace || !/(^|[\/_-])production([\/_-]|$)/i.test(secretNamespace))) {
+    throw new Error("SECRET_NAMESPACE must identify an isolated production namespace");
+  }
+  if (isProduction && !kmsKeyId) {
+    throw new Error("KMS_KEY_ID is required in production");
+  }
   const jwtSecret = resolveJwtSecret(
     environment,
     "JWT_SECRET",
@@ -106,6 +127,12 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     LOCAL_RATE_LIMIT_HMAC_KEY,
     isProduction,
   );
+  const mfaEncryptionKey = resolveSecuritySecret(
+    environment,
+    "MFA_ENCRYPTION_KEY",
+    LOCAL_MFA_ENCRYPTION_KEY,
+    isProduction,
+  );
 
   if (isProduction && jwtSecret === refreshJwtSecret) {
     throw new Error(
@@ -115,9 +142,16 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
 
   if (
     isProduction &&
-    new Set([jwtSecret, refreshJwtSecret, passwordResetPepper, rateLimitHmacKey]).size !== 4
+    new Set([jwtSecret, refreshJwtSecret, passwordResetPepper, rateLimitHmacKey, mfaEncryptionKey]).size !== 5
   ) {
-    throw new Error("JWT, password reset, and rate limit secrets must use independent values in production");
+    throw new Error("JWT, password reset, rate limit, and MFA secrets must use independent values in production");
+  }
+
+  const requireGlobalAdminMfa = environment.GLOBAL_ADMIN_MFA_REQUIRED
+    ? environment.GLOBAL_ADMIN_MFA_REQUIRED === "true"
+    : isProduction;
+  if (isProduction && !requireGlobalAdminMfa) {
+    throw new Error("GLOBAL_ADMIN_MFA_REQUIRED must be true in production");
   }
 
 
@@ -130,6 +164,9 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
   }
   if (rateLimitStore === "redis" && !environment.RATE_LIMIT_REDIS_URL?.trim()) {
     throw new Error("RATE_LIMIT_REDIS_URL is required when RATE_LIMIT_STORE is redis");
+  }
+  if (isProduction && !environment.RATE_LIMIT_REDIS_URL!.startsWith("rediss://")) {
+    throw new Error("RATE_LIMIT_REDIS_URL must use rediss:// in production");
   }
 
   const rateLimitFailureMode = (
@@ -181,14 +218,36 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     throw new Error("PASSWORD_RESET_TEST_PIN must contain exactly 6 digits");
   }
 
+  const databaseUrl = environment.DATABASE_URL?.trim();
+  if (isProduction && !databaseUrl) {
+    throw new Error("DATABASE_URL is required in production");
+  }
+  if (isProduction) {
+    const parsedDatabaseUrl = new URL(databaseUrl!);
+    const sslMode = parsedDatabaseUrl.searchParams.get("sslmode");
+    if (!['require', 'verify-ca', 'verify-full'].includes(sslMode || "")) {
+      throw new Error("DATABASE_URL must enforce TLS with sslmode=require, verify-ca, or verify-full in production");
+    }
+  }
+
   return {
     env: appEnv,
+    deployment: {
+      environment: deploymentEnvironment,
+      secretsProvider,
+      secretNamespace,
+      kmsKeyId,
+      secretRotationDays: parsePositiveInteger(environment.SECRET_ROTATION_DAYS, 90, "SECRET_ROTATION_DAYS"),
+    },
     port: environment.PORT ? parseInt(environment.PORT, 10) : 3000,
     auth: {
       jwtSecret,
       jwtExpiresIn: environment.JWT_EXPIRES_IN || "15m",
       refreshJwtSecret,
       refreshJwtExpiresIn: environment.REFRESH_JWT_EXPIRES_IN || "7d",
+      issuer: environment.JWT_ISSUER?.trim() || "lauda-api",
+      accessAudience: environment.JWT_ACCESS_AUDIENCE?.trim() || "lauda-clients",
+      refreshAudience: environment.JWT_REFRESH_AUDIENCE?.trim() || "lauda-refresh",
       passwordResetPepper,
       passwordResetPepperVersion: parsePositiveInteger(
         environment.PASSWORD_RESET_PEPPER_VERSION,
@@ -205,6 +264,25 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
         mode: passwordResetDeliveryMode,
         smtp,
       },
+      mfa: {
+        encryptionKey: mfaEncryptionKey,
+        globalAdminRequired: requireGlobalAdminMfa,
+        stepUpTtlMinutes: parsePositiveInteger(
+          environment.ADMIN_STEP_UP_TTL_MINUTES,
+          10,
+          "ADMIN_STEP_UP_TTL_MINUTES",
+        ),
+      },
+    },
+    privilegedAccess: {
+      enforceStepUp: environment.ADMIN_STEP_UP_REQUIRED
+        ? environment.ADMIN_STEP_UP_REQUIRED === "true"
+        : isProduction,
+      supportMaxMinutes: parsePositiveInteger(
+        environment.SUPPORT_ACCESS_MAX_MINUTES,
+        60,
+        "SUPPORT_ACCESS_MAX_MINUTES",
+      ),
     },
     rateLimit: {
       enabled: rateLimitEnabled,
@@ -223,7 +301,7 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
       trustProxyHops: parseNonNegativeInteger(environment.TRUST_PROXY_HOPS, 0, "TRUST_PROXY_HOPS"),
     },
     db: {
-      url: environment.DATABASE_URL,
+      url: databaseUrl,
     },
     memberInviteBaseUrl:
       environment.MEMBER_INVITE_BASE_URL || "https://laudaapp.com/convite",

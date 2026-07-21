@@ -60,4 +60,19 @@ describe("memberService", () => {
       ministries: [{ ministryId: "ministry-1", isLeader: true }],
     });
   });
+
+  it("updateMember envia comentários formatados ao endpoint administrativo", async () => {
+    const member: Member = {
+      id: "member-1",
+      name: "Carlos",
+      role: "MEMBER",
+      tenantId: "tenant-1",
+      ministries: [],
+      comments: "<p><strong>Disponível</strong> aos domingos</p>",
+    };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: member } });
+
+    await expect(memberService.updateMember(member.id, { comments: member.comments })).resolves.toEqual(member);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/members/member-1", { comments: member.comments });
+  });
 });

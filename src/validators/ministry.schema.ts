@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { richTextCommentsSchema } from "./richText.schema";
 
 export const createMinistrySchema = z.object({
   name: z.string().min(2, "Nome é obrigatório"),
   description: z.string().optional(),
+  comments: richTextCommentsSchema,
 });
 
 export const updateMinistrySchema = createMinistrySchema.partial();

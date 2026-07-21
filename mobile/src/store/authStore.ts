@@ -56,7 +56,8 @@ interface AuthState {
   applyCurrentUser: (partialUser: Partial<User>) => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
   updateCurrentUser: (partialUser: Partial<User>) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (revokeServer?: boolean) => Promise<void>;
+  logoutAll: () => Promise<void>;
   loadSession: () => Promise<void>;
 }
 
@@ -310,17 +311,33 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  logout: async () => {
-    await clearSession();
-    set({
-      user: null,
-      tenant: null,
-      accessToken: null,
-      token: null,
-      loading: false,
-      isLoading: false,
-      error: null,
-    });
-    router.replace("/(auth)/login");
+  logout: async (revokeServer = true) => {
+    try {
+      if (revokeServer) await api.post("/auth/logout");
+    } catch {
+      // A revoked/expired server session must never prevent local cleanup.
+    } finally {
+      await clearSession();
+      set({
+        user: null,
+        tenant: null,
+        accessToken: null,
+        token: null,
+        loading: false,
+        isLoading: false,
+        error: null,
+      });
+      router.replace("/(auth)/login");
+    }
+  },
+
+  logoutAll: async () => {
+    try {
+      await api.post("/auth/logout-all");
+    } finally {
+      await clearSession();
+      set({ user: null, tenant: null, accessToken: null, token: null, loading: false, isLoading: false, error: null });
+      router.replace("/(auth)/login");
+    }
   },
 }));

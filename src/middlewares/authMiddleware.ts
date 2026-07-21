@@ -1,6 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config/unifiedConfig";
 import { Role } from "@prisma/client";
 import { basePrisma } from "../config/prisma";
 import { runWithTenantContext } from "../context/tenantContext";
@@ -9,11 +7,8 @@ import { isChurchAdmin } from "../utils/permissions";
 import { PermissionKey } from "../constants/permissions";
 import { effectivePermissionKeys, hasPermission } from "../services/permissionService";
 import { isEligibleForAuthentication } from "../security/authEligibility";
-
-interface JwtIdentityPayload {
-  id?: string;
-  userId?: string;
-}
+import { verifyAccessToken } from "../security/tokenService";
+import { config } from "../config/unifiedConfig";
 
 /**
  * Validates the access token, attaches the user to Express request, and opens tenant context.
@@ -33,33 +28,35 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   const token = authHeader.split(" ")[1];
 
-  let decoded: JwtIdentityPayload;
+  let decoded;
   try {
-    decoded = jwt.verify(token, config.auth.jwtSecret) as JwtIdentityPayload;
+    decoded = verifyAccessToken(token);
   } catch {
     next(new UnauthorizedError("Token inválido"));
     return;
   }
 
-  const userId = decoded.userId ?? decoded.id;
-  if (!userId) {
-    next(new UnauthorizedError("Usuário ausente no token"));
-    return;
-  }
-
-  const currentUser = await basePrisma.user.findUnique({
-    where: { id: userId },
+  const currentSession = await basePrisma.authSession.findUnique({
+    where: { id: decoded.sid },
     select: {
-      id: true,
-      role: true,
-      tenantId: true,
-      isActive: true,
-      deletedAt: true,
-      tenant: { select: { isActive: true, deletedAt: true } },
+      id: true, userId: true, expiresAt: true, revokedAt: true, mfaVerifiedAt: true, stepUpExpiresAt: true,
+      user: {
+        select: {
+          id: true, role: true, tenantId: true, isActive: true, deletedAt: true, mfaEnabledAt: true,
+          tenant: { select: { isActive: true, deletedAt: true } },
+        },
+      },
     },
   });
+  const currentUser = currentSession?.user;
 
-  if (!isEligibleForAuthentication(currentUser)) {
+  if (
+    !currentSession ||
+    currentSession.userId !== decoded.userId ||
+    currentSession.revokedAt ||
+    currentSession.expiresAt <= new Date() ||
+    !isEligibleForAuthentication(currentUser)
+  ) {
     next(new UnauthorizedError("Usuário ou tenant inativo, excluído ou não encontrado"));
     return;
   }
@@ -70,14 +67,42 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   const tenantId = currentUser.tenantId;
   const permissions = await effectivePermissionKeys({ id: currentUser.id, role, tenantId }, tenantId);
 
+  if (
+    role === Role.GLOBAL_ADMIN &&
+    config.auth.mfa.globalAdminRequired &&
+    (!currentUser.mfaEnabledAt || !currentSession.mfaVerifiedAt)
+  ) {
+    next(new ForbiddenError("MFA obrigatório para administrador global"));
+    return;
+  }
+
   req.user = {
     id: currentUser.id,
+    sessionId: currentSession.id,
     role,
     tenantId: tenantId ?? "",
     permissions,
+    mfaVerifiedAt: currentSession.mfaVerifiedAt,
+    stepUpExpiresAt: currentSession.stepUpExpiresAt,
   };
 
   runWithTenantContext({ userId: currentUser.id, role, tenantId }, () => next());
+};
+
+export const requireRecentStepUp = (req: Request, _res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    next(new UnauthorizedError("Token de autenticação ausente"));
+    return;
+  }
+  if (!config.privilegedAccess.enforceStepUp) {
+    next();
+    return;
+  }
+  if (!req.user.mfaVerifiedAt || !req.user.stepUpExpiresAt || req.user.stepUpExpiresAt <= new Date()) {
+    next(new ForbiddenError("Step-up MFA recente é obrigatório para esta ação"));
+    return;
+  }
+  next();
 };
 
 export const requirePermission =

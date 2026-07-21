@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, Role } from "@prisma/client";
 import { basePrisma } from "../config/prisma";
 
 export const adminResourceNames = [
@@ -20,7 +20,7 @@ export const adminResourceNames = [
 
 export type AdminResourceName = (typeof adminResourceNames)[number];
 
-const tenantSummarySelect = { id: true, name: true, domain: true, isActive: true, deletedAt: true, createdAt: true, updatedAt: true } as const;
+const tenantSummarySelect = { id: true, name: true, comments: true, domain: true, isActive: true, deletedAt: true, createdAt: true, updatedAt: true } as const;
 const tenantMiniSelect = { id: true, name: true } as const;
 const userMiniSelect = { id: true, name: true, email: true } as const;
 const ministryMiniSelect = { id: true, name: true } as const;
@@ -33,10 +33,12 @@ const userPublicSelect = {
   email: true,
   phone: true,
   avatarUrl: true,
+  comments: true,
   role: true,
   tenantId: true,
   isActive: true,
   deletedAt: true,
+  mfaEnabledAt: true,
   createdAt: true,
   updatedAt: true,
   tenant: { select: tenantMiniSelect },
@@ -46,6 +48,7 @@ const ministryPublicSelect = {
   id: true,
   name: true,
   description: true,
+  comments: true,
   tenantId: true,
   isActive: true,
   deletedAt: true,
@@ -87,6 +90,7 @@ const songPublicSelect = {
   composer: true,
   originalKey: true,
   content: true,
+  comments: true,
   bpm: true,
   cifraUrl: true,
   letraUrl: true,
@@ -106,6 +110,7 @@ const schedulePublicSelect = {
   id: true,
   title: true,
   date: true,
+  comments: true,
   tenantId: true,
   ministryId: true,
   isActive: true,
@@ -325,6 +330,14 @@ export class AdminRepository {
     return this.delegate(resource).findUnique({ where: { id }, select: this.config(resource).select });
   }
 
+  getResourceScoped(resource: AdminResourceName, id: string, tenantId: string) {
+    const config = this.config(resource);
+    return this.delegate(resource).findFirst({
+      where: { id, [config.tenantField]: tenantId },
+      select: config.select,
+    });
+  }
+
   createResource(resource: AdminResourceName, data: Record<string, unknown>) {
     return this.delegate(resource).create({ data, select: this.config(resource).select });
   }
@@ -380,6 +393,10 @@ export class AdminRepository {
 
   updateUser(userId: string, data: Prisma.UserUpdateInput) {
     return this.updateResource("users", userId, data as Record<string, unknown>);
+  }
+
+  countGlobalAdmins() {
+    return this.db.user.count({ where: { role: Role.GLOBAL_ADMIN, isActive: true, deletedAt: null } });
   }
 
   updateUserAndCleanupPermissions(userId: string, data: Prisma.UserUpdateInput, cleanupPermissions: boolean) {
@@ -475,7 +492,7 @@ export class AdminRepository {
     return this.delegate(resource).findUnique({ where: { id }, select: { id: true, tenantId: true } });
   }
 
-  createAuditLog(data: { actorId: string; actorRole: string; action: string; resource: string; resourceId?: string | null; tenantId?: string | null; payload?: Prisma.InputJsonValue }) {
+  createAuditLog(data: { actorId: string; actorRole: string; action: string; resource: string; resourceId?: string | null; tenantId?: string | null; requestId?: string | null; payload?: Prisma.InputJsonValue }) {
     return this.db.adminAuditLog.create({ data: data as any });
   }
 

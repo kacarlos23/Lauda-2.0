@@ -3,6 +3,7 @@ import { BaseController } from "./BaseController";
 import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { SongPdfService } from "../services/songPdfService";
+import { logger } from "../observability/logger";
 import { SongService } from "../services/songService";
 import { CifraClubImportService } from "../services/cifraClubImportService";
 import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
@@ -67,7 +68,12 @@ export class SongController extends BaseController {
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.status(200).send(pdf);
     } catch (error) {
-      console.error(`[SongPdf] Falha ao gerar PDF para ${songIds.length} música(s)`, error);
+      logger.error("song_pdf_generation_failed", {
+        category: "observability",
+        component: "song-pdf",
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        outcome: "error",
+      });
       throw error;
     }
   }

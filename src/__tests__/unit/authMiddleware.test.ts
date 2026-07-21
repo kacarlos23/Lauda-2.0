@@ -10,7 +10,7 @@ import { effectivePermissionKeys } from "../../services/permissionService";
 
 jest.mock("../../config/prisma", () => ({
   basePrisma: {
-    user: {
+    authSession: {
       findUnique: jest.fn(),
     },
   },
@@ -21,7 +21,7 @@ jest.mock("../../services/permissionService", () => ({
   hasPermission: jest.fn(),
 }));
 
-const findUnique = basePrisma.user.findUnique as jest.Mock;
+const findUnique = basePrisma.authSession.findUnique as jest.Mock;
 const effectivePermissions = effectivePermissionKeys as jest.MockedFunction<typeof effectivePermissionKeys>;
 
 type StoredUser = {
@@ -34,7 +34,19 @@ type StoredUser = {
 };
 
 function signedToken(claims: { userId?: string; id?: string; role: Role; tenantId: string | null }): string {
-  return jwt.sign(claims, config.auth.jwtSecret, { expiresIn: "15m" });
+  const userId = claims.userId ?? claims.id ?? "missing-user";
+  return jwt.sign(
+    { ...claims, userId, type: "access", sid: "session-1", email: "user@example.com" },
+    config.auth.jwtSecret,
+    {
+      algorithm: "HS256",
+      expiresIn: "15m",
+      issuer: config.auth.issuer,
+      audience: config.auth.accessAudience,
+      subject: userId,
+      jwtid: "access-jti-1",
+    },
+  );
 }
 
 function requestWithToken(token: string): Request {
@@ -53,6 +65,16 @@ function currentUser(overrides: Partial<StoredUser> = {}): StoredUser {
     deletedAt: null,
     tenant: { isActive: true, deletedAt: null },
     ...overrides,
+  };
+}
+
+function currentSession(overrides: Partial<StoredUser> = {}) {
+  return {
+    id: "session-1",
+    userId: overrides.id ?? "user-1",
+    expiresAt: new Date(Date.now() + 60_000),
+    revokedAt: null,
+    user: currentUser(overrides),
   };
 }
 
@@ -83,7 +105,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("autentica usuário ativo e preenche req.user com os dados atuais do banco", async () => {
-    findUnique.mockResolvedValue(currentUser());
+    findUnique.mockResolvedValue(currentSession());
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { req, next, context } = await authenticate(token);
@@ -91,6 +113,7 @@ describe("authMiddleware current user source of truth", () => {
     expect(next).toHaveBeenCalledWith();
     expect(req.user).toEqual({
       id: "user-1",
+      sessionId: "session-1",
       role: Role.MEMBER,
       tenantId: "tenant-a",
       permissions: ["song:view"],
@@ -103,7 +126,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("usa a role atual MEMBER após rebaixamento de um token TENANT_ADMIN", async () => {
-    findUnique.mockResolvedValue(currentUser({ role: Role.MEMBER }));
+    findUnique.mockResolvedValue(currentSession({ role: Role.MEMBER }));
     const token = signedToken({ userId: "user-1", role: Role.TENANT_ADMIN, tenantId: "tenant-a" });
 
     const { req } = await authenticate(token);
@@ -116,7 +139,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("usa o tenant atual do banco no req.user e no tenant context", async () => {
-    findUnique.mockResolvedValue(currentUser({ tenantId: "tenant-b" }));
+    findUnique.mockResolvedValue(currentSession({ tenantId: "tenant-b" }));
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { req, context } = await authenticate(token);
@@ -131,7 +154,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("nega usuário atual inativo com 401 e não continua a requisição", async () => {
-    findUnique.mockResolvedValue(currentUser({ isActive: false }));
+    findUnique.mockResolvedValue(currentSession({ isActive: false }));
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { req, next, context } = await authenticate(token);
@@ -143,7 +166,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("nega usuário excluído logicamente", async () => {
-    findUnique.mockResolvedValue(currentUser({ deletedAt: new Date() }));
+    findUnique.mockResolvedValue(currentSession({ deletedAt: new Date() }));
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { next } = await authenticate(token);
@@ -156,7 +179,7 @@ describe("authMiddleware current user source of truth", () => {
     { isActive: false, deletedAt: null },
     { isActive: true, deletedAt: new Date() },
   ])("nega tenant inativo ou excluído", async (tenant) => {
-    findUnique.mockResolvedValue(currentUser({ tenant }));
+    findUnique.mockResolvedValue(currentSession({ tenant }));
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { next } = await authenticate(token);
@@ -177,7 +200,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("nega com 401 usuário não-global sem tenant atual", async () => {
-    findUnique.mockResolvedValue(currentUser({ tenantId: null }));
+    findUnique.mockResolvedValue(currentSession({ tenantId: null }));
     const token = signedToken({ userId: "user-1", role: Role.MEMBER, tenantId: "tenant-a" });
 
     const { req, next } = await authenticate(token);
@@ -188,7 +211,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("permite GLOBAL_ADMIN atual sem tenant", async () => {
-    findUnique.mockResolvedValue(currentUser({ role: Role.GLOBAL_ADMIN, tenantId: null, tenant: null }));
+    findUnique.mockResolvedValue(currentSession({ role: Role.GLOBAL_ADMIN, tenantId: null, tenant: null }));
     effectivePermissions.mockResolvedValue(["permissions:manage"]);
     const token = signedToken({ userId: "user-1", role: Role.GLOBAL_ADMIN, tenantId: null });
 
@@ -197,6 +220,7 @@ describe("authMiddleware current user source of truth", () => {
     expect(next).toHaveBeenCalledWith();
     expect(req.user).toEqual({
       id: "user-1",
+      sessionId: "session-1",
       role: Role.GLOBAL_ADMIN,
       tenantId: "",
       permissions: ["permissions:manage"],
@@ -209,7 +233,7 @@ describe("authMiddleware current user source of truth", () => {
   });
 
   it("ignora role adulterada em JWT criptograficamente válido", async () => {
-    findUnique.mockResolvedValue(currentUser({ role: Role.MEMBER }));
+    findUnique.mockResolvedValue(currentSession({ role: Role.MEMBER }));
     const token = signedToken({ userId: "user-1", role: Role.GLOBAL_ADMIN, tenantId: "tenant-a" });
 
     const { req, next, context } = await authenticate(token);

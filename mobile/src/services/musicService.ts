@@ -15,6 +15,7 @@ export type SongPayload = {
   composer?: string | null;
   originalKey: MusicalKey;
   content: string;
+  comments?: string | null;
   bpm?: number | null;
   cifraUrl?: string | null;
   letraUrl?: string | null;

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import crypto from "node:crypto";
 import type express from "express";
 import request from "supertest";
 import jwt from "jsonwebtoken";
@@ -12,6 +13,7 @@ let app: express.Express;
 let prisma: typeof PrismaClientInstance;
 let container: StartedTestContainer;
 const TEST_ACCESS_SECRET = "test_access_secret";
+const TEST_REFRESH_SECRET = "test_refresh_secret";
 
 function migrate(databaseUrl: string): void {
   const prismaCli = path.resolve("node_modules", "prisma", "build", "index.js");
@@ -61,7 +63,7 @@ beforeAll(async () => {
   const databaseUrl = `postgresql://test:test@${container.getHost()}:${container.getMappedPort(5432)}/lauda_auth_test`;
   process.env.DATABASE_URL = databaseUrl;
   process.env.JWT_SECRET = TEST_ACCESS_SECRET;
-  process.env.REFRESH_JWT_SECRET = "test_refresh_secret";
+  process.env.REFRESH_JWT_SECRET = TEST_REFRESH_SECRET;
   process.env.PASSWORD_RESET_PEPPER = "test-password-reset-pepper-that-is-long-enough";
   process.env.PASSWORD_RESET_TEST_PIN = "123456";
   process.env.JWT_EXPIRES_IN = "15m";
@@ -242,11 +244,30 @@ describe("Auth API", () => {
         select: { tenantId: true },
       }),
     ]);
+    const validLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-auth-current-user-a@example.com", password: "secret123" })
+      .expect(200);
+    const validClaims = jwt.decode(validLogin.body.data.accessToken) as jwt.JwtPayload;
 
     const tokenWithStaleClaims = jwt.sign(
-      { userId: userA.id, role: Role.GLOBAL_ADMIN, tenantId: userB.tenantId },
+      {
+        type: "access",
+        userId: userA.id,
+        sid: validClaims.sid,
+        email: "admin-auth-current-user-a@example.com",
+        role: Role.GLOBAL_ADMIN,
+        tenantId: userB.tenantId,
+      },
       TEST_ACCESS_SECRET,
-      { expiresIn: "15m" }
+      {
+        algorithm: "HS256",
+        expiresIn: "15m",
+        issuer: "lauda-api",
+        audience: "lauda-clients",
+        subject: userA.id,
+        jwtid: crypto.randomUUID(),
+      },
     );
 
     await request(app)
@@ -485,5 +506,184 @@ describe("Auth API", () => {
     await prisma.tenant.update({ where: { id: user.tenantId! }, data: { deletedAt: new Date() } });
     await request(app).post("/api/auth/refresh").send({ refreshToken: secondLogin.body.data.refreshToken }).expect(401);
     await request(app).get("/api/auth/me").set("Authorization", `Bearer ${secondLogin.body.data.accessToken}`).expect(401);
+  });
+
+  it("emite contrato inequívoco e persiste somente o hash do refresh", async () => {
+    await registerTenant("session-contract");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .set("User-Agent", "lauda-contract-test")
+      .send({ email: "admin-session-contract@example.com", password: "secret123" })
+      .expect(200);
+
+    const access = jwt.decode(login.body.data.accessToken) as jwt.JwtPayload;
+    const refresh = jwt.decode(login.body.data.refreshToken) as jwt.JwtPayload;
+    expect(access).toMatchObject({
+      type: "access",
+      iss: "lauda-api",
+      aud: "lauda-clients",
+      sid: expect.any(String),
+      jti: expect.any(String),
+    });
+    expect(refresh).toMatchObject({
+      type: "refresh",
+      iss: "lauda-api",
+      aud: "lauda-refresh",
+      sid: access.sid,
+      jti: expect.any(String),
+    });
+    expect(access.sub).toBe(refresh.sub);
+
+    const stored = await prisma.refreshToken.findUniqueOrThrow({ where: { jti: refresh.jti! } });
+    expect(stored.tokenHash).toEqual(expect.stringMatching(/^[a-f0-9]{64}$/));
+    expect(stored.tokenHash).not.toBe(login.body.data.refreshToken);
+    const session = await prisma.authSession.findUniqueOrThrow({ where: { id: access.sid as string } });
+    expect(session.userAgent).toBe("lauda-contract-test");
+  });
+
+  it("nunca aceita refresh como Bearer nem access no endpoint de refresh", async () => {
+    await registerTenant("token-purpose");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-token-purpose@example.com", password: "secret123" })
+      .expect(200);
+
+    await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${login.body.data.refreshToken}`)
+      .expect(401);
+    await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: login.body.data.accessToken })
+      .expect(401);
+  });
+
+  it.each([
+    ["issuer", { issuer: "attacker" }],
+    ["audience", { audience: "wrong-audience" }],
+    ["type", { type: "access" }],
+  ])("rejeita refresh com %s inválido", async (_case, rawOverride) => {
+    const override = rawOverride as { issuer?: string; audience?: string; type?: string };
+    await registerTenant(`invalid-${_case}`);
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: `admin-invalid-${_case}@example.com`, password: "secret123" })
+      .expect(200);
+    const valid = jwt.decode(login.body.data.refreshToken) as jwt.JwtPayload;
+    const forged = jwt.sign(
+      {
+        userId: valid.userId,
+        type: override.type ?? "refresh",
+        sid: valid.sid,
+      },
+      TEST_REFRESH_SECRET,
+      {
+        algorithm: "HS256",
+        expiresIn: "15m",
+        issuer: override.issuer ?? "lauda-api",
+        audience: override.audience ?? "lauda-refresh",
+        subject: valid.sub,
+        jwtid: crypto.randomUUID(),
+      },
+    );
+
+    await request(app).post("/api/auth/refresh").send({ refreshToken: forged }).expect(401);
+  });
+
+  it("rejeita refresh com claim obrigatória ausente e algoritmo inesperado", async () => {
+    await registerTenant("invalid-refresh-contract");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-invalid-refresh-contract@example.com", password: "secret123" })
+      .expect(200);
+    const valid = jwt.decode(login.body.data.refreshToken) as jwt.JwtPayload;
+    const missingSid = jwt.sign(
+      { userId: valid.userId, type: "refresh" },
+      TEST_REFRESH_SECRET,
+      { algorithm: "HS256", issuer: "lauda-api", audience: "lauda-refresh", jwtid: crypto.randomUUID(), expiresIn: "15m" },
+    );
+    const unexpectedAlgorithm = jwt.sign(
+      { userId: valid.userId, type: "refresh", sid: valid.sid },
+      TEST_REFRESH_SECRET,
+      { algorithm: "HS384", issuer: "lauda-api", audience: "lauda-refresh", subject: valid.sub, jwtid: crypto.randomUUID(), expiresIn: "15m" },
+    );
+
+    await request(app).post("/api/auth/refresh").send({ refreshToken: missingSid }).expect(401);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: unexpectedAlgorithm }).expect(401);
+  });
+
+  it("rotaciona uma vez e reuse revoga toda a família", async () => {
+    await registerTenant("refresh-reuse");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-refresh-reuse@example.com", password: "secret123" })
+      .expect(200);
+    const rotated = await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: login.body.data.refreshToken })
+      .expect(200);
+
+    await request(app).post("/api/auth/refresh").send({ refreshToken: login.body.data.refreshToken }).expect(401);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: rotated.body.data.refreshToken }).expect(401);
+  });
+
+  it("resolve refresh concorrente sem deixar cadeia válida independente", async () => {
+    await registerTenant("refresh-concurrent");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "admin-refresh-concurrent@example.com", password: "secret123" })
+      .expect(200);
+
+    const responses = await Promise.all([
+      request(app).post("/api/auth/refresh").send({ refreshToken: login.body.data.refreshToken }),
+      request(app).post("/api/auth/refresh").send({ refreshToken: login.body.data.refreshToken }),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+    const winner = responses.find((response) => response.status === 200)!;
+    await request(app).post("/api/auth/refresh").send({ refreshToken: winner.body.data.refreshToken }).expect(401);
+  });
+
+  it("logout atual revoga somente sua sessão e logout global revoga todas", async () => {
+    await registerTenant("logout-scope");
+    const credentials = { email: "admin-logout-scope@example.com", password: "secret123" };
+    const first = await request(app).post("/api/auth/login").send(credentials).expect(200);
+    const second = await request(app).post("/api/auth/login").send(credentials).expect(200);
+
+    await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${first.body.data.accessToken}`)
+      .expect(200);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: first.body.data.refreshToken }).expect(401);
+    const secondRotated = await request(app)
+      .post("/api/auth/refresh")
+      .send({ refreshToken: second.body.data.refreshToken })
+      .expect(200);
+
+    await request(app)
+      .post("/api/auth/logout-all")
+      .set("Authorization", `Bearer ${secondRotated.body.data.accessToken}`)
+      .expect(200);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: secondRotated.body.data.refreshToken }).expect(401);
+  });
+
+  it("reset e troca de senha revogam todas as sessões", async () => {
+    await registerTenant("credential-revocation");
+    const email = "admin-credential-revocation@example.com";
+    const beforeReset = await request(app).post("/api/auth/login").send({ email, password: "secret123" }).expect(200);
+    await request(app).post("/api/auth/forgot-password").send({ email }).expect(200);
+    await request(app)
+      .post("/api/auth/reset-password")
+      .send({ email, token: "123456", newPassword: "after-reset-123" })
+      .expect(200);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: beforeReset.body.data.refreshToken }).expect(401);
+
+    const afterReset = await request(app).post("/api/auth/login").send({ email, password: "after-reset-123" }).expect(200);
+    await request(app)
+      .post("/api/auth/change-password")
+      .set("Authorization", `Bearer ${afterReset.body.data.accessToken}`)
+      .send({ currentPassword: "after-reset-123", newPassword: "after-change-123" })
+      .expect(200);
+    await request(app).post("/api/auth/refresh").send({ refreshToken: afterReset.body.data.refreshToken }).expect(401);
+    await request(app).post("/api/auth/login").send({ email, password: "after-change-123" }).expect(200);
   });
 });

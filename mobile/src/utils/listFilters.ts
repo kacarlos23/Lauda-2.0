@@ -1,4 +1,5 @@
 import { AssignmentStatus, Instrument, Member, Ministry, Schedule, Song } from "../types";
+import { richTextToPlainText } from "../../../src/contracts/richText";
 
 export const NO_MINISTRY = "__NO_MINISTRY__";
 export const NO_INSTRUMENT = "__NO_INSTRUMENT__";
@@ -55,7 +56,7 @@ export function filterMembers(members: Member[], filters: MemberListFilters) {
     if (query) {
       const ministryText = member.ministries?.map((item) => item.ministry.name).join(" ") ?? "";
       const instrumentText = member.instruments?.map((item) => item.name).join(" ") ?? "";
-      const haystack = `${member.name} ${member.email ?? ""} ${member.phone ?? ""} ${member.role} ${ministryText} ${instrumentText}`;
+      const haystack = `${member.name} ${member.email ?? ""} ${member.phone ?? ""} ${member.role} ${ministryText} ${instrumentText} ${richTextToPlainText(member.comments)}`;
       if (!includesText(haystack, query)) return false;
     }
 
@@ -74,7 +75,7 @@ export function filterMembers(members: Member[], filters: MemberListFilters) {
 export function filterMinistries(ministries: Ministry[], filters: MinistryListFilters) {
   const query = normalize(filters.query);
   if (!query) return ministries;
-  return ministries.filter((ministry) => includesText(`${ministry.name} ${ministry.description ?? ""}`, query));
+  return ministries.filter((ministry) => includesText(`${ministry.name} ${ministry.description ?? ""} ${richTextToPlainText(ministry.comments)}`, query));
 }
 
 export function filterInstruments(instruments: Instrument[], filters: InstrumentListFilters) {
@@ -86,7 +87,7 @@ export function filterInstruments(instruments: Instrument[], filters: Instrument
 export function filterSongs(songs: Song[], filters: SongListFilters) {
   const query = normalize(filters.query);
   if (!query) return songs;
-  return songs.filter((song) => includesText(`${song.title} ${song.artist?.name ?? ""} ${song.composer ?? ""} ${song.originalKey}`, query));
+  return songs.filter((song) => includesText(`${song.title} ${song.artist?.name ?? ""} ${song.composer ?? ""} ${song.originalKey} ${richTextToPlainText(song.comments)}`, query));
 }
 
 export function filterSchedules(
@@ -100,7 +101,7 @@ export function filterSchedules(
     if (query) {
       const songs = schedule.songs?.map((item) => item.song.title).join(" ") ?? "";
       const members = schedule.assignments?.map((item) => `${item.user?.name ?? ""} ${item.role}`).join(" ") ?? "";
-      const haystack = `${schedule.title} ${schedule.ministry?.name ?? ""} ${songs} ${members}`;
+      const haystack = `${schedule.title} ${schedule.ministry?.name ?? ""} ${songs} ${members} ${richTextToPlainText(schedule.comments)}`;
       if (!includesText(haystack, query)) return false;
     }
 

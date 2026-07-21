@@ -1,7 +1,7 @@
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Copy, Download, Edit3 } from "lucide-react-native";
-import { Button, Card, ScheduleStatusBadge } from "../ui";
+import { Button, Card, RichCommentView, ScheduleStatusBadge } from "../ui";
 import { colors, radii, spacing, typography } from "../../theme";
 import { Schedule, ScheduleAssignment } from "../../types";
 
@@ -93,6 +93,7 @@ export function ScheduleCard({
           {schedule.songs?.length ? (
             <Text style={styles.detail}>Musicas: {schedule.songs.map((entry) => entry.song.title).join(", ")}</Text>
           ) : null}
+          {schedule.comments ? <View style={styles.comments}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={schedule.comments} numberOfLines={5} /></View> : null}
           {schedule.assignments?.length ? (
             <View style={styles.membersList}>
               {schedule.assignments.map((item) => (
@@ -160,6 +161,8 @@ const styles = StyleSheet.create({
   cardTime: { ...typography.label, color: colors.primary },
   cardTitle: { ...typography.cardTitle, color: colors.ink, marginTop: spacing.xs, marginBottom: spacing.xs },
   detail: { ...typography.metadata, color: colors.text, marginTop: 2 },
+  comments: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
+  commentsTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
   status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
   statusSummary: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
   statusText: { ...typography.badge, color: colors.text },

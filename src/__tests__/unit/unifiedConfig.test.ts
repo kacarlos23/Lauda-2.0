@@ -3,10 +3,16 @@ import { createConfig } from "../../config/unifiedConfig";
 const VALID_ACCESS_SECRET = "a".repeat(32);
 const VALID_REFRESH_SECRET = "r".repeat(32);
 const PRODUCTION_SECURITY_ENV = {
+  DEPLOYMENT_ENVIRONMENT: "production",
+  SECRETS_PROVIDER: "aws-secrets-manager",
+  SECRET_NAMESPACE: "lauda/production/api",
+  KMS_KEY_ID: "alias/lauda-production",
+  DATABASE_URL: "postgresql://user:password@db.example.com:5432/lauda?sslmode=verify-full",
   PASSWORD_RESET_PEPPER: "p".repeat(32),
   RATE_LIMIT_HMAC_KEY: "l".repeat(32),
+  MFA_ENCRYPTION_KEY: "m".repeat(32),
   RATE_LIMIT_STORE: "redis",
-  RATE_LIMIT_REDIS_URL: "redis://localhost:6379",
+  RATE_LIMIT_REDIS_URL: "rediss://redis.example.com:6379",
   PASSWORD_RESET_DELIVERY_MODE: "smtp",
   SMTP_HOST: "smtp.example.com",
   SMTP_USER: "smtp-user",
@@ -50,6 +56,25 @@ describe("unifiedConfig JWT secrets", () => {
 
     expect(productionConfig.auth.jwtSecret).toBe(VALID_ACCESS_SECRET);
     expect(productionConfig.auth.refreshJwtSecret).toBe(VALID_REFRESH_SECRET);
+  });
+
+  it("requires managed secrets, isolated production namespace, KMS, and encrypted data transports", () => {
+    const production = {
+      NODE_ENV: "production",
+      JWT_SECRET: VALID_ACCESS_SECRET,
+      REFRESH_JWT_SECRET: VALID_REFRESH_SECRET,
+      ...PRODUCTION_SECURITY_ENV,
+    };
+    expect(() => createConfig({ ...production, SECRETS_PROVIDER: "local" }))
+      .toThrow("Production secrets must be injected by a managed secrets provider");
+    expect(() => createConfig({ ...production, SECRET_NAMESPACE: "lauda/staging/api" }))
+      .toThrow("SECRET_NAMESPACE must identify an isolated production namespace");
+    expect(() => createConfig({ ...production, KMS_KEY_ID: "" }))
+      .toThrow("KMS_KEY_ID is required in production");
+    expect(() => createConfig({ ...production, DATABASE_URL: "postgresql://user:password@db.example.com/lauda" }))
+      .toThrow("DATABASE_URL must enforce TLS");
+    expect(() => createConfig({ ...production, RATE_LIMIT_REDIS_URL: "redis://redis.example.com:6379" }))
+      .toThrow("RATE_LIMIT_REDIS_URL must use rediss:// in production");
   });
 
   it("rejects equal access and refresh secrets in production", () => {
@@ -114,7 +139,25 @@ describe("unifiedConfig JWT secrets", () => {
       REFRESH_JWT_SECRET: VALID_REFRESH_SECRET,
       ...PRODUCTION_SECURITY_ENV,
       PASSWORD_RESET_PEPPER: VALID_ACCESS_SECRET,
-    })).toThrow("JWT, password reset, and rate limit secrets must use independent values in production");
+    })).toThrow("JWT, password reset, rate limit, and MFA secrets must use independent values in production");
+  });
+
+  it("requires GLOBAL_ADMIN MFA and step-up by default in production", () => {
+    const productionConfig = createConfig({
+      NODE_ENV: "production",
+      JWT_SECRET: VALID_ACCESS_SECRET,
+      REFRESH_JWT_SECRET: VALID_REFRESH_SECRET,
+      ...PRODUCTION_SECURITY_ENV,
+    });
+    expect(productionConfig.auth.mfa.globalAdminRequired).toBe(true);
+    expect(productionConfig.privilegedAccess.enforceStepUp).toBe(true);
+    expect(() => createConfig({
+      NODE_ENV: "production",
+      JWT_SECRET: VALID_ACCESS_SECRET,
+      REFRESH_JWT_SECRET: VALID_REFRESH_SECRET,
+      ...PRODUCTION_SECURITY_ENV,
+      GLOBAL_ADMIN_MFA_REQUIRED: "false",
+    })).toThrow("GLOBAL_ADMIN_MFA_REQUIRED must be true in production");
   });
 
   it("requires Redis-backed rate limiting in production", () => {

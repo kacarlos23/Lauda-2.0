@@ -20,6 +20,10 @@ mobile/web-build/
 
 # Documentation
 docs/
+!docs/
+docs/*
+!docs/security-program/
+!docs/security-program/**
 
 # Prisma generated client/output
 generated/
@@ -52,6 +56,7 @@ pnpm-debug.*
 # Local SQL exports / database dumps
 *.sql
 !prisma/migrations/**/migration.sql
+.resilience/
 
 # TypeScript
 *.tsbuildinfo
@@ -65,6 +70,7 @@ dogfood-output/
 playwright-report/
 test-results/
 blob-report/
+security-artifacts/
 
 # OS and editor files
 .DS_Store

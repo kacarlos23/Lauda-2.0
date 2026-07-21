@@ -1,0 +1,32 @@
+{
+  "exercise": "local-full-postgresql-backup-restore",
+  "environment": "local-development",
+  "sourceDatabase": "lauda2",
+  "restoreDatabase": "lauda_restore_20260720141822",
+  "drillStartedAt": "2026-07-20T14:18:22.789Z",
+  "backupCompletedAt": "2026-07-20T14:18:23.934Z",
+  "restoreStartedAt": "2026-07-20T14:18:23.944Z",
+  "restoreCompletedAt": "2026-07-20T14:18:49.598Z",
+  "backupBytes": 1879825,
+  "encryption": "AES-256-GCM",
+  "encryptionKeySource": "ephemeral-in-memory",
+  "encryptedArtifactSha256": "216981bd9d7f72f57740eb8717c45e4c6c488b84a003938b149fb59dae606070",
+  "logicalSourceSha256": "bc8581b0c25e2430d1c22ce7e8ed0a519a023f473ce07a9dd160e22cb241a6b9",
+  "logicalRestoreSha256": "bc8581b0c25e2430d1c22ce7e8ed0a519a023f473ce07a9dd160e22cb241a6b9",
+  "logicalDigestMatched": true,
+  "rpoTargetMinutes": 1440,
+  "rtoTargetMinutes": 60,
+  "measuredRecoveryPointAgeSeconds": 25.664,
+  "measuredRtoSeconds": 25.654,
+  "localRpoTargetMet": true,
+  "localRtoTargetMet": true,
+  "deletionReplay": {
+    "executed": false,
+    "reason": "No application deletion ledger exists yet; Stage 4 prerequisite is not implemented."
+  },
+  "productionClaims": false,
+  "notes": [
+    "This proves a complete local PostgreSQL dump/decrypt/restore and logical comparison only.",
+    "It does not prove cloud retention, immutability, managed KMS, segregated credentials, or production RPO/RTO."
+  ]
+}

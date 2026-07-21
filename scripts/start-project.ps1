@@ -5,6 +5,7 @@ param(
   [ValidateRange(0, 10)]
   [int]$TrustProxyHops = 0,
   [switch]$Production,
+  [switch]$StaticFrontend,
   [switch]$RestartBackend,
   [switch]$SkipMigrations
 )
@@ -20,6 +21,57 @@ $DbHost = "localhost"
 $DbPort = 5434
 $DbName = "lauda2"
 $DbUser = "postgres"
+$UseStaticFrontend = $Production -or $StaticFrontend
+
+function Get-DotEnvValue {
+  param([string]$Name)
+
+  $envFile = Join-Path $ProjectRoot ".env"
+  if (-not (Test-Path -LiteralPath $envFile)) {
+    return $null
+  }
+
+  $line = Get-Content -LiteralPath $envFile |
+    Where-Object { $_ -match "^\s*$([regex]::Escape($Name))\s*=" } |
+    Select-Object -First 1
+  if (-not $line) {
+    return $null
+  }
+
+  $value = ($line -split "=", 2)[1].Trim()
+  if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+    $value = $value.Substring(1, $value.Length - 2)
+  }
+  return $value
+}
+
+function Initialize-ComposeEnvironment {
+  if (Test-Path Env:POSTGRES_PASSWORD) {
+    return
+  }
+
+  $postgresPassword = Get-DotEnvValue -Name "POSTGRES_PASSWORD"
+  if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
+    $databaseUrl = if (Test-Path Env:DATABASE_URL) { $env:DATABASE_URL } else { Get-DotEnvValue -Name "DATABASE_URL" }
+    if (-not [string]::IsNullOrWhiteSpace($databaseUrl)) {
+      try {
+        $databaseUri = [Uri]$databaseUrl
+        $userInfo = $databaseUri.UserInfo -split ":", 2
+        if ($userInfo.Count -eq 2) {
+          $postgresPassword = [Uri]::UnescapeDataString($userInfo[1])
+        }
+      } catch {
+        throw "DATABASE_URL da .env e invalida. Corrija a URL antes de iniciar o projeto."
+      }
+    }
+  }
+
+  if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
+    throw "POSTGRES_PASSWORD nao foi definido e nao foi possivel deriva-lo de DATABASE_URL."
+  }
+
+  $env:POSTGRES_PASSWORD = $postgresPassword
+}
 
 function Write-Step {
   param([string]$Message)
@@ -171,8 +223,9 @@ function Start-Backend {
   $outLog = Join-Path $ProjectRoot "backend.$mode.out.log"
   $errLog = Join-Path $ProjectRoot "backend.$mode.err.log"
   $runCommand = if ($Production) { "npm start" } else { "npm run dev" }
-  $productionEnvironment = if ($Production) { "set NODE_ENV=production&& set HOST=127.0.0.1&& set TRUST_PROXY_HOPS=$TrustProxyHops&& " } else { "" }
-  $command = "${productionEnvironment}set PORT=$BackendPort&& set DATABASE_URL=postgresql://postgres:postgres@localhost:$DbPort/$DbName&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
+  $nodeEnvironment = if ($Production) { "set NODE_ENV=production&& " } else { "" }
+  $runtimeEnvironment = "${nodeEnvironment}set HOST=127.0.0.1&& set TRUST_PROXY_HOPS=$TrustProxyHops&& set PORT=$BackendPort&& "
+  $command = "${runtimeEnvironment}($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $ProjectRoot
   Write-Ok "Backend $mode iniciado em background. PID do launcher: $($process.Id). Logs: backend.$mode.out.log / backend.$mode.err.log"
@@ -193,10 +246,10 @@ function Build-ProductionBackend {
 }
 
 function Start-Frontend {
-  $mode = if ($Production) { "prod" } else { "dev" }
+  $mode = if ($UseStaticFrontend) { "prod" } else { "dev" }
   $outLog = Join-Path $ProjectRoot "frontend.$mode.out.log"
   $errLog = Join-Path $ProjectRoot "frontend.$mode.err.log"
-  $runCommand = if ($Production) {
+  $runCommand = if ($UseStaticFrontend) {
     "npm run serve:web -- --listen $FrontendPort"
   } else {
     "npm run web -- --port $FrontendPort"
@@ -238,6 +291,8 @@ if (-not (Test-CommandExists "npm")) {
   throw "npm nao foi encontrado no PATH. Instale Node.js/npm antes de rodar este script."
 }
 Write-Ok "Docker e npm encontrados."
+
+Initialize-ComposeEnvironment
 
 if (-not (Test-DockerDaemon)) {
   $dockerStarted = Start-DockerDesktopIfAvailable
@@ -295,6 +350,8 @@ if (-not $SkipMigrations) {
 
 if ($Production) {
   Build-ProductionBackend
+}
+if ($UseStaticFrontend) {
   Build-ProductionFrontend
 }
 
@@ -343,10 +400,32 @@ if (Test-FrontendHealth) {
   }
 
   Start-Frontend
-  $frontendTimeout = if ($Production) { 180 } else { 90 }
-  $frontendReady = Wait-Until -Name "Frontend" -TimeoutSeconds $frontendTimeout -Condition { Test-FrontendHealth }
+  if ($UseStaticFrontend) {
+    $frontendReady = Wait-Until -Name "Frontend" -TimeoutSeconds 180 -Condition { Test-FrontendHealth }
+  } else {
+    # Expo compiles the first web request on demand. Repeated short HTTP probes
+    # abort that response and can keep Metro in a rebuild/cancel loop.
+    $frontendPortReady = Wait-Until -Name "Porta do frontend" -TimeoutSeconds 30 -Condition {
+      Test-TcpPort -HostName $DbHost -Port $FrontendPort
+    }
+
+    $frontendReady = $false
+    if ($frontendPortReady) {
+      try {
+        Write-Warn "Aguardando a compilacao inicial do frontend (ate 180 segundos)."
+        $response = Invoke-WebRequest -Uri $FrontendUrl -UseBasicParsing -Method Get -TimeoutSec 180
+        $frontendReady = [int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 400
+        if ($frontendReady) {
+          Write-Ok "Frontend esta respondendo."
+        }
+      } catch {
+        Write-Fail "Frontend nao concluiu a primeira resposta: $($_.Exception.Message)"
+      }
+    }
+  }
   if (-not $frontendReady) {
-    throw "Frontend nao ficou saudavel. Verifique frontend.dev.err.log."
+    $frontendLog = if ($UseStaticFrontend) { "frontend.prod.err.log" } else { "frontend.dev.err.log" }
+    throw "Frontend nao ficou saudavel. Verifique $frontendLog."
   }
 }
 

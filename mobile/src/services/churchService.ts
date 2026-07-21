@@ -26,7 +26,7 @@ export const churchService = {
     }
   },
 
-  async updateMyChurch(payload: { name: string }): Promise<ChurchSummary> {
+  async updateMyChurch(payload: { name: string; comments?: string | null }): Promise<ChurchSummary> {
     try {
       const response = await api.patch<{ success: boolean; data: ChurchSummary }>("/church/me", payload);
       return response.data.data;

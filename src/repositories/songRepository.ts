@@ -8,6 +8,7 @@ export const songSelect = {
   composer: true,
   originalKey: true,
   content: true,
+  comments: true,
   bpm: true,
   cifraUrl: true,
   letraUrl: true,
@@ -61,6 +62,7 @@ export class SongRepository {
     composer: string | null;
     originalKey: string;
     content: string;
+    comments?: string | null;
     bpm: number | null;
     cifraUrl?: string | null;
     letraUrl?: string | null;

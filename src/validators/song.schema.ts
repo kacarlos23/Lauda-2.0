@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { richTextCommentsSchema } from "./richText.schema";
 
 export const MUSICAL_KEYS = [
   "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -29,6 +30,7 @@ export const createSongSchema = z.object({
   composer: z.string().trim().max(200).nullable().optional(),
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido"),
   content: z.string().min(1, "A cifra é obrigatória").max(100_000, "A cifra deve ter no máximo 100 mil caracteres"),
+  comments: richTextCommentsSchema,
   bpm: z.number().int().min(30, "O BPM mínimo é 30").max(300, "O BPM máximo é 300").nullable().optional(),
   cifraUrl: externalLinkSchema,
   letraUrl: externalLinkSchema,

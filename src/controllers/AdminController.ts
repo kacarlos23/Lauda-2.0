@@ -85,7 +85,7 @@ export class AdminController extends BaseController {
   async updateTenant(req: Request, res: Response): Promise<void> {
     const { tenantId } = adminTenantParamsSchema.parse(req.params);
     const input = adminUpdateTenantSchema.parse(req.body);
-    this.handleSuccess(res, await this.service.updateTenant(tenantId, input));
+    this.handleSuccess(res, await this.service.updateTenant(req.user!, tenantId, input));
   }
 
   async listUsers(req: Request, res: Response): Promise<void> {
@@ -164,7 +164,7 @@ export class AdminController extends BaseController {
   async updateSong(req: Request, res: Response): Promise<void> {
     const { songId } = adminSongParamsSchema.parse(req.params);
     const input = adminUpdateSongSchema.parse(req.body);
-    this.handleSuccess(res, await this.service.updateSong(songId, input));
+    this.handleSuccess(res, await this.service.updateSong(req.user!, songId, input));
   }
 
   async listSchedules(req: Request, res: Response): Promise<void> {
@@ -175,6 +175,6 @@ export class AdminController extends BaseController {
   async updateSchedule(req: Request, res: Response): Promise<void> {
     const { scheduleId } = adminScheduleParamsSchema.parse(req.params);
     const input = adminUpdateScheduleSchema.parse(req.body);
-    this.handleSuccess(res, await this.service.updateSchedule(scheduleId, input));
+    this.handleSuccess(res, await this.service.updateSchedule(req.user!, scheduleId, input));
   }
 }

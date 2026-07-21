@@ -33,7 +33,7 @@ Os papeis abaixo sao funcoes decisoras necessarias, nao pessoas nomeadas. Onde o
 | PEND-08 | Nomear Incident Commander, definir canais/cofre/registro e executar tabletop. | Security, Juridico e Operacao; nomes TBD. | Impede resposta acionavel e evidencia de prontidao; bloqueia producao. | Etapa 0, antes de producao. | `incident-response.md` |
 | PEND-09 | Recertificar contas reais e acessos de app, infra e CI. | Security, Infra e Operacao; nomes TBD. | Impede comprovar menor privilegio e controlar acessos excepcionais; bloqueia painel global/suporte produtivo. | Etapa 0/3, antes de acesso a dados reais. | `access-review.md` |
 | PEND-10 | Decidir armazenamento de tokens web (`localStorage` versus cookie HttpOnly/BFF). | Arquitetura, Produto e Security; nomes TBD. | Mantem risco alto de furto de token no cliente web; bloqueia web publica com dados reais ate decisao/controle. | Etapa 1/2, antes de web publica com dados reais. | `threat-model.md` |
-| PEND-11 | Definir backup/restore, RPO/RTO e retencao de backups. | Infra, Negocio e Security; nomes TBD. | Impede recuperacao, continuidade e delecao verificavel; bloqueia producao. | Etapa 0 para decisao; implementacao/teste na Etapa 5, antes de producao. | `retention-matrix.md`, `vendor-register.md` |
+| PEND-11 | Aprovar RPO/RTO e provisionar backup produtivo segregado, imutavel e com KMS; o restore local de 2026-07-20 nao fecha producao. | Infra, Negocio e Security; nomes TBD. | Impede recuperacao produtiva, continuidade e delecao verificavel; bloqueia producao. | Antes de producao. | `retention-matrix.md`, `backup-restore-runbook.md`, `evidence/2026-07-20-restore-drill.json` |
 | PEND-12 | Revisar e aprovar tecnicamente o threat model com aprovador identificavel. | Security e Engenharia; nomes TBD. | Impede declarar o threat model tecnicamente aprovado e encerrar formalmente a Etapa 0; nao impede trabalho isolado da Etapa 1. | Etapa 0, antes de seu encerramento formal. | `threat-model.md` |
 | PEND-13 | Aprovar formalmente os artefatos da Etapa 0 e acordar responsaveis nominais/datas. | Engenharia, Security, Produto/Operacao e Juridico/Privacidade; nomes TBD. | Impede declarar os gates organizacionais/juridicos/operacionais concluidos. | Etapa 0, antes de encerramento formal e de producao com dados reais. | `implementation-order/00-gates-documentais.md` |
 
@@ -41,9 +41,9 @@ Os papeis abaixo sao funcoes decisoras necessarias, nao pessoas nomeadas. Onde o
 
 | ID | Risco | Severidade | Controle atual | Residual/acao |
 |---|---|---|---|---|
-| RISK-01 | `GLOBAL_ADMIN` comprometido ou abusado | Critica | Role exigida e audit logs parciais | MFA/step-up, break-glass, recertificacao, alertas e logs completos pendentes. |
+| RISK-01 | `GLOBAL_ADMIN` comprometido ou abusado | Alta | MFA produtivo, step-up, promoção protegida, suporte scoped e audit logs | Aprovação independente, recuperação MFA, recertificação nominal e alertas/SIEM pendentes. |
 | RISK-02 | Cross-tenant por rota/admin/basePrisma nao coberto | Critica | Tenant extension e repositories; testes parciais | Matriz A/B por endpoint e revisao de `basePrisma` pendentes. |
-| RISK-03 | Refresh token furtado sem revogacao servidor | Alta | JWT expira em 7 dias; logout cliente | Sessao persistente/rotacao/reuse detection pendentes. |
+| RISK-03 | Refresh token furtado | Media/Alta | Sessao/familia persistidas, HMAC, rotacao atomica, reuse detection e logout servidor | Web em localStorage, purge e alertas/SIEM ainda pendentes. |
 | RISK-04 | Dados religiosos ou de adolescentes tratados sem decisao | Alta | Marcacao documental como possivel sensivel | Parecer juridico, idade e RIPD/controles pendentes. |
 | RISK-05 | Logs/audit payload com PII ou segredos | Alta | 500 mascarado em prod; senha redigida em admin audit | Logger estruturado, redaction e retencao pendentes. |
 | RISK-06 | Fornecedor/backup sem regiao, DPA ou retencao | Alta/Critica | Inventario v1 | Vendor review e backup/restore pendentes. |

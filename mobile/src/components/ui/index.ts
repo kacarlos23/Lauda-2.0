@@ -7,6 +7,8 @@ export * from "./EmptyState";
 export * from "./ErrorBanner";
 export * from "./FilterPanel";
 export * from "./LoadingState";
+export * from "./RichCommentEditor";
+export * from "./RichCommentView";
 export * from "./Screen";
 export * from "./SectionHeader";
 export * from "./StatusBadge";

@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { errorHandler } from "../../middlewares/errorHandler";
+import { setLogSinkForTests } from "../../observability/logger";
 
 function response(): Response {
   return {
@@ -10,7 +11,8 @@ function response(): Response {
 
 describe("errorHandler logging", () => {
   it("does not log error messages that may contain credentials or PII", () => {
-    const logSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const records: string[] = [];
+    setLogSinkForTests((record) => records.push(record));
     const sensitiveValues = [
       "123456",
       "new-secret-password",
@@ -20,14 +22,14 @@ describe("errorHandler logging", () => {
 
     errorHandler(
       new Error(sensitiveValues.join(" ")),
-      {} as Request,
+      { requestId: "error-handler-test" } as Request,
       response(),
       jest.fn() as NextFunction,
     );
 
-    const serializedLogs = JSON.stringify(logSpy.mock.calls);
+    const serializedLogs = records.join("\n");
     for (const value of sensitiveValues) expect(serializedLogs).not.toContain(value);
     expect(serializedLogs).toContain("Error");
-    logSpy.mockRestore();
+    setLogSinkForTests();
   });
 });

@@ -1,4 +1,6 @@
 import { prisma } from "./prismaClient";
+import { basePrisma } from "../config/prisma";
+import { revokeUserSessionsInTransaction } from "../services/authSessionService";
 import { Role } from "@prisma/client";
 import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schema";
 
@@ -28,6 +30,7 @@ export class MemberRepository {
         id: true,
         name: true,
         avatarUrl: true,
+        comments: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -53,6 +56,7 @@ export class MemberRepository {
         email: true,
         phone: true,
         avatarUrl: true,
+        comments: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -81,13 +85,14 @@ export class MemberRepository {
   }
 
   create(data: CreateMemberInput & { password: string }) {
-    const { name, email, phone, role, password } = data;
+    const { name, email, phone, role, password, comments } = data;
     return prisma.user.create({
       data: {
         name,
         email,
         phone: phone ?? null,
         role,
+        comments: comments ?? null,
         password,
         tenantId: this.tenantId,
       },
@@ -97,6 +102,7 @@ export class MemberRepository {
         email: true,
         phone: true,
         avatarUrl: true,
+        comments: true,
         role: true,
         tenantId: true,
         createdAt: true,
@@ -147,11 +153,14 @@ export class MemberRepository {
   }
 
   async deactivateMember(userId: string) {
-    const result = await prisma.user.updateMany({
-      where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
-      data: { isActive: false, deletedAt: new Date() },
+    return basePrisma.$transaction(async (tx) => {
+      const result = await tx.user.updateMany({
+        where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+        data: { isActive: false, deletedAt: new Date() },
+      });
+      if (result.count) await revokeUserSessionsInTransaction(tx, userId, "user_deactivated");
+      return result.count;
     });
-    return result.count;
   }
 
   async findInstrumentIds(ids: string[]) {
@@ -271,6 +280,7 @@ export class MemberRepository {
           email: true,
           phone: true,
           avatarUrl: true,
+          comments: true,
           role: true,
           tenantId: true,
           createdAt: true,

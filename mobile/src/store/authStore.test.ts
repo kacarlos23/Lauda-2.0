@@ -148,12 +148,39 @@ describe("authStore session", () => {
 
     await useAuthStore.getState().logout();
 
+    expect(api.post).toHaveBeenCalledWith("/auth/logout");
     expect(mockStorage.get("auth_token")).toBeUndefined();
     expect(mockStorage.get("refresh_token")).toBeUndefined();
     expect(mockStorage.get("auth_user")).toBeUndefined();
     expect(mockStorage.get("auth_tenant")).toBeUndefined();
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().tenant).toBeNull();
+  });
+
+  it("logout limpa credenciais mesmo quando a revogação no servidor falha", async () => {
+    mockStorage.set("auth_token", "token-1");
+    mockStorage.set("refresh_token", "refresh-1");
+    useAuthStore.setState({ user, tenant, accessToken: "token-1", token: "token-1" });
+    jest.mocked(api.post).mockRejectedValueOnce(new Error("sessão já revogada"));
+
+    await useAuthStore.getState().logout();
+
+    expect(mockStorage.get("auth_token")).toBeUndefined();
+    expect(mockStorage.get("refresh_token")).toBeUndefined();
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(mockReplace).toHaveBeenCalledWith("/(auth)/login");
+  });
+
+  it("revogação detectada limpa localmente sem tentar novo logout no servidor", async () => {
+    mockStorage.set("auth_token", "token-revogado");
+    mockStorage.set("refresh_token", "refresh-revogado");
+    useAuthStore.setState({ user, tenant, accessToken: "token-revogado", token: "token-revogado" });
+
+    await useAuthStore.getState().logout(false);
+
+    expect(api.post).not.toHaveBeenCalled();
+    expect(mockStorage.size).toBe(0);
+    expect(useAuthStore.getState().user).toBeNull();
   });
 
   it("updateCurrentUser preserva tenant e instrumentos", async () => {

@@ -1,0 +1,9 @@
+# Repository maintainer inferred from the repository owner. Organizational
+# Data/Security/System Owner appointments remain a documented release blocker.
+* @kacarlos23
+
+/.github/ @kacarlos23
+/.gitleaks.toml @kacarlos23
+/.security/ @kacarlos23
+/scripts/security/ @kacarlos23
+/docs/security-program/ @kacarlos23

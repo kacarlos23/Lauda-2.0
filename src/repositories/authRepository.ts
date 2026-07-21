@@ -1,8 +1,10 @@
 import { Prisma, User } from "@prisma/client";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { prisma } from "./prismaClient";
+import { basePrisma } from "../config/prisma";
+import { revokeUserSessionsInTransaction } from "../services/authSessionService";
 
-export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive" | "deletedAt"> & {
+export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive" | "deletedAt" | "mfaSecretEncrypted" | "mfaEnabledAt"> & {
   instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
   tenant?: { id: string; name: string; isActive: boolean; deletedAt: Date | null } | null;
 };
@@ -28,6 +30,8 @@ export class AuthRepository {
         isActive: true,
         deletedAt: true,
         tenantId: true,
+        mfaSecretEncrypted: true,
+        mfaEnabledAt: true,
         tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
@@ -58,6 +62,8 @@ export class AuthRepository {
         isActive: true,
         deletedAt: true,
         tenantId: true,
+        mfaSecretEncrypted: true,
+        mfaEnabledAt: true,
         tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
@@ -225,6 +231,8 @@ export class AuthRepository {
           isActive: true,
           deletedAt: true,
           tenantId: true,
+          mfaSecretEncrypted: true,
+          mfaEnabledAt: true,
           instruments: {
             include: {
               instrument: { select: { id: true, name: true, colorHex: true } },
@@ -276,6 +284,20 @@ export class AuthRepository {
         resetPasswordConsumedAt: null,
         resetPasswordExpires: data.expiresAt,
       },
+    });
+  }
+
+  async savePendingMfaSecret(userId: string, encryptedSecret: string) {
+    return basePrisma.user.updateMany({
+      where: { id: userId, isActive: true, deletedAt: null },
+      data: { mfaSecretEncrypted: encryptedSecret, mfaEnabledAt: null },
+    });
+  }
+
+  async enableMfa(userId: string) {
+    return basePrisma.user.updateMany({
+      where: { id: userId, mfaSecretEncrypted: { not: null }, isActive: true, deletedAt: null },
+      data: { mfaEnabledAt: new Date() },
     });
   }
 
@@ -340,23 +362,36 @@ export class AuthRepository {
     now: Date;
     hashedPassword: string;
   }) {
-    return prisma.user.updateMany({
-      where: {
-        id: data.userId,
-        resetPasswordChallengeId: data.challengeId,
-        resetPasswordToken: data.tokenHmac,
-        resetPasswordConsumedAt: null,
-        resetPasswordExpires: { gt: data.now },
-        resetPasswordAttempts: { lt: data.maxAttempts },
-      },
-      data: {
-        password: data.hashedPassword,
-        resetPasswordToken: null,
-        resetPasswordChallengeId: null,
-        resetPasswordPepperVersion: null,
-        resetPasswordExpires: null,
-        resetPasswordConsumedAt: data.now,
-      },
+    return basePrisma.$transaction(async (tx) => {
+      const result = await tx.user.updateMany({
+        where: {
+          id: data.userId,
+          resetPasswordChallengeId: data.challengeId,
+          resetPasswordToken: data.tokenHmac,
+          resetPasswordConsumedAt: null,
+          resetPasswordExpires: { gt: data.now },
+          resetPasswordAttempts: { lt: data.maxAttempts },
+        },
+        data: {
+          password: data.hashedPassword,
+          resetPasswordToken: null,
+          resetPasswordChallengeId: null,
+          resetPasswordPepperVersion: null,
+          resetPasswordExpires: null,
+          resetPasswordConsumedAt: data.now,
+        },
+      });
+      if (result.count === 1) {
+        await revokeUserSessionsInTransaction(tx, data.userId, "password_reset");
+      }
+      return result;
+    });
+  }
+
+  async changePasswordAndRevokeSessions(userId: string, hashedPassword: string) {
+    return basePrisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+      await revokeUserSessionsInTransaction(tx, userId, "password_changed");
     });
   }
 }

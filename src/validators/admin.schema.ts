@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { richTextCommentsSchema } from "./richText.schema";
 import { AssignmentStatus, PermissionEffect, Role } from "@prisma/client";
 import { MUSICAL_KEYS } from "./song.schema";
 import { adminResourceNames } from "../repositories/AdminRepository";
@@ -104,6 +105,7 @@ const externalLinkSchema = z.preprocess(
 export const adminUpdateTenantSchema = z.object({
   name: z.string().trim().min(1, "Nome da igreja é obrigatório").max(200).optional(),
   domain: optionalNullableText(255),
+  comments: richTextCommentsSchema,
 }).refine((input) => Object.keys(input).length > 0, "Informe ao menos um campo para atualizar");
 
 export const adminUpdateUserSchema = z.object({
@@ -111,9 +113,13 @@ export const adminUpdateUserSchema = z.object({
   email: z.string().trim().email("E-mail inválido").max(255).optional(),
   phone: optionalNullableText(50),
   avatarUrl: optionalNullableText(2000),
+  comments: richTextCommentsSchema,
   role: z.enum(Role).optional(),
   tenantId: z.string().uuid("tenantId inválido").nullable().optional(),
   password: z.string().min(6, "A senha deve ter ao menos 6 caracteres").max(120).optional(),
+  reason: z.string().trim().min(10).max(500).optional(),
+  ticketReference: z.string().trim().min(3).max(100).optional(),
+  confirmation: z.string().trim().max(300).optional(),
 }).refine(
   (input) => input.role !== Role.GLOBAL_ADMIN || input.tenantId !== undefined,
   "Ao transformar em GLOBAL_ADMIN, informe tenantId como null ou uma igreja"
@@ -124,6 +130,7 @@ export const adminUpdateSongSchema = z.object({
   composer: optionalNullableText(200),
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido").optional(),
   content: z.string().min(1, "A cifra é obrigatória").max(100_000).optional(),
+  comments: richTextCommentsSchema,
   bpm: z.number().int().min(30).max(300).nullable().optional(),
   cifraUrl: externalLinkSchema,
   letraUrl: externalLinkSchema,
@@ -136,6 +143,7 @@ export const adminUpdateScheduleSchema = z.object({
   title: z.string().trim().min(3, "Título deve ter entre 3 e 100 caracteres").max(100).optional(),
   date: z.string().datetime("Data deve estar em formato ISO datetime válido").transform((value) => new Date(value)).optional(),
   ministryId: z.string().uuid("Ministério inválido").optional(),
+  comments: richTextCommentsSchema,
   songIds: z.array(z.string().uuid("Música inválida")).optional(),
   assignments: z.array(z.object({
     userId: z.string().uuid("Usuário inválido"),

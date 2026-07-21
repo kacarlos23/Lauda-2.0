@@ -17,12 +17,23 @@ const LoginRequestSchema = registry.register(
   })
 );
 
+const RefreshRequestSchema = registry.register(
+  "RefreshRequest",
+  z.object({ refreshToken: z.string().min(1).max(4096) }),
+);
+
+const ChangePasswordRequestSchema = registry.register(
+  "ChangePasswordRequest",
+  z.object({ currentPassword: z.string().min(6), newPassword: z.string().min(6) }),
+);
+
 const CreateScheduleRequestSchema = registry.register(
   "CreateScheduleRequest",
   z.object({
     title: z.string().min(3).max(100).meta({ example: "Culto de domingo" }),
     date: z.string().datetime().meta({ example: "2026-05-03T13:00:00.000Z" }),
     ministryId: z.string().uuid().meta({ example: "00000000-0000-0000-0000-000000000000" }),
+    comments: z.string().nullable().optional().meta({ description: "HTML sanitizado; máximo de 3.000 caracteres visíveis" }),
   })
 );
 
@@ -43,6 +54,7 @@ const SongRequestSchema = registry.register(
     originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]),
     content: z.string().min(1).max(100000).meta({ example: "[G]Grande é o [D]Senhor" }),
     bpm: z.number().int().min(30).max(300).nullable().optional(),
+    comments: z.string().nullable().optional().meta({ description: "HTML sanitizado; máximo de 3.000 caracteres visíveis" }),
   })
 );
 
@@ -50,6 +62,7 @@ const UpdateChurchRequestSchema = registry.register(
   "UpdateChurchRequest",
   z.object({
     name: z.string().min(1).meta({ example: "Igreja Central" }),
+    comments: z.string().nullable().optional().meta({ description: "HTML sanitizado; máximo de 3.000 caracteres visíveis" }),
   })
 );
 
@@ -66,6 +79,7 @@ const LoginResponseSchema = registry.register(
   z.object({
     success: z.boolean().meta({ example: true }),
     data: z.object({
+      accessToken: z.string().meta({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
       token: z.string().meta({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
       refreshToken: z.string().meta({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
       user: z.object({
@@ -86,6 +100,7 @@ const ScheduleSchema = registry.register(
     date: z.string().datetime().meta({ example: "2026-05-03T13:00:00.000Z" }),
     tenantId: z.string().uuid(),
     ministryId: z.string().uuid(),
+    comments: z.string().nullable(),
   })
 );
 
@@ -104,6 +119,7 @@ const GlobalTenantSchema = registry.register(
   z.object({
     id: z.string().uuid(),
     name: z.string(),
+    comments: z.string().nullable(),
     createdAt: z.string().datetime(),
     _count: TenantCountSchema,
   })
@@ -118,6 +134,7 @@ const ChurchSummaryResponseSchema = registry.register(
         id: z.string().uuid(),
         name: z.string(),
         createdAt: z.string().datetime(),
+        comments: z.string().nullable(),
         updatedAt: z.string().datetime(),
       }),
       _count: TenantCountSchema,
@@ -172,6 +189,42 @@ registry.registerPath({
       description: "Credenciais inválidas.",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/auth/refresh",
+  summary: "Rotaciona refresh token de uso único",
+  request: { body: { content: { "application/json": { schema: RefreshRequestSchema } } } },
+  responses: {
+    200: { description: "Novo par de tokens para a mesma sessão.", content: { "application/json": { schema: LoginResponseSchema } } },
+    401: { description: "Token inválido, reutilizado ou sessão revogada.", content: { "application/json": { schema: ErrorResponseSchema } } },
+  },
+});
+
+for (const path of ["/api/auth/logout", "/api/auth/logout-all"] as const) {
+  registry.registerPath({
+    method: "post",
+    path,
+    summary: path.endsWith("logout-all") ? "Revoga todas as sessões do usuário" : "Revoga a sessão atual",
+    security: [{ bearerAuth: [] }],
+    responses: {
+      200: { description: "Revogação concluída." },
+      401: { description: "Access token ou sessão inválidos.", content: { "application/json": { schema: ErrorResponseSchema } } },
+    },
+  });
+}
+
+registry.registerPath({
+  method: "post",
+  path: "/api/auth/change-password",
+  summary: "Troca a senha e revoga todas as sessões",
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: ChangePasswordRequestSchema } } } },
+  responses: {
+    200: { description: "Senha alterada e sessões revogadas." },
+    401: { description: "Sessão ou senha atual inválida.", content: { "application/json": { schema: ErrorResponseSchema } } },
   },
 });
 

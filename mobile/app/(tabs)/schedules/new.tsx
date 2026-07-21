@@ -7,6 +7,7 @@ import { AppBackButton } from "../../../src/components/AppBackButton";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
 import { ErrorBanner } from "../../../src/components/ui/ErrorBanner";
 import { LoadingState } from "../../../src/components/ui/LoadingState";
+import { RichCommentEditor } from "../../../src/components/ui/RichCommentEditor";
 import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { musicService } from "../../../src/services/musicService";
@@ -37,6 +38,7 @@ export default function NewScheduleScreen() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(() => toDisplayDate(dateFromRouteParam(params.date)));
   const [hour, setHour] = useState("19:00");
+  const [comments, setComments] = useState("");
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministryId, setMinistryId] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -188,6 +190,7 @@ export default function NewScheduleScreen() {
       await createSchedule({
         title: title.trim(),
         date: isoDate,
+        comments: comments || null,
         ministryId,
         songIds: selectedSongIds,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role })),
@@ -328,6 +331,8 @@ export default function NewScheduleScreen() {
             </View>
           </View>
 
+          <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
+
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
             <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song) => song.title).join(", ") : "Nenhuma música adicionada."}</Text></View>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
@@ -363,6 +368,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   cardCompact: { padding: spacing.lg },
+  commentsEditor: { marginTop: spacing.lg, marginBottom: spacing.md },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },

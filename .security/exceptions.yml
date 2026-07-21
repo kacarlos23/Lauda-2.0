@@ -1,0 +1,29 @@
+version: 1
+reviewed_at: 2026-07-20
+exceptions:
+  - id: SEC-FP-2026-001
+    finding: "Gitleaks generic-api-key in src/__tests__/unit/rateLimitMiddleware.test.ts:58"
+    classification: false_positive
+    justification: "JWT-shaped value is deliberately truncated, synthetic, and only verifies that Redis keys do not contain plaintext identifiers. It cannot authenticate anywhere."
+    owner: "Repository maintainer (@kacarlos23)"
+    approved_by: "Technical baseline only; Security Owner approval remains TBD"
+    created_at: 2026-07-20
+    expires_at: 2026-10-18
+    review_condition: "Remove immediately if the fixture changes, becomes structurally valid, or the rule/file/line scope broadens."
+    compensating_controls:
+      - "Allowlist requires the exact rule, path, and complete synthetic line."
+      - "All other Gitleaks default rules remain active across full Git history."
+  - id: SEC-FP-2026-002
+    finding: "KICS generic password on docker-compose.yml POSTGRES_PASSWORD environment reference"
+    classification: false_positive
+    justification: "The value is an interpolation with a required-value guard, not a credential. Compose fails closed when POSTGRES_PASSWORD is absent."
+    owner: "Repository maintainer (@kacarlos23)"
+    approved_by: "Technical baseline only; Security Owner approval remains TBD"
+    created_at: 2026-07-20
+    expires_at: 2026-10-18
+    review_condition: "Remove immediately if the value stops being a required environment interpolation or gains any fallback/default."
+    compensating_controls:
+      - "Suppression applies only to the next YAML line."
+      - "Gitleaks remains active and the Compose config requires explicit injection."
+
+accepted_risks: []

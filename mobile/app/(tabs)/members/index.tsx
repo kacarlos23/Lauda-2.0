@@ -18,7 +18,7 @@ import { MemberInvite, memberService } from "../../../src/services/memberService
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member, Ministry, Role } from "../../../src/types";
-import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, InviteStatusBadge, LoadingState, PermissionStatusBadge, RoleBadge, Screen, SectionHeader } from "../../../src/components/ui";
+import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, InviteStatusBadge, LoadingState, PermissionStatusBadge, RichCommentEditor, RichCommentView, RoleBadge, Screen, SectionHeader } from "../../../src/components/ui";
 import { colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
 import { buildPublicInviteLink } from "../../../src/utils/memberInvite";
 import {
@@ -119,10 +119,14 @@ export default function MembersScreen() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [commentMember, setCommentMember] = useState<Member | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
   const [filters, setFilters] = useState<MemberListFilters>(emptyMemberFilters);
   const [draftFilters, setDraftFilters] = useState<MemberListFilters>(emptyMemberFilters);
   const [showFilters, setShowFilters] = useState(false);
   const canCreateMember = can(user, "member:create");
+  const canEditMember = can(user, "member:edit");
   const canInviteMember = can(user, "member:invite");
   const canAssignLegacyAccess = isGlobalAdmin(user);
   const canLoadManagementData = canInviteMember || canAssignLegacyAccess;
@@ -314,6 +318,26 @@ export default function MembersScreen() {
     }
   };
 
+  const openCommentEditor = (member: Member) => {
+    setCommentMember(member);
+    setCommentDraft(member.comments ?? "");
+  };
+
+  const saveComment = async () => {
+    if (!commentMember) return;
+    try {
+      setSavingComment(true);
+      const updated = await memberService.updateMember(commentMember.id, { comments: commentDraft || null });
+      setMembers((current) => current.map((member) => member.id === updated.id ? { ...member, ...updated } : member));
+      setCommentMember(null);
+      setCommentDraft("");
+    } catch (reason) {
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível salvar os comentários.");
+    } finally {
+      setSavingComment(false);
+    }
+  };
+
   if (!canViewMembers(user)) {
     return <Redirect href="/(tabs)" />;
   }
@@ -324,6 +348,18 @@ export default function MembersScreen() {
 
   return (
     <Screen padded={false} contentStyle={styles.screenContent}>
+      <Modal visible={Boolean(commentMember)} transparent animationType="fade" onRequestClose={() => !savingComment && setCommentMember(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleGroup}><Text style={styles.modalTitle}>Comentários do membro</Text><Text style={styles.modalSubtitle}>{commentMember?.name}</Text></View>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setCommentMember(null)} disabled={savingComment} accessibilityLabel="Fechar comentários"><X color={colors.text} size={18} /></TouchableOpacity>
+            </View>
+            <RichCommentEditor value={commentDraft} onChange={setCommentDraft} label="Comentários" placeholder="Observações administrativas ou pastorais..." testID="member-comments-input" />
+            <Button title={savingComment ? "Salvando..." : "Salvar comentários"} loading={savingComment} disabled={savingComment} onPress={() => void saveComment()} style={styles.commentSaveButton} />
+          </View>
+        </View>
+      </Modal>
       <Modal
         visible={Boolean(editingMember && permissionDraft)}
         transparent
@@ -605,6 +641,8 @@ export default function MembersScreen() {
                 <RoleBadge status={item.role} label={formatRole(item.role)} style={styles.role} textStyle={styles.roleText} />
               </View>
               <Text style={styles.ministries}>{formatMinistries(item)}</Text>
+              {item.comments ? <View style={styles.memberComments}><RichCommentView value={item.comments} numberOfLines={4} /></View> : null}
+              {canEditMember ? <Button title="Comentários" variant="secondary" size="sm" style={styles.permissionButton} onPress={() => openCommentEditor(item)} accessibilityLabel={`Editar comentários de ${item.name}`} /> : null}
               {canAssignLegacyAccess && item.id !== user?.id ? (
                 <Button
                   title="Acesso"
@@ -653,6 +691,8 @@ export default function MembersScreen() {
 }
 
 const styles = StyleSheet.create({
+  commentSaveButton: { marginTop: spacing.lg },
+  memberComments: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
   screenContent: {
     flex: 1,
     maxWidth: "100%",

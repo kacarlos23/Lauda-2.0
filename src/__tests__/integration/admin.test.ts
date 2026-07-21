@@ -187,11 +187,20 @@ describe("Admin global API", () => {
     const instrumentCreate = await request(app)
       .post("/api/admin/instruments")
       .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .set("X-Request-ID", "admin-create-instrument-001")
       .send({ tenantId: tenantA.tenant.id, name: "Violão Global Ops", colorHex: "#123456" })
       .expect(201);
     expect(instrumentCreate.body.data).toMatchObject({ name: "Violão Global Ops", tenantId: tenantA.tenant.id, isActive: true });
 
     const instrumentId = instrumentCreate.body.data.id;
+    const correlatedAudit = await prisma.adminAuditLog.findFirst({
+      where: { action: "create", resource: "instruments", resourceId: instrumentId },
+      select: { requestId: true, payload: true },
+    });
+    expect(correlatedAudit).toEqual({
+      requestId: "admin-create-instrument-001",
+      payload: { changedFields: ["colorHex", "name", "tenantId"] },
+    });
     await request(app)
       .patch(`/api/admin/instruments/${instrumentId}`)
       .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
@@ -295,6 +304,9 @@ describe("Admin global API", () => {
         role: Role.GLOBAL_ADMIN,
         tenantId: null,
         password: "novaSenha123",
+        reason: "Promoção administrativa coberta pelo teste",
+        ticketReference: "SEC-TEST-001",
+        confirmation: "PROMOTE member-global-edit@example.com",
       })
       .expect(200);
     expect(userPatch.body.data).toMatchObject({
@@ -334,11 +346,7 @@ describe("Admin global API", () => {
       where: { id: tenant.user.id },
       data: { role: Role.GLOBAL_ADMIN, tenantId: null },
     });
-    const staleToken = jwt.sign(
-      { userId: tenant.user.id, email: tenant.user.email, role: Role.TENANT_ADMIN, tenantId: null },
-      config.auth.jwtSecret,
-      { expiresIn: "15m" }
-    );
+    const staleToken = tenant.accessToken;
 
     await request(app)
       .get("/api/admin/tenants")

@@ -1,4 +1,4 @@
-import { PermissionEffect, Prisma, Role } from "@prisma/client";
+import { PermissionEffect, Role } from "@prisma/client";
 import { basePrisma } from "../config/prisma";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import {
@@ -8,6 +8,7 @@ import {
   permissionKeys,
   rolePermissions,
 } from "../constants/permissions";
+import { AdminEventType, writeAdminAuditEvent } from "../audit/adminAudit";
 
 export type PermissionActor = {
   id: string;
@@ -165,8 +166,8 @@ export class PermissionService {
       }
     });
     await this.audit(actor, "set_permission_overrides", target.id, tenantId, {
-      before: before.map((item) => ({ permissionKey: item.permission.key, effect: item.effect })),
-      after: normalized,
+      permissionKeys: normalized.map((item) => item.permissionKey),
+      changeCount: Math.max(before.length, normalized.length),
     });
     return this.listUserPermissions(target.id);
   }
@@ -226,9 +227,15 @@ export class PermissionService {
     return permission;
   }
 
-  private async audit(actor: PermissionActor, action: string, resourceId: string, tenantId: string | null, payload: Prisma.InputJsonObject) {
-    await basePrisma.adminAuditLog.create({
-      data: { actorId: actor.id, actorRole: actor.role, action, resource: "user-permissions", resourceId, tenantId, payload },
+  private async audit(actor: PermissionActor, action: AdminEventType, resourceId: string, tenantId: string | null, payload: Record<string, unknown>) {
+    await writeAdminAuditEvent(basePrisma, {
+      actorId: actor.id,
+      actorRole: actor.role,
+      action,
+      resource: "user-permissions",
+      resourceId,
+      tenantId,
+      payload,
     });
   }
 }

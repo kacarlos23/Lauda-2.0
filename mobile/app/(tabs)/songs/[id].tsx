@@ -8,6 +8,7 @@ import { AppBackButton } from "../../../src/components/AppBackButton";
 import { ChordSheetView } from "../../../src/components/ChordSheetView";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
+import { RichCommentView } from "../../../src/components/ui/RichCommentView";
 import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChordStore } from "../../../src/store/chordStore";
@@ -96,6 +97,7 @@ export default function SongDetailScreen() {
       <View style={styles.detailLinks}><SongLinkButtons links={song} centered /></View>
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
+      {song.comments ? <View style={styles.commentsCard}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={song.comments} /></View> : null}
       <View style={styles.controls}>
         <Control label={"\u22121 Tom"} onPress={() => chord.transpose(-1)} testID="transpose-down" />
         <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
@@ -122,6 +124,7 @@ const styles = StyleSheet.create({
   top: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: 40, height: 40, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   content: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding }, title: { color: colors.ink, fontSize: 30, fontWeight: "800" }, artist: { color: colors.primary, fontSize: 17, fontWeight: "700", marginTop: spacing.xs }, metadata: { marginVertical: spacing.lg, gap: spacing.xs }, meta: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   detailLinks: { alignItems: "center", marginBottom: spacing.xl },
+  commentsCard: { marginBottom: spacing.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, backgroundColor: colors.surface }, commentsTitle: { color: colors.ink, fontSize: 16, fontWeight: "800", marginBottom: spacing.sm },
   controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }, control: { minHeight: 40, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: "800" }, keyControl: { minWidth: 72, alignItems: "center" }, currentKey: { color: colors.ink, fontSize: 22, fontWeight: "900" }, reset: { color: colors.muted, fontSize: 9 }, controlValue: { color: colors.text, fontWeight: "700" },
   play: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: "800" },
   chordCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, padding: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },

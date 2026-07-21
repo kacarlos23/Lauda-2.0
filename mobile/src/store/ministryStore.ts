@@ -14,8 +14,8 @@ interface MinistryState {
   fetchMinistries: () => Promise<void>;
   setRefreshing: (v: boolean) => void;
   fetchMinistry: (id: string) => Promise<void>;
-  createMinistry: (data: { name: string; description?: string }) => Promise<void>;
-  updateMinistry: (id: string, data: { name?: string; description?: string }) => Promise<void>;
+  createMinistry: (data: { name: string; description?: string; comments?: string | null }) => Promise<void>;
+  updateMinistry: (id: string, data: { name?: string; description?: string; comments?: string | null }) => Promise<void>;
   deleteMinistry: (id: string) => Promise<void>;
   addMember: (ministryId: string, userId: string, isLeader?: boolean) => Promise<void>;
   removeMember: (ministryId: string, userId: string) => Promise<void>;

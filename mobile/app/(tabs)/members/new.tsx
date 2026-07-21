@@ -21,6 +21,7 @@ import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 import { canManageMembers } from "../../../src/utils/permissions";
+import { RichCommentEditor } from "../../../src/components/ui/RichCommentEditor";
 
 type ManagedRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER">;
 
@@ -36,6 +37,7 @@ const emptyForm = {
   role: "MEMBER" as ManagedRole,
   ministryId: "",
   isLeader: false,
+  comments: "",
 };
 
 export default function NewMemberScreen() {
@@ -91,6 +93,7 @@ export default function NewMemberScreen() {
         phone: form.phone.trim() || undefined,
         password: form.password,
         role: form.role,
+        comments: form.comments || null,
       });
 
       if (form.ministryId) {
@@ -230,6 +233,8 @@ export default function NewMemberScreen() {
             </TouchableOpacity>
           ) : null}
 
+          <View style={styles.commentsEditor}><RichCommentEditor value={form.comments} onChange={(value) => setField("comments", value)} label="Comentários" placeholder="Observações administrativas ou pastorais sobre este membro..." testID="member-comments-input" /></View>
+
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleSubmit}
@@ -251,6 +256,7 @@ export default function NewMemberScreen() {
 }
 
 const styles = StyleSheet.create({
+  commentsEditor: { marginTop: spacing.lg },
   container: { flex: 1, backgroundColor: colors.background },
   scroll: {
     flexGrow: 1,

@@ -258,7 +258,7 @@ export class ScheduleService {
   async getReportData(scheduleId: string) {
     const schedule = await this.scheduleRepository.findScheduleReportById(scheduleId);
     if (!schedule) {
-      throw Object.assign(new Error("Escala não encontrada."), { statusCode: 404 });
+      throw new NotFoundError("Escala não encontrada");
     }
     return schedule;
   }

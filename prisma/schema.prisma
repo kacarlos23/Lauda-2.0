@@ -31,26 +31,29 @@ enum PermissionEffect {
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  domain    String?  @unique
-  isActive  Boolean  @default(true)
+  comments  String?   @db.Text
+  domain    String?   @unique
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  users         User[]
-  ministries    Ministry[]
-  schedules     Schedule[]
-  songs         Song[]
-  artists       Artist[]
-  memberInvites MemberInvite[]
-  instruments   Instrument[]
-  userPermissions UserPermission[]
+  users               User[]
+  ministries          Ministry[]
+  schedules           Schedule[]
+  songs               Song[]
+  artists             Artist[]
+  memberInvites       MemberInvite[]
+  instruments         Instrument[]
+  userPermissions     UserPermission[]
+  authSessions        AuthSession[]
+  supportAccessGrants SupportAccessGrant[]
 
   ministryMembers     MinistryMember[]
   scheduleAssignments ScheduleAssignment[]
-  scheduleSongs        ScheduleSong[]
+  scheduleSongs       ScheduleSong[]
   ministrySongs       MinistrySong[]
   userInstruments     UserInstrument[]
   adminAuditLogs      AdminAuditLog[]
@@ -79,26 +82,32 @@ model MemberInvite {
 }
 
 model User {
-  id        String  @id @default(uuid())
-  email     String  @unique
-  password  String
-  name      String
-  phone     String?
-  avatarUrl String? @db.Text
-  role      Role    @default(MEMBER)
-  isActive  Boolean @default(true)
-  deletedAt DateTime?
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  password           String
+  name               String
+  phone              String?
+  avatarUrl          String?   @db.Text
+  comments           String?   @db.Text
+  role               Role      @default(MEMBER)
+  isActive           Boolean   @default(true)
+  deletedAt          DateTime?
+  mfaSecretEncrypted String?   @db.Text
+  mfaEnabledAt       DateTime?
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  ministries   MinistryMember[]
-  schedules    ScheduleAssignment[]
-  instruments  UserInstrument[]
-  createdSongs Song[]               @relation("SongCreatedBy")
-  updatedSongs Song[]               @relation("SongUpdatedBy")
-  permissions  UserPermission[]     @relation("UserPermissionUser")
-  grantedPermissions UserPermission[] @relation("UserPermissionGrantedBy")
+  ministries           MinistryMember[]
+  schedules            ScheduleAssignment[]
+  instruments          UserInstrument[]
+  createdSongs         Song[]               @relation("SongCreatedBy")
+  updatedSongs         Song[]               @relation("SongUpdatedBy")
+  permissions          UserPermission[]     @relation("UserPermissionUser")
+  grantedPermissions   UserPermission[]     @relation("UserPermissionGrantedBy")
+  authSessions         AuthSession[]
+  supportAccessGrants  SupportAccessGrant[] @relation("SupportAccessGrantee")
+  grantedSupportAccess SupportAccessGrant[] @relation("SupportAccessGrantor")
 
   resetPasswordToken         String?   @unique
   resetPasswordChallengeId   String?   @unique
@@ -113,11 +122,89 @@ model User {
   @@index([tenantId])
 }
 
+model AuthSession {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId        String?
+  tenant          Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userAgent       String?
+  ipAddress       String?
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  revokeReason    String?
+  mfaVerifiedAt   DateTime?
+  stepUpExpiresAt DateTime?
+
+  refreshFamily RefreshTokenFamily?
+
+  @@index([userId, revokedAt])
+  @@index([tenantId, revokedAt])
+  @@index([expiresAt])
+}
+
+model SupportAccessGrant {
+  id              String    @id @default(uuid())
+  granteeId       String
+  grantee         User      @relation("SupportAccessGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+  grantedById     String
+  grantedBy       User      @relation("SupportAccessGrantor", fields: [grantedById], references: [id], onDelete: Restrict)
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  resource        String
+  resourceId      String?
+  scopes          String[]
+  ticketReference String
+  reason          String
+  expiresAt       DateTime
+  boundSessionId  String?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  revokeReason    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([granteeId, revokedAt, expiresAt])
+  @@index([tenantId, resource, resourceId])
+  @@index([grantedById])
+  @@index([boundSessionId])
+}
+
+model RefreshTokenFamily {
+  id           String      @id @default(uuid())
+  sessionId    String      @unique
+  session      AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  revokedAt    DateTime?
+  revokeReason String?
+
+  tokens RefreshToken[]
+
+  @@index([revokedAt])
+}
+
+model RefreshToken {
+  id            String             @id @default(uuid())
+  familyId      String
+  family        RefreshTokenFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  jti           String             @unique
+  tokenHash     String             @unique
+  createdAt     DateTime           @default(now())
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  revokedAt     DateTime?
+  replacedByJti String?
+
+  @@index([familyId, consumedAt])
+  @@index([expiresAt])
+}
+
 model Instrument {
-  id       String  @id @default(uuid())
-  name     String
-  colorHex String?
-  isActive Boolean @default(true)
+  id        String    @id @default(uuid())
+  name      String
+  colorHex  String?
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
 
   tenantId String
@@ -141,9 +228,9 @@ model UserInstrument {
   instrumentId String
   instrument   Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
 
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  isActive Boolean @default(true)
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -154,10 +241,11 @@ model UserInstrument {
 }
 
 model Ministry {
-  id          String  @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
   description String?
-  isActive    Boolean @default(true)
+  comments    String?   @db.Text
+  isActive    Boolean   @default(true)
   deletedAt   DateTime?
 
   tenantId String
@@ -204,10 +292,11 @@ model MinistryMember {
 }
 
 model Schedule {
-  id    String   @id @default(uuid())
-  title String
-  date  DateTime
-  isActive Boolean @default(true)
+  id        String    @id @default(uuid())
+  title     String
+  date      DateTime
+  comments  String?   @db.Text
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
 
   tenantId String
@@ -240,10 +329,10 @@ model ScheduleSong {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  order     Int      @default(0)
-  isActive  Boolean  @default(true)
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@unique([scheduleId, songId])
   @@index([tenantId])
@@ -264,15 +353,15 @@ model ScheduleAssignment {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  status    AssignmentStatus @default(PENDING)
-  isActive  Boolean          @default(true)
-  deletedAt DateTime?
-  declineReason String?
-  substituteRequestedAt DateTime?
-  substituteResolvedAt DateTime?
-  substituteResolvedById String?
+  status                   AssignmentStatus @default(PENDING)
+  isActive                 Boolean          @default(true)
+  deletedAt                DateTime?
+  declineReason            String?
+  substituteRequestedAt    DateTime?
+  substituteResolvedAt     DateTime?
+  substituteResolvedById   String?
   substituteResolutionNote String?
-  createdAt DateTime         @default(now())
+  createdAt                DateTime         @default(now())
 
   @@unique([scheduleId, userId])
   @@index([tenantId])
@@ -322,18 +411,19 @@ model UserPermission {
 }
 
 model Song {
-  id              String  @id @default(uuid())
+  id              String    @id @default(uuid())
   title           String
   normalizedTitle String
   composer        String?
   originalKey     String
-  content         String  @db.Text
+  content         String    @db.Text
+  comments        String?   @db.Text
   bpm             Int?
-  cifraUrl        String? @db.Text
-  letraUrl        String? @db.Text
-  audioUrl        String? @db.Text
-  videoUrl        String? @db.Text
-  isActive        Boolean @default(true)
+  cifraUrl        String?   @db.Text
+  letraUrl        String?   @db.Text
+  audioUrl        String?   @db.Text
+  videoUrl        String?   @db.Text
+  isActive        Boolean   @default(true)
   deletedAt       DateTime?
 
   artistId String
@@ -360,11 +450,11 @@ model Song {
 }
 
 model Artist {
-  id             String  @id @default(uuid())
+  id             String    @id @default(uuid())
   name           String
   normalizedName String
   imageUrl       String?
-  isActive       Boolean @default(true)
+  isActive       Boolean   @default(true)
   deletedAt      DateTime?
 
   tenantId String
@@ -388,9 +478,9 @@ model MinistrySong {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  isActive Boolean @default(true)
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isActive  Boolean   @default(true)
   deletedAt DateTime?
 
   @@unique([songId, ministryId])
@@ -398,20 +488,22 @@ model MinistrySong {
 }
 
 model AdminAuditLog {
-  id        String   @id @default(uuid())
-  actorId   String
-  actorRole Role
-  action    String
-  resource  String
+  id         String   @id @default(uuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  resource   String
   resourceId String?
-  tenantId  String?
-  payload   Json?
-  createdAt DateTime @default(now())
+  tenantId   String?
+  requestId  String?
+  payload    Json?
+  createdAt  DateTime @default(now())
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@index([actorId])
   @@index([resource, resourceId])
   @@index([tenantId])
+  @@index([requestId])
   @@index([createdAt])
 }

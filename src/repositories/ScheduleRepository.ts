@@ -139,6 +139,7 @@ export class ScheduleRepository {
       data: {
         title: data.title,
         date: data.date,
+        comments: data.comments ?? null,
         ministryId: data.ministryId,
         tenantId: this.tenantId,
         assignments: {
@@ -177,6 +178,7 @@ export class ScheduleRepository {
         data: {
           title: data.title,
           date: data.date,
+          comments: data.comments ?? null,
           ministryId: data.ministryId,
         },
       });

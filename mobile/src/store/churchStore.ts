@@ -9,6 +9,7 @@ interface ChurchState {
   saving: boolean;
   error: string | null;
   loadChurch: () => Promise<void>;
+  updateChurch: (payload: { name: string; comments?: string | null }) => Promise<void>;
   updateChurchName: (name: string) => Promise<void>;
   loadOverview: () => Promise<void>;
   clearError: () => void;
@@ -35,14 +36,14 @@ export const useChurchStore = create<ChurchState>((set, get) => ({
     }
   },
 
-  updateChurchName: async (name: string) => {
+  updateChurch: async (payload) => {
     set({ saving: true, error: null });
     try {
-      const summary = await churchService.updateMyChurch({ name });
+      const summary = await churchService.updateMyChurch(payload);
       const overview = get().overview;
       set({
         summary,
-        overview: overview ? { ...overview, tenant: { ...overview.tenant, name: summary.tenant.name } } : overview,
+        overview: overview ? { ...overview, tenant: { ...overview.tenant, ...summary.tenant } } : overview,
         saving: false,
         error: null,
       });
@@ -51,6 +52,8 @@ export const useChurchStore = create<ChurchState>((set, get) => ({
       throw error;
     }
   },
+
+  updateChurchName: async (name: string) => get().updateChurch({ name }),
 
   loadOverview: async () => {
     set({ loading: true, error: null });

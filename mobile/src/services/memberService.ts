@@ -8,6 +8,14 @@ export type CreateMemberPayload = {
   phone?: string;
   password: string;
   role: Extract<Role, "MEMBER" | "MINISTRY_LEADER">;
+  comments?: string | null;
+};
+
+export type UpdateMemberPayload = {
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  comments?: string | null;
 };
 
 export type LinkMemberMinistryPayload = {
@@ -82,6 +90,24 @@ export const memberService = {
       const response = params
         ? await api.get<ApiResponse<Member[]>>("/members", { params })
         : await api.get<ApiResponse<Member[]>>("/members");
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async getMember(id: string): Promise<Member> {
+    try {
+      const response = await api.get<ApiResponse<Member>>(`/members/${id}`);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updateMember(id: string, payload: UpdateMemberPayload): Promise<Member> {
+    try {
+      const response = await api.patch<ApiResponse<Member>>(`/members/${id}`, payload);
       return response.data.data;
     } catch (error) {
       handleApiError(error);

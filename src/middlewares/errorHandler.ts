@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { AppError } from "../errors/AppError";
+import { logger } from "../observability/logger";
 
 /**
  * Global error handler middleware.
@@ -8,7 +9,7 @@ import { AppError } from "../errors/AppError";
  */
 export function errorHandler(
   error: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -36,7 +37,13 @@ export function errorHandler(
   // Fallback for unhandled errors
   const message = error instanceof Error ? error.message : "Erro interno do servidor";
   const errorName = error instanceof Error ? error.name : "UnknownError";
-  console.error("[UnhandledError]", { name: errorName });
+  logger.error("unhandled_request_error", {
+    category: "observability",
+    errorName,
+    statusCode: 500,
+    outcome: "error",
+    requestId: req.requestId,
+  });
   
   res.status(500).json({
     success: false,

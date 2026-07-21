@@ -38,7 +38,8 @@ Lauda 2.0 is a SaaS project for managing church ministries, members, schedules, 
 Create a `.env` file in the project root:
 
 ```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5434/lauda2"
+DATABASE_URL="postgresql://postgres:replace-with-a-local-random-password@localhost:5434/lauda2"
+POSTGRES_PASSWORD="replace-with-a-local-random-password"
 JWT_SECRET="replace-with-at-least-32-random-bytes"
 REFRESH_JWT_SECRET="replace-with-a-different-32-byte-random-secret"
 PASSWORD_RESET_PEPPER="replace-with-an-independent-32-byte-random-secret"
@@ -76,6 +77,12 @@ explicitly sets `NODE_ENV=development` for local development. Do not bypass the
 production checks by starting `dist/server.js` directly.
 
 `MEMBER_INVITE_BASE_URL` is used by the API to build public member registration links, for example `https://laudaapp.com/convite?code=ABCD-1234`.
+
+The security and privacy program artifacts, control status, evidence index, data
+map, retention draft, threat model, vendor register, access-review procedure, and
+incident playbook are maintained in
+[`docs/security-program`](docs/security-program/README.md). A control is not
+considered complete based on a code change alone.
 
 ## Backend Setup
 

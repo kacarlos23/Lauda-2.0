@@ -1,0 +1,116 @@
+version: 1
+baseline_date: 2026-07-20
+technical_owner: "Repository maintainer (@kacarlos23)"
+findings:
+  - id: SEC-FP-2026-001
+    source: gitleaks-8.30.1
+    category: secret
+    severity: none
+    state: false_positive_suppressed
+    summary: "Truncated synthetic JWT in rateLimitMiddleware.test.ts"
+    owner: "Repository maintainer (@kacarlos23)"
+    due_at: 2026-10-18
+    evidence: ".security/exceptions.yml"
+  - id: DEP-BE-RUN-2026-001
+    source: npm-audit
+    category: runtime
+    severity: moderate
+    state: open_triaged
+    summary: "3 moderate and 1 low backend runtime findings in transitive dependencies"
+    owner: "Backend/System Owner (formal appointment TBD)"
+    due_at: 2026-08-19
+    remediation: "Evaluate compatible Prisma update; do not use audit fix --force."
+  - id: DEP-BE-TOOL-2026-001
+    source: npm-audit
+    category: development-tooling
+    severity: high
+    state: open_triaged
+    summary: "7 high package findings in test/tooling dependency graph; recommended fix includes testcontainers major upgrade"
+    owner: "Developer Experience/System Owner (formal appointment TBD)"
+    due_at: 2026-08-03
+    remediation: "Test testcontainers 12 in an isolated compatibility branch and retain integration coverage."
+  - id: DEP-BE-TOOL-2026-002
+    source: npm-audit
+    category: development-tooling
+    severity: moderate
+    state: open_triaged
+    summary: "4 moderate and 1 low backend tooling package findings"
+    owner: "Developer Experience/System Owner (formal appointment TBD)"
+    due_at: 2026-09-18
+    remediation: "Apply compatible transitive updates after the high-severity tooling batch."
+  - id: DEP-MOB-RUN-2026-001
+    source: npm-audit
+    category: runtime
+    severity: moderate
+    state: open_triaged
+    summary: "13 moderate mobile findings concentrated in the Expo dependency chain; compatible lockfile fixes removed 1 critical and 3 high findings"
+    owner: "Mobile/System Owner (formal appointment TBD)"
+    due_at: 2026-08-19
+    remediation: "Plan Expo SDK compatibility upgrade; suggested audit fix crosses major versions."
+  - id: SAST-BASELINE-2026-001
+    source: codeql-v4
+    category: sast
+    severity: unknown
+    state: pending_first_ci_run
+    owner: "Security Engineering (formal appointment TBD)"
+    due_at: 2026-07-27
+  - id: IAC-BASELINE-2026-001
+    source: kics-2.1.20
+    category: infrastructure
+    severity: high
+    state: fixed_retested
+    owner: "Infra/System Owner (formal appointment TBD)"
+    due_at: 2026-07-20
+    summary: "KICS found 1 hardcoded development database password; explicit environment injection applied."
+    retest: "KICS high is a false positive on required environment interpolation; line-scoped SEC-FP-2026-002 applied and must expire."
+  - id: IAC-BASELINE-2026-002
+    source: kics-2.1.20
+    category: infrastructure
+    severity: moderate
+    state: open_triaged
+    owner: "Infra/System Owner (formal appointment TBD)"
+    due_at: 2026-09-18
+    summary: "Two unrestricted-capability findings remain on official PostgreSQL/Redis development images."
+    remediation: "Determine minimal capabilities in an isolated compatibility test before cap_drop; Compose is local-only and ports bind loopback."
+  - id: CTR-BASELINE-2026-001
+    source: grype-0.112.0
+    category: container
+    severity: critical
+    state: open_triaged_stale_local_image
+    owner: "Infra/System Owner (formal appointment TBD)"
+    due_at: 2026-07-22
+    summary: "Local cached postgres:15 image: 33 critical, 142 high, 132 medium, 28 low, 102 negligible, 36 unknown; 182 matches report a fix. Refresh attempt timed out."
+    remediation: "Resolve registry/daemon update, pull the current Postgres 15 patch image, run backup/restore compatibility validation, rescan by digest, then pin the approved digest."
+  - id: CTR-BASELINE-2026-002
+    source: grype-0.112.0
+    category: container
+    severity: moderate
+    state: open_triaged
+    owner: "Infra/System Owner (formal appointment TBD)"
+    due_at: 2026-08-19
+    summary: "redis:7.4-alpine: 3 medium and 2 low; 0 high/critical and no fixes reported."
+    remediation: "Monitor upstream Alpine/Redis image and rescan weekly."
+  - id: DAST-TRAD-2026-001
+    source: zap-2.17.0
+    category: traditional-dast
+    severity: unknown
+    state: blocked_missing_staging_and_synthetic_dataset
+    owner: "Security Engineering and Infra (formal appointments TBD)"
+    due_at: 2026-08-03
+  - id: LOGIC-2026-001
+    source: logical-multitenant-harness
+    category: error-handling
+    severity: low
+    state: fixed_retested
+    summary: "Cross-tenant schedule report was correctly denied but returned 500 instead of canonical 404"
+    owner: "Backend/System Owner (formal appointment TBD)"
+    due_at: 2026-07-20
+    remediation: "Use the canonical NotFoundError in ScheduleService.getReportData and rerun the A/B harness."
+    retest: "PASS 2026-07-20; 18/18 logical harness tests passed."
+  - id: PEN-2026-001
+    source: independent-pentest
+    category: pentest
+    severity: unknown
+    state: blocked_missing_independent_executor_and_operational_prerequisites
+    owner: "Security Owner (formal appointment TBD)"
+    due_at: 2026-08-17

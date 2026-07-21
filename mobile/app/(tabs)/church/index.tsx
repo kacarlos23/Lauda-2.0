@@ -13,7 +13,7 @@ import {
   UsersRound,
   Workflow,
 } from "lucide-react-native";
-import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
+import { Button, ErrorBanner, LoadingState, RichCommentEditor, RichCommentView } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChurchStore } from "../../../src/store/churchStore";
 import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
@@ -28,13 +28,15 @@ function formatDate(value?: string): string {
 
 export default function ChurchAdminScreen() {
   const { user } = useAuthStore();
-  const { summary, loading, saving, error, loadChurch, updateChurchName } = useChurchStore();
+  const { summary, loading, saving, error, loadChurch, updateChurch } = useChurchStore();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
+  const [comments, setComments] = useState("");
 
   const canAccess = canAccessChurchAdmin(user);
   const trimmedName = name.trim();
-  const canSave = trimmedName.length > 0 && trimmedName !== summary?.tenant.name && !saving;
+  const hasChanges = trimmedName !== summary?.tenant.name || comments !== (summary?.tenant.comments ?? "");
+  const canSave = trimmedName.length > 0 && hasChanges && !saving;
 
   const sections = useMemo(
     () => [
@@ -54,12 +56,13 @@ export default function ChurchAdminScreen() {
 
   useEffect(() => {
     setName(summary?.tenant.name ?? "");
-  }, [summary?.tenant.name]);
+    setComments(summary?.tenant.comments ?? "");
+  }, [summary?.tenant.name, summary?.tenant.comments]);
 
   async function handleSave() {
     if (!canSave) return;
     try {
-      await updateChurchName(trimmedName);
+      await updateChurch({ name: trimmedName, comments: comments || null });
       setEditing(false);
     } catch {
       setName(summary?.tenant.name ?? name);
@@ -128,6 +131,8 @@ export default function ChurchAdminScreen() {
                 </View>
               </View>
 
+              {editing ? <RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Informações e orientações gerais da igreja..." testID="church-comments-input" /> : summary.tenant.comments ? <View style={styles.commentsCard}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={summary.tenant.comments} /></View> : null}
+
               {editing ? (
                 <View style={styles.editActions}>
                   <TouchableOpacity
@@ -147,6 +152,7 @@ export default function ChurchAdminScreen() {
                     style={styles.secondaryButton}
                     onPress={() => {
                       setName(summary.tenant.name);
+                      setComments(summary.tenant.comments ?? "");
                       setEditing(false);
                     }}
                     accessibilityRole="button"
@@ -253,6 +259,8 @@ const styles = StyleSheet.create({
   cardEyebrow: { color: colors.muted, fontSize: 12, fontWeight: "800", marginBottom: spacing.xs },
   churchName: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
   createdText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  commentsCard: { padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
+  commentsTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.sm },
   input: {
     minHeight: 44,
     borderWidth: 1,

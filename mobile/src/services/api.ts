@@ -96,7 +96,7 @@ async function clearStoredSession(): Promise<void> {
 
 async function logoutAfterRefreshFailure(): Promise<void> {
   const { useAuthStore } = require("../store/authStore");
-  await useAuthStore.getState().logout();
+  await useAuthStore.getState().logout(false);
 }
 
 /**

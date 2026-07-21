@@ -14,11 +14,13 @@ const tenantScopedModels = new Set(
     "MinistryMember",
     "Schedule",
     "ScheduleAssignment",
+    "ScheduleSong",
     "Song",
     "Artist",
     "MinistrySong",
     "Instrument",
     "UserInstrument",
+    "UserPermission",
   ].map((model) => model.toLowerCase())
 );
 
@@ -36,9 +38,10 @@ const whereOperations = new Set([
   "updateManyAndReturn",
   "delete",
   "deleteMany",
+  "upsert",
 ]);
 
-const uniqueWhereOperations = new Set(["findUnique", "findUniqueOrThrow", "update", "delete"]);
+const uniqueWhereOperations = new Set(["findUnique", "findUniqueOrThrow", "update", "delete", "upsert"]);
 
 type QueryArgs = Record<string, unknown>;
 
@@ -71,6 +74,24 @@ function addTenantToWhere(args: unknown, tenantId: string, keepTopLevel = false)
   return scopedArgs;
 }
 
+function tenantOwnedData(value: unknown, tenantId: string): unknown {
+  if (Array.isArray(value)) return value.map((item) => tenantOwnedData(item, tenantId));
+  if (!value || typeof value !== "object") return value;
+  return { ...(value as Record<string, unknown>), tenantId };
+}
+
+function addTenantToWrite(args: unknown, operation: string, tenantId: string): QueryArgs {
+  const scopedArgs = asQueryArgs(args);
+  if (["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn"].includes(operation)) {
+    scopedArgs.data = tenantOwnedData(scopedArgs.data, tenantId);
+  }
+  if (operation === "upsert") {
+    scopedArgs.create = tenantOwnedData(scopedArgs.create, tenantId);
+    scopedArgs.update = tenantOwnedData(scopedArgs.update, tenantId);
+  }
+  return scopedArgs;
+}
+
 /**
  * Applies tenant isolation to every read/update/delete operation for tenant-owned models.
  *
@@ -97,15 +118,12 @@ export function withTenantIsolation(baseClient: PrismaClient) {
               throw new UnauthorizedError("TenantId ausente no contexto autenticado");
             }
 
+            let scopedArgs: unknown = args;
             if (whereOperations.has(operation)) {
-              return query(
-                addTenantToWhere(args, context.tenantId, uniqueWhereOperations.has(operation)) as typeof args
-              );
+              scopedArgs = addTenantToWhere(scopedArgs, context.tenantId, uniqueWhereOperations.has(operation));
             }
-
-            // Creates are intentionally left untouched: controllers/services must set tenantId
-            // from req.user so API input cannot forge cross-tenant ownership.
-            return query(args);
+            scopedArgs = addTenantToWrite(scopedArgs, operation, context.tenantId);
+            return query(scopedArgs as typeof args);
           },
         },
       },

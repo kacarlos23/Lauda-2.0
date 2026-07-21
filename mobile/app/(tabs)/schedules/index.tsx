@@ -161,6 +161,7 @@ export default function SchedulesScreen() {
       await createSchedule({
         title: `Copia de ${schedule.title}`,
         date: schedule.date,
+        comments: schedule.comments ?? null,
         ministryId: schedule.ministryId,
         songIds: [...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry) => entry.songId),
         assignments: (schedule.assignments ?? []).map((assignment) => ({ userId: assignment.userId, role: assignment.role })),

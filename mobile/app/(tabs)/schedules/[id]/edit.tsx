@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Style
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 import { Button, ErrorBanner, LoadingState } from "../../../../src/components/ui";
+import { RichCommentEditor } from "../../../../src/components/ui/RichCommentEditor";
 import { ArrowLeft, Download, Search, Trash2, X } from "lucide-react-native";
 import { DateTimeInput } from "../../../../src/components/DateTimeInput";
 import { memberService } from "../../../../src/services/memberService";
@@ -37,6 +38,7 @@ export default function EditScheduleScreen() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [hour, setHour] = useState("19:00");
+  const [comments, setComments] = useState("");
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministryId, setMinistryId] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -70,6 +72,7 @@ export default function EditScheduleScreen() {
     setTitle(schedule.title);
     setDate(toDisplayDate(scheduleDate));
     setHour(timeValue(schedule.date));
+    setComments(schedule.comments ?? "");
     setMinistryId(schedule.ministryId);
     setSelectedSongIds(schedule.songs?.map((entry) => entry.songId) ?? []);
     setSelectedMembers(schedule.assignments?.map((entry) => ({ userId: entry.userId, role: entry.role, status: entry.status })) ?? []);
@@ -190,6 +193,7 @@ export default function EditScheduleScreen() {
       await updateSchedule(id, {
         title: title.trim(),
         date: isoDate,
+        comments: comments || null,
         ministryId,
         songIds: selectedSongIds,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role, status: entry.status ?? "PENDING" })),
@@ -504,6 +508,7 @@ export default function EditScheduleScreen() {
             <DateTimeInput type="time" label="Horário *" value={hour} onChange={setHour} />
           </View>
         </View>
+        <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
         <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
           <View style={styles.sectionText}>
             <Text style={styles.sectionTitle}>Músicas</Text>
@@ -551,6 +556,7 @@ const styles = StyleSheet.create({
   reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   cardCompact: { padding: spacing.lg },
+  commentsEditor: { marginTop: spacing.lg, marginBottom: spacing.md },
   label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
   input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },

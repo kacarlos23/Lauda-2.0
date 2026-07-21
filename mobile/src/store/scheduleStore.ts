@@ -23,6 +23,7 @@ interface ScheduleState {
   createSchedule: (payload: {
     title: string;
     date: string;
+    comments?: string | null;
     ministryId: string;
     songIds: string[];
     assignments: Array<{ userId: string; role: string }>;
@@ -30,6 +31,7 @@ interface ScheduleState {
   updateSchedule: (id: string, payload: {
     title: string;
     date: string;
+    comments?: string | null;
     ministryId: string;
     songIds: string[];
     assignments: Array<{ userId: string; role: string; status?: AssignmentStatus }>;

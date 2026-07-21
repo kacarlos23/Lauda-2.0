@@ -40,6 +40,7 @@ export const ministryApi = {
           id: data.id,
           name: data.name,
           description: data.description,
+          comments: data.comments,
           tenantId: data.tenantId,
           createdAt: data.createdAt,
           _count: data._count
@@ -51,7 +52,7 @@ export const ministryApi = {
     }
   },
 
-  async createMinistry(data: { name: string; description?: string }): Promise<Ministry> {
+  async createMinistry(data: { name: string; description?: string; comments?: string | null }): Promise<Ministry> {
     try {
       const response = await api.post<{ success: boolean; data: Ministry }>("/ministries", data);
       return response.data.data;
@@ -60,7 +61,7 @@ export const ministryApi = {
     }
   },
 
-  async updateMinistry(id: string, data: { name?: string; description?: string }): Promise<Ministry> {
+  async updateMinistry(id: string, data: { name?: string; description?: string; comments?: string | null }): Promise<Ministry> {
     try {
       const response = await api.put<{ success: boolean; data: Ministry }>(`/ministries/${id}`, data);
       return response.data.data;

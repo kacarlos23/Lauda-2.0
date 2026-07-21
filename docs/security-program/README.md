@@ -15,10 +15,10 @@ Este diretorio contem os artefatos verificaveis do programa. Um controle so pode
 | 0 - Gates documentais | Baseline documental concluida; gates externos pendentes; producao com dados reais bloqueada | Data Map, ROPA, ownership, ADRs, governanca do encarregado, threat model, vendor register, retencao, incident response, access review e registro consolidado. Owners, fornecedores, incident commander, DPO, idade, bases legais e aprovacoes permanecem `TBD`. |
 | 1 - Contencao tecnica | Parcialmente implementada no working tree; fora destes commits documentais | Reset com HMAC/pepper, rate limiting, lifecycle e erros foram observados no working tree; revogacao de sessoes depende da Etapa 2. O codigo nao integra os commits da Etapa 0. |
 | 2 - Sessoes | Nao iniciada | Requer ADR/modelo de sessao, rotacao e revogacao. |
-| 3 - Multi-tenant/RBAC/admin | Nao iniciada | Requer matriz A/B, mass assignment e hardening de admin global. |
+| 3 - Multi-tenant/RBAC/admin | Controles técnicos concluídos; gates nominais/operacionais pendentes | Matriz A/B, property authorization, allowlist Prisma, RBAC canônico, MFA/step-up e suporte temporário em `evidence/2026-07-17-etapa-3.md`. |
 | 4 - Lifecycle/direitos | Nao iniciada | Requer retencoes aprovadas, purge e owners. |
-| 5 - Observabilidade/infra/resiliencia | Nao iniciada | Requer fornecedores, logs, backup/restore, RPO/RTO. |
-| 6 - Secure SDLC | Nao iniciada | Requer politica CI/CD, dependencias, secrets e branch protection. |
+| 5 - Observabilidade/infra/resiliencia | Codigo e restore local comprovados; producao bloqueada | Logger/redaction/request ID/auditoria tipada e drill local em `evidence/2026-07-20-etapa-5.md`; providers, KMS, backup produtivo, ledger, RPO/RTO e owners pendentes. |
+| 6 - Secure SDLC | Baseline técnico implantado; operação bloqueada | Gitleaks, dependency split, CodeQL, KICS, Grype, SBOM e harness lógico estão integrados. Staging sintético, baselines remotos, owners, pentest e reteste permanecem pendentes. Veja `evidence/2026-07-20-etapa-6.md`. |
 
 ## Artefatos da Etapa 0
 
@@ -38,6 +38,12 @@ Este diretorio contem os artefatos verificaveis do programa. Um controle so pode
 | Registro consolidado de decisoes, riscos e pendencias | [decisions.md](./decisions.md) |
 | Indice de evidencias | [evidence/README.md](./evidence/README.md) |
 | Registro de controles | [control-register.md](./control-register.md) |
+| Politica de observabilidade | [observability-policy.md](./observability-policy.md) |
+| Secrets, ambientes e rotacao | [secrets-and-environments.md](./secrets-and-environments.md) |
+| Backup e restore | [backup-restore-runbook.md](./backup-restore-runbook.md) |
+| Tabletop documental 2026-07-20 | [tabletop-2026-07-20.md](./tabletop-2026-07-20.md) |
+| Política Secure SDLC | [secure-sdlc.md](./secure-sdlc.md) |
+| Escopo e registro de pentest/reteste | [pentest-stage6.md](./pentest-stage6.md) |
 
 ## Regras
 

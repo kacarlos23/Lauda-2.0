@@ -1,0 +1,48 @@
+version: 1
+effective_date: 2026-07-20
+review_date: 2026-10-20
+technical_owner: "Repository maintainer (@kacarlos23)"
+organizational_owners_status: "TBD - production/release blocker"
+
+severity:
+  critical: "Active exploitation, confirmed secret, auth/tenant bypass, or material data exposure"
+  high: "Practical compromise with meaningful confidentiality, integrity, or availability impact"
+  moderate: "Exploitation needs preconditions or has constrained impact"
+  low: "Defense-in-depth weakness or low-impact information exposure"
+
+sla_calendar_days:
+  confirmed_secret: 0
+  critical: 2
+  high: 14
+  moderate_runtime: 30
+  moderate_development_tooling: 60
+  low: 90
+
+gates:
+  secret_confirmed_or_new_detection: block
+  runtime_dependency_high_or_critical: block
+  development_tooling_dependency_critical: block
+  logical_multitenant_regression: block
+  sast: observe_until_github_baseline_triaged
+  iac_high_or_critical: block
+  container: observe_until_first_ci_baseline_triaged
+  traditional_dast: manual_staging_only_until_first_baseline_triaged
+
+exception_required_fields:
+  - id
+  - finding
+  - justification
+  - owner
+  - approved_by
+  - created_at
+  - expires_at
+  - review_condition
+  - compensating_controls
+
+reassessment_triggers:
+  - purpose
+  - audience
+  - vendor
+  - architecture
+  - data_classification
+  - risk_profile

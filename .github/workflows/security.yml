@@ -1,0 +1,174 @@
+name: Security CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scanning:
+    name: Secret scanning (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Reject incomplete or expired security exceptions
+        run: npm run security:policy
+      - name: Scan complete Git history
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro"
+          ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --config /repo/.gitleaks.toml --redact=100 --no-banner
+      - name: Prove confirmed-secret sentinel blocks
+        shell: bash
+        run: |
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          node -e "require('fs').writeFileSync(process.argv[1], 'key=' + 'LAUDA_CONFIRMED_SECRET_' + 'A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6')" "$fixture/confirmed.env"
+          set +e
+          docker run --rm -v "$fixture:/fixture:ro" -v "$PWD:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            dir /fixture --config /repo/.gitleaks.toml --redact=100 --no-banner
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Confirmed-secret sentinel was not blocked" >&2
+            exit 1
+          fi
+          echo "Confirmed-secret blocking behavior verified"
+
+  dependency-scanning:
+    name: Dependency scanning (runtime/tooling split)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - name: Generate separated reports and enforce graduated gate
+        run: npm run security:dependencies -- --gate
+      - name: Upload dependency reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-security-reports
+          path: security-artifacts/dependencies/*.json
+          retention-days: 90
+
+  sast:
+    name: SAST (CodeQL baseline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - name: Analyze backend and mobile
+        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          category: /language:javascript-typescript
+
+  iac-scanning:
+    name: IaC scan (Docker Compose high/critical gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Scan the only applicable IaC artifact with KICS 2.1.20
+        id: kics
+        run: |
+          mkdir -p security-artifacts/iac
+          docker run --rm -v "$PWD:/repo" \
+            checkmarx/kics@sha256:3e5a268eb8adda2e5a483c9359ddfc4cd520ab856a7076dc0b1d8784a37e2602 \
+            scan -p /repo/docker-compose.yml -o /repo/security-artifacts/iac \
+            --report-formats json,sarif --minimal-ui --fail-on critical,high
+      - name: Record graduated gate outcome
+        run: echo "KICS outcome=${{ steps.kics.outcome }}; high/critical block after local baseline triage."
+      - name: Upload IaC baseline
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iac-security-report
+          path: security-artifacts/iac/
+          if-no-files-found: warn
+          retention-days: 90
+
+  container-scanning:
+    name: Container scan (Compose images observation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: postgres-15
+            image: postgres:15
+          - name: redis-7.4-alpine
+            image: redis:7.4-alpine
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Scan ${{ matrix.image }} with Grype 0.112.0
+        id: grype
+        continue-on-error: true
+        run: |
+          mkdir -p security-artifacts/container
+          docker run --rm -v "$PWD/security-artifacts/container:/reports" \
+            anchore/grype@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            "${{ matrix.image }}" --only-fixed --fail-on critical -o json \
+            --file "/reports/${{ matrix.name }}.json"
+      - name: Record observation-mode outcome
+        run: echo "Grype outcome=${{ steps.grype.outcome }}; critical findings are visible but non-blocking until baseline triage."
+      - name: Upload container baseline
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: container-security-${{ matrix.name }}
+          path: security-artifacts/container/*.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  logical-multitenant-dast:
+    name: Logical multi-tenant harness (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run security:dast:logical
+      - name: Upload logical DAST evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: logical-multitenant-dast
+          path: security-artifacts/dast-logical/results.json
+          if-no-files-found: error
+          retention-days: 90

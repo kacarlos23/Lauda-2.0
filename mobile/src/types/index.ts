@@ -8,6 +8,7 @@ export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 export interface Tenant {
   id: string;
   name: string;
+  comments?: string | null;
   domain?: string | null;
   isActive?: boolean;
   deletedAt?: string | null;
@@ -42,6 +43,7 @@ export interface Ministry {
   id: string;
   name: string;
   description?: string | null;
+  comments?: string | null;
   tenantId: string;
   isActive?: boolean;
   deletedAt?: string | null;
@@ -77,6 +79,7 @@ export interface Member {
   name: string;
   email?: string;
   phone?: string | null;
+  comments?: string | null;
   avatarUrl?: string | null;
   role: Role;
   tenantId: string | null;
@@ -93,6 +96,7 @@ export interface Schedule {
   id: string;
   title: string;
   date: string;
+  comments?: string | null;
   ministryId: string;
   tenantId: string;
   isActive?: boolean;
@@ -211,6 +215,7 @@ export interface Song {
   composer?: string | null;
   originalKey: MusicalKey;
   content: string;
+  comments?: string | null;
   bpm?: number | null;
   cifraUrl?: string | null;
   letraUrl?: string | null;
