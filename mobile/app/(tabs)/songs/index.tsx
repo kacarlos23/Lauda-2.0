@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Check, Download, MicVocal, Plus, Search, Square, UserRound } from "lucide-react-native";
+import { Check, Download, MicVocal, Plus, Search, Square, UserRound, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { AppInput, Button, EmptyState, ErrorBanner, LoadingState } from "../../../src/components/ui";
@@ -135,6 +135,17 @@ export default function SongsScreen() {
             autoCorrect={false}
             returnKeyType="search"
             icon={<Search color={colors.muted} size={19} />}
+            endAdornment={search ? (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                onPress={() => setSearch("")}
+                accessibilityRole="button"
+                accessibilityLabel="Limpar pesquisa de músicas"
+                hitSlop={8}
+              >
+                <X color={colors.muted} size={18} strokeWidth={2.4} />
+              </TouchableOpacity>
+            ) : null}
             containerStyle={styles.searchInput}
           />
 
@@ -245,6 +256,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#BFE7DE" },
   primaryIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...buttonShadow },
   searchInput: { marginBottom: spacing.sm },
+  clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   selectionBar: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   listScroller: { flex: 1, width: "100%" },

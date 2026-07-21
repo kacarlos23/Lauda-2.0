@@ -5,12 +5,14 @@ import { colors, radii, spacing, typography } from "../../theme";
 type AppInputProps = TextInputProps & {
   label?: string;
   icon?: React.ReactNode;
+  endAdornment?: React.ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
 };
 
 export function AppInput({
   label,
   icon,
+  endAdornment,
   style,
   containerStyle,
   placeholderTextColor = colors.muted,
@@ -26,6 +28,7 @@ export function AppInput({
           placeholderTextColor={placeholderTextColor}
           {...props}
         />
+        {endAdornment}
       </View>
     </View>
   );

@@ -224,7 +224,7 @@ export default function SchedulesScreen() {
   };
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} maxWidth={null}>
       <Modal visible={Boolean(declineAssignment)} transparent animationType="fade" onRequestClose={() => setDeclineAssignment(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>

@@ -216,6 +216,31 @@ describe("SongsScreen pagination", () => {
     }
   });
 
+  it("limpa o filtro pelo botao ao final do campo de pesquisa", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const searchInput = renderer!.root.findByType(TextInput);
+    act(() => {
+      searchInput.props.onChangeText("Artista");
+    });
+
+    const clearButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Limpar pesquisa de músicas");
+    expect(clearButton).toBeTruthy();
+
+    act(() => {
+      clearButton!.props.onPress();
+    });
+
+    expect(renderer!.root.findByType(TextInput).props.value).toBe("");
+    expect(renderer!.root.findAllByType(TouchableOpacity)
+      .some((node: TestNode) => node.props.accessibilityLabel === "Limpar pesquisa de músicas")).toBe(false);
+  });
+
   it("exibe ponto entre artista, tom e BPM sem mostrar escape unicode", async () => {
     jest.mocked(musicService.listSongs).mockResolvedValueOnce({
       items: [{ ...baseSong, bpm: 120 }],

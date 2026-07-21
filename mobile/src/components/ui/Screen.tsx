@@ -7,7 +7,7 @@ type ScreenProps = {
   children: React.ReactNode;
   scroll?: boolean;
   padded?: boolean;
-  maxWidth?: number;
+  maxWidth?: number | null;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   testID?: string;
@@ -24,7 +24,7 @@ export function Screen({
 }: ScreenProps) {
   const contentStyles = [
     styles.content,
-    { maxWidth },
+    maxWidth === null ? null : { maxWidth },
     padded && styles.padded,
     contentStyle,
   ];
