@@ -1,9 +1,13 @@
 export class AppError extends Error {
   public readonly statusCode: number;
+  public readonly code?: string;
+  public readonly details?: unknown;
 
-  constructor(message: string, statusCode = 400) {
+  constructor(message: string, statusCode = 400, options?: { code?: string; details?: unknown }) {
     super(message);
     this.statusCode = statusCode;
+    this.code = options?.code;
+    this.details = options?.details;
     Object.setPrototypeOf(this, AppError.prototype);
   }
 }
@@ -47,5 +51,15 @@ export class ServiceUnavailableError extends AppError {
   constructor(message = "Serviço temporariamente indisponível") {
     super(message, 503);
     Object.setPrototypeOf(this, ServiceUnavailableError.prototype);
+  }
+}
+
+export class SongsUnavailableError extends AppError {
+  constructor(songIds: string[]) {
+    super("Uma ou mais músicas selecionadas não estão mais disponíveis", 409, {
+      code: "SONGS_UNAVAILABLE",
+      details: { songIds },
+    });
+    Object.setPrototypeOf(this, SongsUnavailableError.prototype);
   }
 }

@@ -26,7 +26,10 @@ export class SongRepository {
   async list(input: SongListInput, normalizedSearch: string) {
     const where: Prisma.SongWhereInput = {
       tenantId: this.tenantId,
+      isActive: true,
+      deletedAt: null,
       ...(input.artistId ? { artistId: input.artistId } : {}),
+      ...(input.originalKey ? { originalKey: input.originalKey } : {}),
       ...(normalizedSearch ? {
         OR: [
           { normalizedTitle: { contains: normalizedSearch } },
@@ -48,11 +51,25 @@ export class SongRepository {
   }
 
   findById(id: string) {
-    return prisma.song.findFirst({ where: { id, tenantId: this.tenantId }, select: songSelect });
+    return prisma.song.findFirst({ where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null }, select: songSelect });
   }
 
   findByIds(ids: string[]) {
-    return prisma.song.findMany({ where: { id: { in: ids }, tenantId: this.tenantId }, select: songSelect });
+    return prisma.song.findMany({
+      where: { id: { in: ids }, tenantId: this.tenantId, isActive: true, deletedAt: null },
+      select: songSelect,
+    });
+  }
+
+  findInactiveIds(ids: string[]) {
+    return prisma.song.findMany({
+      where: {
+        id: { in: ids },
+        tenantId: this.tenantId,
+        OR: [{ isActive: false }, { deletedAt: { not: null } }],
+      },
+      select: { id: true },
+    });
   }
 
   create(data: {

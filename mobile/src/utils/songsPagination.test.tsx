@@ -1,8 +1,8 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Text, TextInput, TouchableOpacity } from "react-native";
+import { Alert, Text, TextInput, TouchableOpacity } from "react-native";
 import SongsScreen from "../../app/(tabs)/songs";
-import { musicService } from "../services/musicService";
+import { musicService, SongsUnavailableClientError } from "../services/musicService";
 import { useMusicStore } from "../store/musicStore";
 import { Song } from "../types";
 
@@ -27,6 +27,7 @@ jest.mock("react-native", () => {
   const React = require("react");
   const create = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
   return {
+    AccessibilityInfo: { announceForAccessibility: jest.fn() },
     ActivityIndicator: create("ActivityIndicator"),
     Alert: { alert: jest.fn() },
     FlatList: ({ data, renderItem, ListHeaderComponent, ListEmptyComponent, ListFooterComponent, ...props }: any) => React.createElement(
@@ -41,11 +42,13 @@ jest.mock("react-native", () => {
     Image: create("Image"),
     Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
+    RefreshControl: create("RefreshControl"),
     ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
     StyleSheet: { create: (styles: any) => styles },
     Text: create("Text"),
     TextInput: create("TextInput"),
     TouchableOpacity: create("TouchableOpacity"),
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
     View: create("View"),
   };
 });
@@ -65,10 +68,14 @@ jest.mock("expo-router", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { Check: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, UserRound: Icon, X: Icon };
+  return { Check: Icon, ChevronDown: Icon, ChevronUp: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, UserRound: Icon, X: Icon };
 });
 
 jest.mock("../services/musicService", () => ({
+  SongsUnavailableClientError: class SongsUnavailableClientError extends Error {
+    songIds: string[];
+    constructor(songIds: string[]) { super("Músicas indisponíveis"); this.songIds = songIds; }
+  },
   musicService: {
     listSongs: jest.fn(),
     exportSongs: jest.fn(),
@@ -125,6 +132,7 @@ describe("SongsScreen pagination", () => {
       requestedListKey: null,
       currentSearch: "",
       currentPage: 1,
+      currentFilters: {},
       lastFetchedAt: null,
       listMutationVersion: 0,
       listInvalidationVersion: 0,
@@ -181,9 +189,9 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
     });
 
-    expect(musicService.listSongs).toHaveBeenCalledWith("", 1);
-    expect(musicService.listSongs).toHaveBeenCalledWith("", 2);
-    expect(jest.mocked(musicService.listSongs).mock.calls.at(-1)).toEqual(["", 1]);
+    expect(musicService.listSongs).toHaveBeenCalledWith("", 1, 20, {}, expect.any(Object));
+    expect(musicService.listSongs).toHaveBeenCalledWith("", 2, 20, {}, expect.any(Object));
+    expect(jest.mocked(musicService.listSongs).mock.calls.at(-1)?.slice(0, 4)).toEqual(["", 1, 20, {}]);
   });
 
   it("busca por musica ou artista em tempo real enquanto o usuario digita", async () => {
@@ -202,7 +210,7 @@ describe("SongsScreen pagination", () => {
       act(() => {
         jest.advanceTimersByTime(299);
       });
-      expect(musicService.listSongs).not.toHaveBeenCalledWith("Artista", 1);
+      expect(musicService.listSongs).not.toHaveBeenCalledWith("Artista", 1, 20, {}, expect.any(Object));
 
       await act(async () => {
         jest.advanceTimersByTime(1);
@@ -210,7 +218,7 @@ describe("SongsScreen pagination", () => {
         await Promise.resolve();
       });
 
-      expect(musicService.listSongs).toHaveBeenCalledWith("Artista", 1);
+      expect(musicService.listSongs).toHaveBeenCalledWith("Artista", 1, 20, {}, expect.any(Object));
     } finally {
       jest.useRealTimers();
     }
@@ -258,5 +266,104 @@ describe("SongsScreen pagination", () => {
       .find((text) => text.includes("· Tom"));
     expect(metadata).toBe("Artista · Tom C · 120 BPM");
     expect(metadata).not.toContain("\\u00b7");
+  });
+
+  it("alterna o painel exatamente em 1000px de largura útil", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const selectionButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Selecionar músicas para PDF");
+    act(() => selectionButton!.props.onPress());
+
+    const measured = renderer!.root.findByProps({ testID: "songs-content-width" });
+    act(() => measured.props.onLayout({ nativeEvent: { layout: { width: 999 } } }));
+    expect(renderer!.root.findAllByProps({ testID: "songs-selection-layout-compact" }).length).toBeGreaterThan(0);
+
+    act(() => measured.props.onLayout({ nativeEvent: { layout: { width: 1000 } } }));
+    expect(renderer!.root.findAllByProps({ testID: "songs-selection-layout-wide" }).length).toBeGreaterThan(0);
+  });
+
+  it("separa limpar seleção de cancelar o modo", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === label);
+    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 música selecionada"))).toBe(true);
+
+    act(() => byLabel("Limpar seleção de músicas")!.props.onPress());
+    expect(renderer!.root.findAllByProps({ testID: "songs-export-panel" }).length).toBeGreaterThan(0);
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 músicas selecionadas"))).toBe(true);
+
+    act(() => byLabel("Cancelar seleção de cifras")!.props.onPress());
+    expect(renderer!.root.findAllByProps({ testID: "songs-export-panel" })).toHaveLength(0);
+    expect(byLabel("Selecionar músicas para PDF")).toBeTruthy();
+  });
+
+  it("bloqueia cliques duplicados durante a exportação", async () => {
+    let resolveExport!: () => void;
+    jest.mocked(musicService.exportSongs).mockReturnValueOnce(new Promise<void>((resolve) => { resolveExport = resolve; }));
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === label);
+    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+    const exportButton = renderer!.root.findAllByProps({ testID: "songs-export-button" }).at(-1)!;
+
+    act(() => {
+      exportButton.props.onPress();
+      exportButton.props.onPress();
+    });
+    expect(musicService.exportSongs).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveExport();
+      await Promise.resolve();
+    });
+    expect(renderer!.root.findAllByProps({ testID: "feedback-toast" }).length).toBeGreaterThan(0);
+  });
+
+  it("remove somente cifras indisponíveis e preserva a seleção em erro genérico", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === label);
+    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+
+    jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new Error("Falha temporária"));
+    await act(async () => {
+      renderer!.root.findAllByProps({ testID: "songs-export-button" }).at(-1)!.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(Alert.alert).toHaveBeenCalledWith("Erro", "Falha temporária");
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 música selecionada"))).toBe(true);
+
+    jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new SongsUnavailableClientError(["song-1"]));
+    await act(async () => {
+      renderer!.root.findAllByProps({ testID: "songs-export-button" }).at(-1)!.props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 músicas selecionadas"))).toBe(true);
+    expect(renderer!.root.findAllByProps({ testID: "feedback-toast" }).length).toBeGreaterThan(0);
   });
 });

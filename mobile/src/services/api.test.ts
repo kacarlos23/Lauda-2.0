@@ -27,6 +27,7 @@ describe("api configuration helpers", () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    delete process.env.EXPO_PUBLIC_API_URL;
   });
 
   it("normaliza baseURL para conter /api exatamente uma vez", async () => {
@@ -36,6 +37,32 @@ describe("api configuration helpers", () => {
     expect(normalizeApiBaseUrl("http://localhost:3000")).toBe("http://localhost:3000/api");
     expect(normalizeApiBaseUrl("http://localhost:3000/api")).toBe("http://localhost:3000/api");
     expect(normalizeApiBaseUrl("http://localhost:3000/api/")).toBe("http://localhost:3000/api");
+  });
+
+  it("usa EXPO_PUBLIC_API_URL quando definida", async () => {
+    process.env.EXPO_PUBLIC_API_URL = "https://api.example.com/";
+    mockSessionStorage();
+
+    const { api } = await import("./api");
+
+    expect(api.defaults.baseURL).toBe("https://api.example.com/api");
+  });
+
+  it("falha em producao quando EXPO_PUBLIC_API_URL esta ausente", async () => {
+    const mutableEnvironment = process.env as Record<string, string | undefined>;
+    const previousNodeEnv = process.env.NODE_ENV;
+    mutableEnvironment.NODE_ENV = "production";
+    mockSessionStorage();
+
+    try {
+      await expect(import("./api")).rejects.toThrow("EXPO_PUBLIC_API_URL is required in production");
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete mutableEnvironment.NODE_ENV;
+      } else {
+        mutableEnvironment.NODE_ENV = previousNodeEnv;
+      }
+    }
   });
 
   it("interceptor adiciona Authorization quando auth_token existe", async () => {

@@ -11,6 +11,7 @@ export const songIdSchema = z.object({ id: z.string().uuid("ID da música invál
 export const songListSchema = z.object({
   search: z.string().trim().max(100).default(""),
   artistId: z.string().uuid("ID do artista inválido").optional(),
+  originalKey: z.enum(MUSICAL_KEYS, "Tom inválido").optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

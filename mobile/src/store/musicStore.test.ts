@@ -35,10 +35,44 @@ describe("musicStore", () => {
   it("carrega lista paginada", async () => {
     mockedService.listSongs.mockResolvedValueOnce({ items: [song], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } });
     await useMusicStore.getState().loadSongs("canção", 1);
-    expect(mockedService.listSongs).toHaveBeenCalledWith("canção", 1);
+    expect(mockedService.listSongs).toHaveBeenCalledWith("canção", 1, 20, {}, expect.any(Object));
     expect(useMusicStore.getState().songs).toEqual([song]);
     expect(useMusicStore.getState().pagination.total).toBe(1);
     expect(useMusicStore.getState().lastFetchedAt).not.toBeNull();
+  });
+
+  it("cancela a consulta anterior e ignora sua resposta ao trocar filtros", async () => {
+    let resolveFirst!: (value: { items: Song[]; pagination: { page: number; limit: number; total: number; totalPages: number } }) => void;
+    let resolveSecond!: (value: { items: Song[]; pagination: { page: number; limit: number; total: number; totalPages: number } }) => void;
+    mockedService.listSongs
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+
+    const first = useMusicStore.getState().loadSongs("", 1, { filters: { artistId: "artist-1", originalKey: "C" } });
+    const firstSignal = mockedService.listSongs.mock.calls[0][4];
+    const second = useMusicStore.getState().loadSongs("", 1, { filters: { artistId: "artist-2", originalKey: "D" } });
+
+    expect(firstSignal?.aborted).toBe(true);
+    resolveSecond({ items: [songB], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } });
+    await second;
+    resolveFirst({ items: [songA], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } });
+    await first;
+
+    expect(useMusicStore.getState().songs).toEqual([songB]);
+    expect(useMusicStore.getState().currentFilters).toEqual({ artistId: "artist-2", originalKey: "D" });
+  });
+
+  it("não mistura mutações locais que não atendem aos filtros", async () => {
+    useMusicStore.setState({ localMutations: { [songA.id]: songA } });
+    mockedService.listSongs.mockResolvedValueOnce({
+      items: [songB],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+
+    await useMusicStore.getState().loadSongs("", 1, { filters: { artistId: "outro-artista" } });
+
+    expect(useMusicStore.getState().songs).toEqual([songB]);
+    expect(useMusicStore.getState().pagination.total).toBe(1);
   });
 
   it("mantem lista atual durante refresh em background", async () => {

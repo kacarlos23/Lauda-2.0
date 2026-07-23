@@ -4,14 +4,14 @@
     "slug": "lauda",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/png/icon-512.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "lauda",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/brand/png/lauda-symbol-light-512.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a2e"
+      "backgroundColor": "#164C3C"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,8 +19,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1a2e"
+        "foregroundImage": "./assets/brand/png/lauda-symbol-light-512.png",
+        "backgroundColor": "#164C3C"
       },
       "package": "com.lauda.app",
       "edgeToEdgeEnabled": true
@@ -28,7 +28,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/png/favicon-48.png"
     },
     "plugins": [
       "expo-router",

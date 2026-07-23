@@ -15,7 +15,7 @@ import { BottomSheet } from "../../../src/components/BottomSheet";
 import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, RichCommentEditor, Screen, SectionHeader } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { buttonShadow, colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
+import { colors, radii, screen, spacing, typography } from "../../../src/theme";
 import { emptyMinistryFilters, filterMinistries, hasActiveFilters, MinistryListFilters } from "../../../src/utils/listFilters";
 import { can } from "../../../src/utils/permissions";
 
@@ -149,7 +149,19 @@ export default function MinistriesScreen() {
             <SectionHeader
               title="Ministérios"
               subtitle={activeFilters ? `${filteredMinistries.length} de ${ministries.length} ministério(s)` : `${ministries.length} ministério(s) ativo(s)`}
-              action={<FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de ministérios" />}
+              action={(
+                <View style={styles.headerActions}>
+                  <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de ministérios" />
+                  {canCreateMinistry ? (
+                    <Button
+                      title="Novo ministério"
+                      icon={<Plus color={colors.inverse} size={18} strokeWidth={2.2} />}
+                      onPress={openCreate}
+                      accessibilityLabel="Criar ministério"
+                    />
+                  ) : null}
+                </View>
+              )}
               style={styles.sectionHeader}
             />
             {activeFilters ? <Button title="Limpar filtros" variant="ghost" size="sm" style={styles.clearFiltersButton} onPress={clearFilters} accessibilityLabel="Limpar filtros de ministérios" /> : null}
@@ -214,12 +226,6 @@ export default function MinistriesScreen() {
         )}
       />
 
-      {canCreateMinistry ? (
-        <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={openCreate} accessibilityRole="button">
-          <Plus color={colors.surface} size={24} />
-        </TouchableOpacity>
-      ) : null}
-
       <BottomSheet
         isOpen={showCreate}
         onClose={closeCreate}
@@ -281,6 +287,7 @@ const styles = StyleSheet.create({
   },
   header: { marginBottom: spacing.lg },
   sectionHeader: { marginBottom: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
   clearFiltersButton: { alignSelf: "flex-start" },
   errorText: { marginTop: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginTop: spacing.sm },
@@ -290,12 +297,12 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
+    borderRadius: 0,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
   },
   cardHeader: {
     flexDirection: "row",
@@ -316,19 +323,6 @@ const styles = StyleSheet.create({
   countText: { ...typography.label, color: colors.primaryDark },
   cardDesc: { ...typography.body, color: colors.text, marginBottom: spacing.md },
   cardMeta: { ...typography.badge, color: colors.primary, textTransform: "uppercase" },
-  fab: {
-    position: "absolute",
-    bottom: spacing.xxl,
-    right: spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    ...shadow,
-    ...buttonShadow,
-  },
   form: { padding: spacing.xl },
   formError: {
     marginBottom: spacing.lg,

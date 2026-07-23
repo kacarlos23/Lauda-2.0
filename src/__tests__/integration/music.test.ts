@@ -178,6 +178,39 @@ describe("Artists and songs API", () => {
     expect(result.body.data.items.map((item: { name: string }) => item.name)).toEqual(["Oficina da Música", "Oficina G3"]);
   });
 
+  it("filtra músicas por artista e tom sem revelar artistas de outra igreja", async () => {
+    const tenantA = await register("song-filters-a");
+    const tenantB = await register("song-filters-b");
+    const artistA = await createArtist(tenantA.token, "Artista A");
+    const artistA2 = await createArtist(tenantA.token, "Artista B");
+    const foreignArtist = await createArtist(tenantB.token, "Artista externo");
+
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenantA.token}`).send({
+      ...songPayload(artistA.id), title: "Graça sublime", originalKey: "G",
+    }).expect(201);
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenantA.token}`).send({
+      ...songPayload(artistA2.id), title: "Graça futura", originalKey: "D",
+    }).expect(201);
+
+    const filtered = await request(app)
+      .get(`/api/songs?search=gra%C3%A7a&artistId=${artistA.id}&originalKey=G`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(200);
+    expect(filtered.body.data.items.map((item: { title: string }) => item.title)).toEqual(["Graça sublime"]);
+    expect(filtered.body.data.pagination).toMatchObject({ total: 1, totalPages: 1 });
+
+    const foreign = await request(app)
+      .get(`/api/songs?artistId=${foreignArtist.id}`)
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(200);
+    expect(foreign.body.data).toMatchObject({ items: [], pagination: { total: 0, totalPages: 0 } });
+
+    await request(app)
+      .get("/api/songs?originalKey=H")
+      .set("Authorization", `Bearer ${tenantA.token}`)
+      .expect(400);
+  });
+
   it("cria música sem compositor, valida Tom e impede título duplicado", async () => {
     const tenant = await register("validation");
     const artist = await createArtist(tenant.token);
@@ -281,5 +314,27 @@ describe("Artists and songs API", () => {
 
     await request(app).post("/api/songs/export").set("Authorization", `Bearer ${tenant.token}`).send({ songIds: [] }).expect(400);
     await request(app).post("/api/songs/export").set("Authorization", `Bearer ${tenant.token}`).send({ songIds: Array.from({ length: 51 }, () => first.body.data.id) }).expect(400);
+  });
+
+  it("identifica cifras removidas sem descartar silenciosamente as demais", async () => {
+    const tenant = await register("pdf-unavailable");
+    const artist = await createArtist(tenant.token);
+    const available = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`).send(songPayload(artist.id)).expect(201);
+    const removed = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`).send({
+      ...songPayload(artist.id), title: "Cifra removida",
+    }).expect(201);
+    await request(app).delete(`/api/songs/${removed.body.data.id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+
+    const response = await request(app)
+      .post("/api/songs/export")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ songIds: [available.body.data.id, removed.body.data.id] })
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      success: false,
+      code: "SONGS_UNAVAILABLE",
+      details: { songIds: [removed.body.data.id] },
+    });
   });
 });

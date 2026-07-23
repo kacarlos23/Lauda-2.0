@@ -16,7 +16,7 @@ import {
 import { Button, ErrorBanner, LoadingState, RichCommentEditor, RichCommentView } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChurchStore } from "../../../src/store/churchStore";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../src/theme";
 import { canAccessChurchAdmin } from "../../../src/utils/permissions";
 
 function formatDate(value?: string): string {
@@ -237,14 +237,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.sm },
   subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
   churchCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
+    backgroundColor: "transparent",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.line,
-    padding: spacing.lg,
+    paddingVertical: spacing.lg,
     gap: spacing.md,
     marginBottom: spacing.lg,
-    ...shadow,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBox: {
@@ -259,7 +258,7 @@ const styles = StyleSheet.create({
   cardEyebrow: { color: colors.muted, fontSize: 12, fontWeight: "800", marginBottom: spacing.xs },
   churchName: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
   createdText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  commentsCard: { padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
+  commentsCard: { paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
   commentsTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.sm },
   input: {
     minHeight: 44,
@@ -273,38 +272,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     marginBottom: spacing.xs,
   },
-  summaryRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.lg },
+  summaryRow: { flexDirection: "row", gap: 0, marginBottom: spacing.sm },
   metric: {
     flex: 1,
-    minHeight: 116,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radii.md,
+    minHeight: 104,
+    backgroundColor: colors.surface,
     padding: spacing.md,
-    borderWidth: 1,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderRightWidth: 1,
     borderColor: colors.line,
   },
   metricValue: { fontSize: 26, fontWeight: "900", color: colors.primaryDark, marginTop: spacing.sm },
   metricLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
   section: { marginTop: spacing.sm },
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.md },
-  list: { gap: spacing.md },
+  list: { borderTopWidth: 1, borderTopColor: colors.line },
   manageRow: {
-    minHeight: 86,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: spacing.md,
+    minHeight: 76,
+    backgroundColor: "transparent",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    paddingVertical: spacing.md,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    ...shadow,
   },
   manageCopy: { flex: 1 },
   manageTitle: { color: colors.ink, fontSize: 15, fontWeight: "900", marginBottom: spacing.xs },
   manageDescription: { color: colors.muted, fontSize: 12, fontWeight: "700", lineHeight: 18 },
   actionButton: {
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
@@ -337,14 +335,13 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.text, fontSize: 14, fontWeight: "900" },
   disabledButton: { opacity: 0.55 },
   stateBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
+    backgroundColor: "transparent",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.line,
-    padding: spacing.xl,
+    paddingVertical: spacing.xl,
     gap: spacing.md,
     alignItems: "flex-start",
-    ...shadow,
   },
   inlineError: { marginBottom: spacing.lg },
   denied: {

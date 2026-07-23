@@ -435,8 +435,8 @@ async function login(page: Page, email = "ana@example.com", password = "secret12
 }
 
 async function openNavigationItem(page: Page, label: string, sidebarId: string) {
-  const sidebarLink = page.getByRole("link", { name: label });
-  if (await sidebarLink.count()) {
+  const sidebarLink = page.getByTestId(sidebarId);
+  if (await sidebarLink.isVisible().catch(() => false)) {
     await sidebarLink.click();
     return;
   }
@@ -456,19 +456,21 @@ test("redireciona usuário anônimo para login e bloqueia área autenticada", as
   await expect(page.getByTestId("login-password")).toBeVisible();
 });
 
-test("remove globalmente o contorno nativo de elementos focados", async ({ page }) => {
+test("exibe globalmente um anel de foco visível", async ({ page }) => {
   const emailInput = page.getByTestId("login-email");
   await emailInput.click();
   await emailInput.fill("ana@example.com");
 
   await expect(emailInput).toBeFocused();
-  await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
+  await expect.poll(() => emailInput.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
 
   const submitButton = page.getByTestId("login-submit");
   await submitButton.focus();
 
   await expect(submitButton).toBeFocused();
-  await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
+  await expect.poll(() => submitButton.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
 });
 
 test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {
@@ -573,7 +575,7 @@ test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page
   await openNavigationItem(page, "Igreja", "sidebar-nav-church");
 
   await expect(page.getByText("Dados da Igreja", { exact: true })).toBeVisible();
-  await expect(page.getByText("Igreja Central", { exact: true })).toBeVisible();
+  await expect(page.getByText("Igreja Central", { exact: true }).last()).toBeVisible();
   await expect(page.getByLabel("Membros: 5")).toBeVisible();
   await expect(page.getByLabel("Ministérios: 2")).toBeVisible();
   await expect(page.getByLabel("Escalas: 3")).toBeVisible();
@@ -782,7 +784,7 @@ test("painel global exibe empty state apenas quando API retorna banco vazio", as
 
 test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page }) => {
   await page.getByTestId("go-register").click();
-  await expect(page.getByText("Nova igreja")).toBeVisible();
+  await expect(page.getByText("Crie sua igreja", { exact: true })).toBeVisible();
 
   let registerRequests = 0;
   page.on("request", (request) => {

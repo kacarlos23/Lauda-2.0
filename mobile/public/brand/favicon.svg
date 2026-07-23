@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lauda">
+  <rect width="64" height="64" rx="12" fill="#164C3C"/>
+  <path fill="#FFF" d="M10 7h4c5 0 9 4 9 9v22c0 5 4 9 9 9h19a6 6 0 1 1 0 12H31c-11 0-20-9-20-20V7h-1Z"/>
+  <rect x="25" y="27" width="4" height="16" rx="2" fill="#FFF"/>
+  <rect x="32" y="21" width="4" height="23" rx="2" fill="#FFF"/>
+  <rect x="39" y="25" width="4" height="16" rx="2" fill="#FFF"/>
+  <circle cx="46" cy="21" r="4" fill="#C0582D"/>
+  <path fill="#C0582D" d="M48 8h3v13h-3zM50 8c6 2 9 6 8 11-2-3-4-5-7-6Z"/>
+</svg>

@@ -73,6 +73,19 @@ describe("musicService", () => {
     expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/cifra-club/import", { url: items[0].url }, { timeout: 45000 });
   });
 
+  it("envia filtros de música e sinal de cancelamento", async () => {
+    const data = { items: [], pagination: { page: 2, limit: 20, total: 0, totalPages: 0 } };
+    const controller = new AbortController();
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data } });
+
+    await musicService.listSongs("graça", 2, 20, { artistId: "artist-1", originalKey: "G" }, controller.signal);
+
+    expect(mockedApi.get).toHaveBeenCalledWith("/songs", {
+      params: { artistId: "artist-1", originalKey: "G", search: "graça", page: 2, limit: 20 },
+      signal: controller.signal,
+    });
+  });
+
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
     mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
 
@@ -106,5 +119,19 @@ describe("musicService", () => {
   it("converte erro da API em mensagem de domínio", async () => {
     mockedApi.get.mockRejectedValueOnce({ response: { data: { error: "Música não encontrada" } } });
     await expect(musicService.getSong("missing")).rejects.toThrow("Música não encontrada");
+  });
+
+  it("converte indisponibilidade binária da exportação em erro tipado", async () => {
+    const body = JSON.stringify({
+      success: false,
+      error: "Songs unavailable",
+      code: "SONGS_UNAVAILABLE",
+      details: { songIds: ["song-2"] },
+    });
+    const bytes = Uint8Array.from(Array.from(body).map((character) => character.charCodeAt(0)));
+    mockedApi.post.mockRejectedValueOnce({ response: { status: 409, data: bytes.buffer } });
+
+    await expect(musicService.exportSongs(["song-1", "song-2"], "cifras.pdf"))
+      .rejects.toEqual(expect.objectContaining({ songIds: ["song-2"] }));
   });
 });

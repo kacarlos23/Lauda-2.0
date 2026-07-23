@@ -29,7 +29,8 @@ export function errorHandler(
     res.status(error.statusCode).json({
       success: false,
       error: error.message,
-      code: error.statusCode,
+      code: error.code ?? error.statusCode,
+      ...(error.details !== undefined ? { details: error.details } : {}),
     });
     return;
   }

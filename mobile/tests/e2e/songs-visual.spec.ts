@@ -31,9 +31,12 @@ async function mockSongsApi(page: Page) {
     const url = new URL(request.url());
     if (url.pathname === "/api/songs" && request.method() === "GET") {
       const search = (url.searchParams.get("search") ?? "").trim().toLocaleLowerCase("pt-BR");
-      const items = search
+      const artistId = url.searchParams.get("artistId");
+      const originalKey = url.searchParams.get("originalKey");
+      const searched = search
         ? songs.filter((song) => `${song.title} ${song.artist.name}`.toLocaleLowerCase("pt-BR").includes(search))
         : songs;
+      const items = searched.filter((song) => (!artistId || song.artistId === artistId) && (!originalKey || song.originalKey === originalKey));
       await route.fulfill({
         json: { success: true, data: { items, pagination: { page: 1, limit: 20, total: items.length, totalPages: items.length ? 1 : 0 } } },
       });
@@ -72,7 +75,7 @@ test("valida visualmente o separador e a busca em tempo real", async ({ page }) 
 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });
   await expect(search).toBeVisible();
-  await expect(page.getByLabel("Abrir filtros de músicas")).toHaveCount(0);
+  await expect(page.getByLabel("Abrir filtros de músicas")).toBeVisible();
   await expect(page.getByText("Diante do Trono · Tom A", { exact: true })).toBeVisible();
   await expect(page.getByText("Aline Barros · Tom G · 120 BPM", { exact: true })).toBeVisible();
   await expect(page.getByText(/\\u00b7/)).toHaveCount(0);
@@ -100,4 +103,92 @@ test("valida visualmente o separador e a busca em tempo real", async ({ page }) 
   await search.blur();
   await search.screenshot({ path: `${screenshotDirectory}/songs-search-title-input.png` });
   await page.getByTestId("song-row-song-7").screenshot({ path: `${screenshotDirectory}/songs-search-title.png` });
+});
+
+test("aplica filtro real por tom e mostra o total filtrado", async ({ page }) => {
+  await authenticate(page);
+  await mockSongsApi(page);
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Músicas" })
+    .or(page.getByRole("link", { name: "Músicas" }))
+    .first()
+    .click();
+
+  await page.getByLabel("Abrir filtros de músicas").click();
+  const filteredResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/songs" && url.searchParams.get("originalKey") === "G";
+  });
+  await page.getByLabel("Filtrar por tom G", { exact: true }).click();
+  await page.getByLabel("Aplicar filtros").click();
+  await filteredResponse;
+
+  await expect(page.getByText("1 música encontrada", { exact: true })).toBeVisible();
+  await expect(page.getByText("Bem Mais Que Tudo", { exact: true })).toBeVisible();
+  await expect(page.getByText("Aclame ao Senhor", { exact: true })).toHaveCount(0);
+});
+
+test("alterna o painel pela largura útil e mantém sticky durante a rolagem", async ({ page }) => {
+  await page.setViewportSize({ width: 1199, height: 600 });
+  await authenticate(page);
+  await mockSongsApi(page);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Músicas" }).click();
+  await page.getByText("Selecionar para PDF", { exact: true }).click();
+
+  for (const width of [1199, 1200, 1280]) {
+    await page.setViewportSize({ width, height: 600 });
+    await expect(page.getByTestId("songs-selection-layout-compact")).toBeVisible();
+  }
+  for (const width of [1360, 1440]) {
+    await page.setViewportSize({ width, height: 600 });
+    await expect(page.getByTestId("songs-selection-layout-wide")).toBeVisible();
+  }
+
+  await page.getByLabel("Selecionar Aclame ao Senhor").click();
+  const panel = page.getByTestId("songs-export-panel-sticky");
+  await page.screenshot({ path: `${screenshotDirectory}/songs-selection-wide.png`, fullPage: true });
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(150);
+  const firstStickyBox = await panel.boundingBox();
+  const stickyStyles = await panel.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { position: style.position, top: style.top };
+  });
+  await page.mouse.wheel(0, 500);
+  await page.waitForTimeout(150);
+  const panelBox = await panel.boundingBox();
+  const rowBox = await page.getByTestId("song-row-song-7").boundingBox();
+  expect(stickyStyles).toEqual({ position: "sticky", top: "24px" });
+  expect(panelBox?.y).toBe(firstStickyBox?.y);
+  expect((panelBox?.x ?? 0)).toBeGreaterThan((rowBox?.x ?? 0) + (rowBox?.width ?? 0));
+
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await expect(page.getByTestId("songs-selection-layout-compact")).toBeVisible();
+  await page.getByRole("button", { name: "Recolher menu" }).click();
+  await expect(page.getByTestId("songs-selection-layout-wide")).toBeVisible();
+});
+
+test("usa card recolhível em telas pequenas sem sobrepor a lista", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await authenticate(page);
+  await mockSongsApi(page);
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Músicas" }).click();
+  await page.getByText("Selecionar para PDF", { exact: true }).click();
+
+  const toggle = page.getByTestId("songs-export-card-toggle");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("Nenhuma música selecionada", { exact: true })).toBeVisible();
+  await page.screenshot({ path: `${screenshotDirectory}/songs-selection-mobile.png`, fullPage: true });
+  await toggle.focus();
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText("Nenhuma música selecionada", { exact: true })).toHaveCount(0);
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("song-row-song-1")).toBeVisible();
 });

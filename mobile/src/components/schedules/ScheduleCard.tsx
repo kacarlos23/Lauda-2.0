@@ -147,8 +147,15 @@ export function ScheduleCard({
 }
 
 const styles = StyleSheet.create({
-  card: { padding: spacing.lg, marginBottom: spacing.md },
-  pressArea: { flexDirection: "row", borderRadius: radii.lg },
+  card: {
+    padding: spacing.lg,
+    marginBottom: 0,
+    borderRadius: 0,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  pressArea: { flexDirection: "row", borderRadius: radii.sm },
   clickable: { cursor: "pointer" } as any,
   hover: { backgroundColor: colors.primarySoft },
   pressed: { opacity: 0.86 },

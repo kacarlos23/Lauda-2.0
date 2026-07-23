@@ -762,9 +762,13 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: 0,
     flexDirection: "row",
     alignItems: "flex-start",
+    borderRadius: 0,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
   },
   avatar: {
     width: 48,
@@ -809,7 +813,7 @@ const styles = StyleSheet.create({
   },
   instrumentChip: {
     minHeight: 28,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     alignItems: "center",

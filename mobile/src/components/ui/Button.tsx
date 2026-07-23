@@ -10,7 +10,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { buttonShadow, colors, radii, spacing, typography } from "../../theme";
+import { colors, radii, spacing, typography } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -41,12 +41,13 @@ export function Button({
   return (
     <TouchableOpacity
       accessibilityRole={accessibilityRole}
+      accessibilityState={{ disabled: Boolean(isDisabled) }}
       disabled={isDisabled}
+      activeOpacity={0.78}
       style={[
         styles.base,
         styles[size],
         variantStyles[variant],
-        variant === "primary" && styles.primaryShadow,
         isDisabled && styles.disabled,
         style,
       ]}
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sm: {
-    minHeight: 38,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
   },
   md: {
@@ -79,11 +80,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   lg: {
-    minHeight: 52,
-    paddingHorizontal: spacing.lg,
-  },
-  primaryShadow: {
-    ...buttonShadow,
+    minHeight: 44,
+    paddingHorizontal: spacing.xl,
   },
   disabled: {
     opacity: 0.6,
@@ -104,12 +102,12 @@ const variantStyles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   secondary: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
   },
   ghost: {
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: "transparent",
   },
   danger: {
     backgroundColor: colors.danger,
@@ -124,7 +122,7 @@ const textVariantStyles = StyleSheet.create({
     color: colors.primary,
   },
   ghost: {
-    color: colors.text,
+    color: colors.primaryDark,
   },
   danger: {
     color: colors.surface,

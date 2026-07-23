@@ -19,9 +19,10 @@ type FilterButtonProps = {
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
+  label?: string;
 };
 
-export function FilterButton({ active = false, onPress, style, accessibilityLabel = "Abrir filtros" }: FilterButtonProps) {
+export function FilterButton({ active = false, onPress, style, accessibilityLabel = "Abrir filtros", label }: FilterButtonProps) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -30,6 +31,7 @@ export function FilterButton({ active = false, onPress, style, accessibilityLabe
       style={[styles.filterButton, active && styles.filterButtonActive, style]}
     >
       <SlidersHorizontal color={active ? colors.surface : colors.primary} size={20} strokeWidth={2.4} />
+      {label ? <Text style={[styles.filterButtonText, active && styles.filterButtonTextActive]}>{label}</Text> : null}
     </TouchableOpacity>
   );
 }
@@ -72,7 +74,7 @@ export function FilterSection({ title, children }: { title: string; children: Re
 
 const styles = StyleSheet.create({
   filterButton: {
-    width: 44,
+    minWidth: 44,
     height: 44,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
@@ -80,11 +82,16 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   filterButtonActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  filterButtonText: { ...typography.button, color: colors.primary },
+  filterButtonTextActive: { color: colors.surface },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(16,32,26,0.28)",

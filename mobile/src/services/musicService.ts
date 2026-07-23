@@ -24,12 +24,26 @@ export type SongPayload = {
 };
 
 export type SongListParams = {
-  search?: string;
-  ministryId?: string;
-  instrumentId?: string;
-  withoutMinistry?: boolean;
-  withoutInstrument?: boolean;
+  artistId?: string;
+  originalKey?: MusicalKey;
 };
+
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  code?: string | number;
+  details?: { songIds?: string[] };
+};
+
+export class SongsUnavailableClientError extends Error {
+  readonly songIds: string[];
+
+  constructor(songIds: string[], message = "Uma ou mais músicas selecionadas não estão mais disponíveis") {
+    super(message);
+    this.songIds = songIds;
+    Object.setPrototypeOf(this, SongsUnavailableClientError.prototype);
+  }
+}
 
 export type CifraClubSearchResult = {
   title: string;
@@ -52,16 +66,41 @@ export type CifraClubImportResult = {
   source: "download" | "page-fallback";
 };
 
+function decodeBytes(bytes: Uint8Array): string {
+  const encoded = Array.from(bytes, (byte) => `%${byte.toString(16).padStart(2, "0")}`).join("");
+  try { return decodeURIComponent(encoded); }
+  catch { return Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""); }
+}
+
+function parseErrorPayload(value: unknown): ApiErrorPayload | undefined {
+  let candidate = value;
+  if (candidate instanceof ArrayBuffer) candidate = decodeBytes(new Uint8Array(candidate));
+  else if (ArrayBuffer.isView(candidate)) {
+    candidate = decodeBytes(new Uint8Array(candidate.buffer, candidate.byteOffset, candidate.byteLength));
+  }
+
+  if (typeof candidate === "string") {
+    const raw = candidate;
+    try { candidate = JSON.parse(raw); }
+    catch { return { error: raw }; }
+  }
+  return typeof candidate === "object" && candidate !== null ? candidate as ApiErrorPayload : undefined;
+}
+
 function apiError(error: unknown, fallback: string): never {
   if (error instanceof AxiosError || (typeof error === "object" && error !== null && "response" in error)) {
-    const axiosError = error as AxiosError<{ error?: string; message?: string }>;
+    const axiosError = error as AxiosError<unknown>;
+    if (axiosError.code === "ERR_CANCELED") throw error;
     if (axiosError.code === "ECONNABORTED") {
       throw new Error("A conexão demorou demais para responder. Tente novamente em alguns segundos.");
     }
     if (!axiosError.response) {
       throw new Error("Não foi possível conectar ao backend. Verifique se o servidor está ligado.");
     }
-    const data = axiosError.response.data;
+    const data = parseErrorPayload(axiosError.response.data);
+    if (axiosError.response.status === 409 && data?.code === "SONGS_UNAVAILABLE") {
+      throw new SongsUnavailableClientError(data.details?.songIds ?? [], data.error ?? fallback);
+    }
     throw new Error(data?.error ?? data?.message ?? fallback);
   }
   if (error instanceof Error) throw error;
@@ -90,9 +129,12 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível atualizar o artista."); }
   },
 
-  async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams): Promise<Paginated<Song>> {
+  async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams, signal?: AbortSignal): Promise<Paginated<Song>> {
     try {
-      const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", { params: { ...filters, search, page, limit } });
+      const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", {
+        params: { ...filters, search, page, limit },
+        signal,
+      });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
   },

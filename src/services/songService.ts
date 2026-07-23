@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { ConflictError, NotFoundError } from "../errors/AppError";
+import { ConflictError, NotFoundError, SongsUnavailableError } from "../errors/AppError";
 import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
@@ -90,8 +90,15 @@ export class SongService {
 
   async getForExport(ids: string[]) {
     const songs = await this.repository.findByIds(ids);
-    if (songs.length !== ids.length) throw new NotFoundError("Uma ou mais músicas não foram encontradas");
     const byId = new Map(songs.map((song) => [song.id, song]));
+    const unavailableIds = ids.filter((id) => !byId.has(id));
+    if (unavailableIds.length) {
+      const inactiveIds = new Set((await this.repository.findInactiveIds(unavailableIds)).map((song) => song.id));
+      if (unavailableIds.some((id) => !inactiveIds.has(id))) {
+        throw new NotFoundError("Uma ou mais músicas não foram encontradas");
+      }
+      throw new SongsUnavailableError(unavailableIds);
+    }
     return ids.map((id) => byId.get(id)!);
   }
 

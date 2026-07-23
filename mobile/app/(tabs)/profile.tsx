@@ -27,7 +27,7 @@ import {
   validateInstrumentForm,
 } from "../../src/utils/instrumentCatalog";
 import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
-import { buttonShadow, colors, radii, screen, shadow, spacing, typography } from "../../src/theme";
+import { colors, radii, screen, shadow, spacing, typography } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "" };
@@ -276,10 +276,12 @@ export default function ProfileScreen() {
             <View style={styles.cameraBadge}><Camera color={colors.surface} size={16} strokeWidth={2.6} /></View>
           </TouchableOpacity>
 
-          <Text style={styles.name}>{user?.name}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
-          <RoleBadge status={user?.role} label={formatRoleLabel(user?.role)} style={styles.badge} textStyle={styles.badgeText} />
-          {profileRefreshing ? <Text style={styles.refreshingText}>Atualizando dados...</Text> : null}
+          <View style={styles.profileIdentity}>
+            <Text style={styles.name}>{user?.name}</Text>
+            <Text style={styles.email}>{user?.email}</Text>
+            <RoleBadge status={user?.role} label={formatRoleLabel(user?.role)} style={styles.badge} textStyle={styles.badgeText} />
+            {profileRefreshing ? <Text style={styles.refreshingText}>Atualizando dados...</Text> : null}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -511,7 +513,7 @@ export default function ProfileScreen() {
         ) : null}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
-          <LogOut color={colors.surface} size={18} strokeWidth={2.6} />
+          <LogOut color={colors.danger} size={18} strokeWidth={2.6} />
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -523,21 +525,24 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: {
     width: "100%",
-    maxWidth: screen.maxWidth,
+    maxWidth: screen.listMaxWidth,
     alignSelf: "center",
     padding: spacing.xl,
     paddingBottom: screen.contentBottomPadding,
   },
   profileCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
+    backgroundColor: "transparent",
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    padding: spacing.xl,
-    borderWidth: 1,
+    gap: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
-    ...shadow,
   },
+  profileIdentity: { flex: 1, minWidth: 220, alignItems: "flex-start" },
   avatarCircle: {
     width: 92,
     height: 92,
@@ -546,11 +551,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarButton: { width: 96, height: 96, marginBottom: spacing.lg, alignItems: "center", justifyContent: "center" },
+  avatarButton: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
   avatarImage: { width: 92, height: 92, borderRadius: 46, backgroundColor: colors.surfaceMuted },
   cameraBadge: { position: "absolute", right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 24, fontWeight: "700", lineHeight: 30, color: colors.ink, marginBottom: spacing.xs, textAlign: "center" },
-  email: { ...typography.metadata, color: colors.muted, marginBottom: spacing.lg, textAlign: "center" },
+  name: { fontSize: 30, fontWeight: "700", lineHeight: 36, color: colors.ink, marginBottom: spacing.xs },
+  email: { ...typography.metadata, color: colors.muted, marginBottom: spacing.md },
   badge: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -558,11 +563,10 @@ const styles = StyleSheet.create({
   badgeText: { ...typography.badge, textTransform: "uppercase" },
   refreshingText: { ...typography.badge, color: colors.muted, fontWeight: "400", marginTop: spacing.sm },
   section: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
+    backgroundColor: "transparent",
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
     marginBottom: spacing.lg,
   },
   sectionHeaderRow: {
@@ -581,7 +585,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: { ...typography.badge, color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { ...typography.body, color: colors.text },
-  profileInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
+  profileInput: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
   readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
   removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
   removePhotoText: { ...typography.label, color: colors.danger },
@@ -589,13 +593,12 @@ const styles = StyleSheet.create({
   saveProfileText: { ...typography.button, color: colors.surface },
   permissionRow: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.lg, paddingTop: spacing.md },
   globalAccessCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radii.lg,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
-    ...shadow,
   },
   globalAccessHeader: {
     flexDirection: "row",
@@ -657,7 +660,7 @@ const styles = StyleSheet.create({
   },
   instrumentChip: {
     minHeight: 30,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -772,13 +775,16 @@ const styles = StyleSheet.create({
   adminButtonText: { ...typography.button, color: colors.primary },
   logoutBtn: {
     width: "100%",
-    backgroundColor: colors.danger,
+    minHeight: 44,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: colors.danger,
     borderRadius: radii.md,
-    paddingVertical: 16,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: spacing.sm,
   },
-  logoutText: { ...typography.button, color: colors.surface, fontSize: 16 },
+  logoutText: { ...typography.button, color: colors.danger, fontSize: 16 },
 });

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Símbolo Lauda</title>
+  <desc id="desc">Letra L combinada com onda sonora e nota musical.</desc>
+  <path fill="#164C3C" d="M58 38h36c41 0 74 33 74 74v195c0 37 30 67 67 67h196c24 0 43 19 43 43s-19 43-43 43H229c-80 0-145-65-145-145V38H58Z"/>
+  <rect x="184" y="210" width="24" height="132" rx="12" fill="#164C3C"/>
+  <rect x="224" y="166" width="24" height="188" rx="12" fill="#164C3C"/>
+  <rect x="264" y="190" width="24" height="156" rx="12" fill="#164C3C"/>
+  <rect x="304" y="224" width="24" height="96" rx="12" fill="#164C3C"/>
+  <rect x="344" y="256" width="24" height="38" rx="12" fill="#164C3C"/>
+  <circle cx="358" cy="166" r="25" fill="#C0582D"/>
+  <rect x="377" y="75" width="14" height="94" rx="7" fill="#C0582D"/>
+  <path fill="#C0582D" d="M384 75c38 12 60 39 56 79-11-22-28-35-49-41V82c0-4-3-7-7-7Z"/>
+</svg>

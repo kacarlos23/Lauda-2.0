@@ -65,7 +65,7 @@ test("scroll de Escalas ocupa toda a largura disponível", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 520 });
   await prepareAuthenticatedApp(page);
   await page.goto("/");
-  await page.getByRole("link", { name: "Escalas" }).click();
+  await page.getByTestId("sidebar-nav-schedules").click();
   await expect(page).toHaveURL(/\/schedules$/);
   await expect(page.getByText("Escalas do dia", { exact: true })).toBeVisible();
 
@@ -90,7 +90,7 @@ test("x limpa o filtro de pesquisa de Músicas", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 720 });
   await prepareAuthenticatedApp(page);
   await page.goto("/");
-  await page.getByRole("link", { name: "Músicas" }).click();
+  await page.getByTestId("sidebar-nav-songs").click();
   await expect(page).toHaveURL(/\/songs$/);
 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });

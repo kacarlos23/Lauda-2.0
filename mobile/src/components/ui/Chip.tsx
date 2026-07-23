@@ -24,13 +24,13 @@ export function Chip({ label, active = false, style, textStyle, accessibilityRol
 const styles = StyleSheet.create({
   chip: {
     minHeight: 36,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.line,
     paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
   },
   active: {
     borderColor: colors.primary,

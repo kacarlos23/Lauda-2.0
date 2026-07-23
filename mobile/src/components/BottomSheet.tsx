@@ -5,6 +5,7 @@ import {
   Modal,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -100,9 +101,10 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
         
         <Animated.View
           style={[styles.sheet, { transform: [{ translateY }] }]}
-          {...panResponder.panHandlers}
         >
-          <View style={styles.dragHandle} />
+          <View style={styles.dragHandleTouch} {...panResponder.panHandlers}>
+            <View style={styles.dragHandle} />
+          </View>
           <View style={[styles.header, onBack && styles.headerWithBack]}>
             {onBack ? (
               <Pressable onPress={onBack} style={styles.backBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Voltar">
@@ -116,7 +118,14 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
               <X color={colors.ink} size={24} />
             </Pressable>
           </View>
-          <View style={styles.content}>{children}</View>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            {children}
+          </ScrollView>
           {footer && <View style={styles.footer}>{footer}</View>}
         </Animated.View>
       </View>
@@ -141,7 +150,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     maxHeight: "90%",
+    overflow: "hidden",
     ...shadow,
+  },
+  dragHandleTouch: {
+    minHeight: 20,
+    width: 80,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
   dragHandle: {
     width: 40,
@@ -149,8 +166,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     borderRadius: 2,
     alignSelf: "center",
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
   },
   header: {
     flexDirection: "row",
@@ -190,9 +205,11 @@ const styles = StyleSheet.create({
     height: 44,
   },
   content: {
-    paddingBottom: 120,
+    flexShrink: 1,
   },
+  contentContainer: { paddingBottom: spacing.md },
   footer: {
+    flexShrink: 0,
     padding: spacing.xl,
     borderTopWidth: 1,
     borderTopColor: colors.line,

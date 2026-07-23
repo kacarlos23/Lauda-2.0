@@ -24,7 +24,7 @@ import {
   validateInstrumentForm,
 } from "../../../src/utils/instrumentCatalog";
 import { Instrument } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { safeReturnTo } from "../../../src/utils/navigation";
 import { emptyInstrumentFilters, filterInstruments, hasActiveFilters, InstrumentListFilters } from "../../../src/utils/listFilters";
@@ -341,12 +341,12 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   section: {
     backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    borderWidth: 1,
+    borderRadius: radii.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.line,
     marginBottom: spacing.lg,
     padding: spacing.lg,
-    ...shadow,
   },
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.md },
   input: {

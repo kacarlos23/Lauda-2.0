@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, useWindowDimensions, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, screen, spacing } from "../../theme";
 
@@ -22,10 +22,19 @@ export function Screen({
   contentStyle,
   testID,
 }: ScreenProps) {
+  const dimensions = typeof useWindowDimensions === "function"
+    ? useWindowDimensions()
+    : { width: 1280, height: 800 };
+  const { width } = dimensions;
+  const pagePadding = width < 768
+    ? screen.mobilePadding
+    : width < 1024
+      ? screen.tabletPadding
+      : screen.desktopPadding;
   const contentStyles = [
     styles.content,
     maxWidth === null ? null : { maxWidth },
-    padded && styles.padded,
+    padded && [styles.padded, { paddingHorizontal: pagePadding }],
     contentStyle,
   ];
 
@@ -50,7 +59,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   padded: {
-    padding: spacing.xl,
+    paddingTop: spacing.xl,
     paddingBottom: screen.contentBottomPadding,
   },
 });

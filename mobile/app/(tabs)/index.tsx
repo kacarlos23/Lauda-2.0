@@ -1,44 +1,69 @@
 import React, { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { CalendarClock, Church, ClipboardList, Music2, Plus, UserPlus, UsersRound } from "lucide-react-native";
-import { Button, Card, EmptyState, ErrorBanner, LoadingState, ScheduleStatusBadge, Screen, SectionHeader } from "../../src/components/ui";
+import {
+  CalendarClock,
+  Church,
+  ClipboardList,
+  Music2,
+  Plus,
+  UserPlus,
+  UsersRound,
+} from "lucide-react-native";
+import {
+  Button,
+  EmptyState,
+  ErrorBanner,
+  LoadingState,
+  Metric,
+  ScheduleStatusBadge,
+  Screen,
+  SectionHeader,
+} from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
 import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
 import { colors, radii, spacing, typography } from "../../src/theme";
 import { countPendingSchedules, formatScheduleDate, getNextSchedule } from "../../src/utils/scheduleFormat";
-import { can, canAccessChurchAdmin, canAccessGlobalAdminArea, canManageMembers, canViewMembers, formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
+import {
+  can,
+  canAccessChurchAdmin,
+  canAccessGlobalAdminArea,
+  canManageMembers,
+  canViewMembers,
+  formatRoleLabel,
+  isGlobalAdmin,
+} from "../../src/utils/permissions";
 import { canManageMusic } from "../../src/utils/musicPermissions";
 import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { canCreateSchedule } from "../../src/utils/schedulePermissions";
 
 const TEXT = {
-  userFallback: "Usu\u00e1rio",
-  createSong: "Cadastrar m\u00fasica",
-  createMinistry: "Criar minist\u00e9rio",
-  hello: "Ol\u00e1",
-  central: "Sua central de a\u00e7\u00f5es ministeriais",
-  churchUnknown: "Igreja n\u00e3o identificada",
-  nextSchedule: "Pr\u00f3xima escala",
-  ministryLabel: "Minist\u00e9rio",
-  notInformedMale: "N\u00e3o informado",
-  roleLabel: "Fun\u00e7\u00e3o",
-  notInformedFemale: "N\u00e3o informada",
-  nextScheduleDescription: "Quando uma escala for publicada, ela aparecer\u00e1 aqui com data, hor\u00e1rio e minist\u00e9rio.",
-  quickActions: "A\u00e7\u00f5es r\u00e1pidas",
-  shortcutsAvailable: "Atalhos dispon\u00edveis para o seu perfil",
-  followRoutine: "Acompanhe suas escalas, pend\u00eancias e pr\u00f3ximos compromissos por aqui.",
-  noPendingNow: "Nenhuma pend\u00eancia no momento",
-  roleNotInformed: "Fun\u00e7\u00e3o n\u00e3o informada",
-  pendingDescription: "Quando houver uma escala pendente de resposta, ela aparecer\u00e1 aqui.",
-  membersAttention: "Aten\u00e7\u00e3o em membros",
-  noMinistry: "Sem minist\u00e9rio",
-  recentActivitiesSubtitle: "Dados derivados das informa\u00e7\u00f5es carregadas",
-  nextScheduleDefined: "Pr\u00f3xima escala definida",
-  recentActivitiesDescription: "Assim que houver escalas ou pend\u00eancias carregadas, elas aparecer\u00e3o aqui.",
-  ministries: "Minist\u00e9rios",
-  ministriesDescription: "Use a aba Minist\u00e9rios para ver minist\u00e9rios, descri\u00e7\u00f5es e quantidade de membros.",
+  userFallback: "Usuário",
+  createSong: "Cadastrar música",
+  createMinistry: "Criar ministério",
+  hello: "Olá",
+  central: "Sua central de ações ministeriais",
+  churchUnknown: "Igreja não identificada",
+  nextSchedule: "Próxima escala",
+  ministryLabel: "Ministério",
+  notInformedMale: "Não informado",
+  roleLabel: "Função",
+  notInformedFemale: "Não informada",
+  nextScheduleDescription: "Quando uma escala for publicada, ela aparecerá aqui com data, horário e ministério.",
+  quickActions: "Ações rápidas",
+  shortcutsAvailable: "Atalhos disponíveis para o seu perfil",
+  followRoutine: "Acompanhe suas escalas, pendências e próximos compromissos por aqui.",
+  noPendingNow: "Nenhuma pendência no momento",
+  roleNotInformed: "Função não informada",
+  pendingDescription: "Quando houver uma escala pendente de resposta, ela aparecerá aqui.",
+  membersAttention: "Atenção em membros",
+  noMinistry: "Sem ministério",
+  recentActivitiesSubtitle: "Dados derivados das informações carregadas",
+  nextScheduleDefined: "Próxima escala definida",
+  recentActivitiesDescription: "Assim que houver escalas ou pendências carregadas, elas aparecerão aqui.",
+  ministries: "Ministérios",
+  ministriesDescription: "Consulte equipes, descrições e quantidade de membros em um único lugar.",
 } as const;
 
 export default function DashboardScreen() {
@@ -76,7 +101,7 @@ export default function DashboardScreen() {
     canCreateSchedules
       ? {
           title: "Criar escala",
-          icon: <CalendarClock color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <CalendarClock color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/schedules/new" as never),
           accessibilityLabel: "Criar nova escala",
         }
@@ -84,7 +109,7 @@ export default function DashboardScreen() {
     canCreateMembers
       ? {
           title: "Convidar membro",
-          icon: <UserPlus color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <UserPlus color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/members/new" as never),
           accessibilityLabel: "Convidar membro",
         }
@@ -92,7 +117,7 @@ export default function DashboardScreen() {
     canCreateSongs
       ? {
           title: TEXT.createSong,
-          icon: <Music2 color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <Music2 color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/songs/new" as never),
           accessibilityLabel: TEXT.createSong,
         }
@@ -100,7 +125,7 @@ export default function DashboardScreen() {
     canCreateMinistries
       ? {
           title: TEXT.createMinistry,
-          icon: <Church color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <Church color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/ministries" as never),
           accessibilityLabel: TEXT.createMinistry,
         }
@@ -108,7 +133,7 @@ export default function DashboardScreen() {
     canManageArtists
       ? {
           title: "Gerenciar artistas",
-          icon: <Music2 color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <Music2 color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/artists" as never),
           accessibilityLabel: "Gerenciar artistas",
         }
@@ -116,7 +141,7 @@ export default function DashboardScreen() {
     canManageInstruments
       ? {
           title: "Instrumentos",
-          icon: <Plus color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <Plus color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/instruments?returnTo=/profile" as never),
           accessibilityLabel: "Gerenciar instrumentos e cargos",
         }
@@ -124,7 +149,7 @@ export default function DashboardScreen() {
     canOpenChurchAdmin
       ? {
           title: "Dados da igreja",
-          icon: <Church color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <Church color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/church" as never),
           accessibilityLabel: "Abrir dados da igreja",
         }
@@ -132,7 +157,7 @@ export default function DashboardScreen() {
     canOpenGlobalAdmin
       ? {
           title: "Painel global",
-          icon: <ClipboardList color={colors.primary} size={20} strokeWidth={2.4} />,
+          icon: <ClipboardList color={colors.primary} size={19} strokeWidth={2.2} />,
           onPress: () => router.push("/global-admin" as never),
           accessibilityLabel: "Abrir painel global",
         }
@@ -141,14 +166,14 @@ export default function DashboardScreen() {
 
   return (
     <Screen scroll>
-      <View style={styles.header}>
+      <View style={styles.pageHeader}>
         <Text style={styles.eyebrow}>Hoje</Text>
         <Text style={styles.greeting}>{TEXT.hello}, {firstName}</Text>
         <Text style={styles.role}>{TEXT.central}</Text>
         <Text style={styles.tenant}>
           {isGlobalAdmin(user)
             ? "Acesso global ao sistema"
-            : `${formatRoleLabel(user?.role)} - ${tenant?.name ?? TEXT.churchUnknown}`}
+            : `${formatRoleLabel(user?.role)} · ${tenant?.name ?? TEXT.churchUnknown}`}
         </Text>
       </View>
 
@@ -167,344 +192,459 @@ export default function DashboardScreen() {
         ) : null}
       />
 
-      <Card style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.iconBubble}>
-            <ClipboardList color={colors.primary} size={22} strokeWidth={2.4} />
-          </View>
-          <View style={styles.cardHeaderText}>
-            <Text style={styles.cardKicker}>{TEXT.nextSchedule}</Text>
-            <Text style={styles.cardTitle}>
-              {nextSchedule ? nextSchedule.schedule.title : "Sem compromissos agendados"}
-            </Text>
-          </View>
+      <View style={styles.heroLayout}>
+        <View style={styles.nextPanel}>
+          <Text style={styles.nextKicker}>{TEXT.nextSchedule}</Text>
+          {loading && schedules.length === 0 ? (
+            <LoadingState centered={false} style={styles.heroLoading} />
+          ) : nextSchedule ? (
+            <>
+              <Text style={styles.nextTitle}>{nextSchedule.schedule.title}</Text>
+              <Text style={styles.nextDate}>{formatScheduleDate(nextSchedule.schedule.date)}</Text>
+              <Text style={styles.nextMeta}>
+                {nextSchedule.schedule.ministry?.name ?? TEXT.notInformedMale} · {nextSchedule.role || TEXT.notInformedFemale}
+              </Text>
+              <View style={styles.nextFooter}>
+                <ScheduleStatusBadge status={nextSchedule.status} />
+                <Button
+                  title="Ver escala"
+                  style={styles.heroButton}
+                  onPress={() => router.push("/schedules" as never)}
+                  accessibilityLabel="Ver minhas escalas"
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.nextTitle}>Sem compromissos agendados</Text>
+              <Text style={styles.nextEmpty}>{TEXT.nextScheduleDescription}</Text>
+              <Button
+                title="Ver minhas escalas"
+                variant="secondary"
+                style={styles.emptyHeroButton}
+                onPress={() => router.push("/schedules" as never)}
+                accessibilityLabel="Ver minhas escalas"
+              />
+            </>
+          )}
         </View>
 
-        {loading && schedules.length === 0 ? (
-          <LoadingState centered={false} style={styles.inlineLoading} />
-        ) : nextSchedule ? (
-          <View style={styles.scheduleDetails}>
-            <Text style={styles.cardBody}>{TEXT.ministryLabel}: {nextSchedule.schedule.ministry?.name ?? TEXT.notInformedMale}</Text>
-            <Text style={styles.cardBody}>{TEXT.roleLabel}: {nextSchedule.role || TEXT.notInformedFemale}</Text>
-            <Text style={styles.cardBody}>Data: {formatScheduleDate(nextSchedule.schedule.date)}</Text>
-            <View style={styles.statusRow}>
-              <Text style={styles.cardBody}>Status:</Text>
-              <ScheduleStatusBadge status={nextSchedule.status} />
-            </View>
-          </View>
-        ) : (
-          <EmptyState
-            title="Sem compromissos agendados"
-            description={TEXT.nextScheduleDescription}
-            style={styles.cardEmptyState}
+        <View style={styles.metricRail}>
+          <Metric
+            label="Pendências"
+            value={pendingCount}
+            detail={pendingCount ? "aguardando resposta" : "tudo em dia"}
+            accent
+            style={styles.metric}
           />
-        )}
-
-        <Button
-          title="Ver minhas escalas"
-          icon={<CalendarClock color={colors.surface} size={16} strokeWidth={2.4} />}
-          size="lg"
-          style={styles.primaryButton}
-          onPress={() => router.push("/schedules" as never)}
-          accessibilityLabel="Ver minhas escalas"
-        />
-      </Card>
-
-      <View style={styles.summaryRow}>
-        <View style={styles.metric}>
-          <CalendarClock color={colors.primaryDark} size={22} strokeWidth={2.4} />
-          <Text style={styles.metricValue}>{pendingCount}</Text>
-          <Text style={styles.metricLabel}>Pendentes</Text>
-        </View>
-        <View style={styles.metric}>
-          <UsersRound color={colors.primaryDark} size={22} strokeWidth={2.4} />
-          <Text style={styles.metricValue}>{schedules.length}</Text>
-          <Text style={styles.metricLabel}>Escalas</Text>
+          <Metric
+            label="Escalas"
+            value={schedules.length}
+            detail="carregadas para você"
+            style={styles.metric}
+          />
         </View>
       </View>
 
-      <Card style={styles.card}>
+      <View style={styles.section}>
         <SectionHeader
+          variant="section"
           title={TEXT.quickActions}
           subtitle={quickActions.length ? TEXT.shortcutsAvailable : "Resumo da sua rotina ministerial"}
           style={styles.sectionHeader}
         />
         {quickActions.length ? (
           <View style={styles.actionGrid}>
-            {quickActions.map((action) => action ? (
-              <Button
+            {quickActions.map((action, index) => action ? (
+              <TouchableOpacity
                 key={action.title}
-                title={action.title}
-                icon={action.icon}
-                variant="secondary"
                 style={styles.actionButton}
-                textStyle={styles.actionButtonText}
+                activeOpacity={0.72}
                 onPress={action.onPress}
+                accessibilityRole="button"
                 accessibilityLabel={action.accessibilityLabel}
-              />
+              >
+                <Text style={styles.actionIndex}>{String(index + 1).padStart(2, "0")}</Text>
+                {action.icon}
+                <Text style={styles.actionText}>{action.title}</Text>
+              </TouchableOpacity>
             ) : null)}
           </View>
         ) : (
-          <Text style={styles.cardBody}>{TEXT.followRoutine}</Text>
+          <Text style={styles.body}>{TEXT.followRoutine}</Text>
         )}
-      </Card>
+      </View>
 
-      <Card style={styles.card}>
-        <SectionHeader
-          title="Escalas pendentes"
-          subtitle={pendingCount ? `${pendingCount} convite(s) aguardando resposta` : TEXT.noPendingNow}
-          style={styles.sectionHeader}
-        />
-        {loading && schedules.length === 0 ? (
-          <LoadingState centered={false} style={styles.inlineLoading} />
-        ) : pendingSchedules.length ? (
-          <View style={styles.pendingList}>
-            {pendingSchedules.map((assignment) => (
-              <View key={assignment.id} style={styles.pendingItem}>
-                <View style={styles.pendingText}>
-                  <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
-                  <Text style={styles.itemMeta}>{assignment.role || TEXT.roleNotInformed} - {formatScheduleDate(assignment.schedule.date)}</Text>
-                </View>
-                <ScheduleStatusBadge status={assignment.status} />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            title="Tudo em dia"
-            description={TEXT.pendingDescription}
-            style={styles.compactEmpty}
+      <View style={styles.infoColumns}>
+        <View style={styles.listPanel}>
+          <SectionHeader
+            variant="section"
+            title="Escalas pendentes"
+            subtitle={pendingCount ? `${pendingCount} convite(s) aguardando resposta` : TEXT.noPendingNow}
+            style={styles.panelHeader}
           />
-        )}
-        <Button
-          title="Ver escalas"
-          variant="secondary"
-          size="sm"
-          style={styles.secondaryButton}
-          onPress={() => router.push("/schedules" as never)}
-          accessibilityLabel="Ver escalas"
-        />
-      </Card>
+          {loading && schedules.length === 0 ? (
+            <LoadingState centered={false} style={styles.inlineLoading} />
+          ) : pendingSchedules.length ? (
+            <View>
+              {pendingSchedules.map((assignment) => (
+                <View key={assignment.id} style={styles.listRow}>
+                  <View style={styles.rowMarker}><ClipboardList color={colors.primary} size={16} strokeWidth={2} /></View>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
+                    <Text style={styles.itemMeta}>
+                      {assignment.role || TEXT.roleNotInformed} · {formatScheduleDate(assignment.schedule.date)}
+                    </Text>
+                  </View>
+                  <ScheduleStatusBadge status={assignment.status} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              title="Tudo em dia"
+              description={TEXT.pendingDescription}
+              style={styles.compactEmpty}
+            />
+          )}
+          <TouchableOpacity
+            style={styles.textAction}
+            onPress={() => router.push("/schedules" as never)}
+            accessibilityRole="link"
+            accessibilityLabel="Ver escalas"
+          >
+            <Text style={styles.textActionLabel}>Ver escalas</Text>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.listPanel}>
+          <SectionHeader
+            variant="section"
+            title="Atividade recente"
+            subtitle={TEXT.recentActivitiesSubtitle}
+            style={styles.panelHeader}
+          />
+          {nextSchedule ? (
+            <View>
+              <View style={styles.listRow}>
+                <View style={styles.rowMarker}><CalendarClock color={colors.primary} size={16} strokeWidth={2} /></View>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.itemTitle}>{TEXT.nextScheduleDefined}</Text>
+                  <Text style={styles.itemMeta}>
+                    {nextSchedule.schedule.title} · {formatScheduleDate(nextSchedule.schedule.date)}
+                  </Text>
+                </View>
+              </View>
+              {pendingCount ? (
+                <View style={styles.listRow}>
+                  <View style={styles.rowMarker}><ClipboardList color={colors.warning} size={16} strokeWidth={2} /></View>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.itemTitle}>Convites pendentes</Text>
+                    <Text style={styles.itemMeta}>{pendingCount} escala(s) aguardando sua resposta.</Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <EmptyState
+              title="Sem atividades recentes"
+              description={TEXT.recentActivitiesDescription}
+              style={styles.compactEmpty}
+            />
+          )}
+        </View>
+      </View>
 
       {canSeeMembers ? (
-        <Card style={styles.card}>
+        <View style={styles.attentionSection}>
           <SectionHeader
+            variant="section"
             title={TEXT.membersAttention}
             subtitle={membersLoading && members.length === 0 ? "Carregando membros" : "Cadastros que podem precisar de complemento"}
-            style={styles.sectionHeader}
+            style={styles.panelHeader}
           />
           {membersLoading && members.length === 0 ? (
             <LoadingState centered={false} style={styles.inlineLoading} />
           ) : (
-            <View style={styles.summaryRow}>
-              <View style={styles.metricNeutral}>
-                <UsersRound color={colors.warning} size={22} strokeWidth={2.4} />
-                <Text style={styles.metricValue}>{membersWithoutMinistry.length}</Text>
-                <Text style={styles.metricLabel}>{TEXT.noMinistry}</Text>
-              </View>
-              <View style={styles.metricNeutral}>
-                <Plus color={colors.info} size={22} strokeWidth={2.4} />
-                <Text style={styles.metricValue}>{membersWithoutInstrument.length}</Text>
-                <Text style={styles.metricLabel}>Sem instrumento/cargo</Text>
-              </View>
+            <View style={styles.attentionMetrics}>
+              <Metric label={TEXT.noMinistry} value={membersWithoutMinistry.length} detail="cadastros para revisar" style={styles.attentionMetric} />
+              <Metric label="Sem instrumento/cargo" value={membersWithoutInstrument.length} detail="cadastros para revisar" style={styles.attentionMetric} />
             </View>
           )}
-          <Button
-            title="Ver membros"
-            variant="secondary"
-            size="sm"
-            style={styles.secondaryButton}
+          <TouchableOpacity
+            style={styles.textAction}
             onPress={() => router.push("/members" as never)}
+            accessibilityRole="link"
             accessibilityLabel="Ver membros"
-          />
-        </Card>
+          >
+            <Text style={styles.textActionLabel}>Ver membros</Text>
+            <Text style={styles.actionArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
       ) : null}
 
-      <Card style={styles.card}>
-        <SectionHeader title="Atividades recentes" subtitle={TEXT.recentActivitiesSubtitle} style={styles.sectionHeader} />
-        {nextSchedule ? (
-          <View style={styles.activityList}>
-            <View style={styles.activityItem}>
-              <CalendarClock color={colors.primary} size={18} strokeWidth={2.4} />
-              <View style={styles.activityText}>
-                <Text style={styles.itemTitle}>{TEXT.nextScheduleDefined}</Text>
-                <Text style={styles.itemMeta}>{nextSchedule.schedule.title} - {formatScheduleDate(nextSchedule.schedule.date)}</Text>
-              </View>
-            </View>
-            {pendingCount ? (
-              <View style={styles.activityItem}>
-                <ClipboardList color={colors.warning} size={18} strokeWidth={2.4} />
-                <View style={styles.activityText}>
-                  <Text style={styles.itemTitle}>Convites pendentes</Text>
-                  <Text style={styles.itemMeta}>{pendingCount} escala(s) aguardando sua resposta.</Text>
-                </View>
-              </View>
-            ) : null}
-          </View>
-        ) : (
-          <EmptyState
-            title="Sem atividades recentes"
-            description={TEXT.recentActivitiesDescription}
-            style={styles.compactEmpty}
-          />
-        )}
-      </Card>
-
-      <Card style={styles.card}>
-        <Text style={styles.cardKicker}>{TEXT.ministries}</Text>
-        <Text style={styles.cardTitle}>Acompanhe suas equipes</Text>
-        <Text style={styles.cardBody}>{TEXT.ministriesDescription}</Text>
-      </Card>
+      <TouchableOpacity
+        style={styles.ministriesBar}
+        onPress={() => router.push("/ministries" as never)}
+        activeOpacity={0.76}
+        accessibilityRole="link"
+        accessibilityLabel="Abrir ministérios"
+      >
+        <View style={styles.ministryIcon}><Church color={colors.primary} size={20} strokeWidth={2.1} /></View>
+        <View style={styles.ministryCopy}>
+          <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
+          <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
+          <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
+        </View>
+        <Text style={styles.ministryArrow}>›</Text>
+      </TouchableOpacity>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { marginBottom: spacing.xl },
+  pageHeader: { marginBottom: spacing.xl },
   eyebrow: {
     ...typography.eyebrow,
-    color: colors.accent,
+    color: colors.accentText,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
     marginBottom: spacing.xs,
   },
   greeting: {
     ...typography.heroTitle,
     color: colors.ink,
-    marginBottom: spacing.xs,
   },
   role: {
     ...typography.subtitle,
     color: colors.text,
+    marginTop: spacing.xs,
   },
   tenant: {
     ...typography.metadata,
     marginTop: spacing.sm,
     color: colors.muted,
   },
-  errorBanner: { marginBottom: spacing.lg },
+  errorBanner: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.lg },
-  summaryRow: {
+  heroLayout: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  nextPanel: {
+    flex: 2,
+    minWidth: 280,
+    minHeight: 232,
+    justifyContent: "center",
+    borderRadius: radii.lg,
+    backgroundColor: colors.primaryDark,
+    padding: spacing.xl,
+  },
+  nextKicker: {
+    ...typography.eyebrow,
+    color: colors.accentOnDark,
+    textTransform: "uppercase",
+    marginBottom: spacing.md,
+  },
+  nextTitle: {
+    color: colors.inverse,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "700",
+    letterSpacing: -0.4,
+  },
+  nextDate: {
+    ...typography.body,
+    color: "#D7E2DC",
+    marginTop: spacing.sm,
+  },
+  nextMeta: {
+    ...typography.metadata,
+    color: "#AFC0B8",
+    marginTop: spacing.xs,
+  },
+  nextEmpty: {
+    ...typography.body,
+    color: "#AFC0B8",
+    maxWidth: 520,
+    marginTop: spacing.sm,
+  },
+  nextFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.xl,
   },
-  metric: {
-    flex: 1,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: "#BFE7DE",
+  heroButton: {
+    minWidth: 120,
+    backgroundColor: colors.accent,
   },
-  metricNeutral: {
+  emptyHeroButton: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xl,
+  },
+  heroLoading: {
+    minHeight: 96,
+    justifyContent: "center",
+  },
+  metricRail: {
     flex: 1,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
+    minWidth: 220,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
   },
-  metricValue: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: colors.primaryDark,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
+  metric: {
+    flex: 1,
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
   },
-  metricLabel: { ...typography.label, color: colors.text },
-  card: {
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
+  section: {
+    marginBottom: spacing.xl,
   },
   sectionHeader: { marginBottom: spacing.md },
-  iconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  cardHeaderText: { flex: 1 },
-  cardKicker: {
-    ...typography.eyebrow,
-    color: colors.primary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: spacing.sm,
-  },
-  cardTitle: {
-    ...typography.sectionTitle,
-    color: colors.ink,
-    marginBottom: spacing.sm,
-  },
-  cardBody: { ...typography.body, color: colors.text },
-  scheduleDetails: { gap: spacing.xs, marginBottom: spacing.md },
-  statusRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
-  inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
-  cardEmptyState: {
-    alignItems: "flex-start",
-    borderWidth: 0,
-    padding: 0,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  compactEmpty: {
-    alignItems: "flex-start",
-    borderWidth: 0,
-    padding: 0,
-    marginBottom: spacing.md,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  primaryButton: {
-    alignSelf: "flex-start",
-    marginTop: spacing.md,
-  },
-  secondaryButton: {
-    alignSelf: "flex-start",
-    marginTop: spacing.md,
-  },
   actionGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
   },
   actionButton: {
-    minWidth: 150,
+    minHeight: 60,
+    minWidth: 176,
     flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionButtonText: {
-    flexShrink: 1,
-    textAlign: "center",
-  },
-  pendingList: { gap: spacing.sm },
-  pendingItem: {
+    flexBasis: 176,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+  },
+  actionIndex: {
+    ...typography.eyebrow,
+    color: colors.accentText,
+  },
+  actionText: {
+    ...typography.label,
+    color: colors.ink,
+    flex: 1,
+  },
+  infoColumns: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "stretch",
+    gap: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  listPanel: {
+    flex: 1,
+    minWidth: 280,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+  },
+  panelHeader: { marginBottom: spacing.sm },
+  listRow: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+    paddingVertical: spacing.sm,
   },
-  pendingText: { flex: 1 },
-  itemTitle: { ...typography.cardTitle, color: colors.ink },
-  itemMeta: { ...typography.metadata, color: colors.text },
-  activityList: { gap: spacing.md },
-  activityItem: {
+  rowMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  rowCopy: { flex: 1 },
+  itemTitle: { ...typography.label, color: colors.ink },
+  itemMeta: { ...typography.metadata, color: colors.muted, marginTop: spacing.xxs },
+  textAction: {
+    minHeight: 44,
+    alignSelf: "flex-start",
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
-  activityText: { flex: 1 },
+  textActionLabel: {
+    ...typography.label,
+    color: colors.primary,
+  },
+  actionArrow: {
+    color: colors.primary,
+    fontSize: 20,
+    lineHeight: 20,
+  },
+  compactEmpty: {
+    borderTopWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: spacing.lg,
+  },
+  inlineLoading: { alignItems: "flex-start", paddingVertical: spacing.lg },
+  attentionSection: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  attentionMetrics: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  attentionMetric: {
+    flex: 1,
+  },
+  ministriesBar: {
+    minHeight: 112,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.lg,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceMuted,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+    padding: spacing.lg,
+  },
+  ministryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  ministryCopy: { flex: 1 },
+  ministryArrow: {
+    color: colors.primary,
+    fontSize: 24,
+    lineHeight: 24,
+  },
+  ministryKicker: {
+    ...typography.eyebrow,
+    color: colors.primary,
+    textTransform: "uppercase",
+  },
+  ministryTitle: {
+    ...typography.sectionTitle,
+    color: colors.ink,
+    marginTop: spacing.xs,
+  },
+  body: { ...typography.body, color: colors.text },
 });

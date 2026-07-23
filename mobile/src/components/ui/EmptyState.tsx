@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { colors, radii, shadow, spacing, typography } from "../../theme";
+import { colors, spacing, typography } from "../../theme";
 
 type EmptyStateProps = {
   title: string;
@@ -25,14 +25,14 @@ export function EmptyState({ title, description, icon, action, style, testID }: 
 const styles = StyleSheet.create({
   empty: {
     backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     borderColor: colors.line,
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: spacing.sm,
-    ...shadow,
   },
-  title: { ...typography.sectionTitle, color: colors.ink, textAlign: "center" },
-  description: { ...typography.subtitle, color: colors.muted, textAlign: "center" },
+  title: { ...typography.sectionTitle, color: colors.ink },
+  description: { ...typography.subtitle, color: colors.muted, maxWidth: 560 },
 });

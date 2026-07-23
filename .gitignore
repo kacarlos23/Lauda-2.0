@@ -7,6 +7,12 @@ mobile/node_modules/
 .env.*
 !.env.example
 !.env.*.example
+.secrets/
+secrets.local/
+.npmrc
+!.npmrc.example
+*credentials*.json
+service-account*.json
 .cloudflared/
 *.cfargotunnel.com.json
 
@@ -24,6 +30,13 @@ docs/
 docs/*
 !docs/security-program/
 !docs/security-program/**
+!docs/Lauda-redesign-handoff/
+docs/Lauda-redesign-handoff/*
+!docs/Lauda-redesign-handoff/IMPLEMENTATION-AUDIT.md
+!docs/Lauda-redesign-handoff/IMPLEMENTATION-REPORT.md
+!docs/Lauda-redesign-handoff/qa/
+docs/Lauda-redesign-handoff/qa/*
+!docs/Lauda-redesign-handoff/qa/REPORT.md
 
 # Prisma generated client/output
 generated/
@@ -39,11 +52,16 @@ mobile/.kotlin/
 
 # Native app signing keys and certificates
 *.jks
+*.keystore
 *.p8
 *.p12
+*.pfx
 *.key
 *.mobileprovision
 *.pem
+*.crt
+*.cer
+*.der
 
 # Logs
 logs/
@@ -55,6 +73,11 @@ pnpm-debug.*
 
 # Local SQL exports / database dumps
 *.sql
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
+*.db
 !prisma/migrations/**/migration.sql
 .resilience/
 

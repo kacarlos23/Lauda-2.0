@@ -100,8 +100,9 @@ test("revisão visual das correções de músicas e escalas", async ({ page }) =
   await mockAuthenticatedApp(page);
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Escalas" }).click();
+  await page.getByTestId("sidebar-nav-schedules").click();
   await expect(page).toHaveURL(/\/schedules$/);
+  await page.getByText("13", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala Culto de Oração" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedules-list-after.png", fullPage: true });
@@ -120,7 +121,7 @@ test("revisão visual das correções de músicas e escalas", async ({ page }) =
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedule-song-search-after.png", fullPage: true });
 
   await page.getByRole("button", { name: "Voltar" }).last().click();
-  await page.getByRole("link", { name: "Músicas" }).click();
+  await page.getByTestId("sidebar-nav-songs").click();
   await expect(page).toHaveURL(/\/songs$/);
   await page.getByLabel("Nova música").click();
   await page.getByTestId("artist-search-input").fill("Novo Artista Visual");
@@ -129,7 +130,7 @@ test("revisão visual das correções de músicas e escalas", async ({ page }) =
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/artist-create-after.png", fullPage: true });
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Músicas" }).click();
+  await page.getByTestId("sidebar-nav-songs").click();
   await page.getByText("Firme nas Promessas", { exact: true }).click();
   await expect(page.getByTestId("transpose-down")).toHaveText("−1 Tom");
   await expect(page.getByTestId("font-down")).toHaveText("A−");
@@ -144,6 +145,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
 
   await page.goto("/");
   await page.getByText("Escalas", { exact: true }).last().click();
+  await page.getByText("13", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala Culto de Oração" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedules-list-mobile-after.png", fullPage: true });
@@ -155,6 +157,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
   await page.goBack();
   await page.getByText("Escalas", { exact: true }).last().click();
   await expect(page).toHaveURL(/\/schedules$/);
+  await page.getByText("13", { exact: true }).click();
 
   await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala" })).toBeVisible();
@@ -173,7 +176,7 @@ test("exclusão de escala usa modal personalizado no navegador", async ({ page }
   await page.setViewportSize({ width: 1200, height: 820 });
   await mockAuthenticatedApp(page);
   await page.goto("/");
-  await page.getByRole("link", { name: "Escalas" }).click();
+  await page.getByTestId("sidebar-nav-schedules").click();
   await page.getByText("13", { exact: true }).click();
   await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
 

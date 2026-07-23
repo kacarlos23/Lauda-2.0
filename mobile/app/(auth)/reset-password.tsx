@@ -1,8 +1,11 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ArrowLeft, KeyRound, Lock } from "lucide-react-native";
 import { api } from "../../src/services/api";
-import { colors, radii, spacing } from "../../src/theme";
+import { AuthShell } from "../../src/components/AuthShell";
+import { AppInput, Button } from "../../src/components/ui";
+import { colors, spacing, typography } from "../../src/theme";
 
 export default function ResetPasswordScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -44,137 +47,83 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Redefinir Senha</Text>
-        <Text style={styles.subtitle}>Insira o código PIN enviado para {email} e sua nova senha.</Text>
+    <AuthShell
+      overline="Nova credencial"
+      title="Defina uma nova senha"
+      subtitle={`Insira o código enviado para ${email ?? "seu e-mail"} e escolha a nova senha.`}
+    >
+      <View style={styles.fields}>
+        <AppInput
+          label="Código PIN (6 dígitos)"
+          icon={<KeyRound color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="123456"
+          keyboardType="number-pad"
+          maxLength={6}
+          value={pin}
+          onChangeText={setPin}
+          accessibilityLabel="Código PIN de 6 dígitos"
+        />
+
+        <AppInput
+          label="Nova senha"
+          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="Mínimo de 6 caracteres"
+          secureTextEntry
+          value={newPassword}
+          onChangeText={setNewPassword}
+          accessibilityLabel="Nova senha"
+        />
+
+        <AppInput
+          label="Confirmar senha"
+          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="Repita a nova senha"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          accessibilityLabel="Confirmar nova senha"
+        />
       </View>
 
-      <View style={styles.form}>
-        <View>
-          <Text style={styles.label}>Código PIN (6 dígitos)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex: 123456"
-            placeholderTextColor={colors.muted}
-            keyboardType="number-pad"
-            maxLength={6}
-            value={pin}
-            onChangeText={setPin}
-          />
-        </View>
+      <Button
+        title="Atualizar senha"
+        loading={loading}
+        onPress={handleResetPassword}
+        style={styles.primaryButton}
+        accessibilityLabel="Atualizar senha"
+      />
 
-        <View>
-          <Text style={styles.label}>Nova Senha</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite a nova senha"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            value={newPassword}
-            onChangeText={setNewPassword}
-          />
-        </View>
-
-        <View>
-          <Text style={styles.label}>Confirmar Senha</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Confirme a nova senha"
-            placeholderTextColor={colors.muted}
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.primaryButton, loading && styles.disabled]}
-          onPress={handleResetPassword}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>Redefinir</Text>}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => router.replace("/(auth)/login")}
-          disabled={loading}
-        >
-          <Text style={styles.secondaryText}>Cancelar</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      <TouchableOpacity
+        style={styles.back}
+        onPress={() => router.replace("/(auth)/login")}
+        disabled={loading}
+        accessibilityRole="button"
+        accessibilityLabel="Cancelar e voltar ao login"
+      >
+        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <Text style={styles.backText}>Cancelar e voltar ao login</Text>
+      </TouchableOpacity>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    paddingHorizontal: spacing.xxl,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 30,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    color: colors.muted,
-    fontSize: 16,
-    lineHeight: 23,
-    textAlign: "center",
-  },
-  form: {
-    gap: spacing.lg,
-  },
-  label: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: spacing.xs,
-    marginLeft: spacing.xs,
-  },
-  input: {
-    minHeight: 56,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.background,
-    color: colors.ink,
-    paddingHorizontal: spacing.xl,
-    fontSize: 15,
+  fields: {
+    gap: spacing.md,
   },
   primaryButton: {
-    minHeight: 56,
-    borderRadius: radii.lg,
-    backgroundColor: colors.primary,
+    marginTop: spacing.xl,
+  },
+  back: {
+    minHeight: 44,
+    alignSelf: "flex-start",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: spacing.sm,
     marginTop: spacing.md,
   },
-  primaryText: {
-    color: colors.surface,
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  secondaryButton: {
-    minHeight: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryText: {
+  backText: {
+    ...typography.label,
     color: colors.primary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  disabled: {
-    opacity: 0.7,
   },
 });

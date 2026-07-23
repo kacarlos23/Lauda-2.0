@@ -1,13 +1,13 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Building2, Guitar, Music2, Settings2, Shield, UserCircle2 } from "lucide-react-native";
+import { Building2, Guitar, Music2, Settings2, Shield, UserCircle2, Users } from "lucide-react-native";
 import { Screen, SectionHeader } from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, radii, spacing, typography } from "../../src/theme";
 import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { canManageMusic } from "../../src/utils/musicPermissions";
-import { canAccessChurchAdmin, canAccessGlobalAdminArea, formatRoleLabel } from "../../src/utils/permissions";
+import { canAccessChurchAdmin, canAccessGlobalAdminArea, canViewMembers, formatRoleLabel } from "../../src/utils/permissions";
 
 type Shortcut = {
   title: string;
@@ -21,6 +21,7 @@ export default function MoreScreen() {
   const user = useAuthStore((state) => state.user);
   const canManageArtists = canManageMusic(user, "song:edit") || canManageMusic(user, "song:create");
   const canManageInstruments = canManageInstrumentCatalog(user);
+  const canOpenMembers = canViewMembers(user);
   const canOpenChurch = canAccessChurchAdmin(user);
   const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
 
@@ -33,6 +34,14 @@ export default function MoreScreen() {
           href: "/profile",
           icon: <UserCircle2 color={colors.primary} size={22} strokeWidth={2.4} />,
         },
+        canOpenMembers
+          ? {
+              title: "Membros",
+              description: "Consulte pessoas, convites, permissões e vínculos ministeriais.",
+              href: "/members",
+              icon: <Users color={colors.primary} size={22} strokeWidth={2.4} />,
+            }
+          : null,
         canManageArtists
           ? {
               title: "Artistas",
@@ -66,7 +75,7 @@ export default function MoreScreen() {
             }
           : null,
       ].filter(Boolean) as Shortcut[],
-    [canManageArtists, canManageInstruments, canOpenChurch, canOpenGlobalAdmin]
+    [canManageArtists, canManageInstruments, canOpenMembers, canOpenChurch, canOpenGlobalAdmin]
   );
 
   return (
@@ -107,7 +116,7 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   header: { marginBottom: spacing.xl },
-  eyebrow: { ...typography.eyebrow, color: colors.accent, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: spacing.xs },
+  eyebrow: { ...typography.eyebrow, color: colors.accentText, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: spacing.xs },
   title: { ...typography.heroTitle, color: colors.ink, marginBottom: spacing.xs },
   subtitle: { ...typography.subtitle, color: colors.text },
   rolePill: {
@@ -123,16 +132,16 @@ const styles = StyleSheet.create({
   },
   roleText: { ...typography.label, color: colors.primaryDark },
   section: { gap: spacing.md },
-  list: { gap: spacing.md },
+  list: { borderTopWidth: 1, borderTopColor: colors.line },
   card: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.xl,
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
+    minHeight: 76,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    backgroundColor: "transparent",
+    paddingVertical: spacing.md,
   },
   iconBox: {
     width: 44,

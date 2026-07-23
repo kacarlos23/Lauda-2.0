@@ -6,14 +6,15 @@ type SectionHeaderProps = {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  variant?: "page" | "section";
   style?: StyleProp<ViewStyle>;
 };
 
-export function SectionHeader({ title, subtitle, action, style }: SectionHeaderProps) {
+export function SectionHeader({ title, subtitle, action, variant = "page", style }: SectionHeaderProps) {
   return (
     <View style={[styles.header, style]}>
       <View style={styles.textGroup}>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, variant === "section" && styles.sectionTitle]}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {action}
@@ -28,9 +29,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
   textGroup: { flexShrink: 1 },
   title: { ...typography.screenTitle, color: colors.ink, marginBottom: spacing.xs },
+  sectionTitle: { ...typography.sectionTitle, letterSpacing: 0 },
   subtitle: { ...typography.subtitle, color: colors.muted },
 });

@@ -14,7 +14,7 @@ import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../src/utils/dateTimeInput";
 import { canCreateSchedule } from "../../../src/utils/schedulePermissions";
 
@@ -366,11 +366,11 @@ const styles = StyleSheet.create({
   backRow: { marginBottom: spacing.lg },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
   subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
-  cardCompact: { padding: spacing.lg },
-  commentsEditor: { marginTop: spacing.lg, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.lg, marginBottom: spacing.sm },
-  input: { minHeight: 52, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
+  cardCompact: { paddingVertical: spacing.md },
+  commentsEditor: { marginTop: spacing.md, marginBottom: spacing.md },
+  label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.md, marginBottom: spacing.sm },
+  input: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   rowFieldsCompact: { flexDirection: "column" },
   field: { flex: 1 },
@@ -380,14 +380,14 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontWeight: "800" },
   chipTextActive: { color: colors.surface },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
   sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
   helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
   secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
   secondaryText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  primaryButton: { minHeight: 52, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, ...buttonShadow },
+  primaryButton: { minHeight: 44, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
   disabled: { opacity: 0.65 },
   error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },

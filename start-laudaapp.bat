@@ -121,10 +121,17 @@ if errorlevel 1 (
 
 echo.
 echo [5/5] Validacao final...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $backend = Invoke-RestMethod 'http://localhost:3000/health' -TimeoutSec 5; if ($backend.status -ne 'ok') { throw 'status inesperado' }; Write-Host '[OK] Backend local:' $backend.status } catch { Write-Host '[ERRO] Backend local nao respondeu corretamente:' $_.Exception.Message; exit 1 }; try { $frontend = Invoke-WebRequest 'http://localhost:8081' -UseBasicParsing -Method Get -TimeoutSec 10; Write-Host '[OK] Frontend local HTTP:' $frontend.StatusCode } catch { Write-Host '[ERRO] Frontend local nao respondeu:' $_.Exception.Message; exit 1 }; $deadline = (Get-Date).AddSeconds(45); do { try { $api = Invoke-RestMethod 'https://api.laudaapp.com/health' -TimeoutSec 10; if ($api.status -eq 'ok') { Write-Host '[OK] API publica:' $api.status; exit 0 } } catch {}; Start-Sleep -Seconds 3 } while ((Get-Date) -lt $deadline); Write-Host '[AVISO] API publica ainda nao respondeu. O tunnel pode levar alguns segundos para conectar.'; exit 0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $backend = Invoke-RestMethod 'http://localhost:3000/health' -TimeoutSec 5; if ($backend.status -ne 'ok') { throw 'status inesperado' }; Write-Host '[OK] Backend local:' $backend.status } catch { Write-Host '[ERRO] Backend local nao respondeu corretamente:' $_.Exception.Message; exit 1 }; try { $frontend = Invoke-WebRequest 'http://localhost:8081' -UseBasicParsing -Method Get -TimeoutSec 10; Write-Host '[OK] Frontend local HTTP:' $frontend.StatusCode } catch { Write-Host '[ERRO] Frontend local nao respondeu:' $_.Exception.Message; exit 1 }; $deadline = (Get-Date).AddSeconds(45); do { try { $api = Invoke-RestMethod 'https://api.laudaapp.com/health' -TimeoutSec 10; if ($api.status -eq 'ok') { Write-Host '[OK] API publica:' $api.status; exit 0 } } catch {}; Start-Sleep -Seconds 3 } while ((Get-Date) -lt $deadline); Write-Host '[ERRO] API publica nao respondeu dentro do prazo.'; exit 1"
 if errorlevel 1 (
   echo.
   echo [ERRO] A validacao final falhou. A inicializacao nao foi concluida.
+  goto :failure
+)
+
+node "scripts\validate-frontend-api.cjs" --site-url "https://laudaapp.com" --expected-api-url "%PUBLIC_API_URL%" --retries 10 --retry-delay-ms 3000
+if errorlevel 1 (
+  echo.
+  echo [ERRO] O frontend publico nao foi publicado com a API esperada.
   goto :failure
 )
 

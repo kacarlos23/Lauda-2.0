@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
 import { UserRound } from "lucide-react-native";
 import { useAuthStore } from "../store/authStore";
-import { colors, shadow } from "../theme";
+import { colors } from "../theme";
 
 export function ProfileHeaderButton() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export function ProfileHeaderButton() {
 }
 
 const styles = StyleSheet.create({
-  button: { width: 44, height: 44, borderRadius: 22, marginRight: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, ...shadow },
-  image: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted },
-  placeholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center" },
+  button: { width: 44, height: 44, borderRadius: 22, marginRight: 16, alignItems: "center", justifyContent: "center" },
+  image: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.line },
+  placeholder: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.lineStrong, alignItems: "center", justifyContent: "center" },
 });

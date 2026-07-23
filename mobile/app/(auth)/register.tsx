@@ -1,21 +1,12 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Church } from "lucide-react-native";
+import { ArrowLeft, Building2, Lock, Mail, UserRound } from "lucide-react-native";
 import { goBackTo } from "../../src/utils/navigation";
 import { useAuthStore } from "../../src/store/authStore";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../src/theme";
+import { AuthShell } from "../../src/components/AuthShell";
+import { AppInput, Button } from "../../src/components/ui";
+import { colors, spacing, typography } from "../../src/theme";
 
 export default function RegisterScreen() {
   const { register } = useAuthStore();
@@ -55,159 +46,122 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <AuthShell
+      overline="Primeiros passos"
+      title="Crie sua igreja"
+      subtitle="Configure a instituição e o primeiro administrador."
+      width="wide"
     >
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.inner}>
-          <TouchableOpacity onPress={() => goBackTo(router, "/(auth)/login")} style={styles.back} testID="register-back">
-            <ArrowLeft color={colors.primary} size={18} strokeWidth={2.4} />
-            <Text style={styles.backText}>Voltar</Text>
-          </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => goBackTo(router, "/(auth)/login")}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Voltar para o login"
+        testID="register-back"
+      >
+        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <Text style={styles.backText}>Voltar</Text>
+      </TouchableOpacity>
 
-          <View style={styles.brandMark}>
-            <Church color={colors.surface} size={26} strokeWidth={2.6} />
-          </View>
-          <Text style={styles.title}>Nova igreja</Text>
-          <Text style={styles.subtitle}>Configure a instituição e o primeiro administrador.</Text>
+      <View style={styles.fields}>
+        <AppInput
+          label="Nome da igreja *"
+          icon={<Building2 color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="Ex.: Igreja Batista Central"
+          value={churchName}
+          onChangeText={setChurchName}
+          accessibilityLabel="Nome da igreja"
+          testID="register-church"
+        />
 
-          <Text style={styles.label}>Nome da igreja *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex: Igreja Batista Central"
-            placeholderTextColor={colors.muted}
-            value={churchName}
-            onChangeText={setChurchName}
-            testID="register-church"
-          />
-
-          <Text style={styles.label}>Seu nome *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Nome completo do administrador"
-            placeholderTextColor={colors.muted}
+        <View style={styles.fieldRow}>
+          <AppInput
+            label="Seu nome *"
+            icon={<UserRound color={colors.muted} size={18} strokeWidth={2} />}
+            placeholder="Nome completo"
             value={name}
             onChangeText={setName}
+            accessibilityLabel="Seu nome"
             testID="register-name"
+            containerStyle={styles.rowField}
           />
 
-          <Text style={styles.label}>E-mail *</Text>
-          <TextInput
-            style={styles.input}
+          <AppInput
+            label="E-mail *"
+            icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
             placeholder="admin@suaigreja.com"
-            placeholderTextColor={colors.muted}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
+            accessibilityLabel="E-mail"
             testID="register-email"
+            containerStyle={styles.rowField}
           />
+        </View>
 
-          <Text style={styles.label}>Senha *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Mínimo 6 caracteres"
-            placeholderTextColor={colors.muted}
+        <View style={styles.fieldRow}>
+          <AppInput
+            label="Senha *"
+            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+            placeholder="Mínimo de 6 caracteres"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
+            accessibilityLabel="Senha"
             testID="register-password"
+            containerStyle={styles.rowField}
           />
 
-          <Text style={styles.label}>Confirmar senha *</Text>
-          <TextInput
-            style={styles.input}
+          <AppInput
+            label="Confirmar senha *"
+            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
             placeholder="Repita a senha"
-            placeholderTextColor={colors.muted}
             secureTextEntry
             value={confirm}
             onChangeText={setConfirm}
+            accessibilityLabel="Confirmar senha"
             testID="register-confirm"
+            containerStyle={styles.rowField}
           />
-
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-            testID="register-submit"
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.surface} />
-            ) : (
-              <Text style={styles.buttonText}>Criar conta</Text>
-            )}
-          </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+
+      <Button
+        title="Criar conta"
+        loading={loading}
+        onPress={handleRegister}
+        style={styles.button}
+        accessibilityLabel="Criar conta"
+        testID="register-submit"
+      />
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  inner: {
-    width: "100%",
-    maxWidth: screen.maxWidth,
-    alignSelf: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
-  },
   back: {
-    marginBottom: spacing.xl,
+    minHeight: 44,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    marginBottom: spacing.md,
   },
-  backText: { color: colors.primary, fontSize: 15, fontWeight: "700" },
-  brandMark: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.lg,
+  backText: { ...typography.label, color: colors.primary },
+  fields: {
+    gap: spacing.md,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: colors.ink,
-    marginBottom: spacing.xs,
+  fieldRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
   },
-  subtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginBottom: spacing.xl },
-  label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
-  input: {
-    backgroundColor: colors.surfaceMuted,
-    minHeight: 52,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-    color: colors.ink,
-    fontSize: 15,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
+  rowField: {
+    flex: 1,
+    minWidth: 240,
   },
   button: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    minHeight: 52,
-    borderRadius: radii.md,
-    alignItems: "center",
-    marginTop: spacing.sm,
-    ...buttonShadow,
+    marginTop: spacing.xl,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: colors.surface, fontSize: 16, fontWeight: "700" },
 });

@@ -27,8 +27,14 @@ const failedQueue: QueueItem[] = [];
 let isRefreshing = false;
 
 function getBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (envUrl) return normalizeApiBaseUrl(envUrl);
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "EXPO_PUBLIC_API_URL is required in production. Refusing to build a frontend that falls back to localhost."
+    );
+  }
 
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {

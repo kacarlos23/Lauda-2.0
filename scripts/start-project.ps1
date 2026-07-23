@@ -16,12 +16,37 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $MobileRoot = Join-Path $ProjectRoot "mobile"
 $BackendUrl = "http://localhost:$BackendPort"
 $FrontendUrl = "http://localhost:$FrontendPort"
-$ApiUrl = if ([string]::IsNullOrWhiteSpace($PublicApiUrl)) { "$BackendUrl/api" } else { $PublicApiUrl.TrimEnd("/") }
 $DbHost = "localhost"
 $DbPort = 5434
 $DbName = "lauda2"
 $DbUser = "postgres"
 $UseStaticFrontend = $Production -or $StaticFrontend
+
+if ($UseStaticFrontend -and [string]::IsNullOrWhiteSpace($PublicApiUrl)) {
+  throw "PublicApiUrl e obrigatoria para builds estaticos. Informe, por exemplo: -PublicApiUrl `"https://api.laudaapp.com/api`"."
+}
+
+$ApiUrl = if ([string]::IsNullOrWhiteSpace($PublicApiUrl)) { "$BackendUrl/api" } else { $PublicApiUrl.TrimEnd("/") }
+
+if ($UseStaticFrontend) {
+  try {
+    $apiUri = [Uri]$ApiUrl
+  } catch {
+    throw "PublicApiUrl e invalida: $ApiUrl"
+  }
+
+  if (-not $apiUri.IsAbsoluteUri -or $apiUri.Scheme -notin @("http", "https")) {
+    throw "PublicApiUrl deve ser uma URL HTTP(S) absoluta: $ApiUrl"
+  }
+  if (-not [string]::IsNullOrWhiteSpace($apiUri.UserInfo)) {
+    throw "PublicApiUrl nao pode conter credenciais: $ApiUrl"
+  }
+
+  $isLoopbackApi = $apiUri.Host -in @("localhost", "127.0.0.1", "::1")
+  if ($apiUri.Scheme -ne "https" -and -not $isLoopbackApi) {
+    throw "PublicApiUrl deve usar HTTPS fora de loopback: $ApiUrl"
+  }
+}
 
 function Get-DotEnvValue {
   param([string]$Name)

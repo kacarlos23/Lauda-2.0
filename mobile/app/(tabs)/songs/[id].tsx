@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Download, Edit3, Pause, Play, Trash2 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -94,21 +94,23 @@ export default function SongDetailScreen() {
       onContentSizeChange={(_, height) => { contentHeight.value = height; }}
       contentContainerStyle={styles.content}
     >
-      <View style={styles.detailLinks}><SongLinkButtons links={song} centered /></View>
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
+      <View style={styles.detailLinks}><SongLinkButtons links={song} centered /></View>
       {song.comments ? <View style={styles.commentsCard}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={song.comments} /></View> : null}
-      <View style={styles.controls}>
-        <Control label={"\u22121 Tom"} onPress={() => chord.transpose(-1)} testID="transpose-down" />
-        <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
-        <Control label="+1 Tom" onPress={() => chord.transpose(1)} testID="transpose-up" />
-      </View>
-      <View style={styles.controls}>
-        <Control label={"A\u2212"} onPress={() => chord.changeFontSize(-2)} testID="font-down" />
-        <Text style={styles.controlValue}>{chord.fontSize}px</Text>
-        <Control label="A+" onPress={() => chord.changeFontSize(2)} testID="font-up" />
-        <Control label={`${chord.scrollSpeed.toFixed(2)}\u00d7`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
-        <TouchableOpacity style={[styles.play, autoScrolling && styles.playActive]} onPress={toggleAutoScroll} testID="auto-scroll">{autoScrolling ? <Pause color={colors.surface} size={18} /> : <Play color={colors.surface} size={18} />}<Text style={styles.playText}>{autoScrolling ? "Pausar" : "Rolar"}</Text></TouchableOpacity>
+      <View style={styles.controlToolbar}>
+        <View style={styles.controls}>
+          <Control label={"\u22121 Tom"} onPress={() => chord.transpose(-1)} testID="transpose-down" />
+          <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
+          <Control label="+1 Tom" onPress={() => chord.transpose(1)} testID="transpose-up" />
+        </View>
+        <View style={styles.controls}>
+          <Control label={"A\u2212"} onPress={() => chord.changeFontSize(-2)} testID="font-down" />
+          <Text style={styles.controlValue}>{chord.fontSize}px</Text>
+          <Control label="A+" onPress={() => chord.changeFontSize(2)} testID="font-up" />
+          <Control label={`${chord.scrollSpeed.toFixed(2)}\u00d7`} onPress={() => chord.changeScrollSpeed(0.25)} testID="scroll-speed" />
+          <TouchableOpacity style={[styles.play, autoScrolling && styles.playActive]} onPress={toggleAutoScroll} testID="auto-scroll">{autoScrolling ? <Pause color={colors.surface} size={18} /> : <Play color={colors.surface} size={18} />}<Text style={styles.playText}>{autoScrolling ? "Pausar" : "Rolar"}</Text></TouchableOpacity>
+        </View>
       </View>
       <View style={styles.chordCard}><ChordSheetView content={song.content} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>
     </Animated.ScrollView>
@@ -121,11 +123,12 @@ function Control({ label, onPress, testID }: { label: string; onPress: () => voi
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
-  top: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: 40, height: 40, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  content: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding }, title: { color: colors.ink, fontSize: 30, fontWeight: "800" }, artist: { color: colors.primary, fontSize: 17, fontWeight: "700", marginTop: spacing.xs }, metadata: { marginVertical: spacing.lg, gap: spacing.xs }, meta: { color: colors.muted, fontSize: 14, fontWeight: "600" },
-  detailLinks: { alignItems: "center", marginBottom: spacing.xl },
-  commentsCard: { marginBottom: spacing.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, backgroundColor: colors.surface }, commentsTitle: { color: colors.ink, fontSize: 16, fontWeight: "800", marginBottom: spacing.sm },
-  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md }, control: { minHeight: 40, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: "800" }, keyControl: { minWidth: 72, alignItems: "center" }, currentKey: { color: colors.ink, fontSize: 22, fontWeight: "900" }, reset: { color: colors.muted, fontSize: 9 }, controlValue: { color: colors.text, fontWeight: "700" },
-  play: { minHeight: 40, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: "800" },
-  chordCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, padding: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
+  top: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.line }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  content: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding }, title: { color: colors.ink, fontSize: 34, fontWeight: "800" }, artist: { color: colors.primary, fontSize: 17, fontWeight: "700", marginTop: spacing.xs }, metadata: { flexDirection: "row", flexWrap: "wrap", marginVertical: spacing.md, gap: spacing.md }, meta: { color: colors.muted, fontSize: 13, fontWeight: "600" },
+  detailLinks: { alignItems: "flex-start", paddingBottom: spacing.lg, marginBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  commentsCard: { marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line }, commentsTitle: { color: colors.ink, fontSize: 13, fontWeight: "800", letterSpacing: 0.7, textTransform: "uppercase", marginBottom: spacing.sm },
+  controlToolbar: { position: Platform.OS === "web" ? "sticky" as any : "relative", top: 0, zIndex: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.background },
+  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm }, control: { minHeight: 44, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: "800" }, keyControl: { minWidth: 72, minHeight: 44, alignItems: "center", justifyContent: "center" }, currentKey: { color: colors.ink, fontSize: 22, fontWeight: "900" }, reset: { color: colors.muted, fontSize: 9 }, controlValue: { color: colors.text, fontWeight: "700" },
+  play: { minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: "800" },
+  chordCard: { minHeight: 520, borderLeftWidth: 3, borderLeftColor: colors.accent, backgroundColor: colors.surface, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
 });

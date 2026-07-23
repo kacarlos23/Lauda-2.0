@@ -1,18 +1,12 @@
 import { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Lock, LogIn, Mail } from "lucide-react-native";
 import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
-import { AppInput, Button, Card, ErrorBanner } from "../../src/components/ui";
-import { colors, radii, screen, spacing, typography } from "../../src/theme";
+import { AuthShell } from "../../src/components/AuthShell";
+import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
+import { colors, spacing, typography } from "../../src/theme";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -60,23 +54,18 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <AuthShell
+      overline="Acesso à sua igreja"
+      title="Boas-vindas de volta"
+      subtitle="Entre para acompanhar escalas, repertório e sua equipe."
     >
-      <Card style={styles.inner}>
-        <View style={styles.brandMark}>
-          <LogIn color={colors.surface} size={26} strokeWidth={2.6} />
-        </View>
-        <Text style={styles.title}>Lauda</Text>
-        <Text style={styles.subtitle}>Gestão simples para ministérios, escalas e equipes.</Text>
+      <ErrorBanner message={currentError} style={styles.error} testID="login-error" />
 
-        <ErrorBanner message={currentError} style={styles.error} testID="login-error" />
-
+      <View style={styles.fields}>
         <AppInput
           label="E-mail"
-          icon={<Mail color={colors.muted} size={18} strokeWidth={2.2} />}
-          placeholder="E-mail"
+          icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="voce@igreja.com"
           autoCapitalize="none"
           autoCorrect={false}
           autoFocus
@@ -89,13 +78,12 @@ export default function LoginScreen() {
           }}
           accessibilityLabel="E-mail"
           testID="login-email"
-          containerStyle={styles.field}
         />
 
         <AppInput
           label="Senha"
-          icon={<Lock color={colors.muted} size={18} strokeWidth={2.2} />}
-          placeholder="Senha"
+          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          placeholder="Sua senha"
           secureTextEntry
           textContentType="password"
           value={password}
@@ -105,120 +93,104 @@ export default function LoginScreen() {
           }}
           accessibilityLabel="Senha"
           testID="login-password"
-          containerStyle={styles.field}
         />
+      </View>
 
-        <Button
-          title="Entrar"
-          icon={<LogIn color={colors.surface} size={18} strokeWidth={2.4} />}
-          loading={loading}
-          size="lg"
-          style={styles.button}
-          onPress={handleLogin}
-          accessibilityLabel="Entrar"
-          testID="login-submit"
-        />
+      <TouchableOpacity
+        style={styles.forgotPasswordLink}
+        onPress={() => router.push("/(auth)/forgot-password")}
+        accessibilityLabel="Esqueci minha senha"
+        accessibilityRole="button"
+        testID="forgot-password"
+      >
+        <Text style={styles.linkText}>Esqueci minha senha</Text>
+      </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.forgotPasswordLink}
-          onPress={() => router.push("/(auth)/forgot-password")}
-          accessibilityLabel="Esqueci minha senha"
-          accessibilityRole="button"
-          testID="forgot-password"
-        >
-          <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
-        </TouchableOpacity>
+      <Button
+        title="Entrar"
+        icon={<LogIn color={colors.inverse} size={18} strokeWidth={2.2} />}
+        loading={loading}
+        style={styles.button}
+        onPress={handleLogin}
+        accessibilityLabel="Entrar"
+        testID="login-submit"
+      />
 
-        <TouchableOpacity
-          style={styles.memberRegisterLink}
-          onPress={() => router.push("/(auth)/member-register")}
-          accessibilityLabel="Cadastrar como membro"
-          accessibilityRole="button"
-          testID="go-member-register"
-        >
-          <Text style={styles.registerText}>
-            Sou membro? <Text style={styles.registerHighlight}>Cadastre-se com link</Text>
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>Outras formas de acesso</Text>
+        <View style={styles.dividerLine} />
+      </View>
 
-        <TouchableOpacity
-          style={styles.registerLink}
-          onPress={() => router.push("/(auth)/register")}
-          accessibilityLabel="Cadastrar igreja"
-          accessibilityRole="button"
-          testID="go-register"
-        >
-          <Text style={styles.registerText}>
-            Não tem conta? <Text style={styles.registerHighlight}>Cadastre sua igreja</Text>
-          </Text>
-        </TouchableOpacity>
-      </Card>
-    </KeyboardAvoidingView>
+      <TouchableOpacity
+        style={styles.secondaryLink}
+        onPress={() => router.push("/(auth)/member-register")}
+        accessibilityLabel="Cadastrar como membro"
+        accessibilityRole="button"
+        testID="go-member-register"
+      >
+        <Text style={styles.secondaryText}>
+          Recebeu um convite? <Text style={styles.linkText}>Cadastre-se como membro</Text>
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.secondaryLink}
+        onPress={() => router.push("/(auth)/register")}
+        accessibilityLabel="Cadastrar igreja"
+        accessibilityRole="button"
+        testID="go-register"
+      >
+        <Text style={styles.secondaryText}>
+          Sua igreja ainda não usa o Lauda? <Text style={styles.linkText}>Criar conta</Text>
+        </Text>
+      </TouchableOpacity>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  inner: {
-    width: "100%",
-    maxWidth: screen.maxWidth,
-    alignSelf: "center",
-    padding: spacing.xl,
-  },
-  brandMark: {
-    width: 52,
-    height: 52,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.lg,
-  },
-  title: {
-    ...typography.heroTitle,
-    color: colors.ink,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.subtitle,
-    color: colors.muted,
-    marginBottom: spacing.xl,
-  },
   error: {
     marginBottom: spacing.lg,
   },
-  field: { marginBottom: spacing.lg },
+  fields: {
+    gap: spacing.md,
+  },
+  forgotPasswordLink: {
+    minHeight: 44,
+    alignSelf: "flex-end",
+    justifyContent: "center",
+  },
   button: {
     marginTop: spacing.sm,
   },
-  registerLink: {
-    marginTop: spacing.xl,
+  divider: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
+    marginVertical: spacing.xl,
   },
-  forgotPasswordLink: {
-    marginTop: spacing.md,
-    alignItems: "center",
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.line,
   },
-  forgotPasswordText: {
-    color: colors.primary,
-    ...typography.label,
-  },
-  memberRegisterLink: {
-    marginTop: spacing.lg,
-    alignItems: "center",
-  },
-  registerText: {
+  dividerText: {
     ...typography.metadata,
     color: colors.muted,
-    textAlign: "center",
   },
-  registerHighlight: {
+  secondaryLink: {
+    minHeight: 44,
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  secondaryText: {
+    ...typography.metadata,
+    color: colors.muted,
+  },
+  linkText: {
+    ...typography.label,
     color: colors.primary,
-    fontWeight: typography.label.fontWeight,
   },
 });

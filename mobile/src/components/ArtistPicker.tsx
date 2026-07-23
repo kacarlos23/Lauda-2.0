@@ -11,11 +11,22 @@ type Props = {
   onSelect: (artist: Artist | null) => void;
   onQueryChange?: (query: string) => void;
   canCreate?: boolean;
+  label?: string;
+  placeholder?: string;
+  testID?: string;
 };
 
 const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 
-export function ArtistPicker({ selected, onSelect, onQueryChange, canCreate = true }: Props) {
+export function ArtistPicker({
+  selected,
+  onSelect,
+  onQueryChange,
+  canCreate = true,
+  label = "Artista *",
+  placeholder = "Digite para buscar ou criar",
+  testID = "artist-search-input",
+}: Props) {
   const [query, setQuery] = useState(selected?.name ?? "");
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,16 +80,16 @@ export function ArtistPicker({ selected, onSelect, onQueryChange, canCreate = tr
 
   return (
     <View>
-      <Text style={styles.label}>Artista *</Text>
+      <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}
           value={query}
           onChangeText={(value) => { setQuery(value); onQueryChange?.(value); onSelect(null); setError(null); }}
-          placeholder="Digite para buscar ou criar"
+          placeholder={placeholder}
           placeholderTextColor={colors.muted}
           autoCapitalize="words"
-          testID="artist-search-input"
+          testID={testID}
         />
         {loading ? <ActivityIndicator color={colors.primary} /> : null}
       </View>

@@ -1,33 +1,69 @@
 import { Platform } from "react-native";
 
+export const tokens = {
+  brand: {
+    primary: "#1F6F55",
+    deep: "#164C3C",
+    ink: "#102820",
+    accent: "#C0582D",
+  },
+  surface: {
+    canvas: "#F4F2EC",
+    base: "#FFFDF8",
+    muted: "#EDF1EC",
+    dark: "#102820",
+  },
+  text: {
+    primary: "#13231D",
+    secondary: "#63706A",
+    inverse: "#F8FAF6",
+  },
+  border: {
+    default: "#D9E0DB",
+    strong: "#B9C6BF",
+  },
+  state: {
+    success: "#2F7D54",
+    warning: "#B7791F",
+    danger: "#B7473A",
+  },
+} as const;
+
 export const colors = {
-  background: "#F8FAF7",
-  surface: "#FFFFFF",
-  surfaceMuted: "#EEF5F1",
-  ink: "#10201A",
-  text: "#33423B",
-  muted: "#5F6B64",
-  line: "#E2EAE5",
-  primary: "#157A6E",
-  primaryDark: "#0E4F49",
-  primarySoft: "#DDF4EF",
-  success: "#2E7D32",
-  successSoft: "#E3F4E6",
-  info: "#2563A8",
-  infoSoft: "#E4EEF9",
-  neutral: "#475569",
-  neutralSoft: "#EEF2F6",
-  accent: "#F26B4F",
-  accentSoft: "#FFE8E1",
-  secondary: "#76B041",
-  secondarySoft: "#EAF6DD",
-  warning: "#F4B740",
-  warningSoft: "#FFF4D9",
-  danger: "#D64545",
-  dangerSoft: "#FFE5E5",
+  background: tokens.surface.canvas,
+  surface: tokens.surface.base,
+  surfaceMuted: tokens.surface.muted,
+  surfaceDark: tokens.surface.dark,
+  ink: tokens.text.primary,
+  brandInk: tokens.brand.ink,
+  text: tokens.text.primary,
+  muted: tokens.text.secondary,
+  inverse: tokens.text.inverse,
+  line: tokens.border.default,
+  lineStrong: tokens.border.strong,
+  primary: tokens.brand.primary,
+  primaryDark: tokens.brand.deep,
+  primarySoft: "#E1ECE6",
+  success: tokens.state.success,
+  successSoft: "#E4EFE8",
+  info: tokens.brand.deep,
+  infoSoft: "#E4ECE8",
+  neutral: "#53615B",
+  neutralSoft: tokens.surface.muted,
+  accent: tokens.brand.accent,
+  accentText: "#B2522A",
+  accentOnDark: "#E8875E",
+  accentSoft: "#F4E4DB",
+  secondary: tokens.brand.primary,
+  secondarySoft: "#E1ECE6",
+  warning: tokens.state.warning,
+  warningSoft: "#F7ECD4",
+  danger: tokens.state.danger,
+  dangerSoft: "#F6E5E1",
 };
 
 export const spacing = {
+  xxs: 2,
   xs: 4,
   sm: 8,
   md: 12,
@@ -37,64 +73,73 @@ export const spacing = {
 };
 
 export const radii = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
+  sm: 4,
+  md: 6,
+  lg: 8,
+  xl: 12,
   pill: 999,
 };
 
 export const screen = {
-  maxWidth: 900,
-  listMaxWidth: 1200,
+  maxWidth: 1360,
+  listMaxWidth: 1360,
+  formMaxWidth: 720,
+  sidebarWidth: 248,
+  sidebarCollapsedWidth: 72,
+  desktopPadding: 32,
+  tabletPadding: 20,
+  mobilePadding: 16,
   contentBottomPadding: spacing.xxl,
 };
 
 export const typography = {
   screenTitle: {
-    fontSize: 30,
-    fontWeight: "800" as const,
-    lineHeight: 36,
+    fontSize: 34,
+    fontWeight: "700" as const,
+    lineHeight: 40,
+    letterSpacing: -0.7,
   },
   heroTitle: {
-    fontSize: 34,
-    fontWeight: "800" as const,
-    lineHeight: 40,
+    fontSize: 36,
+    fontWeight: "700" as const,
+    lineHeight: 42,
+    letterSpacing: -0.8,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "400" as const,
-    lineHeight: 22,
+    lineHeight: 21,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700" as const,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: "700" as const,
-    lineHeight: 23,
+    fontSize: 18,
+    fontWeight: "600" as const,
+    lineHeight: 24,
   },
   body: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "400" as const,
-    lineHeight: 22,
+    lineHeight: 21,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600" as const,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   metadata: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "400" as const,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700" as const,
-    lineHeight: 16,
+    lineHeight: 15,
+    letterSpacing: 0.7,
   },
   badge: {
     fontSize: 11,
@@ -102,55 +147,47 @@ export const typography = {
     lineHeight: 14,
   },
   error: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600" as const,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   button: {
     fontSize: 14,
-    fontWeight: "700" as const,
+    fontWeight: "600" as const,
     lineHeight: 18,
+  },
+  metric: {
+    fontSize: 34,
+    fontWeight: "700" as const,
+    lineHeight: 38,
+    letterSpacing: -0.8,
   },
 };
 
 export const shadow = Platform.select({
   web: {
-    boxShadow: "0 10px 24px rgba(16, 32, 26, 0.08)",
+    boxShadow: "0 14px 36px rgba(16, 40, 32, 0.14)",
   },
   ios: {
-    shadowColor: "#10201A",
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: tokens.brand.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
   },
   android: {
-    elevation: 2,
+    elevation: 6,
   },
   default: {
-    shadowColor: "#10201A",
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: tokens.brand.ink,
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
   },
 });
 
 export const buttonShadow = Platform.select({
-  web: {
-    boxShadow: "0 8px 18px rgba(14, 79, 73, 0.16)",
-  },
-  ios: {
-    shadowColor: "#0E4F49",
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  android: {
-    elevation: 3,
-  },
-  default: {
-    shadowColor: "#0E4F49",
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-  },
+  web: { boxShadow: "none" },
+  ios: { shadowOpacity: 0 },
+  android: { elevation: 0 },
+  default: { shadowOpacity: 0 },
 });

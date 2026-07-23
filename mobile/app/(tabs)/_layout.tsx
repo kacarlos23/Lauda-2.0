@@ -1,16 +1,17 @@
 import { Redirect, Tabs, usePathname } from "expo-router";
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
-import { AppState, View } from "react-native";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { CalendarClock, Church, Ellipsis, Home, Music2, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
+import { BrandLogo } from "../../src/components/BrandLogo";
 import {
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_EXPANDED_WIDTH,
   SidebarNavigation,
 } from "../../src/components/SidebarNavigation";
-import { colors, shadow } from "../../src/theme";
+import { colors, spacing, typography } from "../../src/theme";
 import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import { canAccessChurchAdmin, canViewMembers } from "../../src/utils/permissions";
 
@@ -25,8 +26,8 @@ const tabIcon = (Icon: ComponentType<TabIconProps>, color: string) => (
 );
 
 export default function TabsLayout() {
-  const { user, refreshCurrentUser } = useAuthStore();
-  const { isMobile } = useResponsiveLayout();
+  const { user, tenant, refreshCurrentUser } = useAuthStore();
+  const { isMobile, isTablet } = useResponsiveLayout();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -36,6 +37,10 @@ export default function TabsLayout() {
     });
     return () => subscription.remove();
   }, [refreshCurrentUser]);
+
+  useEffect(() => {
+    if (isTablet) setSidebarCollapsed(true);
+  }, [isTablet]);
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -63,22 +68,28 @@ export default function TabsLayout() {
           tabBarStyle: showSidebar
             ? { display: "none" }
             : {
-                backgroundColor: colors.surface,
+                backgroundColor: colors.surfaceDark,
                 borderTopWidth: 1,
-                borderTopColor: colors.line,
-                height: 76,
-                paddingTop: 8,
-                paddingBottom: 12,
-                ...shadow,
+                borderTopColor: colors.primaryDark,
+                height: 72,
+                paddingTop: spacing.sm,
+                paddingBottom: spacing.sm,
               },
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.muted,
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "800" },
+          tabBarActiveTintColor: colors.inverse,
+          tabBarInactiveTintColor: "#93A79E",
+          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
           headerShown: true,
-          headerStyle: { backgroundColor: colors.background },
+          headerStyle: { backgroundColor: colors.surface },
           headerShadowVisible: false,
           headerTintColor: colors.ink,
-          headerTitle: () => null,
+          headerTitle: () => !isMobile ? (
+            <Text style={styles.tenantName} numberOfLines={1}>{tenant?.name ?? "Lauda"}</Text>
+          ) : null,
+          headerLeft: () => isMobile ? (
+            <View style={{ marginLeft: 16 }}>
+              <BrandLogo variant="symbol" width={32} />
+            </View>
+          ) : null,
           headerRight: () => <ProfileHeaderButton />,
         }}
       >
@@ -153,7 +164,7 @@ export default function TabsLayout() {
             title: "Membros",
             tabBarLabel: "Membros",
             tabBarIcon: ({ color }) => tabIcon(Users, color),
-            href: canViewMembers(user) ? "/members" : null,
+            href: !isMobile && canViewMembers(user) ? "/members" : null,
           }}
         />
         <Tabs.Screen
@@ -186,7 +197,7 @@ export default function TabsLayout() {
             title: "Dados da Igreja",
             tabBarLabel: "Igreja",
             tabBarIcon: ({ color }) => tabIcon(Church, color),
-            href: canAccessChurchAdmin(user) ? ("/church" as never) : null,
+            href: !isMobile && canAccessChurchAdmin(user) ? ("/church" as never) : null,
           }}
         />
         <Tabs.Screen
@@ -208,3 +219,11 @@ export default function TabsLayout() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  tenantName: {
+    ...typography.eyebrow,
+    color: colors.primaryDark,
+    textTransform: "uppercase",
+  },
+});

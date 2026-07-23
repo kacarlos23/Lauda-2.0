@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, Database, Edit3, Plus, RefreshCcw, ShieldAlert, Trash2, X, XCircle } from "lucide-react-native";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
@@ -304,6 +304,8 @@ async function loadAllReferenceItems(resource: GlobalResourceName): Promise<Row[
 
 export default function GlobalAdminScreen() {
   const { user } = useAuthStore();
+  const viewport = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 1280, height: 800 };
+  const compactLayout = viewport.width < 900;
   const [activeResource, setActiveResource] = useState<GlobalResourceName>("tenants");
   const [tenantFilter, setTenantFilter] = useState<string | undefined>();
   const [search, setSearch] = useState("");
@@ -425,17 +427,22 @@ export default function GlobalAdminScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <View style={styles.shell}>
-        <ScrollView style={styles.sidebar} contentContainerStyle={styles.sidebarContent}>
+      <View style={[styles.shell, compactLayout && styles.shellCompact]}>
+        <ScrollView
+          horizontal={compactLayout}
+          style={[styles.sidebar, compactLayout && styles.sidebarCompact]}
+          contentContainerStyle={[styles.sidebarContent, compactLayout && styles.sidebarContentCompact]}
+          showsHorizontalScrollIndicator={false}
+        >
           <Text style={styles.sidebarTitle}>Operação global</Text>
           {resources.map((resource) => (
             <TouchableOpacity
               key={resource.name}
-              style={[styles.menuItem, activeResource === resource.name && styles.menuItemActive]}
+              style={[styles.menuItem, compactLayout && styles.menuItemCompact, activeResource === resource.name && styles.menuItemActive]}
               onPress={() => switchResource(resource.name)}
               testID={`global-resource-${resource.name}`}
             >
-              <Database color={activeResource === resource.name ? "#FFFFFF" : colors.primaryDark} size={16} strokeWidth={2.4} />
+              <Database color={colors.primaryDark} size={16} strokeWidth={2.4} />
               <Text style={[styles.menuText, activeResource === resource.name && styles.menuTextActive]}>{resource.label}</Text>
             </TouchableOpacity>
           ))}
@@ -489,10 +496,10 @@ export default function GlobalAdminScreen() {
             <LoadingState centered={false} message="Carregando registros..." style={styles.loadingBox} />
           ) : (
             <View style={styles.table}>
-              <View style={styles.tableHeader}>
+              {!compactLayout ? <View style={styles.tableHeader}>
                 {config.columns.map((column) => <Text key={column.key} style={styles.th}>{column.label}</Text>)}
                 <Text style={styles.actionTh}>Ações</Text>
-              </View>
+              </View> : null}
               {items.length === 0 ? (
                 <EmptyState
                   title="Nenhum registro encontrado"
@@ -500,13 +507,16 @@ export default function GlobalAdminScreen() {
                   style={styles.emptyState}
                 />
               ) : items.map((row) => (
-                <View key={row.id} style={styles.tableRow}>
+                <View key={row.id} style={[styles.tableRow, compactLayout && styles.tableRowCompact]}>
                   {config.columns.map((column) => (
-                    <Text key={column.key} style={styles.td} numberOfLines={2}>
-                      {column.render ? column.render(row) : String(row[column.key] ?? "")}
-                    </Text>
+                    <View key={column.key} style={[styles.cell, compactLayout && styles.cellCompact]}>
+                      {compactLayout ? <Text style={styles.cellLabel}>{column.label}</Text> : null}
+                      <Text style={styles.td} numberOfLines={compactLayout ? undefined : 2}>
+                        {column.render ? column.render(row) : String(row[column.key] ?? "")}
+                      </Text>
+                    </View>
                   ))}
-                  <View style={styles.actions}>
+                  <View style={[styles.actions, compactLayout && styles.actionsCompact]}>
                     <StatusPill status={rowStatus(row)} />
                     {!config.readOnly ? (
                       <>
@@ -925,24 +935,28 @@ function IconButton({ label, icon, danger, onPress }: { label: string; icon: "ed
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  shell: { flex: 1, flexDirection: "row", width: "100%", maxWidth: 1280, alignSelf: "center" },
+  shell: { flex: 1, flexDirection: "row", width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center" },
+  shellCompact: { flexDirection: "column" },
   sidebar: {
-    width: 115,
-    minWidth: 115,
-    maxWidth: 115,
-    flexBasis: 115,
+    width: 176,
+    minWidth: 176,
+    maxWidth: 176,
+    flexBasis: 176,
     flexGrow: 0,
     flexShrink: 0,
     backgroundColor: colors.surface,
     borderRightWidth: 1,
     borderRightColor: colors.line,
   },
+  sidebarCompact: { width: "100%", minWidth: "100%", maxWidth: "100%", flexBasis: "auto", flexGrow: 0, borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: colors.line },
   sidebarContent: { padding: spacing.sm, gap: spacing.xs },
+  sidebarContentCompact: { flexDirection: "row", alignItems: "center" },
   sidebarTitle: { color: colors.ink, fontSize: 13, fontWeight: "900", marginBottom: spacing.sm },
-  menuItem: { minHeight: 38, borderRadius: radii.md, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  menuItemActive: { backgroundColor: colors.primary },
-  menuText: { color: colors.text, fontSize: 10, fontWeight: "800", flex: 1, flexShrink: 1, lineHeight: 12 },
-  menuTextActive: { color: "#FFFFFF" },
+  menuItem: { minHeight: 44, borderLeftWidth: 3, borderLeftColor: "transparent", paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  menuItemCompact: { borderLeftWidth: 0, borderBottomWidth: 3, borderBottomColor: "transparent" },
+  menuItemActive: { backgroundColor: colors.primarySoft, borderLeftColor: colors.accent, borderBottomColor: colors.accent },
+  menuText: { color: colors.text, fontSize: 12, fontWeight: "800", flex: 1, flexShrink: 1, lineHeight: 15 },
+  menuTextActive: { color: colors.primaryDark },
   main: { flex: 1 },
   mainContent: { padding: spacing.lg, paddingBottom: screen.contentBottomPadding, gap: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, alignItems: "flex-start", flexWrap: "wrap" },
@@ -954,20 +968,25 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
   secondaryButton: { minHeight: 42, borderRadius: radii.md, backgroundColor: colors.primarySoft, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   secondaryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  filters: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, gap: spacing.md, ...shadow },
+  filters: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.md, gap: spacing.md },
   searchInput: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, color: colors.ink, fontSize: 14, fontWeight: "700" },
   chips: { gap: spacing.sm, alignItems: "center" },
   chip: { borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 12, fontWeight: "900" },
   chipTextActive: { color: "#FFFFFF" },
-  table: { backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, overflow: "hidden", ...shadow },
+  table: { backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, overflow: "hidden" },
   tableHeader: { flexDirection: "row", backgroundColor: colors.surfaceMuted, padding: spacing.md, gap: spacing.md, alignItems: "center" },
   th: { flex: 1, color: colors.text, fontSize: 12, fontWeight: "900" },
   actionTh: { width: 165, color: colors.text, fontSize: 12, fontWeight: "900" },
   tableRow: { flexDirection: "row", padding: spacing.md, gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" },
-  td: { flex: 1, color: colors.ink, fontSize: 13, fontWeight: "700" },
+  tableRowCompact: { flexDirection: "column", alignItems: "stretch" },
+  cell: { flex: 1 },
+  cellCompact: { width: "100%", flex: 0, gap: spacing.xs },
+  cellLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
+  td: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   actions: { width: 165, flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", alignItems: "center" },
+  actionsCompact: { width: "100%", marginTop: spacing.xs },
   iconButton: { minHeight: 30, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   iconButtonDanger: { backgroundColor: colors.dangerSoft },
   iconButtonText: { color: colors.primary, fontSize: 11, fontWeight: "900" },

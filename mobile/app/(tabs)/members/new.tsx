@@ -17,7 +17,7 @@ import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Ministry, Role } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import { colors, radii, screen, spacing } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 import { canManageMembers } from "../../../src/utils/permissions";
@@ -260,22 +260,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: {
     flexGrow: 1,
-    justifyContent: "center",
     padding: spacing.xl,
+    paddingBottom: screen.contentBottomPadding,
   },
   inner: {
     width: "100%",
-    maxWidth: screen.maxWidth,
+    maxWidth: screen.formMaxWidth,
     alignSelf: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow,
+    paddingVertical: spacing.lg,
   },
   back: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
@@ -283,25 +278,26 @@ const styles = StyleSheet.create({
   },
   backText: { color: colors.primary, fontSize: 15, fontWeight: "700" },
   brandMark: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   title: { fontSize: 32, fontWeight: "800", color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginBottom: spacing.xl },
+  subtitle: { fontSize: 15, lineHeight: 22, color: colors.muted, marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
   label: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    minHeight: 44,
+    backgroundColor: colors.surface,
     borderRadius: radii.md,
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: spacing.lg,
     color: colors.ink,
     fontSize: 15,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.line,
   },
@@ -316,7 +312,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   success: {
     backgroundColor: colors.primarySoft,
@@ -333,12 +329,12 @@ const styles = StyleSheet.create({
   },
   segment: {
     flexDirection: "row",
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     borderRadius: radii.md,
     padding: 4,
     borderWidth: 1,
     borderColor: colors.line,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   segmentButton: {
     flex: 1,
@@ -388,9 +384,9 @@ const styles = StyleSheet.create({
   checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkboxText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "700" },
   button: {
-    minHeight: 52,
+    minHeight: 44,
     backgroundColor: colors.primary,
-    paddingVertical: 16,
+    paddingVertical: 10,
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",

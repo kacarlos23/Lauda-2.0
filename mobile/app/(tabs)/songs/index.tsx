@@ -1,42 +1,111 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
+  Alert,
+  LayoutChangeEvent,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Check, Download, MicVocal, Plus, Search, Square, UserRound, X } from "lucide-react-native";
+import { MicVocal, Plus, Search, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
-import { AppInput, Button, EmptyState, ErrorBanner, LoadingState } from "../../../src/components/ui";
+import { ArtistPicker } from "../../../src/components/ArtistPicker";
+import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
+import { SongListRow } from "../../../src/components/songs/SongListRow";
+import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
+import {
+  AppInput,
+  Button,
+  Chip,
+  EmptyState,
+  ErrorBanner,
+  FeedbackToast,
+  FeedbackTone,
+  FilterButton,
+  FilterPanel,
+  FilterSection,
+  LoadingState,
+} from "../../../src/components/ui";
+import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
-import { buttonShadow, colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import {
+  MAX_SONG_SELECTION,
+  reconcileSongSelection,
+  SongSelectionSnapshot,
+  toggleSongPageSelection,
+  toggleSongSelection,
+} from "../../../src/utils/songSelection";
+import { colors, radii, screen, spacing } from "../../../src/theme";
+
+const WIDE_SELECTION_MIN_WIDTH = 1000;
 
 const TEXT = {
-  songOrArtist: "M\u00fasica ou artista",
-  searchSongs: "Buscar m\u00fasicas",
-  songs: "M\u00fasicas",
-  newSong: "Nova m\u00fasica",
-  cancelSelection: "Cancelar sele\u00e7\u00e3o",
-  selectPage: "Selecionar p\u00e1gina",
-  retryLoadSongs: "Tentar carregar m\u00fasicas novamente",
-  loadingSongs: "Carregando m\u00fasicas...",
-  noSongsFound: "Nenhuma m\u00fasica encontrada",
-  registerSongs: "Cadastre m\u00fasicas para montar repert\u00f3rios e escalas.",
-  exportError: "N\u00e3o foi poss\u00edvel exportar as cifras.",
-  nextPage: "Pr\u00f3xima",
+  songOrArtist: "Música ou artista",
+  searchSongs: "Buscar músicas",
+  songs: "Músicas",
+  newSong: "Nova música",
+  retryLoadSongs: "Tentar carregar músicas novamente",
+  loadingSongs: "Carregando músicas...",
+  noSongsFound: "Nenhuma música encontrada",
+  registerSongs: "Cadastre músicas para montar repertórios e escalas.",
+  exportError: "Não foi possível exportar as cifras.",
+  nextPage: "Próxima",
 } as const;
+
+type SongFilterState = {
+  artist: Artist | null;
+  originalKey?: MusicalKey;
+};
+
+type Feedback = { message: string; tone: FeedbackTone };
+
+const emptyFilters = (): SongFilterState => ({ artist: null, originalKey: undefined });
+
+function toQueryFilters(filters: SongFilterState): SongListParams {
+  return {
+    ...(filters.artist ? { artistId: filters.artist.id } : {}),
+    ...(filters.originalKey ? { originalKey: filters.originalKey } : {}),
+  };
+}
+
+function filtersEqual(left: SongFilterState, right: SongFilterState): boolean {
+  return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey;
+}
+
+function totalLabel(total: number): string {
+  return `${total} ${total === 1 ? "música encontrada" : "músicas encontradas"}`;
+}
 
 export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const { screenHeight } = useResponsiveLayout();
   const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSongs, setSelectedSongs] = useState<Map<string, SongSelectionSnapshot>>(() => new Map());
+  const [exportPanelExpanded, setExportPanelExpanded] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
+  const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const searchRef = useRef(search);
   const pageRef = useRef(page);
+  const filtersRef = useRef<SongListParams>(toQueryFilters(filters));
+  const exportingRef = useRef(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didMountSearchRef = useRef(false);
   const didMountPageRef = useRef(false);
   const handledInvalidationRef = useRef(listInvalidationVersion);
@@ -44,9 +113,23 @@ export default function SongsScreen() {
   useEffect(() => { searchRef.current = search; }, [search]);
   useEffect(() => { pageRef.current = page; }, [page]);
 
+  useEffect(() => () => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+  }, []);
+
+  const showFeedback = useCallback((message: string, tone: FeedbackTone = "success") => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedback({ message, tone });
+    AccessibilityInfo?.announceForAccessibility?.(message);
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4200);
+  }, []);
+
   const loadVisibleSongs = useCallback((forceRefresh = false) => {
     const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, pageRef.current, { refresh: forceRefresh || hasCachedSongs });
+    void loadSongs(searchRef.current, pageRef.current, {
+      refresh: forceRefresh || hasCachedSongs,
+      filters: filtersRef.current,
+    });
   }, [loadSongs]);
 
   useFocusEffect(useCallback(() => {
@@ -64,7 +147,7 @@ export default function SongsScreen() {
       pageRef.current = 1;
       setPage(1);
       const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-      void loadSongs(search, 1, { refresh: hasCachedSongs });
+      void loadSongs(search, 1, { refresh: hasCachedSongs, filters: filtersRef.current });
     }, 300);
     return () => clearTimeout(timer);
   }, [search, loadSongs]);
@@ -77,7 +160,7 @@ export default function SongsScreen() {
 
     pageRef.current = page;
     const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, page, { refresh: hasCachedSongs });
+    void loadSongs(searchRef.current, page, { refresh: hasCachedSongs, filters: filtersRef.current });
   }, [page, loadSongs]);
 
   useEffect(() => {
@@ -86,197 +169,398 @@ export default function SongsScreen() {
     loadVisibleSongs(true);
   }, [listInvalidationVersion, loadVisibleSongs]);
 
-  const toggle = (id: string) => {
-    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : current.length < 50 ? [...current, id] : current);
-  };
+  useEffect(() => {
+    if (!selectedSongs.size || !songs.length) return;
+    setSelectedSongs((current) => reconcileSongSelection(current, songs));
+  }, [songs, selectedSongs.size]);
 
-  const exportSelected = async () => {
-    if (!selected.length) return;
+  const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
+  const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
+  const activeFilters = Boolean(filters.artist || filters.originalKey);
+  const canApplyFilters = !filtersEqual(filters, draftFilters);
+  const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
+  const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
+
+  const toggleSong = useCallback((song: Song) => {
+    setSelectedSongs((current) => {
+      const result = toggleSongSelection(current, song);
+      if (result.limitReached) {
+        showFeedback("O limite é de 50 cifras.", "warning");
+      }
+      return result.selection;
+    });
+  }, [showFeedback]);
+
+  const togglePageSelection = useCallback(() => {
+    if (!songs.length) return;
+    setSelectedSongs((current) => {
+      const result = toggleSongPageSelection(current, songs, MAX_SONG_SELECTION);
+      if (result.added < result.candidates) {
+        showFeedback(
+          `${result.added} de ${result.candidates} músicas adicionadas. O limite é de 50 cifras.`,
+          "warning"
+        );
+      }
+      return result.selection;
+    });
+  }, [showFeedback, songs]);
+
+  const cancelSelection = useCallback(() => {
+    setSelectedSongs(new Map());
+    setIsSelectionMode(false);
+    setExportPanelExpanded(true);
+  }, []);
+
+  const exportSelected = useCallback(async () => {
+    if (!selectedSongs.size || exportingRef.current) return;
+    exportingRef.current = true;
     setExporting(true);
     try {
-      await musicService.exportSongs(selected, `Cifras - ${new Date().toISOString().slice(0, 10)}.pdf`);
+      await musicService.exportSongs(
+        Array.from(selectedSongs.keys()),
+        `Cifras - ${new Date().toISOString().slice(0, 10)}.pdf`
+      );
+      showFeedback("Arquivo gerado com sucesso.");
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : TEXT.exportError);
+      if (reason instanceof SongsUnavailableClientError) {
+        const unavailable = new Set(reason.songIds);
+        setSelectedSongs((current) => {
+          const next = new Map(current);
+          unavailable.forEach((id) => next.delete(id));
+          return next;
+        });
+        const count = reason.songIds.length;
+        showFeedback(
+          `${count || "Algumas"} ${count === 1 ? "música foi removida" : "músicas foram removidas"} da seleção por não estarem mais disponíveis.`,
+          "warning"
+        );
+      } else {
+        Alert.alert("Erro", reason instanceof Error ? reason.message : TEXT.exportError);
+      }
     } finally {
+      exportingRef.current = false;
       setExporting(false);
     }
-  };
+  }, [selectedSongs, showFeedback]);
+
+  const openFilters = useCallback(() => {
+    setDraftFilters(filters);
+    setShowFilters(true);
+  }, [filters]);
+
+  const commitFilters = useCallback((next: SongFilterState) => {
+    const queryFilters = toQueryFilters(next);
+    filtersRef.current = queryFilters;
+    setFilters(next);
+    setDraftFilters(next);
+    setShowFilters(false);
+    pageRef.current = 1;
+    setPage(1);
+    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
+    void loadSongs(searchRef.current, 1, { refresh: hasCachedSongs, filters: queryFilters });
+  }, [loadSongs]);
+
+  const applyFilters = useCallback(() => commitFilters(draftFilters), [commitFilters, draftFilters]);
+  const clearFilters = useCallback(() => commitFilters(emptyFilters()), [commitFilters]);
+
+  const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextWidth = Math.round(event.nativeEvent.layout.width);
+    setContentWidth((current) => current === nextWidth ? current : nextWidth);
+  }, []);
+
+  const selectionPanel = isSelectionMode ? (
+    <SongExportPanel
+      songs={selectedList}
+      compact={!isWideSelectionLayout}
+      expanded={exportPanelExpanded}
+      screenHeight={screenHeight}
+      exporting={exporting}
+      onToggleExpanded={() => setExportPanelExpanded((current) => !current)}
+      onRemove={(songId) => setSelectedSongs((current) => {
+        const next = new Map(current);
+        next.delete(songId);
+        return next;
+      })}
+      onExport={() => void exportSelected()}
+      onCancel={cancelSelection}
+    />
+  ) : null;
+
+  const wideLayoutStyle = Platform.OS === "web"
+    ? ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", columnGap: spacing.xl, alignItems: "start" } as never)
+    : styles.wideLayoutFallback;
+  const stickyPanelStyle = Platform.OS === "web"
+    ? ({ position: "sticky", top: spacing.xl, width: 320, alignSelf: "start" } as never)
+    : styles.stickyPanelFallback;
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <View style={styles.container}>
-        <View style={styles.contentHeader}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>{TEXT.songs}</Text>
-              <Text style={styles.subtitle}>Cifras da sua igreja</Text>
-            </View>
-            <View style={styles.actions}>
-              {canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") ? (
-                <TouchableOpacity style={styles.iconButton} onPress={() => router.push("/artists" as never)} accessibilityLabel="Gerenciar artistas">
-                  <MicVocal color={colors.primary} size={19} />
-                </TouchableOpacity>
-              ) : null}
-              {canManageMusic(user, "song:create") ? (
-                <TouchableOpacity style={styles.primaryIcon} onPress={() => router.push("/songs/new" as never)} accessibilityLabel={TEXT.newSong}>
-                  <Plus color={colors.surface} size={20} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
+      {feedback ? <FeedbackToast message={feedback.message} tone={feedback.tone} /> : null}
 
-          <AppInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder={TEXT.songOrArtist}
-            accessibilityLabel={TEXT.searchSongs}
-            testID="song-search-input"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            icon={<Search color={colors.muted} size={19} />}
-            endAdornment={search ? (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setSearch("")}
-                accessibilityRole="button"
-                accessibilityLabel="Limpar pesquisa de músicas"
-                hitSlop={8}
-              >
-                <X color={colors.muted} size={18} strokeWidth={2.4} />
-              </TouchableOpacity>
-            ) : null}
-            containerStyle={styles.searchInput}
-          />
-
-          <View style={styles.selectionBar}>
-            <TouchableOpacity onPress={() => { setSelectionMode(!selectionMode); setSelected([]); }}>
-              <Text style={styles.link}>{selectionMode ? TEXT.cancelSelection : "Selecionar para PDF"}</Text>
-            </TouchableOpacity>
-            {selectionMode ? (
-              <TouchableOpacity onPress={() => setSelected(selected.length === songs.length ? [] : songs.slice(0, 50).map((song) => song.id))}>
-                <Text style={styles.link}>{selected.length === songs.length ? "Limpar" : TEXT.selectPage}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-
-        <ErrorBanner
-          message={error}
-          style={styles.error}
-          action={error ? (
-            <Button
-              title="Tentar novamente"
-              variant="secondary"
-              size="sm"
-              style={styles.retryButton}
-              onPress={() => loadVisibleSongs(true)}
-              accessibilityLabel={TEXT.retryLoadSongs}
-            />
-          ) : null}
+      <FilterPanel
+        visible={showFilters}
+        title="Filtrar músicas"
+        canApply={canApplyFilters}
+        onApply={applyFilters}
+        onClose={() => setShowFilters(false)}
+        onClear={activeFilters || hasDraftFilters ? clearFilters : undefined}
+      >
+        <ArtistPicker
+          selected={draftFilters.artist}
+          onSelect={(artist) => setDraftFilters((current) => ({ ...current, artist }))}
+          canCreate={false}
+          label="Artista"
+          placeholder="Buscar artista"
+          testID="song-filter-artist-input"
         />
-
-        <FlatList
-          style={styles.listScroller}
-          data={songs}
-          keyExtractor={(item) => item.id}
-          refreshing={refreshing}
-          onRefresh={() => void loadSongs(search, page, { refresh: true })}
-          removeClippedSubviews={false}
-          contentContainerStyle={songs.length ? styles.list : styles.emptyList}
-          ListEmptyComponent={(loading || refreshing) && !songs.length ? (
-            <LoadingState centered={false} message={TEXT.loadingSongs} style={styles.inlineLoading} />
-          ) : (
-            <EmptyState
-              title={TEXT.noSongsFound}
-              description={search.trim() ? "Tente ajustar a busca ou limpar o termo pesquisado." : TEXT.registerSongs}
+        <FilterSection title="Tom original">
+          {MUSICAL_KEYS.map((key) => (
+            <Chip
+              key={key}
+              label={key}
+              active={draftFilters.originalKey === key}
+              onPress={() => setDraftFilters((current) => ({
+                ...current,
+                originalKey: current.originalKey === key ? undefined : key,
+              }))}
+              accessibilityLabel={`${draftFilters.originalKey === key ? "Remover" : "Filtrar por"} tom ${key}`}
+              accessibilityState={{ selected: draftFilters.originalKey === key }}
             />
-          )}
-          renderItem={({ item }) => {
-            const checked = selected.includes(item.id);
-            return (
-              <View style={styles.rowShadowFrame}>
+          ))}
+        </FilterSection>
+      </FilterPanel>
+
+      <ScrollView
+        style={styles.scroller}
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void loadSongs(searchRef.current, pageRef.current, { refresh: true, filters: filtersRef.current })}
+            colors={[colors.primary]}
+          />
+        )}
+      >
+        <View style={styles.contentShell}>
+          <View style={styles.measuredContent} onLayout={handleContentLayout} testID="songs-content-width">
+            <View style={styles.header}>
+              <View style={styles.headerCopy}>
+                <Text style={styles.title}>{TEXT.songs}</Text>
+                <Text style={styles.subtitle}>Cifras da sua igreja</Text>
+              </View>
+              <View style={styles.actions}>
+                {canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") ? (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => router.push("/artists" as never)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Gerenciar artistas"
+                  >
+                    <MicVocal color={colors.primary} size={19} />
+                  </TouchableOpacity>
+                ) : null}
+                {canManageMusic(user, "song:create") ? (
+                  <Button
+                    title={TEXT.newSong}
+                    icon={<Plus color={colors.surface} size={19} />}
+                    onPress={() => router.push("/songs/new" as never)}
+                    accessibilityLabel={TEXT.newSong}
+                    style={styles.newSongButton}
+                  />
+                ) : null}
+              </View>
+            </View>
+
+            <View style={styles.searchRow}>
+              <AppInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder={TEXT.songOrArtist}
+                accessibilityLabel={TEXT.searchSongs}
+                testID="song-search-input"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                icon={<Search color={colors.muted} size={19} />}
+                endAdornment={search ? (
+                  <TouchableOpacity
+                    style={styles.clearSearchButton}
+                    onPress={() => setSearch("")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Limpar pesquisa de músicas"
+                    hitSlop={8}
+                  >
+                    <X color={colors.muted} size={18} strokeWidth={2.4} />
+                  </TouchableOpacity>
+                ) : null}
+                containerStyle={styles.searchInput}
+              />
+              <FilterButton
+                label="Filtros"
+                active={activeFilters}
+                onPress={openFilters}
+                accessibilityLabel="Abrir filtros de músicas"
+                style={styles.filterButton}
+              />
+            </View>
+
+            <ErrorBanner
+              message={error}
+              style={styles.error}
+              action={error ? (
+                <Button
+                  title="Tentar novamente"
+                  variant="secondary"
+                  size="sm"
+                  style={styles.retryButton}
+                  onPress={() => loadVisibleSongs(true)}
+                  accessibilityLabel={TEXT.retryLoadSongs}
+                />
+              ) : null}
+            />
+
+            {!isSelectionMode ? (
+              <View style={styles.selectionEntry}>
                 <TouchableOpacity
-                  style={[styles.row, checked && styles.rowSelected]}
-                  testID={`song-row-${item.id}`}
-                  onPress={() => {
-                    if (selectionMode) {
-                      toggle(item.id);
-                      return;
-                    }
-                    primeSong(item);
-                    router.push(`/songs/${item.id}` as never);
-                  }}
+                  onPress={() => { setIsSelectionMode(true); setExportPanelExpanded(true); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Selecionar músicas para PDF"
                 >
-                  {item.artist.imageUrl
-                    ? <Image source={{ uri: item.artist.imageUrl }} style={styles.avatar} />
-                    : <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={20} /></View>}
-                  <View style={styles.info}>
-                    <Text style={styles.songTitle}>{item.title}</Text>
-                    <Text style={styles.meta}>{item.artist.name} · Tom {item.originalKey}{item.bpm ? ` · ${item.bpm} BPM` : ""}</Text>
-                  </View>
-                  {!selectionMode ? <SongLinkButtons links={item} compact /> : null}
-                  {selectionMode ? checked ? <View style={styles.check}><Check color={colors.surface} size={16} /></View> : <Square color={colors.muted} size={22} /> : null}
+                  <Text style={styles.selectionEntryText}>Selecionar para PDF</Text>
                 </TouchableOpacity>
               </View>
-            );
-          }}
-          ListFooterComponent={pagination.totalPages > 1 ? (
-            <View style={styles.pagination}>
-              <TouchableOpacity disabled={page <= 1} onPress={() => setPage(page - 1)}>
-                <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text>
-              </TouchableOpacity>
-              <Text style={styles.pageText}>{page} de {pagination.totalPages}</Text>
-              <TouchableOpacity disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}>
-                <Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>{TEXT.nextPage}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-        />
+            ) : null}
 
-        {selectionMode && selected.length ? (
-          <TouchableOpacity style={styles.exportButton} onPress={() => void exportSelected()} disabled={exporting}>
-            <Download color={colors.surface} size={18} />
-            <Text style={styles.exportText}>{exporting ? "Gerando..." : `Exportar ${selected.length} cifra(s)`}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+            <View
+              style={isWideSelectionLayout ? wideLayoutStyle : styles.singleColumn}
+              testID={isWideSelectionLayout ? "songs-selection-layout-wide" : "songs-selection-layout-compact"}
+            >
+              <View style={styles.mainColumn}>
+                {isSelectionMode && !isWideSelectionLayout ? selectionPanel : null}
+                {isSelectionMode ? (
+                  <SongSelectionSummary
+                    selectedCount={selectedSongs.size}
+                    pageEmpty={!songs.length}
+                    allPageSelected={allPageSelected}
+                    onTogglePage={togglePageSelection}
+                    onClear={() => setSelectedSongs(new Map())}
+                  />
+                ) : null}
+
+                <View style={styles.listCard}>
+                  <View style={styles.listHeader}>
+                    <Text style={styles.listCount} accessibilityLiveRegion="polite">{totalLabel(pagination.total)}</Text>
+                  </View>
+
+                  {(loading || refreshing) && !songs.length ? (
+                    <LoadingState centered={false} message={TEXT.loadingSongs} style={styles.inlineLoading} />
+                  ) : !songs.length ? (
+                    <EmptyState
+                      title={TEXT.noSongsFound}
+                      description={search.trim() || activeFilters ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
+                      style={styles.emptyState}
+                    />
+                  ) : (
+                    songs.map((song, index) => (
+                      <SongListRow
+                        key={song.id}
+                        song={song}
+                        selectionMode={isSelectionMode}
+                        selected={selectedSongs.has(song.id)}
+                        isLast={index === songs.length - 1}
+                        onPress={() => {
+                          if (isSelectionMode) {
+                            toggleSong(song);
+                            return;
+                          }
+                          primeSong(song);
+                          router.push(`/songs/${song.id}` as never);
+                        }}
+                      />
+                    ))
+                  )}
+                </View>
+
+                {pagination.totalPages > 1 ? (
+                  <View style={styles.pagination}>
+                    <TouchableOpacity disabled={page <= 1} onPress={() => setPage(page - 1)}>
+                      <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.pageText}>{page} de {pagination.totalPages}</Text>
+                    <TouchableOpacity disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}>
+                      <Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>{TEXT.nextPage}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+
+              {isWideSelectionLayout ? (
+                <View style={stickyPanelStyle} testID="songs-export-panel-sticky">{selectionPanel}</View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, width: "100%", paddingTop: spacing.lg },
-  contentHeader: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
+  scroller: { flex: 1, width: "100%" },
+  page: { flexGrow: 1, paddingVertical: spacing.xl, paddingBottom: screen.contentBottomPadding + spacing.xl },
+  contentShell: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl },
+  measuredContent: { width: "100%" },
+  header: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  headerCopy: { flexGrow: 1 },
   title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
   subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs, fontWeight: "700" },
-  actions: { flexDirection: "row", gap: spacing.sm },
-  iconButton: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#BFE7DE" },
-  primaryIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", ...buttonShadow },
-  searchInput: { marginBottom: spacing.sm },
+  actions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#BFE7DE",
+  },
+  newSongButton: { minWidth: 150 },
+  searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
+  searchInput: { flex: 1 },
+  filterButton: { height: 50 },
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  selectionBar: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  listScroller: { flex: 1, width: "100%" },
-  list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.xs, paddingBottom: screen.contentBottomPadding },
-  emptyList: { flexGrow: 1, width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, paddingBottom: screen.contentBottomPadding },
-  inlineLoading: { alignItems: "center" },
-  rowShadowFrame: { paddingVertical: spacing.xs, overflow: "visible" },
-  row: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, backgroundColor: colors.surface, ...shadow },
-  rowSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceMuted },
-  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  info: { flex: 1 },
-  songTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
-  meta: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
-  check: { width: 22, height: 22, borderRadius: 5, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "700", marginHorizontal: spacing.xl, marginBottom: spacing.sm, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md },
-  retryButton: { alignSelf: "flex-start", marginHorizontal: spacing.xl, marginBottom: spacing.sm },
+  error: { marginBottom: spacing.sm },
+  retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
+  selectionEntry: { minHeight: 44, alignItems: "flex-start", justifyContent: "center", marginBottom: spacing.sm },
+  selectionEntryText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  singleColumn: { width: "100%" },
+  wideLayoutFallback: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: spacing.xl },
+  stickyPanelFallback: { width: 320, alignSelf: "flex-start" },
+  mainColumn: { flex: 1, minWidth: 0, gap: spacing.lg },
+  listCard: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  listHeader: { minHeight: 50, justifyContent: "center", paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  listCount: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  inlineLoading: { alignItems: "center", padding: spacing.xl },
+  emptyState: { borderWidth: 0, borderRadius: 0 },
   pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg },
+  link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
   pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
   disabledText: { opacity: 0.35 },
-  exportButton: { position: "absolute", left: spacing.xl, right: spacing.xl, bottom: 96, minHeight: 52, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, ...buttonShadow },
-  exportText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
 });
