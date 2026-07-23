@@ -113,6 +113,10 @@ Alterações locais que já existiam no backend, serviços, stores, músicas e s
 | `mobile: npm run build:web` | passou; 53 rotas estáticas e URL pública validada no bundle |
 | Títulos dos HTMLs | 26/26 com um único título específico e não vazio |
 | Hard reload local | seis rotas públicas e `/schedules` autenticada sem erros de console/hidratação |
+| `npm run security:policy` | passou; três exceções completas, temporárias e não expiradas |
+| Gitleaks no histórico completo | passou; zero achados após exceção restrita ao vetor público RFC |
+| `npm run security:dependencies -- --gate` | passou; zero alta/crítica de runtime e zero crítica de tooling |
+| `npm run security:dast:logical` | 2/2 suítes, 18/18 testes |
 | Lint | não existe script ou configuração de lint no repositório |
 
 ## Build público

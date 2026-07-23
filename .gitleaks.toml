@@ -22,3 +22,15 @@ condition = "AND"
 paths = ['''^src/__tests__/unit/rateLimitMiddleware\.test\.ts$''']
 regexTarget = "line"
 regexes = ['''\["refresh token", "eyJhbGciOiJIUzI1NiJ9\.sensitive\.signature"\]''']
+
+# SEC-FP-2026-003: RFC TOTP test vector committed before secret scanning was
+# introduced. The allowlist is constrained to its rule, commit, path, and
+# variable/value format; later changes to the fixture remain scannable.
+[[allowlists]]
+description = "SEC-FP-2026-003 public RFC TOTP test vector; expires 2026-10-21"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["b17f452a1e65d803f8ee00c6480a63b8868f627a"]
+paths = ['''^src/__tests__/unit/mfa\.test\.ts$''']
+regexTarget = "line"
+regexes = ['''const rfcSecret = "[A-Z2-7]{32}";''']

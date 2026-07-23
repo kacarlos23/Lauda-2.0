@@ -182,6 +182,16 @@ npm --prefix mobile run test:e2e
 
 O Playwright cria o export de produção antes dos testes, inicia o servidor estático e valida hard reload, títulos, permissões e responsividade. No GitHub Actions, relatório, traces e screenshots ficam disponíveis por 30 dias no artifact `lauda-redesign-qa-<sha>`.
 
+Segurança:
+
+```bash
+npm run security:policy
+npm run security:dependencies -- --gate
+npm run security:dast:logical
+```
+
+O Security CI também executa Gitleaks sobre todo o histórico Git. Exceções de falso positivo são temporárias e limitadas por regra, arquivo, formato e, quando necessário, commit histórico em `.security/exceptions.yml` e `.gitleaks.toml`.
+
 Build web:
 
 ```powershell
@@ -197,7 +207,8 @@ O build público rejeita URLs HTTP fora de loopback, credenciais embutidas e fal
 - backend: 31 suítes e 228 testes;
 - mobile: 44 suítes e 252 testes;
 - E2E web: 41 cenários sobre o export estático;
-- Expo web: 53 rotas estáticas.
+- Expo web: 53 rotas estáticas;
+- segurança: Gitleaks sem achados, DAST lógico 18/18 e gate de dependências sem vulnerabilidade alta/crítica de runtime ou crítica de tooling.
 
 ## Produção
 

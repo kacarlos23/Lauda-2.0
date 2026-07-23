@@ -25,5 +25,17 @@ exceptions:
     compensating_controls:
       - "Suppression applies only to the next YAML line."
       - "Gitleaks remains active and the Compose config requires explicit injection."
+  - id: SEC-FP-2026-003
+    finding: "Gitleaks generic-api-key in historical src/__tests__/unit/mfa.test.ts:6"
+    classification: false_positive
+    justification: "The 32-character Base32 literal is the public RFC TOTP test vector used only to verify the standard timestamp/code example. It is not connected to any Lauda account, tenant, environment, or encryption key."
+    owner: "Repository maintainer (@kacarlos23)"
+    approved_by: "Technical baseline only; Security Owner approval remains TBD"
+    created_at: 2026-07-23
+    expires_at: 2026-10-21
+    review_condition: "Remove immediately if the historical fixture scope changes or any new finding appears for this rule, file, or commit."
+    compensating_controls:
+      - "Allowlist requires the exact rule, historical commit, file, variable name, and Base32 length."
+      - "Current and future changes to the fixture remain covered by full-history scanning."
 
 accepted_risks: []

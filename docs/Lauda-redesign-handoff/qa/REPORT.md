@@ -14,6 +14,7 @@ Cobertura: 26 rotas, 4 larguras representativas, zoom de 200%, teclado e permiss
 - Contraste: pares de texto críticos aprovados em WCAG AA.
 - Achados de produto pendentes: smoke pós-deploy em produção.
 - Build público: URL HTTPS confirmada no bundle, sem fallback local.
+- Gates de segurança locais: Gitleaks sem achados, dependências sem alta/crítica de runtime e DAST lógico 18/18.
 
 ## Achados corrigidos durante o dogfood
 

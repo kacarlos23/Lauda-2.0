@@ -35,6 +35,8 @@ O bloqueio do export acima pertence à linha de base sem variáveis. Na validaç
 | `/schedules` empilhada no desktop | calendário e agenda estavam no mesmo fluxo vertical da `FlatList` | duas colunas a partir de 1024 px e empilhamento preservado em tablet/mobile; screenshots e geometria cobertos no E2E |
 | Deep link autenticado voltava ao dashboard | `TabsLayout` redirecionava antes de `loadSession` terminar | estado de carregamento acessível mantém a rota até a sessão ser resolvida |
 | Evidência não recuperável no CI | screenshots locais estavam em diretórios ignorados | `mobile.yml` publica `playwright-report` e `test-results`, incluindo desktop/mobile de Escalas, por 30 dias |
+| Gates do PR não eram portáveis | typecheck dependia do estado web de `Pressable`, teste arquitetural chamava `rg` externo e o DAST não gerava o Prisma Client | hover controlado pelos eventos já suportados, varredura do teste feita com APIs Node e `prisma generate` explícito no workflow |
+| Security CI bloqueava a entrega | duas dependências transitivas altas de runtime e um vetor público RFC de TOTP no histórico | overrides transitivos validados removem os achados altos de runtime; exceção Gitleaks temporária e limitada à regra, commit, arquivo e formato exatos |
 
 Nenhuma dessas correções altera endpoints, payloads, stores, modelos, URLs, papéis ou regras de permissão.
 

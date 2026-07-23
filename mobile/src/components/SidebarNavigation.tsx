@@ -134,7 +134,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                         styles.navItem,
                         isCollapsed && styles.navItemCollapsed,
                         active && styles.navItemActive,
-                        state.hovered && !active && styles.navItemHover,
+                        hoveredLabel === item.label && !active && styles.navItemHover,
                         state.pressed && styles.pressed,
                       ]}
                       accessibilityRole="link"
@@ -166,10 +166,12 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
       <View style={styles.footer}>
         <Pressable
           onPress={() => router.push("/profile" as never)}
-          style={({ pressed, hovered }) => [
+          onHoverIn={() => setHoveredLabel("__profile")}
+          onHoverOut={() => setHoveredLabel(null)}
+          style={({ pressed }) => [
             styles.profileButton,
             isCollapsed && styles.profileButtonCollapsed,
-            hovered && styles.navItemHover,
+            hoveredLabel === "__profile" && styles.navItemHover,
             pressed && styles.pressed,
           ]}
           accessibilityRole="link"
@@ -191,10 +193,12 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
         </Pressable>
         <Pressable
           onPress={() => void logout()}
-          style={({ pressed, hovered }) => [
+          onHoverIn={() => setHoveredLabel("__logout")}
+          onHoverOut={() => setHoveredLabel(null)}
+          style={({ pressed }) => [
             styles.logoutButton,
             isCollapsed && styles.navItemCollapsed,
-            hovered && styles.logoutHover,
+            hoveredLabel === "__logout" && styles.logoutHover,
             pressed && styles.pressed,
           ]}
           accessibilityRole="button"

@@ -1,17 +1,32 @@
-import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { basePrismaAllowlist } from "../../security/basePrismaAllowlist";
+
+function matchingProductionFiles(pattern: RegExp): string[] {
+  const matches: string[] = [];
+
+  function visit(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolutePath = join(directory, entry.name);
+      const projectPath = relative(process.cwd(), absolutePath).replace(/\\/g, "/");
+
+      if (entry.isDirectory()) {
+        if (projectPath === "src/__tests__") continue;
+        visit(absolutePath);
+      } else if (entry.isFile() && entry.name.endsWith(".ts") && pattern.test(readFileSync(absolutePath, "utf8"))) {
+        matches.push(projectPath);
+      }
+    }
+  }
+
+  visit(join(process.cwd(), "src"));
+  visit(join(process.cwd(), "scripts"));
+  return matches.sort();
+}
 
 describe("basePrisma architecture allowlist", () => {
   it("fails when production code introduces a raw Prisma bypass outside the reviewed allowlist", () => {
-    const output = execFileSync("rg", [
-      "-l",
-      "--glob", "*.ts",
-      "--glob", "!src/__tests__/**",
-      "\\bbasePrisma\\b",
-      "src",
-      "scripts",
-    ], { encoding: "utf8" });
-    const actual = output.trim().split(/\r?\n/).filter(Boolean).map((path) => path.replace(/\\/g, "/")).sort();
+    const actual = matchingProductionFiles(/\bbasePrisma\b/);
     const expected = basePrismaAllowlist.map((entry) => entry.path).sort();
     expect(actual).toEqual(expected);
     for (const entry of basePrismaAllowlist) {
@@ -21,9 +36,6 @@ describe("basePrisma architecture allowlist", () => {
   });
 
   it("keeps direct PrismaClient construction limited to the central config", () => {
-    const output = execFileSync("rg", [
-      "-l", "--glob", "*.ts", "--glob", "!src/__tests__/**", "new PrismaClient", "src", "scripts",
-    ], { encoding: "utf8" }).trim().replace(/\\/g, "/");
-    expect(output).toBe("src/config/prisma.ts");
+    expect(matchingProductionFiles(/new PrismaClient/)).toEqual(["src/config/prisma.ts"]);
   });
 });

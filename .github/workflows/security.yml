@@ -163,6 +163,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
       - run: npm run security:dast:logical
       - name: Upload logical DAST evidence
         if: always()
