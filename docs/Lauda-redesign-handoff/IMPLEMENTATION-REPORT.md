@@ -2,13 +2,26 @@
 
 Data: 2026-07-23
 
-Status: 26/26 rotas migradas e navegáveis
+Status: 26/26 rotas migradas e validadas localmente; smoke pós-deploy pendente
 
 ## Resultado
 
 O frontend recebeu a nova identidade editorial verde-floresta, marfim e terracota sem alterar URLs, endpoints, payloads, stores, modelos, autenticação, persistência ou regras de permissão. A sidebar permanece no desktop, com estados aberto e recolhido, e a navegação inferior permanece no celular.
 
 Os estados reais de loading, erro, vazio, sucesso, validação, confirmação, bloqueio, refresh, seleção e permissões foram preservados. Os testes funcionais usam os mesmos contratos de API e os identificadores estáveis existentes.
+
+## Correção pós-auditoria
+
+A revisão de 23/07/2026 identificou problemas no modo como o export era servido, nos metadados e na composição desktop de Escalas. A correção:
+
+- remove o fallback SPA `--single`, que provocava React #418 em deep links;
+- serve cada HTML exportado e usa rewrites restritos aos IDs UUID das cinco rotas dinâmicas;
+- centraliza um título específico para cada uma das 26 URLs e elimina o `<title>` duplicado;
+- preserva deep links autenticados enquanto a sessão local é carregada;
+- reorganiza `/schedules` em calendário + agenda lado a lado no desktop e mantém o empilhamento mobile;
+- publica relatórios, traces e screenshots do Playwright como artifact do Mobile CI por 30 dias.
+
+Não houve alteração de API, store, modelo, autenticação, persistência, URL, fluxo ou permissão.
 
 ## Resumo por etapa
 
@@ -25,7 +38,7 @@ Os estados reais de loading, erro, vazio, sucesso, validação, confirmação, b
 | 8 — Detalhes | Cabeçalhos de entidade, relações contínuas e cifra como superfície dominante com toolbar aderente. |
 | 9 — Administração | Hub mobile, operação global densa e responsiva, identidade da igreja e perfil reorganizados. |
 | 10 — Qualidade | Desktop, laptop, tablet, celular, 200% de zoom, teclado, 44 px de toque, alertas e contraste WCAG AA verificados. |
-| 11 — Entrega | Build, typecheck, testes unitários/integrados, E2E, export web e navegação das 26 rotas executados. |
+| 11 — Entrega | Build, typecheck, testes unitários/integrados, 41 E2E sobre export estático e navegação das 26 rotas executados. |
 
 ## Checklist das 26 rotas
 
@@ -38,7 +51,7 @@ Os estados reais de loading, erro, vazio, sucesso, validação, confirmação, b
 | 05 | `/(auth)/forgot-password` | ✓ migrada e validada |
 | 06 | `/(auth)/reset-password` | ✓ migrada e validada |
 | 07 | `/(tabs)` | ✓ dashboard migrado |
-| 08 | `/schedules` | ✓ migrada e validada |
+| 08 | `/schedules` | ✓ calendário + agenda em duas colunas no desktop; empilhada no mobile |
 | 09 | `/schedules/new` | ✓ migrada, incluindo modais |
 | 10 | `/schedules/[id]/edit` | ✓ migrada, incluindo risco e confirmação |
 | 11 | `/ministries` | ✓ migrada, incluindo sheet |
@@ -65,6 +78,7 @@ Os estados reais de loading, erro, vazio, sucesso, validação, confirmação, b
 - Tabelas administrativas viram linhas empilhadas em larguras menores.
 - O `BottomSheet` usa conteúdo rolável com rodapé fixo, mantendo confirmação e cancelamento acessíveis em 720 px de altura.
 - O dashboard a 200% de zoom não produz scroll horizontal da página.
+- A recarga direta de uma rota autenticada mantém o destino enquanto a sessão é resolvida.
 
 ## Acessibilidade
 
@@ -77,10 +91,12 @@ Os estados reais de loading, erro, vazio, sucesso, validação, confirmação, b
 ## Arquivos e áreas alteradas
 
 - Identidade/configuração: `mobile/app.json`, `mobile/app/+html.tsx`, `mobile/assets/brand/**`, `mobile/public/**`.
+- Renderização web: `mobile/serve.json`, `mobile/package.json`, `mobile/src/components/RouteMetadata.tsx` e `mobile/playwright.config.ts`.
 - Sistema visual: `mobile/src/theme.ts`, `mobile/src/components/ui/**`, `AuthShell.tsx`, `BrandLogo.tsx`, `SidebarNavigation.tsx`, `ProfileHeaderButton.tsx`, `BottomSheet.tsx`.
 - Shell e rotas: `mobile/app/_layout.tsx`, `mobile/app/(auth)/**`, `mobile/app/(tabs)/**`.
 - Fluxos compartilhados: `SongForm.tsx`, `ArtistPicker.tsx`, `ScheduleCard.tsx` e componentes de músicas.
-- Testes atualizados para o novo contrato visual: `mobile/tests/e2e/app.spec.ts`, `layout-search-fixes.spec.ts` e `music-fixes-visual.spec.ts`.
+- Testes atualizados para o novo contrato visual: `mobile/tests/e2e/app.spec.ts`, `layout-search-fixes.spec.ts`, `music-fixes-visual.spec.ts` e `static-rendering.spec.ts`.
+- Evidências no CI: `.github/workflows/mobile.yml`.
 
 Alterações locais que já existiam no backend, serviços, stores, músicas e scripts foram preservadas; nenhuma delas foi revertida.
 
@@ -93,9 +109,10 @@ Alterações locais que já existiam no backend, serviços, stores, músicas e s
 | `npm test -- --runInBand` | 31/31 suítes, 228/228 testes |
 | `mobile: npx tsc --noEmit` | passou |
 | `mobile: npm test -- --runInBand` | 44/44 suítes, 252/252 testes |
-| `mobile: npm run test:e2e -- --reporter=list` | 32/32 cenários |
+| `mobile: npm run test:e2e` | 41/41 cenários sobre build estático |
 | `mobile: npm run build:web` | passou; 53 rotas estáticas e URL pública validada no bundle |
-| Navegador em build estático e dev | sem erros finais de console/hidratação |
+| Títulos dos HTMLs | 26/26 com um único título específico e não vazio |
+| Hard reload local | seis rotas públicas e `/schedules` autenticada sem erros de console/hidratação |
 | Lint | não existe script ou configuração de lint no repositório |
 
 ## Build público
@@ -104,4 +121,8 @@ O comando agregado foi validado com `EXPO_PUBLIC_API_URL=https://api.laudaapp.co
 
 ## Evidências
 
-As capturas de autenticação, dashboard, listas, formulários, detalhes, administração, tablet, mobile, foco e zoom estão em `docs/Lauda-redesign-handoff/qa/screenshots`.
+As capturas históricas de autenticação, dashboard, listas, formulários, detalhes, administração, tablet, mobile, foco e zoom ficam no workspace de QA. Em cada execução do Mobile CI, `playwright-report/` e `test-results/` são publicados no artifact `lauda-redesign-qa-<sha>`; ele inclui as evidências desktop/mobile atualizadas de `/schedules`.
+
+## Limite da validação
+
+A produção em `https://laudaapp.com` ainda refletia o deploy anterior quando a auditoria foi iniciada. O smoke pós-correção em produção deve ocorrer somente após aprovação, merge e deploy desta branch; ele não é declarado como concluído neste relatório.

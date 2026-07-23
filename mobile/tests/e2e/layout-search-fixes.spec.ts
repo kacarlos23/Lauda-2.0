@@ -67,9 +67,9 @@ test("scroll de Escalas ocupa toda a largura disponível", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("sidebar-nav-schedules").click();
   await expect(page).toHaveURL(/\/schedules$/);
-  await expect(page.getByText("Escalas do dia", { exact: true })).toBeVisible();
+  await expect(page.getByText("Agenda do dia", { exact: true })).toBeVisible();
 
-  const geometry = await page.getByText("Escalas do dia", { exact: true }).evaluate((title) => {
+  const geometry = await page.getByText("Agenda do dia", { exact: true }).evaluate((title) => {
     let element: HTMLElement | null = title as HTMLElement;
     while (element) {
       const style = getComputedStyle(element);

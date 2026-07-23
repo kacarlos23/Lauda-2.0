@@ -10,7 +10,7 @@
     "prebuild:web": "node ../scripts/validate-frontend-api.cjs --environment",
     "build:web": "expo export --platform web",
     "postbuild:web": "node ../scripts/validate-frontend-api.cjs --dist dist",
-    "serve:web": "serve dist --single",
+    "serve:web": "serve dist --config ../serve.json",
     "test": "jest --config jest.config.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

@@ -1,0 +1,25 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/schedules/:id([0-9a-fA-F-]{36})/edit",
+      "destination": "/schedules/[id]/edit.html"
+    },
+    {
+      "source": "/ministries/:id([0-9a-fA-F-]{36})/members",
+      "destination": "/ministries/[id]/members.html"
+    },
+    {
+      "source": "/ministries/:id([0-9a-fA-F-]{36})",
+      "destination": "/ministries/[id].html"
+    },
+    {
+      "source": "/songs/:id([0-9a-fA-F-]{36})/edit",
+      "destination": "/songs/[id]/edit.html"
+    },
+    {
+      "source": "/songs/:id([0-9a-fA-F-]{36})",
+      "destination": "/songs/[id].html"
+    }
+  ]
+}

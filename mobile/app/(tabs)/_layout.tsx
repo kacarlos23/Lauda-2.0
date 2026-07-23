@@ -1,7 +1,7 @@
 import { Redirect, Tabs, usePathname } from "expo-router";
 import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { CalendarClock, Church, Ellipsis, Home, Music2, Users } from "lucide-react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
@@ -26,7 +26,7 @@ const tabIcon = (Icon: ComponentType<TabIconProps>, color: string) => (
 );
 
 export default function TabsLayout() {
-  const { user, tenant, refreshCurrentUser } = useAuthStore();
+  const { user, tenant, isLoading, refreshCurrentUser } = useAuthStore();
   const { isMobile, isTablet } = useResponsiveLayout();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -41,6 +41,14 @@ export default function TabsLayout() {
   useEffect(() => {
     if (isTablet) setSidebarCollapsed(true);
   }, [isTablet]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.sessionLoading} accessibilityLabel="Carregando sessão">
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
@@ -221,6 +229,12 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  sessionLoading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
   tenantName: {
     ...typography.eyebrow,
     color: colors.primaryDark,

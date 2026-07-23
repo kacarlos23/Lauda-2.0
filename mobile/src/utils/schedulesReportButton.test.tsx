@@ -32,6 +32,7 @@ jest.mock("react-native", () => {
     Text: create("Text"),
     TextInput: create("TextInput"),
     TouchableOpacity: create("TouchableOpacity"),
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
     View: create("View"),
   };
 });
@@ -43,6 +44,16 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
   useFocusEffect: (callback: () => void) => callback(),
+}));
+
+jest.mock("../hooks/useResponsiveLayout", () => ({
+  useResponsiveLayout: () => ({
+    isMobile: true,
+    isTablet: false,
+    isDesktop: false,
+    screenWidth: 390,
+    screenHeight: 844,
+  }),
 }));
 
 jest.mock("lucide-react-native", () => {

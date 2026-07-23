@@ -22,6 +22,7 @@ import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, Fi
 import { colors, radii, screen, spacing, typography } from "../../../src/theme";
 import { NO_MINISTRY, emptyScheduleFilters, filterSchedules, hasActiveFilters, ScheduleListFilters, uniqueScheduleMinistries } from "../../../src/utils/listFilters";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
+import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import {
   canAssignScheduleMembers,
   canCreateSchedule,
@@ -31,6 +32,11 @@ import {
 } from "../../../src/utils/schedulePermissions";
 
 const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+const selectedDateTitle = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+});
 
 function dateKey(value: Date | string) {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -56,6 +62,7 @@ function newScheduleHref(date: string) {
 
 export default function SchedulesScreen() {
   const router = useRouter();
+  const { isDesktop, isMobile } = useResponsiveLayout();
   const { tenant, user } = useAuthStore();
   const { allSchedules, schedules: myAssignments, loading, refreshing, error, loadSchedules, loadMySchedules, updateScheduleStatus, createSchedule, resolveSubstitution } = useScheduleStore();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -224,6 +231,111 @@ export default function SchedulesScreen() {
     setShowFilters(false);
   };
 
+  const renderSchedule = (item: Schedule) => {
+    const assignment = assignmentByScheduleId.get(item.id);
+    return (
+      <ScheduleCard
+        key={item.id}
+        schedule={item}
+        assignment={assignment}
+        canManage={canEditSchedule(user) || canDeleteSchedule(user) || canAssignScheduleMembers(user)}
+        updating={updatingId === assignment?.id}
+        exporting={exportingId === item.id}
+        exportingSongs={exportingSongsId === item.id}
+        duplicating={duplicatingId === item.id}
+        onEdit={() => router.push(`/schedules/${item.id}/edit` as never)}
+        onDuplicate={() => void duplicateSchedule(item)}
+        onExport={() => void exportReport(item)}
+        onExportSongs={canExportSongs && item.songs?.length ? () => void exportSongs(item) : undefined}
+        onAccept={assignment ? () => void handleStatus(assignment, "ACCEPTED") : undefined}
+        onDecline={assignment ? () => setDeclineAssignment(assignment) : undefined}
+        onRequestSubstitute={assignment ? () => {
+          setRequestSubstitute(true);
+          setDeclineAssignment(assignment);
+        } : undefined}
+        onResolveSubstitution={(target) => void resolveSubstitution(item.id, target.id, "Resolvido manualmente")}
+      />
+    );
+  };
+
+  const emptyScheduleState = (
+    <EmptyState
+      icon={<CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />}
+      title={activeFilters ? "Nenhuma escala encontrada" : "Nenhuma escala neste dia"}
+      description={activeFilters ? "Ajuste ou limpe os filtros para ver outras escalas." : "Selecione outro dia no calendário ou crie uma nova escala."}
+      style={isDesktop ? styles.agendaEmpty : undefined}
+      action={canCreateSchedules ? (
+        activeFilters ? (
+          <Button title="Limpar filtros" variant="secondary" onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" />
+        ) : (
+          <Button
+            title="Criar escala"
+            size="lg"
+            onPress={() => router.push(newScheduleHref(selectedDate))}
+            accessibilityLabel="Criar escala"
+          />
+        )
+      ) : null}
+    />
+  );
+
+  const calendarPanel = (
+    <Card style={[styles.calendarCard, isDesktop && styles.calendarCardDesktop]} testID="schedule-calendar-panel">
+      <View style={styles.monthRow}>
+        <TouchableOpacity
+          onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+          accessibilityRole="button"
+          accessibilityLabel="Exibir mês anterior"
+        >
+          <Text style={styles.monthNav}>‹</Text>
+        </TouchableOpacity>
+        <Text style={styles.monthTitle}>{monthTitle.format(month)}</Text>
+        <TouchableOpacity
+          onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+          accessibilityRole="button"
+          accessibilityLabel="Exibir próximo mês"
+        >
+          <Text style={styles.monthNav}>›</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.weekRow}>
+        {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => <Text key={`${label}-${index}`} style={styles.weekLabel}>{label}</Text>)}
+      </View>
+      <View style={styles.dayGrid}>
+        {Array.from({ length: calendar.firstPadding }).map((_, index) => <View key={`pad-${index}`} style={styles.dayCell} />)}
+        {calendar.days.map((day) => {
+          const key = dateKey(day);
+          const hasSchedule = schedulesByDay.has(key);
+          const selected = key === selectedDate;
+          const today = key === todayKey;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.dayCell, today && styles.todayCell, selected && styles.selectedCell]}
+              onPress={() => setSelectedDate(key)}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar ${selectedDateTitle.format(day)}`}
+              accessibilityState={{ selected }}
+            >
+              <Text style={[styles.dayText, selected && styles.selectedDayText]}>{day.getDate()}</Text>
+              {hasSchedule ? <View style={[styles.dot, selected && styles.selectedDot]} /> : null}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={styles.calendarLegend}>
+        <View style={styles.legendItem}>
+          <View style={styles.legendScheduleDot} />
+          <Text style={styles.legendText}>Dia com escala</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={styles.legendToday} />
+          <Text style={styles.legendText}>Hoje</Text>
+        </View>
+      </View>
+    </Card>
+  );
+
   return (
     <Screen padded={false} maxWidth={null}>
       <Modal visible={Boolean(declineAssignment)} transparent animationType="fade" onRequestClose={() => setDeclineAssignment(null)}>
@@ -297,9 +409,9 @@ export default function SchedulesScreen() {
       </FilterPanel>
       <FlatList
         style={styles.flatList}
-        data={selectedSchedules}
+        data={isDesktop ? [] : selectedSchedules}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, isMobile && styles.listMobile]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View>
@@ -337,83 +449,35 @@ export default function SchedulesScreen() {
                 />
               ) : null}
             />
-            <Card style={styles.calendarCard}>
-              <View style={styles.monthRow}>
-                <TouchableOpacity onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
-                  <Text style={styles.monthNav}>‹</Text>
-                </TouchableOpacity>
-                <Text style={styles.monthTitle}>{monthTitle.format(month)}</Text>
-                <TouchableOpacity onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
-                  <Text style={styles.monthNav}>›</Text>
-                </TouchableOpacity>
+            {isDesktop ? (
+              <View style={styles.desktopColumns} testID="schedules-layout">
+                <View style={styles.calendarColumn}>{calendarPanel}</View>
+                <View style={styles.agendaPanel} testID="schedule-agenda-panel">
+                  <View style={styles.agendaHeader}>
+                    <Text style={styles.agendaEyebrow}>{selectedDateTitle.format(new Date(`${selectedDate}T12:00:00`))}</Text>
+                    <View style={styles.agendaTitleRow}>
+                      <Text style={[styles.sectionTitle, styles.agendaTitle]}>Agenda do dia</Text>
+                      <Text style={styles.agendaCount}>
+                        {selectedSchedules.length} {selectedSchedules.length === 1 ? "escala" : "escalas"}
+                      </Text>
+                    </View>
+                  </View>
+                  {loading && !visibleSchedules.length ? <LoadingState centered={false} style={styles.inlineLoading} /> : null}
+                  {!loading && selectedSchedules.length === 0 ? emptyScheduleState : null}
+                  {selectedSchedules.map(renderSchedule)}
+                </View>
               </View>
-              <View style={styles.weekRow}>
-                {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => <Text key={`${label}-${index}`} style={styles.weekLabel}>{label}</Text>)}
-              </View>
-              <View style={styles.dayGrid}>
-                {Array.from({ length: calendar.firstPadding }).map((_, index) => <View key={`pad-${index}`} style={styles.dayCell} />)}
-                {calendar.days.map((day) => {
-                  const key = dateKey(day);
-                  const hasSchedule = schedulesByDay.has(key);
-                  const selected = key === selectedDate;
-                  const today = key === todayKey;
-                  return (
-                    <TouchableOpacity key={key} style={[styles.dayCell, today && styles.todayCell, selected && styles.selectedCell]} onPress={() => setSelectedDate(key)}>
-                      <Text style={[styles.dayText, selected && styles.selectedDayText]}>{day.getDate()}</Text>
-                      {hasSchedule ? <View style={[styles.dot, selected && styles.selectedDot]} /> : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </Card>
-            <Text style={styles.sectionTitle}>Escalas do dia</Text>
-            {loading && !visibleSchedules.length ? <LoadingState centered={false} style={styles.inlineLoading} /> : null}
+            ) : (
+              <>
+                {calendarPanel}
+                <Text style={styles.sectionTitle}>Escalas do dia</Text>
+                {loading && !visibleSchedules.length ? <LoadingState centered={false} style={styles.inlineLoading} /> : null}
+              </>
+            )}
           </View>
         }
-        ListEmptyComponent={
-          <EmptyState
-            icon={<CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />}
-            title={activeFilters ? "Nenhuma escala encontrada" : "Nenhuma escala neste dia"}
-            description={activeFilters ? "Ajuste ou limpe os filtros para ver outras escalas." : "Selecione outro dia no calendário ou crie uma nova escala."}
-            action={canCreateSchedules ? (
-              activeFilters ? (
-                <Button title="Limpar filtros" variant="secondary" onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" />
-              ) : (
-                <Button
-                  title="Criar escala"
-                  size="lg"
-                  onPress={() => router.push(newScheduleHref(selectedDate))}
-                  accessibilityLabel="Criar escala"
-                />
-              )
-            ) : null}
-          />
-        }
-        renderItem={({ item }) => {
-          const assignment = assignmentByScheduleId.get(item.id);
-          return (
-            <ScheduleCard
-              schedule={item}
-              assignment={assignment}
-              canManage={canEditSchedule(user) || canDeleteSchedule(user) || canAssignScheduleMembers(user)}
-              updating={updatingId === assignment?.id}
-              exporting={exportingId === item.id}
-              exportingSongs={exportingSongsId === item.id}
-              duplicating={duplicatingId === item.id}
-              onEdit={() => router.push(`/schedules/${item.id}/edit` as never)}
-              onDuplicate={() => void duplicateSchedule(item)}
-              onExport={() => void exportReport(item)}
-              onExportSongs={canExportSongs && item.songs?.length ? () => void exportSongs(item) : undefined}
-              onAccept={assignment ? () => void handleStatus(assignment, "ACCEPTED") : undefined}
-              onDecline={assignment ? () => setDeclineAssignment(assignment) : undefined}
-              onRequestSubstitute={assignment ? () => {
-                setRequestSubstitute(true);
-                setDeclineAssignment(assignment);
-              } : undefined}
-              onResolveSubstitution={(target) => void resolveSubstitution(item.id, target.id, "Resolvido manualmente")}
-            />
-          );
-        }}
+        ListEmptyComponent={isDesktop ? null : emptyScheduleState}
+        renderItem={({ item }) => renderSchedule(item)}
       />
     </Screen>
   );
@@ -422,12 +486,56 @@ export default function SchedulesScreen() {
 const styles = StyleSheet.create({
   flatList: { flex: 1 },
   list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
+  listMobile: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   newButton: { paddingHorizontal: spacing.md },
   headerActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flexWrap: "wrap" },
   errorText: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.md },
   clearFiltersButton: { alignSelf: "flex-start" },
   calendarCard: { padding: spacing.lg, marginBottom: spacing.lg },
+  calendarCardDesktop: { marginBottom: 0 },
+  desktopColumns: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xl,
+    marginTop: spacing.md,
+  },
+  calendarColumn: { flex: 1.25, minWidth: 0 },
+  agendaPanel: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    overflow: "hidden",
+  },
+  agendaHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  agendaEyebrow: {
+    ...typography.eyebrow,
+    color: colors.primaryDark,
+    textTransform: "uppercase",
+    marginBottom: spacing.xs,
+  },
+  agendaTitleRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  agendaTitle: { marginBottom: 0 },
+  agendaCount: { ...typography.metadata, color: colors.muted },
+  agendaEmpty: {
+    borderTopWidth: 0,
+    borderBottomWidth: 0,
+    paddingVertical: spacing.xl,
+  },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   monthTitle: { ...typography.cardTitle, color: colors.ink, textTransform: "capitalize" },
   monthNav: { color: colors.primary, fontSize: 30, fontWeight: "700", paddingHorizontal: spacing.md },
@@ -441,6 +549,19 @@ const styles = StyleSheet.create({
   selectedDayText: { color: colors.surface },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary, marginTop: 3 },
   selectedDot: { backgroundColor: colors.surface },
+  calendarLegend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.lg,
+    paddingTop: spacing.md,
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+  },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  legendScheduleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+  legendToday: { width: 14, height: 14, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.primary },
+  legendText: { ...typography.metadata, color: colors.muted },
   sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
   inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },

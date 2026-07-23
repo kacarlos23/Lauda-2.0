@@ -145,7 +145,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
 
   await page.goto("/");
   await page.getByText("Escalas", { exact: true }).last().click();
-  await page.getByText("13", { exact: true }).click();
+  await page.getByRole("button", { name: /Selecionar .* 13 de/ }).click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala Culto de Oração" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedules-list-mobile-after.png", fullPage: true });
@@ -157,7 +157,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
   await page.goBack();
   await page.getByText("Escalas", { exact: true }).last().click();
   await expect(page).toHaveURL(/\/schedules$/);
-  await page.getByText("13", { exact: true }).click();
+  await page.getByRole("button", { name: /Selecionar .* 13 de/ }).click();
 
   await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala" })).toBeVisible();

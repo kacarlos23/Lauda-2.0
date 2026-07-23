@@ -5,7 +5,6 @@ export default function RootHtml({ children }: PropsWithChildren) {
   return (
     <html lang="pt-BR">
       <head>
-        <title>Lauda</title>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta

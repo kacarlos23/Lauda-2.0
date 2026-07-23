@@ -755,11 +755,12 @@ test("GLOBAL_ADMIN nega uma permissão herdada pelo controle de três estados", 
   await page.getByTestId("header-profile-button").last().click();
   await page.getByTestId("open-global-admin-button").click();
   await page.getByText("Usuários", { exact: true }).first().click();
-  await page.getByLabel("Gerenciar permissões granulares").click();
+  const managePermissionsButton = page.locator('button[aria-label="Gerenciar permissões granulares"]:visible');
+  await managePermissionsButton.first().click();
 
   const memberViewControl = page.getByLabel("Visualizar membros");
   await expect(memberViewControl).toBeVisible();
-  await expect(page.getByLabel("Gerenciar permissões granulares")).toHaveCount(1);
+  await expect(page.getByText("permissions:manage", { exact: true })).toHaveCount(0);
   await memberViewControl.click();
   await memberViewControl.click();
   await expect(page.getByText("Negado", { exact: true })).toBeVisible();

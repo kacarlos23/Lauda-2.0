@@ -59,3 +59,14 @@ jobs:
 
       - name: Run mobile E2E tests
         run: npm run test:e2e
+
+      - name: Upload redesign QA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lauda-redesign-qa-${{ github.sha }}
+          path: |
+            mobile/playwright-report/
+            mobile/test-results/
+          if-no-files-found: warn
+          retention-days: 30

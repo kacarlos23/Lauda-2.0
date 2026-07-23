@@ -39,6 +39,8 @@ A interface utiliza a identidade visual editorial do Lauda:
 O relatório completo do redesign e o checklist das 26 rotas estão em
 [`docs/Lauda-redesign-handoff/IMPLEMENTATION-REPORT.md`](docs/Lauda-redesign-handoff/IMPLEMENTATION-REPORT.md).
 
+O export web gera HTML por rota, metadados específicos e rewrites somente para rotas dinâmicas com UUID. Isso permite recarregar deep links sem fallback SPA e sem erro de hidratação.
+
 ## Estrutura
 
 ```text
@@ -178,20 +180,23 @@ E2E:
 npm --prefix mobile run test:e2e
 ```
 
+O Playwright cria o export de produção antes dos testes, inicia o servidor estático e valida hard reload, títulos, permissões e responsividade. No GitHub Actions, relatório, traces e screenshots ficam disponíveis por 30 dias no artifact `lauda-redesign-qa-<sha>`.
+
 Build web:
 
 ```powershell
 $env:EXPO_PUBLIC_API_URL = "https://api.example.com/api"
 npm --prefix mobile run build:web
+npm --prefix mobile run serve:web -- --listen 8081
 ```
 
-O build público rejeita URLs HTTP fora de loopback, credenciais embutidas e fallback local no bundle.
+O build público rejeita URLs HTTP fora de loopback, credenciais embutidas e fallback local no bundle. `serve:web` utiliza os HTMLs exportados e o arquivo `mobile/serve.json`; não adicione `--single`, pois esse fallback entrega o HTML incorreto em deep links.
 
 Última linha de base validada:
 
 - backend: 31 suítes e 228 testes;
 - mobile: 44 suítes e 252 testes;
-- E2E web: 32 cenários;
+- E2E web: 41 cenários sobre o export estático;
 - Expo web: 53 rotas estáticas.
 
 ## Produção
@@ -205,6 +210,8 @@ npm run build
 ```
 
 No frontend, configure `EXPO_PUBLIC_API_URL` com o endpoint HTTPS público. Os scripts de inicialização e validação em `scripts/` conferem ambiente, migrations, API exposta e bundle servido.
+
+Após cada deploy web, faça smoke pelo menos em `/login` e em uma rota autenticada acessada diretamente: recarregue a página, confirme que não há erro React no console e que existe um único título específico.
 
 O programa de segurança, evidências, threat model, retenção e resposta a incidentes está em
 [`docs/security-program`](docs/security-program/README.md).

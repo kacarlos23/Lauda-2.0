@@ -8,9 +8,8 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  // Expo/Metro performs the initial web bundle on demand. Running browsers in
-  // parallel makes that first compilation contend with itself and causes
-  // navigation timeouts, especially in CI.
+  // Keep a single worker because the suite shares one exported static build and
+  // one local server. This also makes hard-reload/hydration checks deterministic.
   fullyParallel: false,
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
@@ -20,10 +19,13 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: externalBaseURL ? undefined : {
-    command: "npx expo start --web --offline --port 8099",
+    command: "npm run build:web && npm run serve:web -- --listen 8099",
     url: "http://127.0.0.1:8099",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 240_000,
+    env: {
+      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL ?? "https://api.laudaapp.com/api",
+    },
   },
   projects: [
     {
