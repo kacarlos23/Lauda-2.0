@@ -79,7 +79,7 @@ export default function MoreScreen() {
   );
 
   return (
-    <Screen>
+    <Screen scroll testID="more-screen">
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Acesso</Text>
         <Text style={styles.title}>Mais recursos</Text>
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  copy: { flex: 1 },
+  copy: { flex: 1, minWidth: 0 },
   cardTitle: { ...typography.cardTitle, color: colors.ink, marginBottom: spacing.xs },
   cardDescription: { ...typography.metadata, color: colors.text },
 });

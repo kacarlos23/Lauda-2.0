@@ -665,6 +665,39 @@ test("GLOBAL_ADMIN visualiza dados reais no Painel Global", async ({ page }) => 
   expect(adminTenantsRequest?.headers().authorization).toBe(`Bearer ${token}`);
 });
 
+test("mobile permite rolar os atalhos e mantém os campos do Painel Global separados", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.unroute("**/api/auth/login").catch(() => undefined);
+  await page.unroute("**/api/members/me").catch(() => undefined);
+  await mockApi(page, { user: globalAdminUser });
+  await page.goto("/");
+  await login(page, "global@example.com");
+
+  await page.getByRole("tab", { name: "Mais" }).click();
+  const globalShortcut = page.getByRole("button", { name: "Abrir Painel Global" });
+  await globalShortcut.scrollIntoViewIfNeeded();
+  await globalShortcut.click();
+
+  await page.getByTestId("global-resource-users").click();
+  const row = page.getByTestId("global-admin-row-global-1");
+  await expect(row).toBeVisible();
+
+  const cellBounds = await row.locator('[data-testid^="global-admin-cell-global-1-"]').evaluateAll((cells) =>
+    cells.map((cell) => {
+      const bounds = cell.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom, height: bounds.height };
+    })
+  );
+
+  expect(cellBounds).toHaveLength(4);
+  for (const bounds of cellBounds) {
+    expect(bounds.height).toBeGreaterThan(30);
+  }
+  for (let index = 1; index < cellBounds.length; index += 1) {
+    expect(cellBounds[index].top).toBeGreaterThanOrEqual(cellBounds[index - 1].bottom + 8);
+  }
+});
+
 test("GLOBAL_ADMIN vê erro claro quando API global falha", async ({ page }) => {
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);

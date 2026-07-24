@@ -507,9 +507,17 @@ export default function GlobalAdminScreen() {
                   style={styles.emptyState}
                 />
               ) : items.map((row) => (
-                <View key={row.id} style={[styles.tableRow, compactLayout && styles.tableRowCompact]}>
+                <View
+                  key={row.id}
+                  style={[styles.tableRow, compactLayout && styles.tableRowCompact]}
+                  testID={`global-admin-row-${row.id}`}
+                >
                   {config.columns.map((column) => (
-                    <View key={column.key} style={[styles.cell, compactLayout && styles.cellCompact]}>
+                    <View
+                      key={column.key}
+                      style={[styles.cell, compactLayout && styles.cellCompact]}
+                      testID={`global-admin-cell-${row.id}-${column.key}`}
+                    >
                       {compactLayout ? <Text style={styles.cellLabel}>{column.label}</Text> : null}
                       <Text style={styles.td} numberOfLines={compactLayout ? undefined : 2}>
                         {column.render ? column.render(row) : String(row[column.key] ?? "")}
@@ -980,11 +988,17 @@ const styles = StyleSheet.create({
   th: { flex: 1, color: colors.text, fontSize: 12, fontWeight: "900" },
   actionTh: { width: 165, color: colors.text, fontSize: 12, fontWeight: "900" },
   tableRow: { flexDirection: "row", padding: spacing.md, gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" },
-  tableRowCompact: { flexDirection: "column", alignItems: "stretch" },
+  tableRowCompact: { flexDirection: "column", alignItems: "stretch", gap: spacing.md },
   cell: { flex: 1 },
-  cellCompact: { width: "100%", flex: 0, gap: spacing.xs },
-  cellLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
-  td: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  cellCompact: {
+    width: "100%",
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
+    gap: spacing.xs,
+  },
+  cellLabel: { color: colors.muted, fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
+  td: { color: colors.ink, fontSize: 13, lineHeight: 18, fontWeight: "700", flexShrink: 1 },
   actions: { width: 165, flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", alignItems: "center" },
   actionsCompact: { width: "100%", marginTop: spacing.xs },
   iconButton: { minHeight: 30, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
