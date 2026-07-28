@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { colors, radii, spacing } from "../../theme";
+import { colors, fontSizes, fontWeights, radii, spacing } from "../../theme";
 
 type Props = {
   selectedCount: number;
@@ -58,8 +58,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md,
   },
-  count: { color: colors.ink, fontSize: 14, fontWeight: "900" },
+  count: { color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg },
-  link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  link: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   disabled: { opacity: 0.4 },
 });

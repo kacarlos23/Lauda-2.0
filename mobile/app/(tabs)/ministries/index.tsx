@@ -15,9 +15,19 @@ import { BottomSheet } from "../../../src/components/BottomSheet";
 import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, RichCommentEditor, Screen, SectionHeader } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { colors, radii, screen, spacing, typography } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  iconSizes,
+  radii,
+  screen,
+  spacing,
+  typography,
+} from "../../../src/theme";
 import { emptyMinistryFilters, filterMinistries, hasActiveFilters, MinistryListFilters } from "../../../src/utils/listFilters";
 import { can } from "../../../src/utils/permissions";
+import { nav } from "../../../src/navigation/routes";
 
 export default function MinistriesScreen() {
   const router = useRouter();
@@ -155,7 +165,7 @@ export default function MinistriesScreen() {
                   {canCreateMinistry ? (
                     <Button
                       title="Novo ministério"
-                      icon={<Plus color={colors.inverse} size={18} strokeWidth={2.2} />}
+                      icon={<Plus color={colors.inverse} size={iconSizes.s18} strokeWidth={2.2} />}
                       onPress={openCreate}
                       accessibilityLabel="Criar ministério"
                     />
@@ -208,7 +218,7 @@ export default function MinistriesScreen() {
           <TouchableOpacity
             style={styles.card}
             activeOpacity={0.75}
-            onPress={() => router.push(`/ministries/${item.id}` as never)}
+            onPress={() => router.push(nav.ministryDetail(item.id))}
           >
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{item.name}</Text>
@@ -334,9 +344,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
+    paddingVertical: spacing.dense,
     marginBottom: spacing.lg,
   },
   textArea: { minHeight: 104 },
@@ -346,7 +356,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   cancelButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
@@ -355,7 +365,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: { ...typography.button, color: colors.text },
   saveButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     minWidth: 96,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,

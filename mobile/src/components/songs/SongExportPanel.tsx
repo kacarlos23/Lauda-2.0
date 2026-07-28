@@ -3,7 +3,17 @@ import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { ChevronDown, ChevronUp, Download, UserRound, X } from "lucide-react-native";
 import { SongSelectionSnapshot } from "../../utils/songSelection";
 import { Button } from "../ui";
-import { colors, radii, spacing } from "../../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  radiusValues,
+  spacing,
+} from "../../theme";
 
 type Props = {
   songs: SongSelectionSnapshot[];
@@ -61,8 +71,8 @@ export function SongExportPanel({
           <View style={styles.badge}><Text style={styles.badgeText}>{selectedLabel(songs.length)}</Text></View>
           {compact ? (
             expanded
-              ? <ChevronUp color={colors.primary} size={20} />
-              : <ChevronDown color={colors.primary} size={20} />
+              ? <ChevronUp color={colors.primary} size={iconSizes.s20} />
+              : <ChevronDown color={colors.primary} size={iconSizes.s20} />
           ) : null}
         </View>
       </TouchableOpacity>
@@ -82,7 +92,7 @@ export function SongExportPanel({
                   {song.artist.imageUrl ? (
                     <Image source={{ uri: song.artist.imageUrl }} style={styles.avatar} />
                   ) : (
-                    <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={16} /></View>
+                    <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={iconSizes.s16} /></View>
                   )}
                   <View style={styles.songInfo}>
                     <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
@@ -94,7 +104,7 @@ export function SongExportPanel({
                     accessibilityRole="button"
                     accessibilityLabel={`Remover ${song.title} da exportação`}
                   >
-                    <X color={colors.muted} size={19} />
+                    <X color={colors.muted} size={iconSizes.s19} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -110,7 +120,7 @@ export function SongExportPanel({
             <Text style={styles.description}>As cifras serão reunidas em um único arquivo PDF.</Text>
             <Button
               title={exporting ? "Gerando..." : exportLabel(songs.length)}
-              icon={!exporting ? <Download color={colors.surface} size={18} /> : undefined}
+              icon={!exporting ? <Download color={colors.surface} size={iconSizes.s18} /> : undefined}
               loading={exporting}
               size={compact ? "md" : "lg"}
               onPress={onExport}
@@ -150,27 +160,27 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   headerCompact: { minHeight: 58, paddingHorizontal: spacing.lg },
-  title: { color: colors.ink, fontSize: 18, fontWeight: "900" },
+  title: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.black },
   headerEnd: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   badge: { backgroundColor: colors.primarySoft, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  badgeText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  badgeText: { color: colors.primary, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold },
   selectedScroller: { flexGrow: 0, borderTopWidth: 1, borderTopColor: colors.line },
   selectedList: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   selectedRow: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceMuted },
-  avatarPlaceholder: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  avatar: { width: controlSizes.compact, height: controlSizes.compact, borderRadius: radiusValues.r18, backgroundColor: colors.surfaceMuted },
+  avatarPlaceholder: { width: controlSizes.compact, height: controlSizes.compact, borderRadius: radiusValues.r18, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   songInfo: { flex: 1, minWidth: 0 },
-  songTitle: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  songMeta: { color: colors.muted, fontSize: 11, marginTop: 3 },
-  removeButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
+  songTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
+  songMeta: { color: colors.muted, fontSize: fontSizes.s11, marginTop: spacing.micro },
+  removeButton: { width: controlSizes.compact, height: controlSizes.compact, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
   empty: { borderTopWidth: 1, borderTopColor: colors.line, padding: spacing.xl, alignItems: "center" },
   emptyCompact: { padding: spacing.lg },
-  emptyTitle: { color: colors.ink, fontSize: 14, fontWeight: "800" },
-  emptyText: { color: colors.muted, fontSize: 12, textAlign: "center", marginTop: spacing.xs },
+  emptyTitle: { color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
+  emptyText: { color: colors.muted, fontSize: fontSizes.s12, textAlign: "center", marginTop: spacing.xs },
   footer: { borderTopWidth: 1, borderTopColor: colors.line, padding: spacing.lg, gap: spacing.md },
   footerCompact: { padding: spacing.md, gap: spacing.sm },
-  description: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  cancelButton: { minHeight: 40, alignItems: "center", justifyContent: "center" },
+  description: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19 },
+  cancelButton: { minHeight: controlSizes.medium, alignItems: "center", justifyContent: "center" },
   cancelButtonCompact: { minHeight: 32 },
-  cancelText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  cancelText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
 });

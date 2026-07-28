@@ -10,7 +10,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { colors, radii, spacing, typography } from "../../theme";
+import { colors, controlSizes, radii, spacing, typography } from "../../theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -72,15 +72,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sm: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     paddingHorizontal: spacing.md,
   },
   md: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     paddingHorizontal: spacing.lg,
   },
   lg: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     paddingHorizontal: spacing.xl,
   },
   disabled: {

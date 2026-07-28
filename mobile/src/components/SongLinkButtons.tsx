@@ -2,7 +2,15 @@ import React from "react";
 import type { ComponentType } from "react";
 import { Alert, GestureResponderEvent, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Guitar, Headphones, Mic, Play } from "lucide-react-native";
-import { colors, radii, spacing } from "../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radii,
+  spacing,
+} from "../theme";
 
 export type SongLinks = {
   cifraUrl?: string | null;
@@ -75,7 +83,7 @@ export function SongLinkButtons({ links, compact = false, centered = false }: Pr
             accessibilityLabel={item.accessibilityLabel}
             testID={`song-link-${item.key}`}
           >
-            <item.Icon color={colors.primary} size={compact ? 13 : 15} strokeWidth={2.6} />
+            <item.Icon color={colors.primary} size={compact ? iconSizes.s13 : iconSizes.s15} strokeWidth={2.6} />
             <Text style={[styles.buttonText, compact && styles.buttonTextCompact]}>{item.label}</Text>
           </TouchableOpacity>
         );
@@ -98,7 +106,7 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   button: {
-    minHeight: 36,
+    minHeight: controlSizes.compact,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     flexDirection: "row",
@@ -113,10 +121,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: colors.primary,
-    fontSize: 12,
-    fontWeight: "900",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.black,
   },
   buttonTextCompact: {
-    fontSize: 11,
+    fontSize: fontSizes.s11,
   },
 });

@@ -2,7 +2,15 @@ import React, { useRef, useState } from "react";
 import type { KeyboardTypeOptions, StyleProp, ViewStyle } from "react-native";
 import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Calendar, Clock } from "lucide-react-native";
-import { colors, radii, spacing } from "../theme";
+import {
+  colors,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  spacing,
+} from "../theme";
 import { maskDateInput, maskTimeInput, parseDisplayDate, toDisplayDate } from "../utils/dateTimeInput";
 
 const DATE_POPOVER_WIDTH = 292;
@@ -126,7 +134,7 @@ export function DateTimeInput({
           accessibilityLabel={type === "date" ? "Abrir calendário" : "Abrir seletor de horário"}
           testID={testID ? `${testID}-picker` : undefined}
         >
-          <Icon color={colors.muted} size={20} strokeWidth={2.3} />
+          <Icon color={colors.muted} size={iconSizes.s20} strokeWidth={2.3} />
         </TouchableOpacity>
       </View>
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
@@ -193,8 +201,8 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontSize: 13,
-    fontWeight: "900",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.black,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
@@ -217,7 +225,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 50,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
     padding: spacing.md,
   },
   iconButton: {
@@ -228,8 +236,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.bold,
     marginTop: spacing.xs,
   },
   overlay: {
@@ -264,8 +272,8 @@ const styles = StyleSheet.create({
   popoverTitle: {
     flex: 1,
     color: colors.ink,
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: fontSizes.s14,
+    fontWeight: fontWeights.extrabold,
     textAlign: "center",
     textTransform: "capitalize",
   },
@@ -279,9 +287,9 @@ const styles = StyleSheet.create({
   },
   navText: {
     color: colors.primary,
-    fontSize: 24,
-    fontWeight: "800",
-    lineHeight: 28,
+    fontSize: fontSizes.s24,
+    fontWeight: fontWeights.extrabold,
+    lineHeight: lineHeights.h28,
   },
   weekRow: {
     flexDirection: "row",
@@ -291,8 +299,8 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     color: colors.muted,
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.extrabold,
   },
   calendarGrid: {
     flexDirection: "row",
@@ -311,8 +319,8 @@ const styles = StyleSheet.create({
   },
   calendarDayText: {
     color: colors.text,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.bold,
   },
   calendarDayTextSelected: {
     color: colors.surface,
@@ -342,8 +350,8 @@ const styles = StyleSheet.create({
   },
   timeOptionText: {
     color: colors.text,
-    fontSize: 12,
-    fontWeight: "800",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.extrabold,
   },
   timeOptionTextSelected: {
     color: colors.surface,

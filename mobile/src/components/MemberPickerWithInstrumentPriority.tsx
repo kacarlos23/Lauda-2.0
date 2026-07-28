@@ -1,7 +1,7 @@
 ﻿import React from "react";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Member } from "../types";
-import { colors, radii, spacing } from "../theme";
+import { colors, fontSizes, fontWeights, radii, spacing } from "../theme";
 import { memberMatchesRoleInstrument, prioritizeMembersByRole } from "../utils/memberInstrumentPriority";
 
 type Props = {
@@ -107,13 +107,13 @@ const styles = StyleSheet.create({
   name: {
     flex: 1,
     color: colors.ink,
-    fontSize: 15,
-    fontWeight: "800",
+    fontSize: fontSizes.s15,
+    fontWeight: fontWeights.extrabold,
   },
   email: {
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.semibold,
   },
   compatibleBadge: {
     minHeight: 26,
@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
   },
   compatibleText: {
     color: colors.surface,
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.extrabold,
   },
   instrumentList: {
     flexDirection: "row",
@@ -143,13 +143,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   instrumentChipText: {
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.extrabold,
   },
   noInstruments: {
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.semibold,
     marginTop: spacing.xs,
   },
 });

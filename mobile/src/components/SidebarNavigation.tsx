@@ -1,42 +1,37 @@
-import React, { type ComponentType, memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import {
-  CalendarClock,
   ChevronsLeft,
   ChevronsRight,
-  Church,
-  Home,
   LogOut,
-  Music2,
-  User,
-  Users,
 } from "lucide-react-native";
-import { colors, spacing, typography } from "../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  overlays,
+  radiusValues,
+  spacing,
+  typography,
+  zIndices,
+} from "../theme";
 import { useAuthStore } from "../store/authStore";
-import { canAccessChurchAdmin, canViewMembers, formatRoleLabel } from "../utils/permissions";
+import { formatRoleLabel } from "../utils/permissions";
+import {
+  hrefForNavigationItem,
+  navigationItemsFor,
+  routeMatches,
+  SIDEBAR_GROUPS,
+} from "../navigation/manifest";
+import { nav } from "../navigation/routes";
 import { BrandLogo } from "./BrandLogo";
 
 export const SIDEBAR_COLLAPSED_WIDTH = 72;
 export const SIDEBAR_EXPANDED_WIDTH = 248;
 export const SIDEBAR_ANIMATION_MS = 220;
-
-type IconProps = {
-  color?: string;
-  size?: number;
-  strokeWidth?: number;
-};
-
-type SidebarGroup = "Visão geral" | "Operação" | "Pessoas" | "Configurações";
-
-type SidebarItem = {
-  group: SidebarGroup;
-  label: string;
-  href: string;
-  routePrefix: string;
-  Icon: ComponentType<IconProps>;
-  visible?: boolean;
-};
 
 function navTestId(href: string): string {
   return `sidebar-nav-${href === "/" ? "home" : href.replace(/^\//, "").replace(/\//g, "-")}`;
@@ -47,11 +42,6 @@ type SidebarNavigationProps = {
   onToggle: () => void;
   currentRoute: string;
 };
-
-function routeMatches(currentRoute: string, prefix: string): boolean {
-  if (prefix === "/") return currentRoute === "/" || currentRoute === "/(tabs)" || currentRoute === "/(tabs)/";
-  return currentRoute === prefix || currentRoute.startsWith(`${prefix}/`);
-}
 
 function getInitials(name?: string): string {
   const parts = (name ?? "Usuário").trim().split(/\s+/).filter(Boolean);
@@ -71,18 +61,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
     }).start();
   }, [isCollapsed, labelOpacity]);
 
-  const items: SidebarItem[] = [
-    { group: "Visão geral", label: "Início", href: "/", routePrefix: "/", Icon: Home },
-    { group: "Operação", label: "Escalas", href: "/schedules", routePrefix: "/schedules", Icon: CalendarClock },
-    { group: "Operação", label: "Ministérios", href: "/ministries", routePrefix: "/ministries", Icon: Church },
-    { group: "Operação", label: "Músicas", href: "/songs", routePrefix: "/songs", Icon: Music2 },
-    { group: "Pessoas", label: "Membros", href: "/members", routePrefix: "/members", Icon: Users, visible: canViewMembers(user) },
-    { group: "Configurações", label: "Igreja", href: "/church", routePrefix: "/church", Icon: Church, visible: canAccessChurchAdmin(user) },
-    { group: "Configurações", label: "Perfil", href: "/profile", routePrefix: "/profile", Icon: User },
-  ];
-
-  const groups: SidebarGroup[] = ["Visão geral", "Operação", "Pessoas", "Configurações"];
-  const visibleItems = items.filter((item) => item.visible !== false);
+  const visibleItems = navigationItemsFor("desktop-sidebar", user);
   const width = isCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
 
   return (
@@ -101,16 +80,16 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           accessibilityLabel={isCollapsed ? "Expandir menu" : "Recolher menu"}
         >
           {isCollapsed ? (
-            <ChevronsRight color={colors.inverse} size={18} strokeWidth={2} />
+            <ChevronsRight color={colors.inverse} size={iconSizes.s18} strokeWidth={2} />
           ) : (
-            <ChevronsLeft color={colors.inverse} size={18} strokeWidth={2} />
+            <ChevronsLeft color={colors.inverse} size={iconSizes.s18} strokeWidth={2} />
           )}
         </Pressable>
       </View>
 
       <View style={styles.navList}>
-        {groups.map((group) => {
-          const groupItems = visibleItems.filter((item) => item.group === group);
+        {SIDEBAR_GROUPS.map((group) => {
+          const groupItems = visibleItems.filter((item) => item.sidebarGroup === group);
           if (!groupItems.length) return null;
           return (
             <View key={group} style={styles.group}>
@@ -122,12 +101,14 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                 </Animated.Text>
               )}
               {groupItems.map((item) => {
-                const active = routeMatches(currentRoute, item.routePrefix);
-                const iconColor = active ? colors.inverse : "#AFC0B8";
+                const href = hrefForNavigationItem(item);
+                const hrefText = String(href);
+                const active = routeMatches(currentRoute, item.route);
+                const iconColor = active ? colors.inverse : colors.inverseMuted;
                 return (
-                  <View key={item.href} style={styles.itemWrapper}>
+                  <View key={item.id} style={styles.itemWrapper}>
                     <Pressable
-                      onPress={() => router.push(item.href as never)}
+                      onPress={() => router.push(href)}
                       onHoverIn={() => setHoveredLabel(item.label)}
                       onHoverOut={() => setHoveredLabel(null)}
                       style={(state) => [
@@ -140,10 +121,10 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                       accessibilityRole="link"
                       accessibilityLabel={item.label}
                       accessibilityState={{ selected: active }}
-                      testID={navTestId(item.href)}
+                      testID={navTestId(hrefText)}
                     >
                       <View style={[styles.activeRail, active && styles.activeRailVisible]} />
-                      <item.Icon color={iconColor} size={20} strokeWidth={2} />
+                      <item.Icon color={iconColor} size={iconSizes.s20} strokeWidth={2} />
                       {!isCollapsed ? (
                         <Animated.Text style={[styles.navLabel, active && styles.navLabelActive, { opacity: labelOpacity }]}>
                           {item.label}
@@ -165,7 +146,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
 
       <View style={styles.footer}>
         <Pressable
-          onPress={() => router.push("/profile" as never)}
+          onPress={() => router.push(nav.profile)}
           onHoverIn={() => setHoveredLabel("__profile")}
           onHoverOut={() => setHoveredLabel(null)}
           style={({ pressed }) => [
@@ -204,7 +185,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           accessibilityRole="button"
           accessibilityLabel="Sair da conta"
         >
-          <LogOut color="#E7A28F" size={20} strokeWidth={2} />
+          <LogOut color={colors.dangerOnDark} size={iconSizes.s20} strokeWidth={2} />
           {!isCollapsed ? (
             <Animated.Text style={[styles.logoutText, { opacity: labelOpacity }]}>Sair</Animated.Text>
           ) : null}
@@ -222,7 +203,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    zIndex: 20,
+    zIndex: zIndices.sidebar,
     overflow: "visible",
     backgroundColor: colors.surfaceDark,
     borderRightWidth: 1,
@@ -236,7 +217,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(248, 250, 246, 0.12)",
+    borderBottomColor: overlays.inverseBorder,
   },
   headerCollapsed: {
     minHeight: 112,
@@ -246,11 +227,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   toggleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 6,
+    width: controlSizes.compact,
+    height: controlSizes.compact,
+    borderRadius: radiusValues.r6,
     borderWidth: 1,
-    borderColor: "rgba(248, 250, 246, 0.18)",
+    borderColor: overlays.inverseControlBorder,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -263,7 +244,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     ...typography.eyebrow,
-    color: "#82998E",
+    color: colors.inverseFaint,
     textTransform: "uppercase",
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.xs,
@@ -272,14 +253,14 @@ const styles = StyleSheet.create({
     width: 24,
     height: 1,
     alignSelf: "center",
-    backgroundColor: "rgba(248, 250, 246, 0.12)",
+    backgroundColor: overlays.inverseBorder,
     marginBottom: spacing.xs,
   },
   itemWrapper: {
     position: "relative",
   },
   navItem: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -291,10 +272,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   navItemActive: {
-    backgroundColor: "rgba(31, 111, 85, 0.38)",
+    backgroundColor: overlays.activeNavigation,
   },
   navItemHover: {
-    backgroundColor: "rgba(248, 250, 246, 0.07)",
+    backgroundColor: overlays.subtleInverse,
   },
   activeRail: {
     position: "absolute",
@@ -308,9 +289,9 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     flex: 1,
-    color: "#C6D2CC",
-    fontSize: 13,
-    fontWeight: "600",
+    color: colors.inverseText,
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.semibold,
   },
   navLabelActive: {
     color: colors.inverse,
@@ -319,10 +300,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: SIDEBAR_COLLAPSED_WIDTH + 8,
     top: 4,
-    zIndex: 40,
-    minHeight: 36,
+    zIndex: zIndices.tooltip,
+    minHeight: controlSizes.compact,
     justifyContent: "center",
-    borderRadius: 6,
+    borderRadius: radiusValues.r6,
     backgroundColor: colors.brandInk,
     paddingHorizontal: spacing.md,
   },
@@ -332,7 +313,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     borderTopWidth: 1,
-    borderTopColor: "rgba(248, 250, 246, 0.12)",
+    borderTopColor: overlays.inverseBorder,
     paddingVertical: spacing.sm,
   },
   profileButton: {
@@ -349,37 +330,37 @@ const styles = StyleSheet.create({
   avatar: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: radiusValues.r17,
     backgroundColor: colors.primary,
   },
   avatarFallback: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: radiusValues.r17,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
     borderWidth: 1,
-    borderColor: "rgba(248, 250, 246, 0.2)",
+    borderColor: overlays.inverseAvatarBorder,
   },
   avatarText: {
     color: colors.inverse,
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.bold,
   },
   userCopy: { flex: 1 },
-  userName: { color: colors.inverse, fontSize: 12, fontWeight: "600" },
-  userRole: { color: "#93A79E", fontSize: 11, marginTop: spacing.xxs },
+  userName: { color: colors.inverse, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
+  userRole: { color: colors.inverseMeta, fontSize: fontSizes.s11, marginTop: spacing.xxs },
   logoutButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
   logoutHover: {
-    backgroundColor: "rgba(183, 71, 58, 0.12)",
+    backgroundColor: overlays.dangerSurface,
   },
-  logoutText: { color: "#E7A28F", fontSize: 13, fontWeight: "600" },
+  logoutText: { color: colors.dangerOnDark, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold },
   pressed: { opacity: 0.7 },
 });

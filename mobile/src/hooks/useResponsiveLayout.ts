@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { useWindowDimensions } from "react-native";
-
-const MOBILE_BREAKPOINT = 768;
-const DESKTOP_BREAKPOINT = 1024;
-const RESIZE_DEBOUNCE_MS = 120;
+import { breakpoints, motion } from "../theme";
 
 export function useResponsiveLayout() {
   const { width, height } = useWindowDimensions();
@@ -12,15 +9,15 @@ export function useResponsiveLayout() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setScreenSize({ width, height });
-    }, RESIZE_DEBOUNCE_MS);
+    }, motion.resizeDebounceMs);
 
     return () => clearTimeout(timer);
   }, [width, height]);
 
   return {
-    isMobile: screenSize.width < MOBILE_BREAKPOINT,
-    isTablet: screenSize.width >= MOBILE_BREAKPOINT && screenSize.width < DESKTOP_BREAKPOINT,
-    isDesktop: screenSize.width >= DESKTOP_BREAKPOINT,
+    isMobile: screenSize.width < breakpoints.mobile,
+    isTablet: screenSize.width >= breakpoints.mobile && screenSize.width < breakpoints.desktop,
+    isDesktop: screenSize.width >= breakpoints.desktop,
     screenWidth: screenSize.width,
     screenHeight: screenSize.height,
   };

@@ -6,7 +6,8 @@ import { goBackTo } from "../../src/utils/navigation";
 import { useAuthStore } from "../../src/store/authStore";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button } from "../../src/components/ui";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
+import { GROUP_HREFS } from "../../src/navigation/routes";
 
 export default function RegisterScreen() {
   const { register } = useAuthStore();
@@ -36,7 +37,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await register(churchName.trim(), name.trim(), email.trim().toLowerCase(), password);
-      router.replace("/(tabs)");
+      router.replace(GROUP_HREFS.tabs);
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Erro ao criar conta. Tente novamente.";
       Alert.alert("Erro", msg);
@@ -53,20 +54,20 @@ export default function RegisterScreen() {
       width="wide"
     >
       <TouchableOpacity
-        onPress={() => goBackTo(router, "/(auth)/login")}
+        onPress={() => goBackTo(router, GROUP_HREFS.auth)}
         style={styles.back}
         accessibilityRole="button"
         accessibilityLabel="Voltar para o login"
         testID="register-back"
       >
-        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <ArrowLeft color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
         <Text style={styles.backText}>Voltar</Text>
       </TouchableOpacity>
 
       <View style={styles.fields}>
         <AppInput
           label="Nome da igreja *"
-          icon={<Building2 color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Building2 color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="Ex.: Igreja Batista Central"
           value={churchName}
           onChangeText={setChurchName}
@@ -77,7 +78,7 @@ export default function RegisterScreen() {
         <View style={styles.fieldRow}>
           <AppInput
             label="Seu nome *"
-            icon={<UserRound color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<UserRound color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Nome completo"
             value={name}
             onChangeText={setName}
@@ -88,7 +89,7 @@ export default function RegisterScreen() {
 
           <AppInput
             label="E-mail *"
-            icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Mail color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="admin@suaigreja.com"
             autoCapitalize="none"
             keyboardType="email-address"
@@ -103,7 +104,7 @@ export default function RegisterScreen() {
         <View style={styles.fieldRow}>
           <AppInput
             label="Senha *"
-            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Mínimo de 6 caracteres"
             secureTextEntry
             value={password}
@@ -115,7 +116,7 @@ export default function RegisterScreen() {
 
           <AppInput
             label="Confirmar senha *"
-            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Repita a senha"
             secureTextEntry
             value={confirm}
@@ -141,7 +142,7 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   back: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",

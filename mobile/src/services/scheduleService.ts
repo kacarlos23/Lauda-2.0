@@ -4,6 +4,7 @@ import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { api } from "./api";
 import { AssignmentStatus, Schedule, ScheduleAssignment } from "../types";
+import { printTheme } from "../tokens/print";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -60,24 +61,24 @@ function formatScheduleReportHtml(schedule: Schedule): string {
   <meta charset="utf-8" />
   <title>${escapeHtml(schedule.title)} - Relatório de Escala</title>
   <style>
-    @page { size: A4; margin: 18mm; }
+    @page { size: A4; margin: ${printTheme.layout.pageMargin}; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #f8faf7; color: #10201a; font-family: Arial, Helvetica, sans-serif; }
-    main { width: 100%; max-width: 820px; margin: 0 auto; padding: 34px 28px 42px; background: #fff; min-height: 100vh; }
-    h1 { margin: 0; text-align: center; font-size: 34px; line-height: 1.15; font-weight: 900; }
-    h2 { margin: 10px 0 24px; text-align: center; color: #157a6e; font-size: 25px; line-height: 1.2; }
-    .summary { border: 1px solid #dfe9e2; background: #eef5f1; border-radius: 22px; padding: 24px; margin: 0 0 28px; font-size: 18px; line-height: 1.35; }
-    .section-title { font-size: 23px; font-weight: 900; margin: 28px 0 14px; padding-bottom: 10px; border-bottom: 2px solid #dfe9e2; }
-    .song { border: 1px solid #dfe9e2; border-radius: 18px; padding: 16px 18px; margin-bottom: 14px; break-inside: avoid; }
-    .song-title { font-size: 19px; font-weight: 900; margin-bottom: 8px; }
-    .song-meta { color: #157a6e; font-size: 15px; }
-    .member { margin-bottom: 12px; break-inside: avoid; }
-    .member-line { font-size: 17px; }
+    body { margin: 0; background: ${printTheme.colors.canvas}; color: ${printTheme.colors.ink}; font-family: ${printTheme.fontFamily}; }
+    main { width: 100%; max-width: ${printTheme.layout.pageMaxWidth}; margin: 0 auto; padding: ${printTheme.spacing.page}; background: ${printTheme.colors.surface}; min-height: 100vh; }
+    h1 { margin: 0; text-align: center; font-size: ${printTheme.fontSizes.reportTitle}px; line-height: ${printTheme.lineHeights.title}; font-weight: ${printTheme.fontWeights.black}; }
+    h2 { margin: ${printTheme.spacing.title}; text-align: center; color: ${printTheme.colors.primary}; font-size: ${printTheme.fontSizes.title}px; line-height: ${printTheme.lineHeights.heading}; }
+    .summary { border: 1px solid ${printTheme.colors.line}; background: ${printTheme.colors.soft}; border-radius: ${printTheme.radii.summary}px; padding: ${printTheme.spacing.summary}px; margin: 0 0 ${printTheme.spacing.summaryBottom}px; font-size: ${printTheme.fontSizes.summary}px; line-height: ${printTheme.lineHeights.summary}; }
+    .section-title { font-size: ${printTheme.fontSizes.section}px; font-weight: ${printTheme.fontWeights.black}; margin: ${printTheme.spacing.section}; padding-bottom: ${printTheme.spacing.sectionBottom}px; border-bottom: 2px solid ${printTheme.colors.line}; }
+    .song { border: 1px solid ${printTheme.colors.line}; border-radius: ${printTheme.radii.song}px; padding: ${printTheme.spacing.song}; margin-bottom: ${printTheme.spacing.songBottom}px; break-inside: avoid; }
+    .song-title { font-size: ${printTheme.fontSizes.song}px; font-weight: ${printTheme.fontWeights.black}; margin-bottom: ${printTheme.spacing.songTitleBottom}px; }
+    .song-meta { color: ${printTheme.colors.primary}; font-size: ${printTheme.fontSizes.metadata}px; }
+    .member { margin-bottom: ${printTheme.spacing.memberBottom}px; break-inside: avoid; }
+    .member-line { font-size: ${printTheme.fontSizes.member}px; }
     .member-name { font-weight: 900; }
-    .member-status { color: #748179; font-size: 14px; margin-top: 3px; }
-    .empty { color: #748179; font-size: 15px; }
-    footer { position: fixed; bottom: 10mm; left: 0; right: 0; text-align: center; color: #748179; font-size: 11px; }
-    @media print { body { background: #fff; } main { padding: 0; max-width: none; } }
+    .member-status { color: ${printTheme.colors.muted}; font-size: ${printTheme.fontSizes.body}px; margin-top: ${printTheme.spacing.memberStatusTop}px; }
+    .empty { color: ${printTheme.colors.muted}; font-size: ${printTheme.fontSizes.metadata}px; }
+    footer { position: fixed; bottom: ${printTheme.layout.footerBottom}; left: 0; right: 0; text-align: center; color: ${printTheme.colors.muted}; font-size: ${printTheme.fontSizes.footer}px; }
+    @media print { body { background: ${printTheme.colors.surface}; } main { padding: 0; max-width: none; } }
   </style>
 </head>
 <body>

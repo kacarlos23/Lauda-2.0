@@ -4,7 +4,16 @@ import React from "react";
 import { Plus, UserRound } from "lucide-react-native";
 import { Artist } from "../types";
 import { musicService } from "../services/musicService";
-import { colors, radii, spacing } from "../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radii,
+  radiusValues,
+  spacing,
+} from "../theme";
 
 type Props = {
   selected: Artist | null;
@@ -97,13 +106,13 @@ export function ArtistPicker({
         <View style={styles.options}>
           {canCreate && !exactMatch ? (
             <TouchableOpacity style={styles.option} onPress={() => void create()} disabled={creating} testID="artist-create-option">
-              <View style={styles.avatar}><Plus color={colors.primary} size={18} /></View>
+              <View style={styles.avatar}><Plus color={colors.primary} size={iconSizes.s18} /></View>
               <Text style={styles.createText}>{creating ? "Criando..." : `Criar \u201c${query.trim().replace(/\s+/g, " ")}\u201d`}</Text>
             </TouchableOpacity>
           ) : null}
           {artists.map((artist) => (
             <TouchableOpacity key={artist.id} style={styles.option} onPress={() => choose(artist)} testID={`artist-option-${artist.id}`}>
-              {artist.imageUrl ? <Image source={{ uri: artist.imageUrl }} style={styles.image} /> : <View style={styles.avatar}><UserRound color={colors.muted} size={18} /></View>}
+              {artist.imageUrl ? <Image source={{ uri: artist.imageUrl }} style={styles.image} /> : <View style={styles.avatar}><UserRound color={colors.muted} size={iconSizes.s18} /></View>}
               <Text style={styles.optionText}>{artist.name}</Text>
             </TouchableOpacity>
           ))}
@@ -117,16 +126,16 @@ export function ArtistPicker({
 }
 
 const styles = StyleSheet.create({
-  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
   inputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  input: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  input: { flex: 1, minHeight: controlSizes.large, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   options: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, marginTop: spacing.xs, overflow: "hidden" },
   option: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  image: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surfaceMuted },
-  optionText: { color: colors.ink, fontSize: 14, fontWeight: "700", flex: 1 },
-  createText: { color: colors.primary, fontSize: 14, fontWeight: "800", flex: 1 },
-  empty: { color: colors.muted, padding: spacing.md, fontSize: 13 },
-  selected: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
-  error: { color: colors.danger, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
+  avatar: { width: 32, height: 32, borderRadius: radiusValues.r16, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  image: { width: 32, height: 32, borderRadius: radiusValues.r16, backgroundColor: colors.surfaceMuted },
+  optionText: { color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.bold, flex: 1 },
+  createText: { color: colors.primary, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold, flex: 1 },
+  empty: { color: colors.muted, padding: spacing.md, fontSize: fontSizes.s13 },
+  selected: { color: colors.primary, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
+  error: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
 });

@@ -1,33 +1,11 @@
 import { expect, test, type ConsoleMessage, type Page, type TestInfo } from "@playwright/test";
+import { materializeRoutePath, ROUTES, type RouteKey } from "../../src/navigation/routes";
 
-const routes = [
-  ["/login", "Entrar | Lauda"],
-  ["/register", "Criar igreja | Lauda"],
-  ["/member-register", "Entrar por convite | Lauda"],
-  ["/convite", "Entrar por convite | Lauda"],
-  ["/forgot-password", "Recuperar senha | Lauda"],
-  ["/reset-password", "Redefinir senha | Lauda"],
-  ["/", "Visão geral | Lauda"],
-  ["/schedules", "Escalas | Lauda"],
-  ["/schedules/new", "Nova escala | Lauda"],
-  ["/schedules/123e4567-e89b-12d3-a456-426614174000/edit", "Editar escala | Lauda"],
-  ["/ministries", "Ministérios | Lauda"],
-  ["/ministries/123e4567-e89b-12d3-a456-426614174000", "Ministério | Lauda"],
-  ["/ministries/123e4567-e89b-12d3-a456-426614174000/members", "Membros do ministério | Lauda"],
-  ["/ministries/assign", "Atribuir membro | Lauda"],
-  ["/songs", "Músicas | Lauda"],
-  ["/songs/new", "Nova música | Lauda"],
-  ["/songs/123e4567-e89b-12d3-a456-426614174000", "Cifra | Lauda"],
-  ["/songs/123e4567-e89b-12d3-a456-426614174000/edit", "Editar música | Lauda"],
-  ["/artists", "Artistas | Lauda"],
-  ["/more", "Mais | Lauda"],
-  ["/members", "Membros | Lauda"],
-  ["/members/new", "Novo membro | Lauda"],
-  ["/global-admin", "Admin global | Lauda"],
-  ["/church", "Igreja | Lauda"],
-  ["/instruments", "Instrumentos e cargos | Lauda"],
-  ["/profile", "Perfil | Lauda"],
-] as const;
+const sampleId = "123e4567-e89b-12d3-a456-426614174000";
+const routes = (Object.keys(ROUTES) as RouteKey[]).map((key) => [
+  materializeRoutePath(key, sampleId),
+  ROUTES[key].documentTitle,
+] as const);
 
 const publicRoutes = routes.slice(0, 6);
 

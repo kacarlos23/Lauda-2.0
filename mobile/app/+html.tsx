@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
+import { colors } from "../src/theme";
 
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
@@ -11,7 +12,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
-        <meta name="theme-color" content="#164C3C" />
+        <meta name="theme-color" content={colors.primaryDark} />
         <meta
           name="description"
           content="Lauda — gestão de ministérios, escalas e equipes."

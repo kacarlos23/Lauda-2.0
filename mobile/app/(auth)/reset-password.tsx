@@ -5,7 +5,8 @@ import { ArrowLeft, KeyRound, Lock } from "lucide-react-native";
 import { api } from "../../src/services/api";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button } from "../../src/components/ui";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
+import { GROUP_HREFS } from "../../src/navigation/routes";
 
 export default function ResetPasswordScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -37,7 +38,7 @@ export default function ResetPasswordScreen() {
         newPassword,
       });
       Alert.alert("Sucesso", "Sua senha foi redefinida com sucesso.");
-      router.replace("/(auth)/login");
+      router.replace(GROUP_HREFS.auth);
     } catch (error: any) {
       const message = error.response?.data?.error || "Erro ao redefinir a senha.";
       Alert.alert("Erro", message);
@@ -55,7 +56,7 @@ export default function ResetPasswordScreen() {
       <View style={styles.fields}>
         <AppInput
           label="Código PIN (6 dígitos)"
-          icon={<KeyRound color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<KeyRound color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="123456"
           keyboardType="number-pad"
           maxLength={6}
@@ -66,7 +67,7 @@ export default function ResetPasswordScreen() {
 
         <AppInput
           label="Nova senha"
-          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="Mínimo de 6 caracteres"
           secureTextEntry
           value={newPassword}
@@ -76,7 +77,7 @@ export default function ResetPasswordScreen() {
 
         <AppInput
           label="Confirmar senha"
-          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="Repita a nova senha"
           secureTextEntry
           value={confirmPassword}
@@ -95,12 +96,12 @@ export default function ResetPasswordScreen() {
 
       <TouchableOpacity
         style={styles.back}
-        onPress={() => router.replace("/(auth)/login")}
+        onPress={() => router.replace(GROUP_HREFS.auth)}
         disabled={loading}
         accessibilityRole="button"
         accessibilityLabel="Cancelar e voltar ao login"
       >
-        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <ArrowLeft color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
         <Text style={styles.backText}>Cancelar e voltar ao login</Text>
       </TouchableOpacity>
     </AuthShell>
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   back: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",

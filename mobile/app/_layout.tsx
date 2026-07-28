@@ -4,6 +4,8 @@ import { Stack, useSegments } from "expo-router";
 import { useRouter } from "expo-router";
 import { RouteMetadata } from "../src/components/RouteMetadata";
 import { useAuthStore } from "../src/store/authStore";
+import { GROUP_HREFS } from "../src/navigation/routes";
+import { colors, motion } from "../src/theme";
 
 export default function RootLayout() {
   const { user, isLoading, loadSession } = useAuthStore();
@@ -28,7 +30,7 @@ export default function RootLayout() {
     style.textContent = `
       :root {
         color-scheme: light;
-        background: #F4F2EC;
+        background: ${colors.background};
       }
 
       * {
@@ -40,19 +42,19 @@ export default function RootLayout() {
       }
 
       *:focus-visible {
-        outline: 3px solid #C0582D !important;
+        outline: 3px solid ${colors.accent} !important;
         outline-offset: 2px !important;
       }
 
       ::selection {
-        background: #C0582D;
-        color: #F8FAF6;
+        background: ${colors.accent};
+        color: ${colors.inverse};
       }
 
       @media (hover: hover) and (pointer: fine) {
         [role="button"]:not([aria-disabled="true"]),
         [role="link"]:not([aria-disabled="true"]) {
-          transition: filter 160ms ease, background-color 160ms ease, opacity 160ms ease, transform 160ms ease;
+          transition: filter ${motion.interactionMs}ms ease, background-color ${motion.interactionMs}ms ease, opacity ${motion.interactionMs}ms ease, transform ${motion.interactionMs}ms ease;
           cursor: pointer;
         }
 
@@ -70,8 +72,8 @@ export default function RootLayout() {
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after {
           scroll-behavior: auto !important;
-          transition-duration: 0.01ms !important;
-          animation-duration: 0.01ms !important;
+          transition-duration: ${motion.reducedMs}ms !important;
+          animation-duration: ${motion.reducedMs}ms !important;
           animation-iteration-count: 1 !important;
         }
       }
@@ -86,9 +88,9 @@ export default function RootLayout() {
     const isPublicInviteRoute = currentGroup === "convite";
 
     if (user && isAuthRoute) {
-      router.replace("/(tabs)");
+      router.replace(GROUP_HREFS.tabs);
     } else if (!user && !isAuthRoute && !isPublicInviteRoute) {
-      router.replace("/(auth)/login");
+      router.replace(GROUP_HREFS.auth);
     }
   }, [user, isLoading, router, segments]);
 

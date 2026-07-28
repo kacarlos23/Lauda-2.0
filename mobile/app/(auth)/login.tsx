@@ -6,7 +6,8 @@ import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
+import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -47,7 +48,7 @@ export default function LoginScreen() {
 
     try {
       await login(normalizedEmail, password);
-      router.replace("/(tabs)");
+      router.replace(GROUP_HREFS.tabs);
     } catch (err) {
       setLocalError(getErrorMessage(err));
     }
@@ -64,7 +65,7 @@ export default function LoginScreen() {
       <View style={styles.fields}>
         <AppInput
           label="E-mail"
-          icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Mail color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="voce@igreja.com"
           autoCapitalize="none"
           autoCorrect={false}
@@ -82,7 +83,7 @@ export default function LoginScreen() {
 
         <AppInput
           label="Senha"
-          icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="Sua senha"
           secureTextEntry
           textContentType="password"
@@ -98,7 +99,7 @@ export default function LoginScreen() {
 
       <TouchableOpacity
         style={styles.forgotPasswordLink}
-        onPress={() => router.push("/(auth)/forgot-password")}
+        onPress={() => router.push(nav.forgotPassword)}
         accessibilityLabel="Esqueci minha senha"
         accessibilityRole="button"
         testID="forgot-password"
@@ -108,7 +109,7 @@ export default function LoginScreen() {
 
       <Button
         title="Entrar"
-        icon={<LogIn color={colors.inverse} size={18} strokeWidth={2.2} />}
+        icon={<LogIn color={colors.inverse} size={iconSizes.s18} strokeWidth={2.2} />}
         loading={loading}
         style={styles.button}
         onPress={handleLogin}
@@ -124,7 +125,7 @@ export default function LoginScreen() {
 
       <TouchableOpacity
         style={styles.secondaryLink}
-        onPress={() => router.push("/(auth)/member-register")}
+        onPress={() => router.push(nav.memberRegister)}
         accessibilityLabel="Cadastrar como membro"
         accessibilityRole="button"
         testID="go-member-register"
@@ -136,7 +137,7 @@ export default function LoginScreen() {
 
       <TouchableOpacity
         style={styles.secondaryLink}
-        onPress={() => router.push("/(auth)/register")}
+        onPress={() => router.push(nav.register)}
         accessibilityLabel="Cadastrar igreja"
         accessibilityRole="button"
         testID="go-register"
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   forgotPasswordLink: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-end",
     justifyContent: "center",
   },
@@ -180,7 +181,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   secondaryLink: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     justifyContent: "center",
     borderBottomWidth: 1,
     borderBottomColor: colors.line,

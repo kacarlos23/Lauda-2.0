@@ -8,6 +8,8 @@
     "test:ci": "jest --ci --coverage --forceExit",
     "dev": "node scripts/start-development.cjs",
     "dev:full": "powershell -ExecutionPolicy Bypass -File scripts/start-project.ps1",
+    "dev:navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-navigation-dev.ps1",
+    "dev:navigation:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-navigation-dev.ps1",
     "debug:admin-tenants": "ts-node scripts/debug-admin-tenants.ts",
     "promote:global-admin": "ts-node scripts/promote-global-admin.ts",
     "resilience:restore-drill": "node scripts/resilience/backup-restore-drill.cjs",

@@ -19,7 +19,20 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Schedule, ScheduleAssignment } from "../../../src/types";
 import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, LoadingState, Screen, SectionHeader } from "../../../src/components/ui";
-import { colors, radii, screen, spacing, typography } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  overlays,
+  radii,
+  radiusValues,
+  screen,
+  spacing,
+  typography,
+} from "../../../src/theme";
 import { NO_MINISTRY, emptyScheduleFilters, filterSchedules, hasActiveFilters, ScheduleListFilters, uniqueScheduleMinistries } from "../../../src/utils/listFilters";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
@@ -30,6 +43,7 @@ import {
   canEditSchedule,
   canViewScheduleAdminList,
 } from "../../../src/utils/schedulePermissions";
+import { nav } from "../../../src/navigation/routes";
 
 const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 const selectedDateTitle = new Intl.DateTimeFormat("pt-BR", {
@@ -57,7 +71,7 @@ function buildCalendarDays(reference: Date) {
 }
 
 function newScheduleHref(date: string) {
-  return { pathname: "/schedules/new", params: { date } } as never;
+  return { pathname: nav.scheduleNew, params: { date } } as const;
 }
 
 export default function SchedulesScreen() {
@@ -243,7 +257,7 @@ export default function SchedulesScreen() {
         exporting={exportingId === item.id}
         exportingSongs={exportingSongsId === item.id}
         duplicating={duplicatingId === item.id}
-        onEdit={() => router.push(`/schedules/${item.id}/edit` as never)}
+        onEdit={() => router.push(nav.scheduleEdit(item.id))}
         onDuplicate={() => void duplicateSchedule(item)}
         onExport={() => void exportReport(item)}
         onExportSongs={canExportSongs && item.songs?.length ? () => void exportSongs(item) : undefined}
@@ -260,7 +274,7 @@ export default function SchedulesScreen() {
 
   const emptyScheduleState = (
     <EmptyState
-      icon={<CalendarClock color={colors.primary} size={28} strokeWidth={2.3} />}
+      icon={<CalendarClock color={colors.primary} size={iconSizes.s28} strokeWidth={2.3} />}
       title={activeFilters ? "Nenhuma escala encontrada" : "Nenhuma escala neste dia"}
       description={activeFilters ? "Ajuste ou limpe os filtros para ver outras escalas." : "Selecione outro dia no calendário ou crie uma nova escala."}
       style={isDesktop ? styles.agendaEmpty : undefined}
@@ -423,7 +437,7 @@ export default function SchedulesScreen() {
                   <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
                   <Button
                     title="Nova Escala"
-                    icon={<Plus color={colors.surface} size={18} />}
+                    icon={<Plus color={colors.surface} size={iconSizes.s18} />}
                     size="lg"
                     style={styles.newButton}
                     onPress={() => router.push(newScheduleHref(selectedDate))}
@@ -538,16 +552,16 @@ const styles = StyleSheet.create({
   },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   monthTitle: { ...typography.cardTitle, color: colors.ink, textTransform: "capitalize" },
-  monthNav: { color: colors.primary, fontSize: 30, fontWeight: "700", paddingHorizontal: spacing.md },
+  monthNav: { color: colors.primary, fontSize: fontSizes.s30, fontWeight: fontWeights.bold, paddingHorizontal: spacing.md },
   weekRow: { flexDirection: "row" },
   weekLabel: { ...typography.badge, flex: 1, textAlign: "center", color: colors.muted, marginBottom: spacing.xs },
   dayGrid: { flexDirection: "row", flexWrap: "wrap" },
-  dayCell: { width: `${100 / 7}%`, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
+  dayCell: { width: `${100 / 7}%`, minHeight: controlSizes.default, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
   todayCell: { borderWidth: 1, borderColor: colors.primary },
   selectedCell: { backgroundColor: colors.primary },
   dayText: { ...typography.metadata, color: colors.text, textAlign: "center" },
   selectedDayText: { color: colors.surface },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary, marginTop: 3 },
+  dot: { width: 5, height: 5, borderRadius: radiusValues.r3, backgroundColor: colors.primary, marginTop: spacing.micro },
   selectedDot: { backgroundColor: colors.surface },
   calendarLegend: {
     flexDirection: "row",
@@ -559,18 +573,18 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  legendScheduleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+  legendScheduleDot: { width: 6, height: 6, borderRadius: radiusValues.r3, backgroundColor: colors.primary },
   legendToday: { width: 14, height: 14, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.primary },
   legendText: { ...typography.metadata, color: colors.muted },
   sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
   inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalBackdrop: { flex: 1, backgroundColor: overlays.modalCool, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 520, backgroundColor: colors.surface, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, padding: spacing.lg },
   modalTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.sm },
   modalText: { ...typography.body, color: colors.text, marginBottom: spacing.md },
   reasonInput: { minHeight: 96, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, marginBottom: spacing.md },
   checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.lg },
-  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  checkbox: { width: 20, height: 20, borderRadius: radiusValues.r5, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkText: { ...typography.label, color: colors.text },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, flexWrap: "wrap" },
@@ -580,18 +594,18 @@ const styles = StyleSheet.create({
   cardHover: { backgroundColor: colors.primarySoft },
   cardPressed: { opacity: 0.86 },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
-  dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "700", lineHeight: 33 },
+  dayNumber: { color: colors.primary, fontSize: fontSizes.s28, fontWeight: fontWeights.bold, lineHeight: lineHeights.h33 },
   weekday: { ...typography.badge, color: colors.muted, textTransform: "uppercase" },
   cardBody: { flex: 1 },
-  cardBodyOffset: { marginLeft: 58 },
+  cardBodyOffset: { marginLeft: screen.scheduleCardOffset },
   cardTime: { ...typography.label, color: colors.primary },
   cardTitle: { ...typography.cardTitle, color: colors.ink, marginTop: spacing.xs, marginBottom: spacing.xs },
   detail: { ...typography.metadata, color: colors.text },
   status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
   assignmentStatusRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
-  cardActions: { marginLeft: 58, marginTop: spacing.md, alignItems: "flex-start" },
+  cardActions: { marginLeft: screen.scheduleCardOffset, marginTop: spacing.md, alignItems: "flex-start" },
   reportButton: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.line },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  actionButton: { minHeight: 40, paddingHorizontal: spacing.lg },
+  actionButton: { minHeight: controlSizes.medium, paddingHorizontal: spacing.lg },
 });
 

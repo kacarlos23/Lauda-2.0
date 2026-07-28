@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { StyleProp, StyleSheet, Text, TextStyle } from "react-native";
 import { decodeRichTextEntities } from "../../../../src/contracts/richText";
-import { colors } from "../../theme";
+import { colors, fontSizes, lineHeights } from "../../theme";
 
 type Props = {
   value?: string | null;
@@ -82,5 +82,5 @@ export function RichCommentView({ value, style, numberOfLines, testID }: Props) 
 }
 
 const styles = StyleSheet.create({
-  text: { color: colors.text, fontSize: 15, lineHeight: 23 },
+  text: { color: colors.text, fontSize: fontSizes.s15, lineHeight: lineHeights.h23 },
 });

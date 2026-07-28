@@ -5,8 +5,9 @@ import { ArrowLeft, Mail } from "lucide-react-native";
 import { api } from "../../src/services/api";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button } from "../../src/components/ui";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
 import { goBackTo } from "../../src/utils/navigation";
+import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -23,7 +24,7 @@ export default function ForgotPasswordScreen() {
     try {
       await api.post("/auth/forgot-password", { email });
       Alert.alert("Sucesso", "Se o e-mail existir, um código foi enviado.");
-      router.push({ pathname: "/(auth)/reset-password", params: { email } });
+      router.push({ pathname: nav.resetPassword, params: { email } });
     } catch (error: any) {
       const message = error.response?.data?.error || "Erro ao solicitar recuperação de senha.";
       Alert.alert("Erro", message);
@@ -40,7 +41,7 @@ export default function ForgotPasswordScreen() {
     >
       <AppInput
         label="E-mail"
-        icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
+        icon={<Mail color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
         placeholder="voce@igreja.com"
         autoCapitalize="none"
         keyboardType="email-address"
@@ -59,12 +60,12 @@ export default function ForgotPasswordScreen() {
 
       <TouchableOpacity
         style={styles.back}
-        onPress={() => goBackTo(router, "/(auth)/login")}
+        onPress={() => goBackTo(router, GROUP_HREFS.auth)}
         disabled={loading}
         accessibilityRole="button"
         accessibilityLabel="Voltar para o login"
       >
-        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <ArrowLeft color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
         <Text style={styles.backText}>Voltar para o login</Text>
       </TouchableOpacity>
     </AuthShell>
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   back: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",

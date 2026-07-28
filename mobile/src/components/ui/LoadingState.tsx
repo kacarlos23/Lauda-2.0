@@ -1,6 +1,6 @@
 import React from "react";
 import { ActivityIndicator, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { colors, spacing } from "../../theme";
+import { colors, fontSizes, fontWeights, spacing } from "../../theme";
 
 type LoadingStateProps = {
   message?: string;
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   },
   message: {
     color: colors.muted,
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: fontSizes.s14,
+    fontWeight: fontWeights.bold,
   },
 });

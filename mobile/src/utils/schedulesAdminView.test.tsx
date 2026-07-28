@@ -198,7 +198,10 @@ describe("SchedulesScreen visao administrativa", () => {
       await duplicateButton!.props.onPress();
     });
 
-    expect(pushMock).toHaveBeenCalledWith("/schedules/schedule-1/edit");
+    expect(pushMock).toHaveBeenCalledWith({
+      pathname: "/schedules/[id]/edit",
+      params: { id: "schedule-1" },
+    });
     expect(createScheduleMock).toHaveBeenCalledWith(expect.objectContaining({
       title: "Copia de Culto teste",
       ministryId: "ministry-1",

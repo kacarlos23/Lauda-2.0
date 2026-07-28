@@ -16,6 +16,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, Check, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
+import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 import { Button, EmptyState, ErrorBanner, LoadingState, RoleBadge } from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
@@ -27,7 +28,21 @@ import {
   validateInstrumentForm,
 } from "../../src/utils/instrumentCatalog";
 import { formatRoleLabel, isGlobalAdmin } from "../../src/utils/permissions";
-import { colors, radii, screen, shadow, spacing, typography } from "../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  overlays,
+  radii,
+  radiusValues,
+  screen,
+  shadow,
+  spacing,
+  typography,
+} from "../../src/theme";
 import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "" };
@@ -133,7 +148,7 @@ export default function ProfileScreen() {
 
   const performLogout = async () => {
     await logout();
-    router.replace("/(auth)/login");
+    router.replace(GROUP_HREFS.auth);
   };
 
   const handleLogout = () => {
@@ -272,8 +287,8 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.profileCard}>
           <TouchableOpacity style={styles.avatarButton} onPress={() => void pickAvatar()} accessibilityLabel="Alterar foto de perfil" testID="profile-avatar-picker">
-            {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={38} strokeWidth={2.4} /></View>}
-            <View style={styles.cameraBadge}><Camera color={colors.surface} size={16} strokeWidth={2.6} /></View>
+            {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={iconSizes.s38} strokeWidth={2.4} /></View>}
+            <View style={styles.cameraBadge}><Camera color={colors.surface} size={iconSizes.s16} strokeWidth={2.6} /></View>
           </TouchableOpacity>
 
           <View style={styles.profileIdentity}>
@@ -292,10 +307,10 @@ export default function ProfileScreen() {
           <TextInput style={styles.profileInput} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Opcional" placeholderTextColor={colors.muted} testID="profile-phone-input" />
           <Text style={styles.rowLabel}>E-mail</Text>
           <View style={styles.readonlyInput}><Text style={styles.rowValue}>{user?.email}</Text></View>
-          {avatarUrl ? <TouchableOpacity style={styles.removePhotoButton} onPress={() => setAvatarUrl(null)}><Trash2 color={colors.danger} size={16} /><Text style={styles.removePhotoText}>Remover foto</Text></TouchableOpacity> : null}
+          {avatarUrl ? <TouchableOpacity style={styles.removePhotoButton} onPress={() => setAvatarUrl(null)}><Trash2 color={colors.danger} size={iconSizes.s16} /><Text style={styles.removePhotoText}>Remover foto</Text></TouchableOpacity> : null}
           <ErrorBanner message={profileError} style={styles.profileError} />
           <TouchableOpacity style={[styles.saveProfileButton, profileSaving && styles.buttonDisabled]} onPress={() => void saveProfile()} disabled={profileSaving} testID="profile-save-button">
-            {profileSaving ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={17} />}
+            {profileSaving ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={iconSizes.s17} />}
             <Text style={styles.saveProfileText}>{profileSaving ? "Salvando..." : "Salvar dados"}</Text>
           </TouchableOpacity>
           <View style={styles.permissionRow}><Text style={styles.rowLabel}>Permissão</Text><Text style={styles.rowValue}>{formatRoleLabel(user?.role)}</Text></View>
@@ -305,7 +320,7 @@ export default function ProfileScreen() {
           <View style={styles.globalAccessCard}>
             <View style={styles.globalAccessHeader}>
               <View style={styles.globalAccessIcon}>
-                <Globe2 color={colors.primary} size={22} strokeWidth={2.5} />
+                <Globe2 color={colors.primary} size={iconSizes.s22} strokeWidth={2.5} />
               </View>
               <View style={styles.globalAccessTextBox}>
                 <Text style={styles.globalAccessTitle}>Acesso global</Text>
@@ -316,7 +331,7 @@ export default function ProfileScreen() {
             </View>
             <TouchableOpacity
               style={styles.globalAccessButton}
-              onPress={() => router.push("/global-admin" as never)}
+              onPress={() => router.push(nav.globalAdmin)}
               accessibilityRole="button"
               testID="open-global-admin-button"
             >
@@ -415,7 +430,7 @@ export default function ProfileScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Fechar seleção de instrumentos"
                 >
-                  <X color={colors.primary} size={20} strokeWidth={2.5} />
+                  <X color={colors.primary} size={iconSizes.s20} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
 
@@ -457,7 +472,7 @@ export default function ProfileScreen() {
                     {creatingInstrument ? (
                       <ActivityIndicator color={colors.surface} />
                     ) : (
-                      <Plus color={colors.surface} size={17} strokeWidth={2.4} />
+                      <Plus color={colors.surface} size={iconSizes.s17} strokeWidth={2.4} />
                     )}
                     <Text style={styles.createInstrumentButtonText}>Criar e selecionar</Text>
                   </TouchableOpacity>
@@ -489,7 +504,7 @@ export default function ProfileScreen() {
                           ]}
                         />
                         <Text style={styles.modalInstrumentName}>{instrument.name}</Text>
-                        {selected ? <Check color={colors.primary} size={20} strokeWidth={2.8} /> : null}
+                        {selected ? <Check color={colors.primary} size={iconSizes.s20} strokeWidth={2.8} /> : null}
                       </TouchableOpacity>
                     );
                   })
@@ -502,18 +517,18 @@ export default function ProfileScreen() {
         {canManageInstruments ? (
           <TouchableOpacity
             style={styles.adminButton}
-            onPress={() => router.push("/instruments?returnTo=/profile" as never)}
+            onPress={() => router.push(nav.instruments(nav.profile))}
             accessibilityRole="button"
             accessibilityLabel="Gerenciar instrumentos e cargos"
             testID="manage-instruments-button"
           >
-            <Settings2 color={colors.primary} size={18} strokeWidth={2.5} />
+            <Settings2 color={colors.primary} size={iconSizes.s18} strokeWidth={2.5} />
             <Text style={styles.adminButtonText}>Gerenciar instrumentos/cargos</Text>
           </TouchableOpacity>
         ) : null}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
-          <LogOut color={colors.danger} size={18} strokeWidth={2.6} />
+          <LogOut color={colors.danger} size={iconSizes.s18} strokeWidth={2.6} />
           <Text style={styles.logoutText}>Sair da conta</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -552,16 +567,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatarButton: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
-  avatarImage: { width: 92, height: 92, borderRadius: 46, backgroundColor: colors.surfaceMuted },
-  cameraBadge: { position: "absolute", right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  name: { fontSize: 30, fontWeight: "700", lineHeight: 36, color: colors.ink, marginBottom: spacing.xs },
+  avatarImage: { width: 92, height: 92, borderRadius: radiusValues.r46, backgroundColor: colors.surfaceMuted },
+  cameraBadge: { position: "absolute", right: 0, bottom: 0, width: 32, height: 32, borderRadius: radiusValues.r16, backgroundColor: colors.primary, borderWidth: 3, borderColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  name: { fontSize: fontSizes.s30, fontWeight: fontWeights.bold, lineHeight: lineHeights.h36, color: colors.ink, marginBottom: spacing.xs },
   email: { ...typography.metadata, color: colors.muted, marginBottom: spacing.md },
   badge: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
   badgeText: { ...typography.badge, textTransform: "uppercase" },
-  refreshingText: { ...typography.badge, color: colors.muted, fontWeight: "400", marginTop: spacing.sm },
+  refreshingText: { ...typography.badge, color: colors.muted, fontWeight: fontWeights.regular, marginTop: spacing.sm },
   section: {
     backgroundColor: "transparent",
     paddingVertical: spacing.lg,
@@ -585,7 +600,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: { ...typography.badge, color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
   rowValue: { ...typography.body, color: colors.text },
-  profileInput: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15, marginBottom: spacing.md },
+  profileInput: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15, marginBottom: spacing.md },
   readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
   removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
   removePhotoText: { ...typography.label, color: colors.danger },
@@ -607,8 +622,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   globalAccessIcon: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
@@ -618,7 +633,7 @@ const styles = StyleSheet.create({
   globalAccessTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
   globalAccessText: { ...typography.metadata, color: colors.text },
   globalAccessButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     alignItems: "center",
@@ -634,7 +649,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   editInstrumentsButton: {
-    minHeight: 36,
+    minHeight: controlSizes.compact,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
@@ -669,7 +684,7 @@ const styles = StyleSheet.create({
   instrumentChipTextSelected: { ...typography.label, color: colors.surface },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(23, 33, 26, 0.42)",
+    backgroundColor: overlays.modalNeutral,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.lg,
@@ -696,8 +711,8 @@ const styles = StyleSheet.create({
   modalTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
   modalSubtitle: { ...typography.metadata, color: colors.muted },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: controlSizes.medium,
+    height: controlSizes.medium,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
@@ -713,7 +728,7 @@ const styles = StyleSheet.create({
   },
   createInstrumentTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.md },
   modalInput: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -724,7 +739,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   createInstrumentButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
@@ -739,7 +754,7 @@ const styles = StyleSheet.create({
   modalList: { flexGrow: 0 },
   modalListContent: { gap: spacing.sm },
   modalInstrumentRow: {
-    minHeight: 48,
+    minHeight: controlSizes.large,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -775,16 +790,16 @@ const styles = StyleSheet.create({
   adminButtonText: { ...typography.button, color: colors.primary },
   logoutBtn: {
     width: "100%",
-    minHeight: 44,
+    minHeight: controlSizes.default,
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: colors.danger,
     borderRadius: radii.md,
-    paddingVertical: 10,
+    paddingVertical: spacing.control,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: spacing.sm,
   },
-  logoutText: { ...typography.button, color: colors.danger, fontSize: 16 },
+  logoutText: { ...typography.button, color: colors.danger, fontSize: fontSizes.s16 },
 });

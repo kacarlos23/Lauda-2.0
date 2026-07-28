@@ -6,10 +6,20 @@ import { Plus, Search, User as UserIcon } from "lucide-react-native";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
-import { colors, radii, screen, spacing } from "../../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radii,
+  screen,
+  spacing,
+} from "../../../../src/theme";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from "../../../../src/components/ui";
 import { can } from "../../../../src/utils/permissions";
+import { nav } from "../../../../src/navigation/routes";
 
 const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
 
@@ -74,15 +84,15 @@ export default function MinistryMembersScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <View style={styles.topBar}>
-        <AppBackButton href={`/ministries/${id}`} compact />
+        <AppBackButton href={nav.ministryDetail(id)} compact />
         <Text style={styles.title}>Membros</Text>
         {can(user, "ministry:assign_members") ? (
           <TouchableOpacity
-            onPress={() => router.push(`/ministries/assign?ministryId=${id}` as never)}
+            onPress={() => router.push(nav.ministryAssign(id))}
             style={styles.iconBtn}
             accessibilityRole="button"
           >
-            <Plus color={colors.primary} size={22} />
+            <Plus color={colors.primary} size={iconSizes.s22} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -95,7 +105,7 @@ export default function MinistryMembersScreen() {
         ListHeaderComponent={
           <View style={styles.filters}>
             <View style={styles.searchBox}>
-              <Search color={colors.muted} size={18} />
+              <Search color={colors.muted} size={iconSizes.s18} />
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -127,7 +137,7 @@ export default function MinistryMembersScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.avatar}>
-              <UserIcon color={colors.primary} size={20} />
+              <UserIcon color={colors.primary} size={iconSizes.s20} />
             </View>
             <View style={styles.info}>
               <View style={styles.row}>
@@ -172,7 +182,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   iconBtn: { padding: spacing.sm },
-  title: { color: colors.ink, fontSize: 22, fontWeight: "800" },
+  title: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.extrabold },
   list: { padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   filters: { marginBottom: spacing.lg },
   searchBox: {
@@ -187,10 +197,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
-  searchInput: { flex: 1, color: colors.ink, fontSize: 15 },
+  searchInput: { flex: 1, color: colors.ink, fontSize: fontSizes.s15 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
-    minHeight: 36,
+    minHeight: controlSizes.compact,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -200,7 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  chipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  chipText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.primary },
   card: {
     flexDirection: "row",
@@ -219,14 +229,14 @@ const styles = StyleSheet.create({
   },
   info: { flex: 1 },
   row: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md },
-  name: { flex: 1, color: colors.ink, fontSize: 16, fontWeight: "800" },
-  email: { color: colors.muted, fontSize: 13, marginTop: 2 },
-  meta: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: spacing.xs },
-  skills: { color: colors.text, fontSize: 13, marginTop: spacing.xs },
-  badge: { color: colors.primary, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
-  leader: { color: colors.primary, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
+  name: { flex: 1, color: colors.ink, fontSize: fontSizes.s16, fontWeight: fontWeights.extrabold },
+  email: { color: colors.muted, fontSize: fontSizes.s13, marginTop: spacing.xxs },
+  meta: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.bold, marginTop: spacing.xs },
+  skills: { color: colors.text, fontSize: fontSizes.s13, marginTop: spacing.xs },
+  badge: { color: colors.primary, fontSize: fontSizes.s11, fontWeight: fontWeights.extrabold, textTransform: "uppercase" },
+  leader: { color: colors.primary, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.xs },
   loader: { marginTop: spacing.xl },
   emptyState: { marginTop: spacing.xl },
   emptyText: { color: colors.muted, textAlign: "center", marginTop: spacing.xl },
-  errorText: { color: colors.danger, fontSize: 14, fontWeight: "700", marginTop: spacing.md },
+  errorText: { color: colors.danger, fontSize: fontSizes.s14, fontWeight: fontWeights.bold, marginTop: spacing.md },
 });

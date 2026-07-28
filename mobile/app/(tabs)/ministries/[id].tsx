@@ -18,12 +18,24 @@ import { ministryApi } from "../../../src/services/ministryApi";
 import { memberService } from "../../../src/services/memberService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useMinistryStore } from "../../../src/store/ministryStore";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  radiusValues,
+  screen,
+  spacing,
+} from "../../../src/theme";
 import { Member } from "../../../src/types";
 import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
 import { can } from "../../../src/utils/permissions";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
+import { nav } from "../../../src/navigation/routes";
 
 export default function MinistryDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -153,7 +165,7 @@ export default function MinistryDetailsScreen() {
             const deleteError = useMinistryStore.getState().error;
             setDeleting(false);
             if (!deleteError) {
-              goBackTo(router, "/ministries");
+              goBackTo(router, nav.ministries);
             }
           },
         },
@@ -205,7 +217,7 @@ export default function MinistryDetailsScreen() {
           style={styles.errorText}
           action={id ? <Button title="Tentar novamente" variant="secondary" onPress={() => fetchMinistry(id)} /> : undefined}
         />
-        <AppBackButton href="/ministries" />
+        <AppBackButton href={nav.ministries} />
       </View>
     );
   }
@@ -213,15 +225,15 @@ export default function MinistryDetailsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <View style={styles.topBar}>
-        <AppBackButton href="/ministries" compact />
+        <AppBackButton href={nav.ministries} compact />
 
         {canEditMinistry || canDeleteMinistry ? (
           <View style={styles.headerActions}>
             {canEditMinistry ? <TouchableOpacity onPress={openEdit} style={styles.iconBtn} accessibilityRole="button">
-              <Edit2 color={colors.primary} size={20} />
+              <Edit2 color={colors.primary} size={iconSizes.s20} />
             </TouchableOpacity> : null}
             {canDeleteMinistry ? <TouchableOpacity onPress={handleDelete} style={styles.iconBtn} disabled={deleting} accessibilityRole="button">
-              {deleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={20} />}
+              {deleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={iconSizes.s20} />}
             </TouchableOpacity> : null}
           </View>
         ) : null}
@@ -241,7 +253,7 @@ export default function MinistryDetailsScreen() {
               <Text style={styles.membersTitle}>Membros ({members.length})</Text>
               <TouchableOpacity
                 style={styles.membersLink}
-                onPress={() => router.push(`/ministries/${id}/members` as never)}
+                onPress={() => router.push(nav.ministryMembers(id))}
                 accessibilityRole="button"
               >
                 <Text style={styles.membersLinkText}>Ver lista</Text>
@@ -271,7 +283,7 @@ export default function MinistryDetailsScreen() {
                 return (
                   <View key={member.id} style={styles.toggleRow}>
                     <View style={styles.memberAvatar}>
-                      <UserIcon color={linked ? colors.primary : colors.muted} size={20} />
+                      <UserIcon color={linked ? colors.primary : colors.muted} size={iconSizes.s20} />
                     </View>
                     <View style={styles.memberInfo}>
                       <Text style={styles.memberName}>{member.name}</Text>
@@ -288,12 +300,12 @@ export default function MinistryDetailsScreen() {
                         <ActivityIndicator color={linked ? colors.primary : colors.surface} />
                       ) : linked ? (
                         <>
-                          <CheckCircle2 color={colors.primary} size={16} />
+                          <CheckCircle2 color={colors.primary} size={iconSizes.s16} />
                           <Text style={styles.toggleButtonLinkedText}>Vinculado</Text>
                         </>
                       ) : (
                         <>
-                          <Plus color={colors.surface} size={16} />
+                          <Plus color={colors.surface} size={iconSizes.s16} />
                           <Text style={styles.toggleButtonText}>Vincular</Text>
                         </>
                       )}
@@ -307,7 +319,7 @@ export default function MinistryDetailsScreen() {
         renderItem={({ item }) => (
           <View style={styles.memberCard}>
             <View style={styles.memberAvatar}>
-              <UserIcon color={colors.primary} size={20} />
+              <UserIcon color={colors.primary} size={iconSizes.s20} />
             </View>
             <View style={styles.memberInfo}>
               <Text style={styles.memberName}>{item.user.name}</Text>
@@ -420,19 +432,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: fontSizes.s32,
+    fontWeight: fontWeights.extrabold,
     color: colors.ink,
     marginBottom: spacing.xs,
   },
   description: {
-    fontSize: 16,
+    fontSize: fontSizes.s16,
     color: colors.text,
-    lineHeight: 24,
+    lineHeight: lineHeights.h24,
     marginBottom: spacing.lg,
   },
   commentsCard: { marginTop: spacing.md, marginBottom: spacing.lg, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
-  commentsTitle: { color: colors.ink, fontSize: 13, fontWeight: "800", letterSpacing: 0.7, textTransform: "uppercase", marginBottom: spacing.sm },
+  commentsTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, letterSpacing: 0.7, textTransform: "uppercase", marginBottom: spacing.sm },
   membersHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -441,12 +453,12 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   membersTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: fontSizes.s18,
+    fontWeight: fontWeights.extrabold,
     color: colors.ink,
   },
   membersLink: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
@@ -455,8 +467,8 @@ const styles = StyleSheet.create({
   },
   membersLinkText: {
     color: colors.primary,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.extrabold,
   },
   memberCard: {
     flexDirection: "row",
@@ -466,9 +478,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: controlSizes.medium,
+    height: controlSizes.medium,
+    borderRadius: radiusValues.r20,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
@@ -478,30 +490,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   memberName: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: fontSizes.s16,
+    fontWeight: fontWeights.bold,
     color: colors.ink,
   },
   memberEmail: {
-    fontSize: 14,
+    fontSize: fontSizes.s14,
     color: colors.muted,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   memberPhone: {
-    fontSize: 13,
+    fontSize: fontSizes.s13,
     color: colors.muted,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   leaderBadge: {
-    backgroundColor: "#FCEBAA",
+    backgroundColor: colors.warningHighlight,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
     borderRadius: radii.pill,
   },
   leaderText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#8C6A00",
+    fontSize: fontSizes.s12,
+    fontWeight: fontWeights.extrabold,
+    color: colors.warningStrong,
   },
   emptyBox: {
     paddingVertical: spacing.xl,
@@ -509,11 +521,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.muted,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 16,
+    fontSize: fontSizes.s16,
     marginBottom: spacing.lg,
     textAlign: "center",
   },
@@ -525,7 +537,7 @@ const styles = StyleSheet.create({
   },
   backBtnText: {
     color: colors.surface,
-    fontWeight: "800",
+    fontWeight: fontWeights.extrabold,
   },
   managementSection: {
     marginTop: spacing.xl,
@@ -535,25 +547,25 @@ const styles = StyleSheet.create({
   },
   managementTitle: {
     color: colors.ink,
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: fontSizes.s20,
+    fontWeight: fontWeights.extrabold,
     marginBottom: spacing.md,
   },
   sectionLabel: {
     color: colors.text,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.extrabold,
     marginBottom: spacing.sm,
     textTransform: "uppercase",
   },
   searchInput: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -565,7 +577,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   toggleButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     minWidth: 112,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
@@ -582,13 +594,13 @@ const styles = StyleSheet.create({
   },
   toggleButtonText: {
     color: colors.surface,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.extrabold,
   },
   toggleButtonLinkedText: {
     color: colors.primary,
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.extrabold,
   },
   toggleError: {
     backgroundColor: colors.dangerSoft,
@@ -596,9 +608,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radii.md,
     color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
+    fontSize: fontSizes.s14,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.h20,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     marginBottom: spacing.md,
@@ -610,24 +622,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radii.md,
     color: colors.danger,
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 20,
+    fontSize: fontSizes.s14,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.h20,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     marginBottom: spacing.lg,
   },
-  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
     paddingHorizontal: spacing.lg,
-    minHeight: 44,
-    paddingVertical: 10,
+    minHeight: controlSizes.default,
+    paddingVertical: spacing.control,
     marginBottom: spacing.md,
   },
   textArea: { minHeight: 104 },
@@ -637,16 +649,16 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   cancelButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceMuted,
   },
-  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  cancelButtonText: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   saveButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     minWidth: 96,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
@@ -654,7 +666,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
-  saveButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  saveButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   buttonDisabled: { opacity: 0.6 },
-  mutedText: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  mutedText: { color: colors.muted, fontSize: fontSizes.s15, lineHeight: lineHeights.h22 },
 });

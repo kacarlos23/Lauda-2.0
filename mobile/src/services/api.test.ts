@@ -69,7 +69,7 @@ describe("api configuration helpers", () => {
     mockSessionStorage("token-1");
 
     const { api } = await import("./api");
-    const interceptor = (api.interceptors.request as never as { handlers: Array<{ fulfilled: Function }> }).handlers[0]
+    const interceptor = (api.interceptors.request as unknown as { handlers: Array<{ fulfilled: Function }> }).handlers[0]
       .fulfilled;
     const config = await interceptor({ headers: {} });
 
@@ -80,7 +80,7 @@ describe("api configuration helpers", () => {
     mockSessionStorage();
 
     const { api } = await import("./api");
-    const interceptor = (api.interceptors.request as never as { handlers: Array<{ fulfilled: Function }> }).handlers[0]
+    const interceptor = (api.interceptors.request as unknown as { handlers: Array<{ fulfilled: Function }> }).handlers[0]
       .fulfilled;
     const config = await interceptor({ headers: {} });
 
@@ -91,7 +91,7 @@ describe("api configuration helpers", () => {
     mockSessionStorage("token-1");
 
     const { api } = await import("./api");
-    const interceptor = (api.interceptors.response as never as { handlers: Array<{ rejected: Function }> }).handlers[0]
+    const interceptor = (api.interceptors.response as unknown as { handlers: Array<{ rejected: Function }> }).handlers[0]
       .rejected;
     const error = makeAxiosError(401, { error: "Tenant ausente no token" });
     (error.config as InternalAxiosRequestConfig & { _retry?: boolean })._retry = true;

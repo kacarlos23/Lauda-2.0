@@ -14,9 +14,23 @@ import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import {
+  breakpoints,
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  overlays,
+  radii,
+  screen,
+  shadow,
+  spacing,
+} from "../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../src/utils/dateTimeInput";
 import { canCreateSchedule } from "../../../src/utils/schedulePermissions";
+import { nav } from "../../../src/navigation/routes";
 
 function dateFromRouteParam(value?: string | string[]) {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -29,7 +43,7 @@ function dateFromRouteParam(value?: string | string[]) {
 
 export default function NewScheduleScreen() {
   const { width } = useWindowDimensions();
-  const compactLayout = width < 700;
+  const compactLayout = width < breakpoints.formCompact;
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string | string[] }>();
   const user = useAuthStore((state) => state.user);
@@ -132,7 +146,7 @@ export default function NewScheduleScreen() {
   const selectedSongs = useMemo(() => selectedSongIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean) as Song[], [songs, selectedSongIds]);
 
   if (!canCreateSchedules) {
-    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para criar escalas.</Text><AppBackButton href="/schedules" /></View>;
+    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para criar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
   }
 
   const toggleSong = (songId: string) => {
@@ -195,7 +209,7 @@ export default function NewScheduleScreen() {
         songIds: selectedSongIds,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role })),
       });
-      router.replace("/schedules" as never);
+      router.replace(nav.schedules);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível criar a escala.");
     }
@@ -207,7 +221,7 @@ export default function NewScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Adicionar músicas</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -215,7 +229,7 @@ export default function NewScheduleScreen() {
           <Text style={styles.helper}>Clique nas músicas para adicionar ou remover da escala.</Text>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => { closeSongsModal(); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
           <View style={styles.songSearchRow}>
-            <Search color={colors.muted} size={19} />
+            <Search color={colors.muted} size={iconSizes.s19} />
             <TextInput
               style={styles.songSearchInput}
               value={songSearch}
@@ -247,7 +261,7 @@ export default function NewScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Adicionar música</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -275,7 +289,7 @@ export default function NewScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={() => setMembersModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Adicionar membros</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -294,7 +308,7 @@ export default function NewScheduleScreen() {
         </View></View>
       </Modal>
 
-      <View style={styles.backRow}><AppBackButton href="/schedules" /></View>
+      <View style={styles.backRow}><AppBackButton href={nav.schedules} /></View>
       <Text style={styles.title}>Nova Escala</Text>
       <Text style={styles.subtitle}>Monte a escala com ministério, músicas e membros.</Text>
       <ErrorBanner message={error} style={styles.error} />
@@ -364,13 +378,13 @@ const styles = StyleSheet.create({
   containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
-  subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
+  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
+  subtitle: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.semibold, marginTop: spacing.xs, marginBottom: spacing.lg },
   card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
   cardCompact: { paddingVertical: spacing.md },
   commentsEditor: { marginTop: spacing.md, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.md, marginBottom: spacing.sm },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginTop: spacing.md, marginBottom: spacing.sm },
+  input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   rowFieldsCompact: { flexDirection: "column" },
   field: { flex: 1 },
@@ -378,46 +392,46 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: { minHeight: 38, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, justifyContent: "center", paddingHorizontal: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.text, fontWeight: "800" },
+  chipText: { color: colors.text, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.surface },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
-  sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
-  helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
-  secondaryText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  primaryButton: { minHeight: 44, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  sectionTitle: { color: colors.ink, fontSize: fontSizes.s17, fontWeight: fontWeights.black },
+  helper: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19, marginTop: spacing.xs },
+  secondaryButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
+  secondaryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
+  primaryButton: { minHeight: controlSizes.default, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primaryText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   disabled: { opacity: 0.65 },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
+  error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   loader: { marginVertical: spacing.xl },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  selectedChipTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
-  selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
-  backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  selectedChipTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
+  selectedChipMeta: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xxs },
+  backdrop: { flex: 1, backgroundColor: overlays.modalCool, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.md },
-  modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  modalHeaderSpacer: { width: 40, height: 40 },
-  modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
-  songSearchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
-  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: 15, outlineStyle: "none" } as any,
-  songSearchError: { color: colors.danger, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
-  emptyText: { color: colors.muted, fontSize: 13, textAlign: "center", paddingVertical: spacing.lg },
+  modalBackButton: { width: controlSizes.medium, height: controlSizes.medium, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  modalHeaderSpacer: { width: controlSizes.medium, height: controlSizes.medium },
+  modalTitle: { flex: 1, color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, textAlign: "center" },
+  songSearchRow: { minHeight: controlSizes.large, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
+  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any,
+  songSearchError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
+  emptyText: { color: colors.muted, fontSize: fontSizes.s13, textAlign: "center", paddingVertical: spacing.lg },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  optionTitle: { color: colors.ink, fontSize: 15, fontWeight: "900" },
-  optionMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
+  optionTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.black },
+  optionMeta: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
-  modalActionSecondary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  modalActionPrimary: { flex: 1, minHeight: 48, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionSecondary: { flex: 1, minHeight: controlSizes.large, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionPrimary: { flex: 1, minHeight: controlSizes.large, maxWidth: 220, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   keyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  keyChip: { minWidth: 45, height: 36, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  keyChip: { minWidth: 45, height: controlSizes.compact, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   keyChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  keyChipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  keyChipText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   keyChipTextActive: { color: colors.surface },
   quickSongContent: { minHeight: 160, paddingTop: spacing.md },
 });

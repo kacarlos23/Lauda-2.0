@@ -13,10 +13,25 @@ import { useAuthStore } from "../../../../src/store/authStore";
 import { useScheduleStore } from "../../../../src/store/scheduleStore";
 import { scheduleService } from "../../../../src/services/scheduleService";
 import { Member, Ministry, MinistryMember, ScheduleAssignment, Song } from "../../../../src/types";
-import { colors, radii, screen, shadow, spacing } from "../../../../src/theme";
+import {
+  breakpoints,
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  overlays,
+  radii,
+  radiusValues,
+  screen,
+  shadow,
+  spacing,
+} from "../../../../src/theme";
 import { combineDisplayDateTimeToIso, toDisplayDate } from "../../../../src/utils/dateTimeInput";
 import { canManageMusic } from "../../../../src/utils/musicPermissions";
 import { canDeleteSchedule, canEditSchedule } from "../../../../src/utils/schedulePermissions";
+import { nav } from "../../../../src/navigation/routes";
 
 function timeValue(value: string) {
   const date = new Date(value);
@@ -25,7 +40,7 @@ function timeValue(value: string) {
 
 export default function EditScheduleScreen() {
   const { width } = useWindowDimensions();
-  const compactLayout = width < 700;
+  const compactLayout = width < breakpoints.formCompact;
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
@@ -198,7 +213,7 @@ export default function EditScheduleScreen() {
         songIds: selectedSongIds,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role, status: entry.status ?? "PENDING" })),
       });
-      router.replace("/schedules" as never);
+      router.replace(nav.schedules);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível atualizar a escala.");
     }
@@ -246,7 +261,7 @@ export default function EditScheduleScreen() {
     try {
       await deleteSchedule(id);
       setDeleteModalVisible(false);
-      router.replace("/schedules" as never);
+      router.replace(nav.schedules);
     } catch (reason) {
       setDeleteError(reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
     } finally {
@@ -268,7 +283,7 @@ export default function EditScheduleScreen() {
   };
 
   if (!canEditSchedules) {
-    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href="/schedules" /></View>;
+    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
   }
 
   if (loading) {
@@ -283,7 +298,7 @@ export default function EditScheduleScreen() {
           style={styles.error}
           action={<Button title="Tentar novamente" variant="secondary" onPress={() => loadSchedules()} />}
         />
-        <AppBackButton href="/schedules" />
+        <AppBackButton href={nav.schedules} />
       </View>
     );
   }
@@ -306,7 +321,7 @@ export default function EditScheduleScreen() {
           >
             <View style={styles.deleteModalHeader}>
               <View style={styles.deleteIconCircle}>
-                <Trash2 color={colors.danger} size={26} strokeWidth={2.2} />
+                <Trash2 color={colors.danger} size={iconSizes.s26} strokeWidth={2.2} />
               </View>
               <TouchableOpacity
                 style={[styles.deleteModalClose, deleting && styles.disabled]}
@@ -315,7 +330,7 @@ export default function EditScheduleScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Fechar"
               >
-                <X color={colors.muted} size={22} strokeWidth={2.4} />
+                <X color={colors.muted} size={iconSizes.s22} strokeWidth={2.4} />
               </TouchableOpacity>
             </View>
             <Text style={styles.deleteModalTitle}>Excluir escala?</Text>
@@ -347,7 +362,7 @@ export default function EditScheduleScreen() {
                 accessibilityLabel="Confirmar exclusão da escala"
                 testID="delete-schedule-confirm-button"
               >
-                {deleting ? <ActivityIndicator color={colors.surface} size="small" /> : <Trash2 color={colors.surface} size={18} strokeWidth={2.4} />}
+                {deleting ? <ActivityIndicator color={colors.surface} size="small" /> : <Trash2 color={colors.surface} size={iconSizes.s18} strokeWidth={2.4} />}
                 <Text style={styles.deleteConfirmButtonText}>{deleting ? "Excluindo..." : "Excluir escala"}</Text>
               </TouchableOpacity>
             </View>
@@ -358,14 +373,14 @@ export default function EditScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Editar músicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
           <Text style={styles.helper}>O número ao lado indica a ordem atual da música na escala.</Text>
           <View style={styles.songSearchRow}>
-            <Search color={colors.muted} size={19} />
+            <Search color={colors.muted} size={iconSizes.s19} />
             <TextInput
               style={styles.songSearchInput}
               value={songSearch}
@@ -404,7 +419,7 @@ export default function EditScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongOrderModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Organizar ordem das músicas</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -441,7 +456,7 @@ export default function EditScheduleScreen() {
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>
             <TouchableOpacity style={styles.modalBackButton} onPress={() => setMembersModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
-              <ArrowLeft color={colors.primary} size={20} strokeWidth={2.4} />
+              <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Editar membros</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -459,7 +474,7 @@ export default function EditScheduleScreen() {
         </View></View>
       </Modal>
 
-      <View style={styles.backRow}><AppBackButton href="/schedules" /></View>
+      <View style={styles.backRow}><AppBackButton href={nav.schedules} /></View>
       <View style={[styles.titleRow, compactLayout && styles.titleRowCompact]}>
         <View style={styles.titleGroup}>
           <Text style={styles.title}>Editar Escala</Text>
@@ -473,7 +488,7 @@ export default function EditScheduleScreen() {
             accessibilityRole="button"
             accessibilityLabel="Gerar relatório da escala"
           >
-            {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+            {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
             <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Gerar relatório"}</Text>
           </TouchableOpacity>
           {canExportSongs && schedule.songs?.length ? (
@@ -484,7 +499,7 @@ export default function EditScheduleScreen() {
               accessibilityRole="button"
               accessibilityLabel="Exportar cifras da escala"
             >
-              {exportingSongs ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={16} strokeWidth={2.4} />}
+              {exportingSongs ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
               <Text style={styles.reportButtonText}>{exportingSongs ? "Gerando..." : "Gerar cifras"}</Text>
             </TouchableOpacity>
           ) : null}
@@ -545,20 +560,20 @@ const styles = StyleSheet.create({
   containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
+  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
   titleRowCompact: { flexDirection: "column" },
   titleGroup: { flex: 1 },
-  subtitle: { color: colors.muted, fontSize: 15, fontWeight: "600", marginTop: spacing.xs, marginBottom: spacing.lg },
+  subtitle: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.semibold, marginTop: spacing.xs, marginBottom: spacing.lg },
   exportActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: spacing.sm },
   exportActionsCompact: { width: "100%", justifyContent: "flex-start" },
-  reportButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  reportButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  reportButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  reportButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
   cardCompact: { paddingVertical: spacing.md },
   commentsEditor: { marginTop: spacing.md, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: spacing.md, marginBottom: spacing.sm },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: 15 },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginTop: spacing.md, marginBottom: spacing.sm },
+  input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   rowFieldsCompact: { flexDirection: "column" },
   field: { flex: 1 },
@@ -566,74 +581,74 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: { minHeight: 38, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, justifyContent: "center", paddingHorizontal: spacing.md },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.text, fontWeight: "800" },
+  chipText: { color: colors.text, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.surface },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
   sectionActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" },
   sectionActionsCompact: { justifyContent: "flex-start" },
-  sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "900" },
-  helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: 44, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
-  secondaryText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
-  primaryButton: { minHeight: 44, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  sectionTitle: { color: colors.ink, fontSize: fontSizes.s17, fontWeight: fontWeights.black },
+  helper: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19, marginTop: spacing.xs },
+  secondaryButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
+  secondaryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
+  primaryButton: { minHeight: controlSizes.default, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  primaryText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   disabled: { opacity: 0.65 },
-  error: { color: colors.danger, fontSize: 13, fontWeight: "800", backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
+  error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  selectedChipTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
-  selectedChipMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  selectedChipTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
+  selectedChipMeta: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xxs },
   dangerZone: { marginTop: spacing.xl, borderWidth: 1, borderColor: colors.danger, borderRadius: radii.md, backgroundColor: colors.dangerSoft, padding: spacing.lg },
-  dangerTitle: { color: colors.danger, fontSize: 16, fontWeight: "900", marginBottom: spacing.xs },
-  dangerText: { color: colors.text, fontSize: 13, fontWeight: "600", lineHeight: 19, marginBottom: spacing.md },
+  dangerTitle: { color: colors.danger, fontSize: fontSizes.s16, fontWeight: fontWeights.black, marginBottom: spacing.xs },
+  dangerText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold, lineHeight: lineHeights.h19, marginBottom: spacing.md },
   dangerButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, alignSelf: "flex-start" },
-  dangerButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
-  deleteModalBackdrop: { flex: 1, backgroundColor: "rgba(16, 32, 26, 0.56)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  dangerButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  deleteModalBackdrop: { flex: 1, backgroundColor: overlays.modalStrong, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   deleteModalCard: { width: "100%", maxWidth: 500, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.xl, ...shadow },
   deleteModalCardCompact: { padding: spacing.lg },
   deleteModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  deleteIconCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center" },
-  deleteModalClose: { width: 44, height: 44, borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
-  deleteModalTitle: { color: colors.ink, fontSize: 24, fontWeight: "900", marginBottom: spacing.xs },
-  deleteModalScheduleName: { color: colors.danger, fontSize: 16, fontWeight: "900", marginBottom: spacing.md },
-  deleteModalDescription: { color: colors.text, fontSize: 14, fontWeight: "600", lineHeight: 21 },
+  deleteIconCircle: { width: 52, height: 52, borderRadius: radiusValues.r26, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center" },
+  deleteModalClose: { width: controlSizes.default, height: controlSizes.default, borderRadius: radii.pill, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
+  deleteModalTitle: { color: colors.ink, fontSize: fontSizes.s24, fontWeight: fontWeights.black, marginBottom: spacing.xs },
+  deleteModalScheduleName: { color: colors.danger, fontSize: fontSizes.s16, fontWeight: fontWeights.black, marginBottom: spacing.md },
+  deleteModalDescription: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.semibold, lineHeight: lineHeights.h21 },
   deleteModalError: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.danger, borderRadius: radii.md, backgroundColor: colors.dangerSoft, padding: spacing.md },
-  deleteModalErrorTitle: { color: colors.danger, fontSize: 13, fontWeight: "900", marginBottom: spacing.xs },
-  deleteModalErrorText: { color: colors.text, fontSize: 13, fontWeight: "600", lineHeight: 19 },
+  deleteModalErrorTitle: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginBottom: spacing.xs },
+  deleteModalErrorText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold, lineHeight: lineHeights.h19 },
   deleteModalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.xl },
   deleteModalActionsCompact: { flexDirection: "column-reverse" },
-  deleteCancelButton: { minHeight: 48, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  deleteCancelButtonText: { color: colors.text, fontSize: 14, fontWeight: "900" },
-  deleteConfirmButton: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.danger, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
-  deleteConfirmButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
-  backdrop: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.46)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  deleteCancelButton: { minHeight: controlSizes.large, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  deleteCancelButtonText: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  deleteConfirmButton: { minHeight: controlSizes.large, borderRadius: radii.md, backgroundColor: colors.danger, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
+  deleteConfirmButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  backdrop: { flex: 1, backgroundColor: overlays.modalCool, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 680, maxHeight: "88%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.xl, padding: spacing.lg, ...shadow },
   modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
-  modalBackButton: { width: 40, height: 40, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  modalHeaderSpacer: { width: 40, height: 40 },
-  modalTitle: { flex: 1, color: colors.ink, fontSize: 22, fontWeight: "900", textAlign: "center" },
-  songSearchRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
-  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: 15, outlineStyle: "none" } as any,
-  songSearchError: { color: colors.danger, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
+  modalBackButton: { width: controlSizes.medium, height: controlSizes.medium, borderRadius: radii.pill, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
+  modalHeaderSpacer: { width: controlSizes.medium, height: controlSizes.medium },
+  modalTitle: { flex: 1, color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, textAlign: "center" },
+  songSearchRow: { minHeight: controlSizes.large, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
+  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any,
+  songSearchError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },
   optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   optionTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
-  optionTitle: { color: colors.ink, fontSize: 15, fontWeight: "900" },
-  optionMeta: { color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
-  orderBadge: { minWidth: 26, height: 26, borderRadius: 13, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: 26, fontSize: 12, fontWeight: "900" },
-  orderBadgeLarge: { width: 34, height: 34, borderRadius: 17, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: 34, fontSize: 14, fontWeight: "900" },
+  optionTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.black },
+  optionMeta: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
+  orderBadge: { minWidth: 26, height: 26, borderRadius: radiusValues.r13, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: lineHeights.h26, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
+  orderBadgeLarge: { width: 34, height: 34, borderRadius: radiusValues.r17, overflow: "hidden", backgroundColor: colors.primary, color: colors.surface, textAlign: "center", lineHeight: lineHeights.h34, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   orderItem: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   orderItemDragging: { borderColor: colors.primary, backgroundColor: colors.primarySoft, opacity: 0.82 },
   orderItemMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
   orderItemText: { flex: 1 },
   orderActions: { flexDirection: "row", gap: spacing.xs },
-  orderButton: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center" },
-  orderButtonText: { color: colors.primary, fontSize: 18, fontWeight: "900" },
+  orderButton: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, alignItems: "center", justifyContent: "center" },
+  orderButtonText: { color: colors.primary, fontSize: fontSizes.s18, fontWeight: fontWeights.black },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
-  modalActionSecondary: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: "#BFE7DE", alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  modalActionPrimary: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  emptyText: { color: colors.muted, fontSize: 14, fontWeight: "800", paddingVertical: spacing.lg },
+  modalActionSecondary: { minHeight: controlSizes.large, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  modalActionPrimary: { minHeight: controlSizes.large, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  emptyText: { color: colors.muted, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold, paddingVertical: spacing.lg },
 });

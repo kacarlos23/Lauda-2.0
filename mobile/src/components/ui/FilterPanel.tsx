@@ -1,7 +1,16 @@
 import React from "react";
 import { Modal, ScrollView, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 import { SlidersHorizontal, X } from "lucide-react-native";
-import { colors, radii, shadow, spacing, typography } from "../../theme";
+import {
+  colors,
+  controlSizes,
+  iconSizes,
+  overlays,
+  radii,
+  shadow,
+  spacing,
+  typography,
+} from "../../theme";
 import { Button } from "./Button";
 
 type FilterPanelProps = {
@@ -30,7 +39,7 @@ export function FilterButton({ active = false, onPress, style, accessibilityLabe
       onPress={onPress}
       style={[styles.filterButton, active && styles.filterButtonActive, style]}
     >
-      <SlidersHorizontal color={active ? colors.surface : colors.primary} size={20} strokeWidth={2.4} />
+      <SlidersHorizontal color={active ? colors.surface : colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
       {label ? <Text style={[styles.filterButtonText, active && styles.filterButtonTextActive]}>{label}</Text> : null}
     </TouchableOpacity>
   );
@@ -44,7 +53,7 @@ export function FilterPanel({ visible, title = "Filtros", canApply, onApply, onC
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fechar filtros" style={styles.closeButton} onPress={onClose}>
-              <X color={colors.muted} size={22} strokeWidth={2.3} />
+              <X color={colors.muted} size={iconSizes.s22} strokeWidth={2.3} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -75,7 +84,7 @@ export function FilterSection({ title, children }: { title: string; children: Re
 const styles = StyleSheet.create({
   filterButton: {
     minWidth: 44,
-    height: 44,
+    height: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     borderWidth: 1,
@@ -94,7 +103,7 @@ const styles = StyleSheet.create({
   filterButtonTextActive: { color: colors.surface },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(16,32,26,0.28)",
+    backgroundColor: overlays.modalSoft,
     alignItems: "center",
     justifyContent: "flex-start",
     paddingHorizontal: spacing.lg,
@@ -111,7 +120,7 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   header: {
-    minHeight: 48,
+    minHeight: controlSizes.large,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
@@ -121,8 +130,8 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.cardTitle, color: colors.ink },
   closeButton: {
-    width: 36,
-    height: 36,
+    width: controlSizes.compact,
+    height: controlSizes.compact,
     alignItems: "center",
     justifyContent: "center",
   },

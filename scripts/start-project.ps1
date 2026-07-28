@@ -1,11 +1,16 @@
 param(
   [int]$BackendPort = 3000,
   [int]$FrontendPort = 8081,
+  [int]$DatabasePort = 5434,
+  [string]$DatabaseName = "lauda2",
+  [string]$DatabaseUser = "postgres",
+  [string]$ComposeProjectName,
   [string]$PublicApiUrl,
   [ValidateRange(0, 10)]
   [int]$TrustProxyHops = 0,
   [switch]$Production,
   [switch]$StaticFrontend,
+  [switch]$LocalhostOnly,
   [switch]$RestartBackend,
   [switch]$SkipMigrations
 )
@@ -14,12 +19,13 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $MobileRoot = Join-Path $ProjectRoot "mobile"
-$BackendUrl = "http://localhost:$BackendPort"
-$FrontendUrl = "http://localhost:$FrontendPort"
-$DbHost = "localhost"
-$DbPort = 5434
-$DbName = "lauda2"
-$DbUser = "postgres"
+$BackendUrl = "http://127.0.0.1:$BackendPort"
+$FrontendUrl = "http://127.0.0.1:$FrontendPort"
+$DbHost = "127.0.0.1"
+$DbPort = $DatabasePort
+$DbName = $DatabaseName
+$DbUser = $DatabaseUser
+$ComposeProjectArguments = if ([string]::IsNullOrWhiteSpace($ComposeProjectName)) { @() } else { @("-p", $ComposeProjectName) }
 $UseStaticFrontend = $Production -or $StaticFrontend
 
 if ($UseStaticFrontend -and [string]::IsNullOrWhiteSpace($PublicApiUrl)) {
@@ -71,6 +77,10 @@ function Get-DotEnvValue {
 }
 
 function Initialize-ComposeEnvironment {
+  $env:POSTGRES_HOST_PORT = [string]$DbPort
+  $env:POSTGRES_DB = $DbName
+  $env:POSTGRES_USER = $DbUser
+
   if (Test-Path Env:POSTGRES_PASSWORD) {
     return
   }
@@ -277,9 +287,11 @@ function Start-Frontend {
   $runCommand = if ($UseStaticFrontend) {
     "npm run serve:web -- --listen $FrontendPort"
   } else {
-    "npm run web -- --port $FrontendPort"
+    $localhostFlag = if ($LocalhostOnly) { " --localhost" } else { "" }
+    "npm run web -- --port $FrontendPort$localhostFlag"
   }
-  $command = "set EXPO_PUBLIC_API_URL=$ApiUrl&& ($runCommand) >> `"$outLog`" 2>> `"$errLog`""
+  $offlineEnvironment = if ($LocalhostOnly) { "set EXPO_OFFLINE=1&& " } else { "" }
+  $command = "set EXPO_PUBLIC_API_URL=$ApiUrl&& ${offlineEnvironment}($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $MobileRoot
   Write-Ok "Frontend $mode iniciado em background. PID do launcher: $($process.Id). Logs: frontend.$mode.out.log / frontend.$mode.err.log"
@@ -337,7 +349,7 @@ if (-not (Test-TcpPort -HostName $DbHost -Port $DbPort)) {
   Write-Warn "PostgreSQL nao esta respondendo em ${DbHost}:${DbPort}. Subindo container via docker compose."
   Push-Location $ProjectRoot
   try {
-    docker compose up -d postgres
+    docker compose @ComposeProjectArguments up -d postgres
     if ($LASTEXITCODE -ne 0) {
       throw "docker compose up -d postgres falhou."
     }
@@ -349,7 +361,7 @@ if (-not (Test-TcpPort -HostName $DbHost -Port $DbPort)) {
 }
 
 $dbReady = Wait-Until -Name "PostgreSQL" -TimeoutSeconds 60 -Condition {
-  docker compose exec -T postgres pg_isready -U $DbUser -d $DbName | Out-Null
+  docker compose @ComposeProjectArguments exec -T postgres pg_isready -U $DbUser -d $DbName | Out-Null
   return $LASTEXITCODE -eq 0
 }
 

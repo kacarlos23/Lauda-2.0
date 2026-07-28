@@ -163,20 +163,22 @@ async function mockApi(
 
   const fulfillInstrumentUpdate = async (route: Route) => {
     const body = route.request().postDataJSON() as { instrumentIds?: string[] };
+    const instruments = [
+      ...(body.instrumentIds?.includes("instrument-1")
+        ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
+        : []),
+      ...defaultInstruments.filter(
+        (instrument) => instrument.id !== "instrument-1" && body.instrumentIds?.includes(instrument.id)
+      ),
+    ];
+    profileUser.instruments = instruments;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         data: {
           id: currentUser.id,
-          instruments: [
-            ...(body.instrumentIds?.includes("instrument-1")
-              ? [{ id: "instrument-1", name: "Teclado", colorHex: "#2563EB" }]
-              : []),
-            ...defaultInstruments.filter(
-              (instrument) => instrument.id !== "instrument-1" && body.instrumentIds?.includes(instrument.id)
-            ),
-          ],
+          instruments,
         },
       }),
     });
@@ -184,6 +186,20 @@ async function mockApi(
 
   await page.route("**/api/members/me/instruments", fulfillInstrumentUpdate);
   await page.route("**/api/members/*/instruments", fulfillInstrumentUpdate);
+
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: profileUser,
+          tenant,
+          permissions: [],
+        },
+      }),
+    });
+  });
 
   await page.route("**/api/members/me/profile", async (route) => {
     const payload = route.request().postDataJSON() as { name?: string; phone?: string | null; avatarUrl?: string | null };
@@ -940,28 +956,21 @@ test("membro comum edita os próprios instrumentos pelo modal do Perfil", async 
   let updateRequests = 0;
   let lastPayload: { instrumentIds?: string[] } | undefined;
 
+  page.on("request", (request) => {
+    if (
+      request.method() === "PATCH" &&
+      new URL(request.url()).pathname === "/api/members/me/instruments"
+    ) {
+      updateRequests += 1;
+      lastPayload = request.postDataJSON() as { instrumentIds?: string[] };
+    }
+  });
+
   await page.unroute("**/api/auth/login").catch(() => undefined);
   await page.unroute("**/api/members/me").catch(() => undefined);
   await page.unroute("**/api/members/me/instruments").catch(() => undefined);
   await page.unroute("**/api/members/*/instruments").catch(() => undefined);
   await mockApi(page, { user: memberUser });
-  await page.route("**/api/members/me/instruments", async (route) => {
-    updateRequests += 1;
-    lastPayload = route.request().postDataJSON() as { instrumentIds?: string[] };
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          id: memberUser.id,
-          instruments: [
-            { id: "instrument-1", name: "Teclado", colorHex: "#2563EB" },
-            { id: "instrument-2", name: "Vocalista", colorHex: "#10B981" },
-          ],
-        },
-      }),
-    });
-  });
   await page.goto("/");
 
   await login(page, "bruno@example.com");

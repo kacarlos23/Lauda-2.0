@@ -1,6 +1,6 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radii, shadow, spacing, typography } from "../../theme";
+import { colors, overlays, radii, shadow, spacing, typography } from "../../theme";
 import { Button } from "./Button";
 
 type ConfirmDialogProps = {
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
-    backgroundColor: "rgba(16, 40, 32, 0.46)",
+    backgroundColor: overlays.modalBrand,
   },
   dialog: {
     width: "100%",

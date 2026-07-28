@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radii, shadow, spacing } from "../../theme";
+import { colors, fontSizes, fontWeights, radii, shadow, spacing, zIndices } from "../../theme";
 
 export type FeedbackTone = "success" | "warning" | "error";
 
@@ -21,7 +21,7 @@ export function FeedbackToast({ message, tone = "success" }: { message: string; 
 const styles = StyleSheet.create({
   toast: {
     position: "absolute",
-    zIndex: 100,
+    zIndex: zIndices.toast,
     top: spacing.lg,
     right: spacing.xl,
     left: spacing.xl,
@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     ...shadow,
   },
-  warning: { backgroundColor: "#7A5410" },
+  warning: { backgroundColor: colors.warningToast },
   error: { backgroundColor: colors.danger },
-  text: { color: colors.surface, fontSize: 13, fontWeight: "800", textAlign: "center" },
+  text: { color: colors.surface, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, textAlign: "center" },
 });

@@ -23,7 +23,17 @@ import {
 import { useAuthStore } from "../../src/store/authStore";
 import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
-import { colors, radii, spacing, typography } from "../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  spacing,
+  typography,
+} from "../../src/theme";
 import { countPendingSchedules, formatScheduleDate, getNextSchedule } from "../../src/utils/scheduleFormat";
 import {
   can,
@@ -37,6 +47,7 @@ import {
 import { canManageMusic } from "../../src/utils/musicPermissions";
 import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { canCreateSchedule } from "../../src/utils/schedulePermissions";
+import { nav } from "../../src/navigation/routes";
 
 const TEXT = {
   userFallback: "Usuário",
@@ -101,64 +112,64 @@ export default function DashboardScreen() {
     canCreateSchedules
       ? {
           title: "Criar escala",
-          icon: <CalendarClock color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/schedules/new" as never),
+          icon: <CalendarClock color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.scheduleNew),
           accessibilityLabel: "Criar nova escala",
         }
       : null,
     canCreateMembers
       ? {
           title: "Convidar membro",
-          icon: <UserPlus color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/members/new" as never),
+          icon: <UserPlus color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.memberNew),
           accessibilityLabel: "Convidar membro",
         }
       : null,
     canCreateSongs
       ? {
           title: TEXT.createSong,
-          icon: <Music2 color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/songs/new" as never),
+          icon: <Music2 color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.songNew),
           accessibilityLabel: TEXT.createSong,
         }
       : null,
     canCreateMinistries
       ? {
           title: TEXT.createMinistry,
-          icon: <Church color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/ministries" as never),
+          icon: <Church color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.ministries),
           accessibilityLabel: TEXT.createMinistry,
         }
       : null,
     canManageArtists
       ? {
           title: "Gerenciar artistas",
-          icon: <Music2 color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/artists" as never),
+          icon: <Music2 color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.artists),
           accessibilityLabel: "Gerenciar artistas",
         }
       : null,
     canManageInstruments
       ? {
           title: "Instrumentos",
-          icon: <Plus color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/instruments?returnTo=/profile" as never),
+          icon: <Plus color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.instruments(nav.profile)),
           accessibilityLabel: "Gerenciar instrumentos e cargos",
         }
       : null,
     canOpenChurchAdmin
       ? {
           title: "Dados da igreja",
-          icon: <Church color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/church" as never),
+          icon: <Church color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.church),
           accessibilityLabel: "Abrir dados da igreja",
         }
       : null,
     canOpenGlobalAdmin
       ? {
           title: "Painel global",
-          icon: <ClipboardList color={colors.primary} size={19} strokeWidth={2.2} />,
-          onPress: () => router.push("/global-admin" as never),
+          icon: <ClipboardList color={colors.primary} size={iconSizes.s19} strokeWidth={2.2} />,
+          onPress: () => router.push(nav.globalAdmin),
           accessibilityLabel: "Abrir painel global",
         }
       : null,
@@ -209,7 +220,7 @@ export default function DashboardScreen() {
                 <Button
                   title="Ver escala"
                   style={styles.heroButton}
-                  onPress={() => router.push("/schedules" as never)}
+                  onPress={() => router.push(nav.schedules)}
                   accessibilityLabel="Ver minhas escalas"
                 />
               </View>
@@ -222,7 +233,7 @@ export default function DashboardScreen() {
                 title="Ver minhas escalas"
                 variant="secondary"
                 style={styles.emptyHeroButton}
-                onPress={() => router.push("/schedules" as never)}
+                onPress={() => router.push(nav.schedules)}
                 accessibilityLabel="Ver minhas escalas"
               />
             </>
@@ -289,7 +300,7 @@ export default function DashboardScreen() {
             <View>
               {pendingSchedules.map((assignment) => (
                 <View key={assignment.id} style={styles.listRow}>
-                  <View style={styles.rowMarker}><ClipboardList color={colors.primary} size={16} strokeWidth={2} /></View>
+                  <View style={styles.rowMarker}><ClipboardList color={colors.primary} size={iconSizes.s16} strokeWidth={2} /></View>
                   <View style={styles.rowCopy}>
                     <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
                     <Text style={styles.itemMeta}>
@@ -309,7 +320,7 @@ export default function DashboardScreen() {
           )}
           <TouchableOpacity
             style={styles.textAction}
-            onPress={() => router.push("/schedules" as never)}
+            onPress={() => router.push(nav.schedules)}
             accessibilityRole="link"
             accessibilityLabel="Ver escalas"
           >
@@ -328,7 +339,7 @@ export default function DashboardScreen() {
           {nextSchedule ? (
             <View>
               <View style={styles.listRow}>
-                <View style={styles.rowMarker}><CalendarClock color={colors.primary} size={16} strokeWidth={2} /></View>
+                <View style={styles.rowMarker}><CalendarClock color={colors.primary} size={iconSizes.s16} strokeWidth={2} /></View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.itemTitle}>{TEXT.nextScheduleDefined}</Text>
                   <Text style={styles.itemMeta}>
@@ -338,7 +349,7 @@ export default function DashboardScreen() {
               </View>
               {pendingCount ? (
                 <View style={styles.listRow}>
-                  <View style={styles.rowMarker}><ClipboardList color={colors.warning} size={16} strokeWidth={2} /></View>
+                  <View style={styles.rowMarker}><ClipboardList color={colors.warning} size={iconSizes.s16} strokeWidth={2} /></View>
                   <View style={styles.rowCopy}>
                     <Text style={styles.itemTitle}>Convites pendentes</Text>
                     <Text style={styles.itemMeta}>{pendingCount} escala(s) aguardando sua resposta.</Text>
@@ -374,7 +385,7 @@ export default function DashboardScreen() {
           )}
           <TouchableOpacity
             style={styles.textAction}
-            onPress={() => router.push("/members" as never)}
+            onPress={() => router.push(nav.members)}
             accessibilityRole="link"
             accessibilityLabel="Ver membros"
           >
@@ -386,12 +397,12 @@ export default function DashboardScreen() {
 
       <TouchableOpacity
         style={styles.ministriesBar}
-        onPress={() => router.push("/ministries" as never)}
+        onPress={() => router.push(nav.ministries)}
         activeOpacity={0.76}
         accessibilityRole="link"
         accessibilityLabel="Abrir ministérios"
       >
-        <View style={styles.ministryIcon}><Church color={colors.primary} size={20} strokeWidth={2.1} /></View>
+        <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
         <View style={styles.ministryCopy}>
           <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
           <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
@@ -450,24 +461,24 @@ const styles = StyleSheet.create({
   },
   nextTitle: {
     color: colors.inverse,
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "700",
+    fontSize: fontSizes.s28,
+    lineHeight: lineHeights.h34,
+    fontWeight: fontWeights.bold,
     letterSpacing: -0.4,
   },
   nextDate: {
     ...typography.body,
-    color: "#D7E2DC",
+    color: colors.inverseSubtle,
     marginTop: spacing.sm,
   },
   nextMeta: {
     ...typography.metadata,
-    color: "#AFC0B8",
+    color: colors.inverseMuted,
     marginTop: spacing.xs,
   },
   nextEmpty: {
     ...typography.body,
-    color: "#AFC0B8",
+    color: colors.inverseMuted,
     maxWidth: 520,
     marginTop: spacing.sm,
   },
@@ -575,7 +586,7 @@ const styles = StyleSheet.create({
   itemTitle: { ...typography.label, color: colors.ink },
   itemMeta: { ...typography.metadata, color: colors.muted, marginTop: spacing.xxs },
   textAction: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
@@ -588,8 +599,8 @@ const styles = StyleSheet.create({
   },
   actionArrow: {
     color: colors.primary,
-    fontSize: 20,
-    lineHeight: 20,
+    fontSize: fontSizes.s20,
+    lineHeight: lineHeights.h20,
   },
   compactEmpty: {
     borderTopWidth: 0,
@@ -623,8 +634,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   ministryIcon: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
@@ -633,8 +644,8 @@ const styles = StyleSheet.create({
   ministryCopy: { flex: 1 },
   ministryArrow: {
     color: colors.primary,
-    fontSize: 24,
-    lineHeight: 24,
+    fontSize: fontSizes.s24,
+    lineHeight: lineHeights.h24,
   },
   ministryKicker: {
     ...typography.eyebrow,

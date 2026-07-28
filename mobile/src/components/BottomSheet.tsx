@@ -10,7 +10,19 @@ import {
   Text,
   View,
 } from "react-native";
-import { colors, radii, shadow, spacing } from "../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  motion,
+  overlays,
+  radii,
+  radiusValues,
+  shadow,
+  spacing,
+} from "../theme";
 import { ArrowLeft, X } from "lucide-react-native";
 
 interface BottomSheetProps {
@@ -35,12 +47,12 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
-          duration: 300,
+          duration: motion.sheetOpenMs,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 300,
+          duration: motion.sheetOpenMs,
           useNativeDriver: true,
         }),
       ]).start();
@@ -48,12 +60,12 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: SCREEN_HEIGHT,
-          duration: 250,
+          duration: motion.sheetCloseMs,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: 250,
+          duration: motion.sheetCloseMs,
           useNativeDriver: true,
         }),
       ]).start(() => {
@@ -108,14 +120,14 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
           <View style={[styles.header, onBack && styles.headerWithBack]}>
             {onBack ? (
               <Pressable onPress={onBack} style={styles.backBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Voltar">
-                <ArrowLeft color={colors.ink} size={24} />
+                <ArrowLeft color={colors.ink} size={iconSizes.s24} />
               </Pressable>
             ) : (
               <View style={styles.headerPlaceholder} />
             )}
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar">
-              <X color={colors.ink} size={24} />
+              <X color={colors.ink} size={iconSizes.s24} />
             </Pressable>
           </View>
           <ScrollView
@@ -140,7 +152,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(16,32,26,0.46)",
+    backgroundColor: overlays.modal,
   },
   backdropPressable: {
     flex: 1,
@@ -161,10 +173,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dragHandle: {
-    width: 40,
+    width: controlSizes.medium,
     height: 4,
     backgroundColor: colors.line,
-    borderRadius: 2,
+    borderRadius: radiusValues.r2,
     alignSelf: "center",
   },
   header: {
@@ -181,28 +193,28 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: "900",
+    fontSize: fontSizes.s20,
+    fontWeight: fontWeights.black,
     color: colors.ink,
     textAlign: "center",
   },
   backBtn: {
     minWidth: 44,
-    minHeight: 44,
+    minHeight: controlSizes.default,
     padding: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },
   closeBtn: {
     minWidth: 44,
-    minHeight: 44,
+    minHeight: controlSizes.default,
     padding: spacing.xs,
     alignItems: "center",
     justifyContent: "center",
   },
   headerPlaceholder: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
   },
   content: {
     flexShrink: 1,

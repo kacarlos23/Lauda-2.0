@@ -119,6 +119,35 @@ npm --prefix mobile run android
 npm --prefix mobile run ios
 ```
 
+### Ambiente isolado de navegação e tokens
+
+Para trabalhar na branch de design system sem reutilizar portas ou dados do ambiente principal:
+
+```powershell
+Copy-Item .env.navigation.example .env
+# substitua apenas a senha local do exemplo
+npm run dev:navigation
+```
+
+Esse comando executa um preflight fail-closed e inicia:
+
+- frontend em `http://127.0.0.1:8090`;
+- backend em `http://127.0.0.1:3010`;
+- PostgreSQL em `127.0.0.1:5435`, banco `lauda2_navigation`;
+- projeto Compose `lauda-navigation-dev`, sem Redis ou Cloudflare Tunnel.
+
+Para parar os processos e preservar o volume do banco:
+
+```powershell
+npm run dev:navigation:stop
+```
+
+O volume só deve ser removido por uma ação explícita:
+
+```powershell
+docker compose -p lauda-navigation-dev down -v
+```
+
 ## Variáveis e segurança
 
 O arquivo [`.env.example`](.env.example) documenta todas as variáveis suportadas sem conter segredos reais.

@@ -1,82 +1,17 @@
 import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Building2, Guitar, Music2, Settings2, Shield, UserCircle2, Users } from "lucide-react-native";
+import { Settings2 } from "lucide-react-native";
 import { Screen, SectionHeader } from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
-import { colors, radii, spacing, typography } from "../../src/theme";
-import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
-import { canManageMusic } from "../../src/utils/musicPermissions";
-import { canAccessChurchAdmin, canAccessGlobalAdminArea, canViewMembers, formatRoleLabel } from "../../src/utils/permissions";
-
-type Shortcut = {
-  title: string;
-  description: string;
-  href: string;
-  icon: React.ReactNode;
-};
+import { colors, controlSizes, iconSizes, radii, spacing, typography } from "../../src/theme";
+import { formatRoleLabel } from "../../src/utils/permissions";
+import { hrefForNavigationItem, navigationItemsFor } from "../../src/navigation/manifest";
 
 export default function MoreScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const canManageArtists = canManageMusic(user, "song:edit") || canManageMusic(user, "song:create");
-  const canManageInstruments = canManageInstrumentCatalog(user);
-  const canOpenMembers = canViewMembers(user);
-  const canOpenChurch = canAccessChurchAdmin(user);
-  const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
-
-  const shortcuts = useMemo<Shortcut[]>(
-    () =>
-      [
-        {
-          title: "Perfil",
-          description: "Foto, dados pessoais e instrumentos do seu perfil.",
-          href: "/profile",
-          icon: <UserCircle2 color={colors.primary} size={22} strokeWidth={2.4} />,
-        },
-        canOpenMembers
-          ? {
-              title: "Membros",
-              description: "Consulte pessoas, convites, permissões e vínculos ministeriais.",
-              href: "/members",
-              icon: <Users color={colors.primary} size={22} strokeWidth={2.4} />,
-            }
-          : null,
-        canManageArtists
-          ? {
-              title: "Artistas",
-              description: "Edite o catálogo de artistas usado em músicas e cifras.",
-              href: "/artists",
-              icon: <Music2 color={colors.primary} size={22} strokeWidth={2.4} />,
-            }
-          : null,
-        canManageInstruments
-          ? {
-              title: "Instrumentos/Cargos",
-              description: "Cadastre e ajuste funções usadas em membros e escalas.",
-              href: "/instruments?returnTo=/profile",
-              icon: <Guitar color={colors.primary} size={22} strokeWidth={2.4} />,
-            }
-          : null,
-        canOpenChurch
-          ? {
-              title: "Dados da Igreja",
-              description: "Acompanhe indicadores do tenant e abra as gestões administrativas.",
-              href: "/church",
-              icon: <Building2 color={colors.primary} size={22} strokeWidth={2.4} />,
-            }
-          : null,
-        canOpenGlobalAdmin
-          ? {
-              title: "Painel Global",
-              description: "CRUD global, permissões e operação multi-igreja.",
-              href: "/global-admin",
-              icon: <Shield color={colors.primary} size={22} strokeWidth={2.4} />,
-            }
-          : null,
-      ].filter(Boolean) as Shortcut[],
-    [canManageArtists, canManageInstruments, canOpenMembers, canOpenChurch, canOpenGlobalAdmin]
-  );
+  const shortcuts = useMemo(() => navigationItemsFor("mobile-more", user), [user]);
 
   return (
     <Screen scroll testID="more-screen">
@@ -85,7 +20,7 @@ export default function MoreScreen() {
         <Text style={styles.title}>Mais recursos</Text>
         <Text style={styles.subtitle}>Atalhos mobile para telas administrativas e utilitárias.</Text>
         <View style={styles.rolePill}>
-          <Settings2 color={colors.primary} size={16} strokeWidth={2.4} />
+          <Settings2 color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />
           <Text style={styles.roleText}>{formatRoleLabel(user?.role)}</Text>
         </View>
       </View>
@@ -95,15 +30,17 @@ export default function MoreScreen() {
         <View style={styles.list}>
           {shortcuts.map((shortcut) => (
             <TouchableOpacity
-              key={shortcut.href}
+              key={shortcut.id}
               style={styles.card}
-              onPress={() => router.push(shortcut.href as never)}
+              onPress={() => router.push(hrefForNavigationItem(shortcut))}
               accessibilityRole="button"
-              accessibilityLabel={`Abrir ${shortcut.title}`}
+              accessibilityLabel={`Abrir ${shortcut.label}`}
             >
-              <View style={styles.iconBox}>{shortcut.icon}</View>
+              <View style={styles.iconBox}>
+                <shortcut.Icon color={colors.primary} size={iconSizes.s22} strokeWidth={2.4} />
+              </View>
               <View style={styles.copy}>
-                <Text style={styles.cardTitle}>{shortcut.title}</Text>
+                <Text style={styles.cardTitle}>{shortcut.label}</Text>
                 <Text style={styles.cardDescription}>{shortcut.description}</Text>
               </View>
             </TouchableOpacity>
@@ -144,8 +81,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   iconBox: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",

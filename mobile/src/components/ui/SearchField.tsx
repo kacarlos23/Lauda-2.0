@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleProp, StyleSheet, TouchableOpacity, ViewStyle } from "react-native";
 import { Search, X } from "lucide-react-native";
-import { colors } from "../../theme";
+import { colors, controlSizes, iconSizes } from "../../theme";
 import { AppInput } from "./AppInput";
 
 type SearchFieldProps = {
@@ -33,7 +33,7 @@ export function SearchField({
       autoCapitalize="none"
       autoCorrect={false}
       testID={testID}
-      icon={<Search color={colors.muted} size={18} strokeWidth={2} />}
+      icon={<Search color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
       endAdornment={value ? (
         <TouchableOpacity
           accessibilityRole="button"
@@ -42,7 +42,7 @@ export function SearchField({
           style={styles.clear}
           onPress={() => onChangeText("")}
         >
-          <X color={colors.muted} size={17} strokeWidth={2.2} />
+          <X color={colors.muted} size={iconSizes.s17} strokeWidth={2.2} />
         </TouchableOpacity>
       ) : null}
       containerStyle={containerStyle}
@@ -53,7 +53,7 @@ export function SearchField({
 const styles = StyleSheet.create({
   clear: {
     width: 32,
-    height: 40,
+    height: controlSizes.medium,
     alignItems: "center",
     justifyContent: "center",
   },

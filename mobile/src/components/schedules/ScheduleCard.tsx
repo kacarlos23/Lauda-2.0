@@ -2,7 +2,17 @@ import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { Copy, Download, Edit3 } from "lucide-react-native";
 import { Button, Card, RichCommentView, ScheduleStatusBadge } from "../ui";
-import { colors, radii, spacing, typography } from "../../theme";
+import {
+  colors,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  screen,
+  spacing,
+  typography,
+} from "../../theme";
 import { Schedule, ScheduleAssignment } from "../../types";
 
 const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
@@ -123,15 +133,15 @@ export function ScheduleCard({
       <View style={styles.actions}>
         {canManage ? (
           <>
-            <Button title="Editar" icon={<Edit3 color={colors.primary} size={16} />} variant="secondary" size="sm" onPress={onEdit} accessibilityLabel={`Editar escala ${schedule.title}`} />
-            <Button title={duplicating ? "Duplicando..." : "Duplicar"} icon={duplicating ? <ActivityIndicator color={colors.primary} /> : <Copy color={colors.primary} size={16} />} variant="secondary" size="sm" disabled={duplicating} onPress={onDuplicate} accessibilityLabel={`Duplicar escala ${schedule.title}`} />
+            <Button title="Editar" icon={<Edit3 color={colors.primary} size={iconSizes.s16} />} variant="secondary" size="sm" onPress={onEdit} accessibilityLabel={`Editar escala ${schedule.title}`} />
+            <Button title={duplicating ? "Duplicando..." : "Duplicar"} icon={duplicating ? <ActivityIndicator color={colors.primary} /> : <Copy color={colors.primary} size={iconSizes.s16} />} variant="secondary" size="sm" disabled={duplicating} onPress={onDuplicate} accessibilityLabel={`Duplicar escala ${schedule.title}`} />
           </>
         ) : null}
         {onExport ? (
-          <Button title={exporting ? "Gerando..." : "Relatório"} icon={<Download color={colors.primary} size={16} />} loading={exporting} variant="secondary" size="sm" onPress={onExport} accessibilityLabel={`Gerar relatório da escala ${schedule.title}`} />
+          <Button title={exporting ? "Gerando..." : "Relatório"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exporting} variant="secondary" size="sm" onPress={onExport} accessibilityLabel={`Gerar relatório da escala ${schedule.title}`} />
         ) : null}
         {onExportSongs ? (
-          <Button title={exportingSongs ? "Gerando..." : "Cifras"} icon={<Download color={colors.primary} size={16} />} loading={exportingSongs} variant="secondary" size="sm" onPress={onExportSongs} accessibilityLabel={`Exportar cifras da escala ${schedule.title}`} />
+          <Button title={exportingSongs ? "Gerando..." : "Cifras"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exportingSongs} variant="secondary" size="sm" onPress={onExportSongs} accessibilityLabel={`Exportar cifras da escala ${schedule.title}`} />
         ) : null}
       </View>
 
@@ -160,14 +170,14 @@ const styles = StyleSheet.create({
   hover: { backgroundColor: colors.primarySoft },
   pressed: { opacity: 0.86 },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
-  dayNumber: { color: colors.primary, fontSize: 28, fontWeight: "700", lineHeight: 33 },
+  dayNumber: { color: colors.primary, fontSize: fontSizes.s28, fontWeight: fontWeights.bold, lineHeight: lineHeights.h33 },
   weekday: { ...typography.badge, color: colors.muted, textTransform: "uppercase" },
   body: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm },
   titleText: { flex: 1 },
   cardTime: { ...typography.label, color: colors.primary },
   cardTitle: { ...typography.cardTitle, color: colors.ink, marginTop: spacing.xs, marginBottom: spacing.xs },
-  detail: { ...typography.metadata, color: colors.text, marginTop: 2 },
+  detail: { ...typography.metadata, color: colors.text, marginTop: spacing.xxs },
   comments: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
   commentsTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
   status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
@@ -180,6 +190,6 @@ const styles = StyleSheet.create({
   reason: { ...typography.metadata, color: colors.danger, width: "100%" },
   substitutionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, width: "100%", flexWrap: "wrap" },
   substitutionText: { ...typography.badge, color: colors.warning },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: 58, marginTop: spacing.md },
-  responseActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: 58, marginTop: spacing.md },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: screen.scheduleCardOffset, marginTop: spacing.md },
+  responseActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: screen.scheduleCardOffset, marginTop: spacing.md },
 });

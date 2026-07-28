@@ -1,7 +1,15 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TextInput, TextInputSelectionChangeEventData, TouchableOpacity, View } from "react-native";
 import { countRichTextCharacters, RICH_TEXT_MAX_CHARACTERS } from "../../../../src/contracts/richText";
-import { colors, radii, spacing } from "../../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  radii,
+  radiusValues,
+  spacing,
+} from "../../theme";
 import { RichCommentView } from "./RichCommentView";
 
 type Props = {
@@ -49,7 +57,7 @@ export function RichCommentEditor({ value, onChange, label = "Comentários", pla
         <Text style={[styles.counter, count >= RICH_TEXT_MAX_CHARACTERS && styles.limit]}>{count}/{RICH_TEXT_MAX_CHARACTERS}</Text>
       </View>
       <View style={styles.toolbar} accessibilityLabel="Formatação dos comentários">
-        <FormatButton label="B" onPress={() => wrap("<strong>", "</strong>")} style={{ fontWeight: "900" }} disabled={disabled} />
+        <FormatButton label="B" onPress={() => wrap("<strong>", "</strong>")} style={{ fontWeight: fontWeights.black }} disabled={disabled} />
         <FormatButton label="I" onPress={() => wrap("<em>", "</em>")} style={{ fontStyle: "italic" }} disabled={disabled} />
         <FormatButton label="U" onPress={() => wrap("<u>", "</u>")} style={{ textDecorationLine: "underline" }} disabled={disabled} />
         <FormatButton label="• Lista" onPress={addList} disabled={disabled} />
@@ -82,14 +90,14 @@ function FormatButton({ label, onPress, style, disabled }: { label: string; onPr
 const styles = StyleSheet.create({
   container: { gap: spacing.sm },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { color: colors.text, fontSize: 13, fontWeight: "800" },
-  counter: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
+  counter: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold },
   limit: { color: colors.danger },
   toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs },
-  formatButton: { minWidth: 38, height: 36, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surface },
-  formatText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
-  colorButton: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: colors.surface },
-  input: { minHeight: 130, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: 14 },
+  formatButton: { minWidth: 38, height: controlSizes.compact, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.line, borderRadius: radii.sm, backgroundColor: colors.surface },
+  formatText: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
+  colorButton: { width: 28, height: 28, borderRadius: radiusValues.r14, borderWidth: 2, borderColor: colors.surface },
+  input: { minHeight: 130, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: fontSizes.s14 },
   preview: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing.md, backgroundColor: colors.surface },
-  previewLabel: { color: colors.muted, fontSize: 11, fontWeight: "800", marginBottom: spacing.sm, textTransform: "uppercase" },
+  previewLabel: { color: colors.muted, fontSize: fontSizes.s11, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm, textTransform: "uppercase" },
 });

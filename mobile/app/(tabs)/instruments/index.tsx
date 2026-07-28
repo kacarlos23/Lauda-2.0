@@ -24,16 +24,27 @@ import {
   validateInstrumentForm,
 } from "../../../src/utils/instrumentCatalog";
 import { Instrument } from "../../../src/types";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  screen,
+  spacing,
+} from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { safeReturnTo } from "../../../src/utils/navigation";
 import { emptyInstrumentFilters, filterInstruments, hasActiveFilters, InstrumentListFilters } from "../../../src/utils/listFilters";
+import { nav } from "../../../src/navigation/routes";
 
 const emptyForm = { name: "", colorHex: "" };
 
 export default function InstrumentCatalogScreen() {
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
-  const returnTo = safeReturnTo(params.returnTo, ["/profile", "/church"], "/profile");
+  const returnTo = safeReturnTo(params.returnTo, [nav.profile, nav.church] as const, nav.profile);
   const { user } = useAuthStore();
   const {
     instruments,
@@ -64,7 +75,7 @@ export default function InstrumentCatalogScreen() {
   }, [loadInstruments, user]);
 
   if (!canManageInstrumentCatalog(user)) {
-    return <Redirect href="/(tabs)/profile" />;
+    return <Redirect href={nav.profile} />;
   }
 
   const resetForm = () => {
@@ -221,9 +232,9 @@ export default function InstrumentCatalogScreen() {
               {saving ? (
                 <ActivityIndicator color={colors.surface} />
               ) : editingId ? (
-                <Save color={colors.surface} size={17} />
+                <Save color={colors.surface} size={iconSizes.s17} />
               ) : (
-                <Plus color={colors.surface} size={17} />
+                <Plus color={colors.surface} size={iconSizes.s17} />
               )}
               <Text style={styles.primaryButtonText}>{editingId ? "Salvar" : "Criar"}</Text>
             </TouchableOpacity>
@@ -234,7 +245,7 @@ export default function InstrumentCatalogScreen() {
                 accessibilityRole="button"
                 testID="instrument-cancel-edit-button"
               >
-                <X color={colors.primary} size={17} />
+                <X color={colors.primary} size={iconSizes.s17} />
                 <Text style={styles.secondaryButtonText}>Cancelar</Text>
               </TouchableOpacity>
             ) : null}
@@ -303,7 +314,7 @@ export default function InstrumentCatalogScreen() {
                       accessibilityLabel={`Editar ${instrument.name}`}
                       testID={`instrument-edit-${instrument.id}`}
                     >
-                      <Edit3 color={colors.primary} size={18} />
+                      <Edit3 color={colors.primary} size={iconSizes.s18} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.iconButton, styles.dangerButton]}
@@ -313,7 +324,7 @@ export default function InstrumentCatalogScreen() {
                       accessibilityLabel={`Excluir ${instrument.name}`}
                       testID={`instrument-delete-${instrument.id}`}
                     >
-                      {isDeleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={18} />}
+                      {isDeleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={iconSizes.s18} />}
                     </TouchableOpacity>
                   </View>
                 );
@@ -337,8 +348,8 @@ const styles = StyleSheet.create({
   },
   header: { marginBottom: spacing.lg },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: 28, fontWeight: "800", marginBottom: spacing.xs },
-  subtitle: { color: colors.muted, fontSize: 15, lineHeight: 22 },
+  title: { color: colors.ink, fontSize: fontSizes.s28, fontWeight: fontWeights.extrabold, marginBottom: spacing.xs },
+  subtitle: { color: colors.muted, fontSize: fontSizes.s15, lineHeight: lineHeights.h22 },
   section: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
@@ -348,7 +359,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     padding: spacing.lg,
   },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: spacing.md },
+  sectionTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.extrabold, marginBottom: spacing.md },
   input: {
     minHeight: 46,
     borderRadius: radii.md,
@@ -356,8 +367,8 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.surfaceMuted,
     color: colors.ink,
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: fontSizes.s15,
+    fontWeight: fontWeights.semibold,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
@@ -373,7 +384,7 @@ const styles = StyleSheet.create({
   },
   formActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   primaryButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
@@ -382,9 +393,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "800" },
+  primaryButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   secondaryButton: {
-    minHeight: 40,
+    minHeight: controlSizes.medium,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
@@ -393,7 +404,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  secondaryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  secondaryButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   disabledButton: { opacity: 0.72 },
   listHeader: {
     flexDirection: "row",
@@ -405,7 +416,7 @@ const styles = StyleSheet.create({
   errorBox: { gap: spacing.sm, marginBottom: spacing.md, alignItems: "flex-start" },
   formError: { marginBottom: spacing.md },
   inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
-  errorText: { color: colors.danger, fontSize: 13, fontWeight: "700", marginBottom: spacing.sm },
+  errorText: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.bold, marginBottom: spacing.sm },
   instrumentList: { gap: spacing.sm },
   instrumentRow: {
     minHeight: 66,
@@ -426,15 +437,15 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   instrumentInfo: { flex: 1 },
-  instrumentName: { color: colors.ink, fontSize: 15, fontWeight: "800", marginBottom: spacing.xs },
-  instrumentColorText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  instrumentName: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.extrabold, marginBottom: spacing.xs },
+  instrumentColorText: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold },
   iconButton: {
-    width: 40,
-    height: 40,
+    width: controlSizes.medium,
+    height: controlSizes.medium,
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primarySoft,
   },
-  dangerButton: { backgroundColor: "#F7E1E1" },
+  dangerButton: { backgroundColor: colors.dangerSurfaceStrong },
 });

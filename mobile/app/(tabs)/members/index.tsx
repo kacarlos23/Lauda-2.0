@@ -19,7 +19,19 @@ import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { Member, Ministry, Role } from "../../../src/types";
 import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, InviteStatusBadge, LoadingState, PermissionStatusBadge, RichCommentEditor, RichCommentView, RoleBadge, Screen, SectionHeader } from "../../../src/components/ui";
-import { colors, radii, screen, shadow, spacing, typography } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  overlays,
+  radii,
+  screen,
+  shadow,
+  spacing,
+  typography,
+} from "../../../src/theme";
 import { buildPublicInviteLink } from "../../../src/utils/memberInvite";
 import {
   NO_INSTRUMENT,
@@ -32,6 +44,7 @@ import {
   MemberListFilters,
 } from "../../../src/utils/listFilters";
 import { can, canViewMembers, isGlobalAdmin } from "../../../src/utils/permissions";
+import { GROUP_HREFS, nav } from "../../../src/navigation/routes";
 
 type EditableRole = Extract<Role, "MEMBER" | "MINISTRY_LEADER" | "TENANT_ADMIN">;
 
@@ -339,7 +352,7 @@ export default function MembersScreen() {
   };
 
   if (!canViewMembers(user)) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={GROUP_HREFS.tabs} />;
   }
 
   if (loading && members.length === 0) {
@@ -353,7 +366,7 @@ export default function MembersScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleGroup}><Text style={styles.modalTitle}>Comentários do membro</Text><Text style={styles.modalSubtitle}>{commentMember?.name}</Text></View>
-              <TouchableOpacity style={styles.iconButton} onPress={() => setCommentMember(null)} disabled={savingComment} accessibilityLabel="Fechar comentários"><X color={colors.text} size={18} /></TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setCommentMember(null)} disabled={savingComment} accessibilityLabel="Fechar comentários"><X color={colors.text} size={iconSizes.s18} /></TouchableOpacity>
             </View>
             <RichCommentEditor value={commentDraft} onChange={setCommentDraft} label="Comentários" placeholder="Observações administrativas ou pastorais..." testID="member-comments-input" />
             <Button title={savingComment ? "Salvando..." : "Salvar comentários"} loading={savingComment} disabled={savingComment} onPress={() => void saveComment()} style={styles.commentSaveButton} />
@@ -379,7 +392,7 @@ export default function MembersScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Fechar edição de acesso"
               >
-                <X color={colors.text} size={18} />
+                <X color={colors.text} size={iconSizes.s18} />
               </TouchableOpacity>
             </View>
 
@@ -452,7 +465,7 @@ export default function MembersScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Salvar acesso"
                 >
-                  {savingPermissions ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={18} />}
+                  {savingPermissions ? <ActivityIndicator color={colors.surface} /> : <Save color={colors.surface} size={iconSizes.s18} />}
                   <Text style={styles.savePermissionButtonText}>Salvar acesso</Text>
                 </TouchableOpacity>
               </>
@@ -511,8 +524,8 @@ export default function MembersScreen() {
                   <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de membros" />
                   <Button
                     title="Novo"
-                    icon={<Plus color={colors.surface} size={18} strokeWidth={2.4} />}
-                    onPress={() => router.push("/members/new" as never)}
+                    icon={<Plus color={colors.surface} size={iconSizes.s18} strokeWidth={2.4} />}
+                    onPress={() => router.push(nav.memberNew)}
                     accessibilityLabel="Cadastrar membro"
                   />
                 </View>
@@ -583,7 +596,7 @@ export default function MembersScreen() {
               <View style={styles.inviteActions}>
                 <Button
                   title="Copiar link"
-                  icon={<Copy color={colors.primary} size={16} strokeWidth={2.4} />}
+                  icon={<Copy color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
                   variant="secondary"
                   size="sm"
                   onPress={handleCopyInvite}
@@ -592,7 +605,7 @@ export default function MembersScreen() {
                 />
                 <Button
                   title="Copiar código"
-                  icon={<Copy color={colors.primary} size={16} strokeWidth={2.4} />}
+                  icon={<Copy color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
                   variant="secondary"
                   size="sm"
                   onPress={handleCopyCode}
@@ -601,7 +614,7 @@ export default function MembersScreen() {
                 />
                 <Button
                   title="Regenerar link"
-                  icon={<RefreshCw color={colors.primary} size={16} strokeWidth={2.4} />}
+                  icon={<RefreshCw color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
                   variant="secondary"
                   size="sm"
                   onPress={handleRegenerateInvite}
@@ -614,7 +627,7 @@ export default function MembersScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            icon={<Users color={colors.primary} size={28} strokeWidth={2.3} />}
+            icon={<Users color={colors.primary} size={iconSizes.s28} strokeWidth={2.3} />}
             title={activeFilters ? "Nenhum membro encontrado" : "Nenhum membro cadastrado"}
             description={activeFilters ? "Ajuste ou limpe os filtros para ver outros membros." : "Cadastre pessoas da igreja para organizar equipes e ministérios."}
             action={canCreateMember ? (
@@ -623,7 +636,7 @@ export default function MembersScreen() {
               ) : (
                 <Button
                   title="Cadastrar membro"
-                  onPress={() => router.push("/members/new" as never)}
+                  onPress={() => router.push(nav.memberNew)}
                   accessibilityLabel="Cadastrar membro"
                 />
               )
@@ -646,7 +659,7 @@ export default function MembersScreen() {
               {canAssignLegacyAccess && item.id !== user?.id ? (
                 <Button
                   title="Acesso"
-                  icon={<Edit3 color={colors.primary} size={15} strokeWidth={2.4} />}
+                  icon={<Edit3 color={colors.primary} size={iconSizes.s15} strokeWidth={2.4} />}
                   variant="secondary"
                   size="sm"
                   style={styles.permissionButton}
@@ -771,15 +784,15 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
   },
   avatar: {
-    width: 48,
-    height: 48,
+    width: controlSizes.large,
+    height: controlSizes.large,
     borderRadius: radii.pill,
     backgroundColor: colors.primarySoft,
     justifyContent: "center",
     alignItems: "center",
     marginRight: spacing.lg,
   },
-  avatarLetter: { color: colors.primaryDark, fontSize: 20, fontWeight: "700" },
+  avatarLetter: { color: colors.primaryDark, fontSize: fontSizes.s20, fontWeight: fontWeights.bold },
   info: { flex: 1 },
   rowTop: {
     flexDirection: "row",
@@ -822,7 +835,7 @@ const styles = StyleSheet.create({
   instrumentChipText: {
     ...typography.badge,
   },
-  noInstruments: { ...typography.badge, color: colors.muted, fontWeight: "400" },
+  noInstruments: { ...typography.badge, color: colors.muted, fontWeight: fontWeights.regular },
   permissionButton: {
     alignSelf: "flex-start",
     minHeight: 34,
@@ -831,7 +844,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.46)",
+    backgroundColor: overlays.modalCool,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
@@ -870,7 +883,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   roleOption: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -908,7 +921,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
   },
   permissionMinistryName: { ...typography.label, color: colors.ink },
-  permissionMinistryStatus: { ...typography.badge, color: colors.muted, fontWeight: "400", marginTop: 2 },
+  permissionMinistryStatus: { ...typography.badge, color: colors.muted, fontWeight: fontWeights.regular, marginTop: spacing.xxs },
   permissionStatusBadge: { marginTop: spacing.xs },
   leaderToggle: {
     minWidth: 84,
@@ -928,7 +941,7 @@ const styles = StyleSheet.create({
   leaderToggleText: { ...typography.badge, color: colors.text },
   leaderToggleTextActive: { color: colors.surface },
   savePermissionButton: {
-    minHeight: 48,
+    minHeight: controlSizes.large,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     flexDirection: "row",

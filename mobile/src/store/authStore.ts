@@ -6,6 +6,7 @@ import { memberService } from "../services/memberService";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
 import { Role, Tenant, User } from "../types";
 import { invalidateRelatedData } from "./invalidation";
+import { GROUP_HREFS } from "../navigation/routes";
 
 type AuthResponse = {
   success: boolean;
@@ -327,7 +328,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         error: null,
       });
-      router.replace("/(auth)/login");
+      router.replace(GROUP_HREFS.auth);
     }
   },
 
@@ -337,7 +338,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       await clearSession();
       set({ user: null, tenant: null, accessToken: null, token: null, loading: false, isLoading: false, error: null });
-      router.replace("/(auth)/login");
+      router.replace(GROUP_HREFS.auth);
     }
   },
 }));

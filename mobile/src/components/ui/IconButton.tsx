@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleProp, StyleSheet, TouchableOpacity, TouchableOpacityProps, ViewStyle } from "react-native";
-import { colors, radii } from "../../theme";
+import { colors, controlSizes, overlays, radii } from "../../theme";
 
 type IconButtonProps = Omit<TouchableOpacityProps, "children" | "style"> & {
   icon: React.ReactNode;
@@ -40,8 +40,8 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   button: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -54,8 +54,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
   },
   inverse: {
-    borderColor: "rgba(248, 250, 246, 0.24)",
-    backgroundColor: "rgba(248, 250, 246, 0.08)",
+    borderColor: overlays.inverseIconBorder,
+    backgroundColor: overlays.inverseIconSurface,
   },
   disabled: { opacity: 0.52 },
 });

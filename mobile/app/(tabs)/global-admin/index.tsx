@@ -6,7 +6,20 @@ import { DateTimeInput } from "../../../src/components/DateTimeInput";
 import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge, RichCommentEditor } from "../../../src/components/ui";
 import { adminService } from "../../../src/services/adminService";
 import { useAuthStore } from "../../../src/store/authStore";
-import { colors, radii, screen, shadow, spacing } from "../../../src/theme";
+import {
+  breakpoints,
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  overlays,
+  radii,
+  screen,
+  shadow,
+  spacing,
+} from "../../../src/theme";
 import { GlobalResourceName, GlobalTenant, Permission, PermissionEffect, PermissionKey, Role } from "../../../src/types";
 import { isGlobalAdmin } from "../../../src/utils/permissions";
 import { effectivePermissionsFromOverrides, nextPermissionEffect, PermissionOverrideMap } from "../../../src/utils/permissionOverrides";
@@ -305,7 +318,7 @@ async function loadAllReferenceItems(resource: GlobalResourceName): Promise<Row[
 export default function GlobalAdminScreen() {
   const { user } = useAuthStore();
   const viewport = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 1280, height: 800 };
-  const compactLayout = viewport.width < 900;
+  const compactLayout = viewport.width < breakpoints.adminCompact;
   const [activeResource, setActiveResource] = useState<GlobalResourceName>("tenants");
   const [tenantFilter, setTenantFilter] = useState<string | undefined>();
   const [search, setSearch] = useState("");
@@ -417,7 +430,7 @@ export default function GlobalAdminScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={["left", "right"]}>
         <View style={styles.denied}>
-          <ShieldAlert color={colors.danger} size={30} strokeWidth={2.4} />
+          <ShieldAlert color={colors.danger} size={iconSizes.s30} strokeWidth={2.4} />
           <Text style={styles.deniedTitle}>Acesso negado</Text>
           <Text style={styles.deniedText}>Esta área é exclusiva para administradores globais.</Text>
         </View>
@@ -442,7 +455,7 @@ export default function GlobalAdminScreen() {
               onPress={() => switchResource(resource.name)}
               testID={`global-resource-${resource.name}`}
             >
-              <Database color={colors.primaryDark} size={16} strokeWidth={2.4} />
+              <Database color={colors.primaryDark} size={iconSizes.s16} strokeWidth={2.4} />
               <Text style={[styles.menuText, activeResource === resource.name && styles.menuTextActive]}>{resource.label}</Text>
             </TouchableOpacity>
           ))}
@@ -456,12 +469,12 @@ export default function GlobalAdminScreen() {
             </View>
             <View style={styles.headerActions}>
               <TouchableOpacity style={styles.secondaryButton} onPress={reloadAll}>
-                <RefreshCcw color={colors.primary} size={16} strokeWidth={2.4} />
+                <RefreshCcw color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />
                 <Text style={styles.secondaryButtonText}>Atualizar</Text>
               </TouchableOpacity>
               {!config.readOnly ? (
                 <TouchableOpacity style={styles.primaryButton} onPress={() => setModal({ mode: "create" })}>
-                  <Plus color="#FFFFFF" size={16} strokeWidth={2.4} />
+                  <Plus color={colors.white} size={iconSizes.s16} strokeWidth={2.4} />
                   <Text style={styles.primaryButtonText}>Novo</Text>
                 </TouchableOpacity>
               ) : null}
@@ -643,7 +656,7 @@ function ResourceModal({
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{mode === "edit" ? "Editar" : "Novo"} · {config.label}</Text>
-            <TouchableOpacity onPress={onClose}><X color={colors.text} size={22} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose}><X color={colors.text} size={iconSizes.s22} /></TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalBody}>
             {config.fields.map((field) => (
@@ -858,7 +871,7 @@ function PermissionModal({
               <Text style={styles.modalTitle}>Permissões granulares</Text>
               <Text style={styles.subtitle}>{user?.name ?? "Usuário"} · {user?.email ?? ""}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar permissões"><X color={colors.text} size={22} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar permissões"><X color={colors.text} size={iconSizes.s22} /></TouchableOpacity>
           </View>
           {loading ? (
             <LoadingState centered={false} message="Carregando permissões..." style={styles.loadingBox} />
@@ -925,7 +938,7 @@ function PermissionModal({
 function PermissionButton({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.iconButton} onPress={onPress} accessibilityRole="button" accessibilityLabel="Gerenciar permissões granulares">
-      <ShieldAlert color={colors.primary} size={14} strokeWidth={2.5} />
+      <ShieldAlert color={colors.primary} size={iconSizes.s14} strokeWidth={2.5} />
       <Text style={styles.iconButtonText}>Permissões</Text>
     </TouchableOpacity>
   );
@@ -935,7 +948,7 @@ function IconButton({ label, icon, danger, onPress }: { label: string; icon: "ed
   const Icon = icon === "edit" ? Edit3 : icon === "activate" ? CheckCircle2 : icon === "deactivate" ? XCircle : Trash2;
   return (
     <TouchableOpacity style={[styles.iconButton, danger && styles.iconButtonDanger]} onPress={onPress}>
-      <Icon color={danger ? colors.danger : colors.primary} size={14} strokeWidth={2.5} />
+      <Icon color={danger ? colors.danger : colors.primary} size={iconSizes.s14} strokeWidth={2.5} />
       <Text style={[styles.iconButtonText, danger && styles.iconButtonTextDanger]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -959,34 +972,34 @@ const styles = StyleSheet.create({
   sidebarCompact: { width: "100%", minWidth: "100%", maxWidth: "100%", flexBasis: "auto", flexGrow: 0, borderRightWidth: 0, borderBottomWidth: 1, borderBottomColor: colors.line },
   sidebarContent: { padding: spacing.sm, gap: spacing.xs },
   sidebarContentCompact: { flexDirection: "row", alignItems: "center" },
-  sidebarTitle: { color: colors.ink, fontSize: 13, fontWeight: "900", marginBottom: spacing.sm },
-  menuItem: { minHeight: 44, borderLeftWidth: 3, borderLeftColor: "transparent", paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sidebarTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginBottom: spacing.sm },
+  menuItem: { minHeight: controlSizes.default, borderLeftWidth: 3, borderLeftColor: "transparent", paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.sm },
   menuItemCompact: { borderLeftWidth: 0, borderBottomWidth: 3, borderBottomColor: "transparent" },
   menuItemActive: { backgroundColor: colors.primarySoft, borderLeftColor: colors.accent, borderBottomColor: colors.accent },
-  menuText: { color: colors.text, fontSize: 12, fontWeight: "800", flex: 1, flexShrink: 1, lineHeight: 15 },
+  menuText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, flex: 1, flexShrink: 1, lineHeight: lineHeights.h15 },
   menuTextActive: { color: colors.primaryDark },
   main: { flex: 1 },
   mainContent: { padding: spacing.lg, paddingBottom: screen.contentBottomPadding, gap: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, alignItems: "flex-start", flexWrap: "wrap" },
   headerText: { flex: 1, minWidth: 220 },
-  title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
-  subtitle: { color: colors.muted, fontSize: 14, fontWeight: "700", marginTop: spacing.xs },
+  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
+  subtitle: { color: colors.muted, fontSize: fontSizes.s14, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   headerActions: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 },
   primaryButton: { minHeight: 42, borderRadius: radii.md, backgroundColor: colors.primary, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  primaryButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  primaryButtonText: { color: colors.white, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   secondaryButton: { minHeight: 42, borderRadius: radii.md, backgroundColor: colors.primarySoft, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  secondaryButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  secondaryButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   filters: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.md, gap: spacing.md },
-  searchInput: { minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, color: colors.ink, fontSize: 14, fontWeight: "700" },
+  searchInput: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
   chips: { gap: spacing.sm, alignItems: "center" },
   chip: { borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  chipTextActive: { color: "#FFFFFF" },
+  chipText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
+  chipTextActive: { color: colors.white },
   table: { backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, overflow: "hidden" },
   tableHeader: { flexDirection: "row", backgroundColor: colors.surfaceMuted, padding: spacing.md, gap: spacing.md, alignItems: "center" },
-  th: { flex: 1, color: colors.text, fontSize: 12, fontWeight: "900" },
-  actionTh: { width: 165, color: colors.text, fontSize: 12, fontWeight: "900" },
+  th: { flex: 1, color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
+  actionTh: { width: 165, color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
   tableRow: { flexDirection: "row", padding: spacing.md, gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, alignItems: "center" },
   tableRowCompact: { flexDirection: "column", alignItems: "stretch", gap: spacing.md },
   cell: { flex: 1 },
@@ -997,30 +1010,30 @@ const styles = StyleSheet.create({
     flexBasis: "auto",
     gap: spacing.xs,
   },
-  cellLabel: { color: colors.muted, fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.6, textTransform: "uppercase" },
-  td: { color: colors.ink, fontSize: 13, lineHeight: 18, fontWeight: "700", flexShrink: 1 },
+  cellLabel: { color: colors.muted, fontSize: fontSizes.s11, lineHeight: lineHeights.h15, fontWeight: fontWeights.black, letterSpacing: 0.6, textTransform: "uppercase" },
+  td: { color: colors.ink, fontSize: fontSizes.s13, lineHeight: lineHeights.h18, fontWeight: fontWeights.bold, flexShrink: 1 },
   actions: { width: 165, flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", alignItems: "center" },
   actionsCompact: { width: "100%", marginTop: spacing.xs },
   iconButton: { minHeight: 30, borderRadius: radii.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   iconButtonDanger: { backgroundColor: colors.dangerSoft },
-  iconButtonText: { color: colors.primary, fontSize: 11, fontWeight: "900" },
+  iconButtonText: { color: colors.primary, fontSize: fontSizes.s11, fontWeight: fontWeights.black },
   iconButtonTextDanger: { color: colors.danger },
   pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.md, flexWrap: "wrap" },
-  pageText: { color: colors.muted, fontSize: 13, fontWeight: "800" },
+  pageText: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   loadingBox: { padding: spacing.xl, alignItems: "center" },
-  mutedText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
+  mutedText: { color: colors.muted, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
   errorText: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start" },
   emptyState: { borderWidth: 0, shadowOpacity: 0, elevation: 0 },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(16,32,26,0.38)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalBackdrop: { flex: 1, backgroundColor: overlays.modalWarm, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: screen.listMaxWidth, maxHeight: "90%", backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, ...shadow },
   modalHeader: { padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "900" },
+  modalTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.black },
   modalBody: { padding: spacing.lg, gap: spacing.md },
   modalFooter: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm },
   field: { gap: spacing.xs },
-  fieldLabel: { color: colors.text, fontSize: 12, fontWeight: "900" },
-  input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.ink, fontSize: 14, fontWeight: "700" },
+  fieldLabel: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
+  input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
   textArea: { minHeight: 140, textAlignVertical: "top" },
   permissionGroup: { gap: spacing.sm },
   permissionGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -1042,12 +1055,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     opacity: 0.72,
   },
-  permissionOptionTitle: { color: colors.ink, fontSize: 13, fontWeight: "900" },
+  permissionOptionTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   permissionOptionTitleActive: { color: colors.primaryDark },
-  permissionOptionKey: { color: colors.muted, fontSize: 11, fontWeight: "700", marginTop: spacing.xs },
+  permissionOptionKey: { color: colors.muted, fontSize: fontSizes.s11, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   permissionOptionKeyActive: { color: colors.primary },
   disabled: { opacity: 0.6 },
   denied: { flex: 1, padding: spacing.xl, alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  deniedTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
-  deniedText: { color: colors.muted, fontSize: 15, fontWeight: "700", textAlign: "center" },
+  deniedTitle: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black },
+  deniedText: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.bold, textAlign: "center" },
 });

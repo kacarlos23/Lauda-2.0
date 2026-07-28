@@ -6,8 +6,17 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { musicService } from "../../../src/services/musicService";
 import { Artist } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
-import { colors, radii, spacing, typography } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  iconSizes,
+  radii,
+  radiusValues,
+  spacing,
+  typography,
+} from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
+import { nav } from "../../../src/navigation/routes";
 import {
   AppInput,
   Button,
@@ -45,7 +54,7 @@ export default function ArtistsScreen() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  if (!canManageMusic(user, "song:edit")) return <Redirect href={"/songs" as never} />;
+  if (!canManageMusic(user, "song:edit")) return <Redirect href={nav.songs} />;
 
   const startEdit = (artist: Artist) => {
     setEditing(artist);
@@ -78,7 +87,7 @@ export default function ArtistsScreen() {
 
   return (
     <Screen scroll>
-      <View style={styles.backRow}><AppBackButton href="/songs" /></View>
+      <View style={styles.backRow}><AppBackButton href={nav.songs} /></View>
       <PageHeader title="Artistas" subtitle="Catálogo usado nas músicas e cifras." />
 
       <Toolbar style={styles.toolbar}>
@@ -114,13 +123,13 @@ export default function ArtistsScreen() {
           <View style={styles.editorActions}>
             <Button
               title="Salvar"
-              icon={<Save color={colors.inverse} size={17} strokeWidth={2.2} />}
+              icon={<Save color={colors.inverse} size={iconSizes.s17} strokeWidth={2.2} />}
               loading={saving}
               onPress={() => void save()}
             />
             <Button
               title="Cancelar"
-              icon={<X color={colors.primary} size={17} strokeWidth={2.2} />}
+              icon={<X color={colors.primary} size={iconSizes.s17} strokeWidth={2.2} />}
               variant="secondary"
               onPress={cancel}
               disabled={saving}
@@ -143,7 +152,7 @@ export default function ArtistsScreen() {
               {artist.imageUrl ? (
                 <Image source={{ uri: artist.imageUrl }} style={styles.avatar} />
               ) : (
-                <View style={styles.placeholder}><UserRound color={colors.primary} size={19} /></View>
+                <View style={styles.placeholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
               )}
               <Text style={styles.name}>{artist.name}</Text>
               <TouchableOpacity
@@ -152,7 +161,7 @@ export default function ArtistsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`Editar ${artist.name}`}
               >
-                <Edit3 color={colors.primary} size={18} strokeWidth={2.1} />
+                <Edit3 color={colors.primary} size={iconSizes.s18} strokeWidth={2.1} />
               </TouchableOpacity>
             </View>
           ))}
@@ -204,19 +213,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
     paddingVertical: spacing.sm,
   },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceMuted },
+  avatar: { width: 38, height: 38, borderRadius: radiusValues.r19, backgroundColor: colors.surfaceMuted },
   placeholder: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radiusValues.r19,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
   name: { ...typography.label, flex: 1, color: colors.ink },
   edit: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",

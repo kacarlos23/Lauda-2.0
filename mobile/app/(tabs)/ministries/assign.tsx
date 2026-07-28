@@ -6,10 +6,20 @@ import { Check } from "lucide-react-native";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
 import { MemberStatus, Ministry } from "../../../src/types";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radii,
+  screen,
+  spacing,
+} from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 import { can } from "../../../src/utils/permissions";
+import { nav } from "../../../src/navigation/routes";
 
 const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
 
@@ -70,7 +80,7 @@ export default function AssignMemberScreen() {
         isLeader,
       });
       Alert.alert("Membro atribuído", "A atribuição foi criada com sucesso.", [
-        { text: "OK", onPress: () => goBackTo(router, ministryId ? `/ministries/${ministryId}/members` : "/ministries") },
+        { text: "OK", onPress: () => goBackTo(router, ministryId ? nav.ministryMembers(ministryId) : nav.ministries) },
       ]);
     } catch (error) {
       Alert.alert("Erro", error instanceof Error ? error.message : "Não foi possível atribuir o membro.");
@@ -91,7 +101,7 @@ export default function AssignMemberScreen() {
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topBar}>
-          <AppBackButton href={ministryId ? `/ministries/${ministryId}/members` : "/ministries"} compact />
+          <AppBackButton href={ministryId ? nav.ministryMembers(ministryId) : nav.ministries} compact />
           <Text style={styles.title}>Atribuir membro</Text>
         </View>
 
@@ -155,7 +165,7 @@ export default function AssignMemberScreen() {
 
         <TouchableOpacity style={styles.toggleRow} onPress={() => setIsLeader((value) => !value)} accessibilityRole="button">
           <View style={[styles.checkbox, isLeader && styles.checkboxActive]}>
-            {isLeader ? <Check color={colors.surface} size={16} /> : null}
+            {isLeader ? <Check color={colors.surface} size={iconSizes.s16} /> : null}
           </View>
           <Text style={styles.toggleText}>Marcar como líder do ministério</Text>
         </TouchableOpacity>
@@ -190,19 +200,19 @@ const styles = StyleSheet.create({
   content: { width: "100%", maxWidth: screen.formMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   iconBtn: { padding: spacing.sm },
-  title: { color: colors.ink, fontSize: 30, fontWeight: "800" },
+  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.extrabold },
   loader: { marginBottom: spacing.lg },
-  label: { color: colors.text, fontSize: 13, fontWeight: "800", marginBottom: spacing.sm },
+  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.line,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: fontSizes.s15,
     paddingHorizontal: spacing.lg,
-    minHeight: 44,
-    paddingVertical: 10,
+    minHeight: controlSizes.default,
+    paddingVertical: spacing.control,
     marginBottom: spacing.md,
   },
   textArea: { minHeight: 96 },
@@ -218,9 +228,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  chipText: { color: colors.text, fontSize: 13, fontWeight: "800" },
+  chipText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.primary },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 44, marginBottom: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: controlSizes.default, marginBottom: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
   checkbox: {
     width: 24,
     height: 24,
@@ -232,15 +242,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  toggleText: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  toggleText: { color: colors.text, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   submitButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  submitText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  submitText: { color: colors.surface, fontSize: fontSizes.s15, fontWeight: fontWeights.extrabold },
   disabled: { opacity: 0.6 },
-  errorText: { color: colors.danger, fontSize: 16, fontWeight: "700", textAlign: "center" },
+  errorText: { color: colors.danger, fontSize: fontSizes.s16, fontWeight: fontWeights.bold, textAlign: "center" },
 });

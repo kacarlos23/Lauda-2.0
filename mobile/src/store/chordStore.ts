@@ -1,3 +1,4 @@
+import { fontSizes } from "../tokens/primitives";
 import { create } from "zustand";
 import { transposeKey } from "../utils/chordEngine";
 
@@ -21,7 +22,7 @@ export const useChordStore = create<ChordState>((set) => ({
   originalKey: "C",
   currentKey: "C",
   semitoneOffset: 0,
-  fontSize: 16,
+  fontSize: fontSizes.s16,
   scrollSpeed: 1,
   songOffsets: {},
   initializeSong: (songId, originalKey) => set((state) => {

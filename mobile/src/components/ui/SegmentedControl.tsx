@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { colors, radii, spacing, typography } from "../../theme";
+import { colors, controlSizes, radii, spacing, typography } from "../../theme";
 
 type SegmentedOption<T extends string> = {
   value: T;
@@ -45,7 +45,7 @@ export function SegmentedControl<T extends string>({
 
 const styles = StyleSheet.create({
   control: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     flexDirection: "row",
     padding: spacing.xs,
     borderRadius: radii.lg,

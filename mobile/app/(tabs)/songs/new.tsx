@@ -6,6 +6,7 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { useMusicStore } from "../../../src/store/musicStore";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import { colors } from "../../../src/theme";
+import { nav } from "../../../src/navigation/routes";
 
 export default function NewSongScreen() {
   const user = useAuthStore((state) => state.user);
@@ -15,6 +16,6 @@ export default function NewSongScreen() {
     clearError();
     setFormSession((current) => current + 1);
   }, [clearError]));
-  if (!canManageMusic(user, "song:create")) return <Redirect href={"/songs" as never} />;
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["left", "right"]}><SongForm key={formSession} backHref="/songs" saving={saving} error={error} onSave={async (payload) => (await createSong(payload)).id} /></SafeAreaView>;
+  if (!canManageMusic(user, "song:create")) return <Redirect href={nav.songs} />;
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={["left", "right"]}><SongForm key={formSession} backHref={nav.songs} saving={saving} error={error} onSave={async (payload) => (await createSong(payload)).id} /></SafeAreaView>;
 }

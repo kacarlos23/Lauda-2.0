@@ -1,7 +1,7 @@
 import React from "react";
 import { ScrollView, StyleProp, StyleSheet, useWindowDimensions, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, screen, spacing } from "../../theme";
+import { breakpoints, colors, screen, spacing } from "../../theme";
 
 type ScreenProps = {
   children: React.ReactNode;
@@ -26,9 +26,9 @@ export function Screen({
     ? useWindowDimensions()
     : { width: 1280, height: 800 };
   const { width } = dimensions;
-  const pagePadding = width < 768
+  const pagePadding = width < breakpoints.mobile
     ? screen.mobilePadding
-    : width < 1024
+    : width < breakpoints.desktop
       ? screen.tabletPadding
       : screen.desktopPadding;
   const contentStyles = [

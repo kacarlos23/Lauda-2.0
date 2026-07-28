@@ -1,12 +1,16 @@
-import type { Router } from "expo-router";
+import type { Href, Router } from "expo-router";
 
 type BackRouter = Pick<Router, "replace">;
 
-export function goBackTo(router: BackRouter, fallback: string): void {
-  router.replace(fallback as never);
+export function goBackTo(router: BackRouter, fallback: Href): void {
+  router.replace(fallback);
 }
 
-export function safeReturnTo(value: string | string[] | undefined, allowed: readonly string[], fallback: string): string {
+export function safeReturnTo<const TAllowed extends readonly string[]>(
+  value: string | string[] | undefined,
+  allowed: TAllowed,
+  fallback: TAllowed[number]
+): TAllowed[number] {
   const candidate = Array.isArray(value) ? value[0] : value;
-  return candidate && allowed.includes(candidate) ? candidate : fallback;
+  return candidate && allowed.includes(candidate) ? candidate as TAllowed[number] : fallback;
 }

@@ -8,7 +8,15 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { colors, screen, spacing, typography } from "../theme";
+import {
+  colors,
+  fontSizes,
+  fontWeights,
+  lineHeights,
+  screen,
+  spacing,
+  typography,
+} from "../theme";
 import { BrandLogo } from "./BrandLogo";
 
 type AuthShellProps = {
@@ -103,7 +111,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.surfaceDark,
     paddingHorizontal: spacing.xxl,
-    paddingTop: 48,
+    paddingTop: spacing.xxxl,
     paddingBottom: spacing.xxl,
   },
   brandCopy: {
@@ -117,14 +125,14 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: colors.inverse,
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: "700",
+    fontSize: fontSizes.s34,
+    lineHeight: lineHeights.h40,
+    fontWeight: fontWeights.bold,
     letterSpacing: -0.8,
   },
   brandDescription: {
     ...typography.body,
-    color: "#B7C6BF",
+    color: colors.inverseBorderText,
     maxWidth: 340,
     marginTop: spacing.lg,
   },
@@ -136,18 +144,18 @@ const styles = StyleSheet.create({
   },
   brandFootnote: {
     ...typography.metadata,
-    color: "#82998E",
+    color: colors.inverseFaint,
   },
   formPanel: {
     flex: 1,
     paddingHorizontal: screen.mobilePadding,
     paddingTop: spacing.xl,
-    paddingBottom: 48,
+    paddingBottom: spacing.xxxl,
   },
   formPanelDesktop: {
     justifyContent: "center",
-    paddingHorizontal: 56,
-    paddingVertical: 48,
+    paddingHorizontal: spacing.xxxxl,
+    paddingVertical: spacing.xxxl,
   },
   formContent: {
     width: "100%",

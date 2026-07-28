@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
-import { colors, radii, spacing, typography } from "../../theme";
+import { colors, controlSizes, radii, spacing, typography } from "../../theme";
 
 type NoticeTone = "info" | "success" | "warning" | "danger";
 
@@ -38,7 +38,7 @@ export function InlineNotice({
 
 const styles = StyleSheet.create({
   notice: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
@@ -62,6 +62,6 @@ const toneStyles = StyleSheet.create({
 const textToneStyles = StyleSheet.create({
   info: { color: colors.primaryDark },
   success: { color: colors.success },
-  warning: { color: "#6E4813" },
+  warning: { color: colors.warningTextStrong },
   danger: { color: colors.danger },
 });

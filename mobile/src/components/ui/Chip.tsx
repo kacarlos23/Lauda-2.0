@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, TouchableOpacityProps, ViewStyle } from "react-native";
-import { colors, radii, spacing, typography } from "../../theme";
+import { colors, controlSizes, radii, spacing, typography } from "../../theme";
 
 type ChipProps = TouchableOpacityProps & {
   label: string;
@@ -23,7 +23,7 @@ export function Chip({ label, active = false, style, textStyle, accessibilityRol
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 36,
+    minHeight: controlSizes.compact,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.line,

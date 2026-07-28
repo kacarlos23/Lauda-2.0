@@ -16,8 +16,19 @@ import {
 import { Button, ErrorBanner, LoadingState, RichCommentEditor, RichCommentView } from "../../../src/components/ui";
 import { useAuthStore } from "../../../src/store/authStore";
 import { useChurchStore } from "../../../src/store/churchStore";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  lineHeights,
+  radii,
+  screen,
+  spacing,
+} from "../../../src/theme";
 import { canAccessChurchAdmin } from "../../../src/utils/permissions";
+import { nav } from "../../../src/navigation/routes";
 
 function formatDate(value?: string): string {
   if (!value) return "Data indisponível";
@@ -40,10 +51,10 @@ export default function ChurchAdminScreen() {
 
   const sections = useMemo(
     () => [
-      { label: "Membros", description: "Gerencie pessoas e permissões", href: "/members" },
-      { label: "Ministérios", description: "Organize equipes e responsáveis", href: "/ministries" },
-      { label: "Escalas", description: "Acompanhe agenda e participantes", href: "/schedules" },
-      { label: "Instrumentos/Cargos", description: "Configure funções do tenant", href: "/instruments?returnTo=/church" },
+      { label: "Membros", description: "Gerencie pessoas e permissões", href: nav.members },
+      { label: "Ministérios", description: "Organize equipes e responsáveis", href: nav.ministries },
+      { label: "Escalas", description: "Acompanhe agenda e participantes", href: nav.schedules },
+      { label: "Instrumentos/Cargos", description: "Configure funções do tenant", href: nav.instruments(nav.church) },
     ],
     []
   );
@@ -73,7 +84,7 @@ export default function ChurchAdminScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={["left", "right"]}>
         <View style={styles.denied}>
-          <ShieldAlert color={colors.danger} size={30} strokeWidth={2.4} />
+          <ShieldAlert color={colors.danger} size={iconSizes.s30} strokeWidth={2.4} />
           <Text style={styles.deniedTitle}>Acesso negado</Text>
           <Text style={styles.deniedText}>Esta área é exclusiva para líderes da igreja.</Text>
         </View>
@@ -98,7 +109,7 @@ export default function ChurchAdminScreen() {
               action={
                 <Button
                   title="Tentar novamente"
-                  icon={<RefreshCcw color={colors.primary} size={16} strokeWidth={2.5} />}
+                  icon={<RefreshCcw color={colors.primary} size={iconSizes.s16} strokeWidth={2.5} />}
                   variant="secondary"
                   size="sm"
                   onPress={loadChurch}
@@ -112,7 +123,7 @@ export default function ChurchAdminScreen() {
             <View style={styles.churchCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.iconBox}>
-                  <Building2 color={colors.primary} size={22} strokeWidth={2.5} />
+                  <Building2 color={colors.primary} size={iconSizes.s22} strokeWidth={2.5} />
                 </View>
                 <View style={styles.cardTitleBox}>
                   <Text style={styles.cardEyebrow}>Igreja</Text>
@@ -144,7 +155,7 @@ export default function ChurchAdminScreen() {
                     {saving ? (
                       <ActivityIndicator color={colors.surface} />
                     ) : (
-                      <Save color={colors.surface} size={16} strokeWidth={2.5} />
+                      <Save color={colors.surface} size={iconSizes.s16} strokeWidth={2.5} />
                     )}
                     <Text style={styles.primaryButtonText}>Salvar</Text>
                   </TouchableOpacity>
@@ -162,7 +173,7 @@ export default function ChurchAdminScreen() {
                 </View>
               ) : (
                 <TouchableOpacity style={styles.actionButton} onPress={() => setEditing(true)} accessibilityRole="button">
-                  <Pencil color={colors.primary} size={16} strokeWidth={2.5} />
+                  <Pencil color={colors.primary} size={iconSizes.s16} strokeWidth={2.5} />
                   <Text style={styles.actionButtonText}>Editar</Text>
                 </TouchableOpacity>
               )}
@@ -183,14 +194,14 @@ export default function ChurchAdminScreen() {
               <Text style={styles.sectionTitle}>Gestão</Text>
               <View style={styles.list}>
                 {sections.map((section) => (
-                  <View key={section.href} style={styles.manageRow}>
+                  <View key={section.label} style={styles.manageRow}>
                     <View style={styles.manageCopy}>
                       <Text style={styles.manageTitle}>{section.label}</Text>
                       <Text style={styles.manageDescription}>{section.description}</Text>
                     </View>
                     <TouchableOpacity
                       style={styles.actionButton}
-                      onPress={() => router.push(section.href as never)}
+                      onPress={() => router.push(section.href)}
                       accessibilityRole="button"
                     >
                       <Text style={styles.actionButtonText}>Gerenciar</Text>
@@ -217,7 +228,7 @@ function Metric({
 }) {
   return (
     <View style={styles.metric} accessible accessibilityLabel={`${label}: ${value}`}>
-      <Icon color={colors.primaryDark} size={22} strokeWidth={2.4} />
+      <Icon color={colors.primaryDark} size={iconSizes.s22} strokeWidth={2.4} />
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
@@ -234,8 +245,8 @@ const styles = StyleSheet.create({
     paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.xl },
-  title: { fontSize: 30, fontWeight: "900", color: colors.ink, marginBottom: spacing.sm },
-  subtitle: { fontSize: 15, color: colors.muted, fontWeight: "700" },
+  title: { fontSize: fontSizes.s30, fontWeight: fontWeights.black, color: colors.ink, marginBottom: spacing.sm },
+  subtitle: { fontSize: fontSizes.s15, color: colors.muted, fontWeight: fontWeights.bold },
   churchCard: {
     backgroundColor: "transparent",
     borderTopWidth: 1,
@@ -255,20 +266,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardTitleBox: { flex: 1 },
-  cardEyebrow: { color: colors.muted, fontSize: 12, fontWeight: "800", marginBottom: spacing.xs },
-  churchName: { color: colors.ink, fontSize: 20, fontWeight: "900", marginBottom: spacing.xs },
-  createdText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  cardEyebrow: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginBottom: spacing.xs },
+  churchName: { color: colors.ink, fontSize: fontSizes.s20, fontWeight: fontWeights.black, marginBottom: spacing.xs },
+  createdText: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold },
   commentsCard: { paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.line },
-  commentsTitle: { color: colors.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.sm },
+  commentsTitle: { color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
   input: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     color: colors.ink,
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: fontSizes.s17,
+    fontWeight: fontWeights.extrabold,
     backgroundColor: colors.surface,
     marginBottom: spacing.xs,
   },
@@ -283,10 +294,10 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: colors.line,
   },
-  metricValue: { fontSize: 26, fontWeight: "900", color: colors.primaryDark, marginTop: spacing.sm },
-  metricLabel: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: spacing.xs },
+  metricValue: { fontSize: fontSizes.s26, fontWeight: fontWeights.black, color: colors.primaryDark, marginTop: spacing.sm },
+  metricLabel: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.xs },
   section: { marginTop: spacing.sm },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", marginBottom: spacing.md },
+  sectionTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.black, marginBottom: spacing.md },
   list: { borderTopWidth: 1, borderTopColor: colors.line },
   manageRow: {
     minHeight: 76,
@@ -299,10 +310,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   manageCopy: { flex: 1 },
-  manageTitle: { color: colors.ink, fontSize: 15, fontWeight: "900", marginBottom: spacing.xs },
-  manageDescription: { color: colors.muted, fontSize: 12, fontWeight: "700", lineHeight: 18 },
+  manageTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.black, marginBottom: spacing.xs },
+  manageDescription: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, lineHeight: lineHeights.h18 },
   actionButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
@@ -311,10 +322,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  actionButtonText: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  actionButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   editActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   primaryButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
@@ -323,16 +334,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  primaryButtonText: { color: colors.surface, fontSize: 14, fontWeight: "900" },
+  primaryButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   secondaryButton: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
   },
-  secondaryButtonText: { color: colors.text, fontSize: 14, fontWeight: "900" },
+  secondaryButtonText: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
   disabledButton: { opacity: 0.55 },
   stateBox: {
     backgroundColor: "transparent",
@@ -351,6 +362,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
   },
-  deniedTitle: { color: colors.ink, fontSize: 22, fontWeight: "900" },
-  deniedText: { color: colors.muted, fontSize: 15, fontWeight: "700", textAlign: "center" },
+  deniedTitle: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black },
+  deniedText: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.bold, textAlign: "center" },
 });

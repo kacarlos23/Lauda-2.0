@@ -3,7 +3,15 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Check, Square, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
 import { SongLinkButtons } from "../SongLinkButtons";
-import { colors, spacing } from "../../theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radiusValues,
+  spacing,
+} from "../../theme";
 
 type Props = {
   song: Song;
@@ -29,7 +37,7 @@ export function SongListRow({ song, selectionMode, selected, isLast, onPress }: 
       {song.artist.imageUrl ? (
         <Image source={{ uri: song.artist.imageUrl }} style={styles.avatar} />
       ) : (
-        <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={19} /></View>
+        <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
       )}
       <View style={styles.info}>
         <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
@@ -40,9 +48,9 @@ export function SongListRow({ song, selectionMode, selected, isLast, onPress }: 
       {!selectionMode ? <SongLinkButtons links={song} compact /> : null}
       {selectionMode ? (
         selected ? (
-          <View style={styles.check}><Check color={colors.surface} size={15} strokeWidth={2.8} /></View>
+          <View style={styles.check}><Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /></View>
         ) : (
-          <Square color={colors.muted} size={21} />
+          <Square color={colors.muted} size={iconSizes.s21} />
         )
       ) : null}
     </TouchableOpacity>
@@ -56,7 +64,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
+    paddingVertical: spacing.control,
     backgroundColor: colors.surface,
     position: "relative",
   },
@@ -70,22 +78,22 @@ const styles = StyleSheet.create({
     width: 3,
     backgroundColor: colors.primary,
   },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted },
+  avatar: { width: controlSizes.medium, height: controlSizes.medium, borderRadius: radiusValues.r20, backgroundColor: colors.surfaceMuted },
   avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: controlSizes.medium,
+    height: controlSizes.medium,
+    borderRadius: radiusValues.r20,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
   info: { flex: 1, minWidth: 0 },
-  songTitle: { color: colors.ink, fontSize: 15, fontWeight: "700" },
-  meta: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
+  meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
   check: {
     width: 21,
     height: 21,
-    borderRadius: 5,
+    borderRadius: radiusValues.r5,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",

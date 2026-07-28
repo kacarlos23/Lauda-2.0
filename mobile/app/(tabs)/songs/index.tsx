@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
@@ -33,6 +34,7 @@ import {
 } from "../../../src/components/ui";
 import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
+import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
 import { musicService, SongListParams, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
@@ -44,7 +46,16 @@ import {
   toggleSongPageSelection,
   toggleSongSelection,
 } from "../../../src/utils/songSelection";
-import { colors, radii, screen, spacing } from "../../../src/theme";
+import {
+  colors,
+  controlSizes,
+  fontSizes,
+  fontWeights,
+  iconSizes,
+  radii,
+  screen,
+  spacing,
+} from "../../../src/theme";
 
 const WIDE_SELECTION_MIN_WIDTH = 1000;
 
@@ -287,10 +298,10 @@ export default function SongsScreen() {
   ) : null;
 
   const wideLayoutStyle = Platform.OS === "web"
-    ? ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", columnGap: spacing.xl, alignItems: "start" } as never)
+    ? ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", columnGap: spacing.xl, alignItems: "start" } as unknown as ViewStyle)
     : styles.wideLayoutFallback;
   const stickyPanelStyle = Platform.OS === "web"
-    ? ({ position: "sticky", top: spacing.xl, width: 320, alignSelf: "start" } as never)
+    ? ({ position: "sticky", top: spacing.xl, width: 320, alignSelf: "start" } as unknown as ViewStyle)
     : styles.stickyPanelFallback;
 
   return (
@@ -353,18 +364,18 @@ export default function SongsScreen() {
                 {canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") ? (
                   <TouchableOpacity
                     style={styles.iconButton}
-                    onPress={() => router.push("/artists" as never)}
+                    onPress={() => router.push(nav.artists)}
                     accessibilityRole="button"
                     accessibilityLabel="Gerenciar artistas"
                   >
-                    <MicVocal color={colors.primary} size={19} />
+                    <MicVocal color={colors.primary} size={iconSizes.s19} />
                   </TouchableOpacity>
                 ) : null}
                 {canManageMusic(user, "song:create") ? (
                   <Button
                     title={TEXT.newSong}
-                    icon={<Plus color={colors.surface} size={19} />}
-                    onPress={() => router.push("/songs/new" as never)}
+                    icon={<Plus color={colors.surface} size={iconSizes.s19} />}
+                    onPress={() => router.push(nav.songNew)}
                     accessibilityLabel={TEXT.newSong}
                     style={styles.newSongButton}
                   />
@@ -382,7 +393,7 @@ export default function SongsScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
-                icon={<Search color={colors.muted} size={19} />}
+                icon={<Search color={colors.muted} size={iconSizes.s19} />}
                 endAdornment={search ? (
                   <TouchableOpacity
                     style={styles.clearSearchButton}
@@ -391,7 +402,7 @@ export default function SongsScreen() {
                     accessibilityLabel="Limpar pesquisa de músicas"
                     hitSlop={8}
                   >
-                    <X color={colors.muted} size={18} strokeWidth={2.4} />
+                    <X color={colors.muted} size={iconSizes.s18} strokeWidth={2.4} />
                   </TouchableOpacity>
                 ) : null}
                 containerStyle={styles.searchInput}
@@ -475,7 +486,7 @@ export default function SongsScreen() {
                             return;
                           }
                           primeSong(song);
-                          router.push(`/songs/${song.id}` as never);
+                          router.push(nav.songDetail(song.id));
                         }}
                       />
                     ))
@@ -521,18 +532,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   headerCopy: { flexGrow: 1 },
-  title: { color: colors.ink, fontSize: 30, fontWeight: "900" },
-  subtitle: { color: colors.muted, fontSize: 14, marginTop: spacing.xs, fontWeight: "700" },
+  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
+  subtitle: { color: colors.muted, fontSize: fontSizes.s14, marginTop: spacing.xs, fontWeight: fontWeights.bold },
   actions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   iconButton: {
-    width: 44,
-    height: 44,
+    width: controlSizes.default,
+    height: controlSizes.default,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#BFE7DE",
+    borderColor: colors.primarySoftBorder,
   },
   newSongButton: { minWidth: 150 },
   searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
@@ -541,8 +552,8 @@ const styles = StyleSheet.create({
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   error: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
-  selectionEntry: { minHeight: 44, alignItems: "flex-start", justifyContent: "center", marginBottom: spacing.sm },
-  selectionEntryText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  selectionEntry: { minHeight: controlSizes.default, alignItems: "flex-start", justifyContent: "center", marginBottom: spacing.sm },
+  selectionEntryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   singleColumn: { width: "100%" },
   wideLayoutFallback: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: spacing.xl },
   stickyPanelFallback: { width: 320, alignSelf: "flex-start" },
@@ -556,11 +567,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   listHeader: { minHeight: 50, justifyContent: "center", paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
-  listCount: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  listCount: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   inlineLoading: { alignItems: "center", padding: spacing.xl },
   emptyState: { borderWidth: 0, borderRadius: 0 },
   pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg },
-  link: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  pageText: { color: colors.muted, fontSize: 13, fontWeight: "700" },
+  link: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
+  pageText: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
   disabledText: { opacity: 0.35 },
 });

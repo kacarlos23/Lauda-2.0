@@ -6,8 +6,9 @@ import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
-import { colors, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
 import { normalizeInviteCode } from "../../src/utils/memberInvite";
+import { GROUP_HREFS } from "../../src/navigation/routes";
 import { goBackTo } from "../../src/utils/navigation";
 
 function isValidEmail(email: string): boolean {
@@ -85,7 +86,7 @@ export default function PublicMemberRegisterScreen() {
         phone: phone.trim() || undefined,
         password,
       });
-      router.replace("/(tabs)");
+      router.replace(GROUP_HREFS.tabs);
     } catch (err) {
       const message = getErrorMessage(err);
       setError(message);
@@ -103,13 +104,13 @@ export default function PublicMemberRegisterScreen() {
       width="wide"
     >
       <TouchableOpacity
-        onPress={() => goBackTo(router, "/(auth)/login")}
+        onPress={() => goBackTo(router, GROUP_HREFS.auth)}
         style={styles.back}
         accessibilityRole="button"
         accessibilityLabel="Voltar para o login"
         testID="member-register-back"
       >
-        <ArrowLeft color={colors.primary} size={18} strokeWidth={2.2} />
+        <ArrowLeft color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
         <Text style={styles.backText}>Voltar</Text>
       </TouchableOpacity>
 
@@ -118,7 +119,7 @@ export default function PublicMemberRegisterScreen() {
       <View style={styles.fields}>
         <AppInput
           label="Código de convite *"
-          icon={<LinkIcon color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<LinkIcon color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="Código do convite"
           autoCapitalize="characters"
           value={inviteCode}
@@ -133,7 +134,7 @@ export default function PublicMemberRegisterScreen() {
         <View style={styles.fieldRow}>
           <AppInput
             label="Nome *"
-            icon={<UserRound color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<UserRound color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Nome completo"
             value={name}
             onChangeText={setName}
@@ -144,7 +145,7 @@ export default function PublicMemberRegisterScreen() {
 
           <AppInput
             label="Telefone"
-            icon={<Phone color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Phone color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="(00) 00000-0000"
             keyboardType="phone-pad"
             value={phone}
@@ -157,7 +158,7 @@ export default function PublicMemberRegisterScreen() {
 
         <AppInput
           label="E-mail *"
-          icon={<Mail color={colors.muted} size={18} strokeWidth={2} />}
+          icon={<Mail color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
           placeholder="voce@email.com"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -170,7 +171,7 @@ export default function PublicMemberRegisterScreen() {
         <View style={styles.fieldRow}>
           <AppInput
             label="Senha *"
-            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Mínimo de 6 caracteres"
             secureTextEntry
             value={password}
@@ -182,7 +183,7 @@ export default function PublicMemberRegisterScreen() {
 
           <AppInput
             label="Confirmar senha *"
-            icon={<Lock color={colors.muted} size={18} strokeWidth={2} />}
+            icon={<Lock color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
             placeholder="Repita a senha"
             secureTextEntry
             value={confirm}
@@ -208,7 +209,7 @@ export default function PublicMemberRegisterScreen() {
 
 const styles = StyleSheet.create({
   back: {
-    minHeight: 44,
+    minHeight: controlSizes.default,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
