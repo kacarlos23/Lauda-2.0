@@ -53,8 +53,12 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
+    "brace-expansion": "5.0.8",
     "fast-uri": "3.1.4",
-    "postcss": "8.5.22"
+    "postcss": "8.5.22",
+    "serve-handler": {
+      "brace-expansion": "1.1.16"
+    }
   },
   "private": true
 }
