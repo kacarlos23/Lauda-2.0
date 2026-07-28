@@ -17,6 +17,8 @@ export default function ResetPasswordScreen() {
   const router = useRouter();
 
   const handleResetPassword = async () => {
+    if (loading) return;
+
     if (!pin.trim() || pin.length !== 6) {
       Alert.alert("Erro", "O PIN deve conter exatamente 6 dígitos.");
       return;
@@ -82,6 +84,9 @@ export default function ResetPasswordScreen() {
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
+          returnKeyType="done"
+          submitBehavior="blurAndSubmit"
+          onSubmitEditing={() => void handleResetPassword()}
           accessibilityLabel="Confirmar nova senha"
         />
       </View>

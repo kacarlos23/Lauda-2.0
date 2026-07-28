@@ -1,5 +1,14 @@
-import React, { memo, useEffect, useRef, useState } from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import { router } from "expo-router";
 import {
   ChevronsLeft,
@@ -12,6 +21,7 @@ import {
   fontSizes,
   fontWeights,
   iconSizes,
+  motion,
   overlays,
   radiusValues,
   spacing,
@@ -28,6 +38,7 @@ import {
 } from "../navigation/manifest";
 import { nav } from "../navigation/routes";
 import { BrandLogo } from "./BrandLogo";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 export const SIDEBAR_COLLAPSED_WIDTH = 72;
 export const SIDEBAR_EXPANDED_WIDTH = 248;
@@ -51,7 +62,14 @@ function getInitials(name?: string): string {
 function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: SidebarNavigationProps) {
   const { user, logout } = useAuthStore();
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const [layoutVersion, setLayoutVersion] = useState(0);
+  const [activeRailVisible, setActiveRailVisible] = useState(false);
   const labelOpacity = useRef(new Animated.Value(isCollapsed ? 0 : 1)).current;
+  const activeRailY = useRef(new Animated.Value(0)).current;
+  const activeRailInitialized = useRef(false);
+  const groupOffsets = useRef(new Map<string, number>());
+  const itemOffsets = useRef(new Map<string, number>());
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     Animated.timing(labelOpacity, {
@@ -61,8 +79,62 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
     }).start();
   }, [isCollapsed, labelOpacity]);
 
-  const visibleItems = navigationItemsFor("desktop-sidebar", user);
+  const visibleItems = useMemo(
+    () => navigationItemsFor("desktop-sidebar", user),
+    [user]
+  );
+  const activeItem = useMemo(
+    () => visibleItems.find((item) => routeMatches(currentRoute, item.route)),
+    [currentRoute, visibleItems]
+  );
   const width = isCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+
+  const rememberOffset = useCallback(
+    (offsets: Map<string, number>, key: string, event: LayoutChangeEvent) => {
+      const nextOffset = event.nativeEvent.layout.y;
+      if (offsets.get(key) === nextOffset) return;
+      offsets.set(key, nextOffset);
+      setLayoutVersion((current) => current + 1);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!activeItem?.sidebarGroup) {
+      setActiveRailVisible(false);
+      return;
+    }
+
+    const groupOffset = groupOffsets.current.get(activeItem.sidebarGroup);
+    const itemOffset = itemOffsets.current.get(activeItem.id);
+    if (groupOffset === undefined || itemOffset === undefined) return;
+
+    const nextPosition = groupOffset + itemOffset;
+    setActiveRailVisible(true);
+
+    if (!activeRailInitialized.current) {
+      activeRailY.setValue(nextPosition);
+      activeRailInitialized.current = true;
+      return;
+    }
+
+    const animation = Animated.timing(activeRailY, {
+      toValue: nextPosition,
+      duration: reducedMotion ? motion.reducedMs : motion.navigationSelectionMs,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+
+    return () => animation.stop();
+  }, [
+    activeItem?.id,
+    activeItem?.sidebarGroup,
+    activeRailY,
+    isCollapsed,
+    layoutVersion,
+    reducedMotion,
+  ]);
 
   return (
     <View style={[styles.sidebar, { width }]} accessibilityLabel="Menu principal">
@@ -88,11 +160,25 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
       </View>
 
       <View style={styles.navList}>
+        {activeRailVisible ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeRail,
+              { transform: [{ translateY: activeRailY }] },
+            ]}
+            testID="sidebar-active-rail"
+          />
+        ) : null}
         {SIDEBAR_GROUPS.map((group) => {
           const groupItems = visibleItems.filter((item) => item.sidebarGroup === group);
           if (!groupItems.length) return null;
           return (
-            <View key={group} style={styles.group}>
+            <View
+              key={group}
+              style={styles.group}
+              onLayout={(event) => rememberOffset(groupOffsets.current, group, event)}
+            >
               {isCollapsed ? (
                 <View style={styles.groupDivider} />
               ) : (
@@ -106,7 +192,11 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                 const active = routeMatches(currentRoute, item.route);
                 const iconColor = active ? colors.inverse : colors.inverseMuted;
                 return (
-                  <View key={item.id} style={styles.itemWrapper}>
+                  <View
+                    key={item.id}
+                    style={styles.itemWrapper}
+                    onLayout={(event) => rememberOffset(itemOffsets.current, item.id, event)}
+                  >
                     <Pressable
                       onPress={() => router.push(href)}
                       onHoverIn={() => setHoveredLabel(item.label)}
@@ -123,7 +213,6 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                       accessibilityState={{ selected: active }}
                       testID={navTestId(hrefText)}
                     >
-                      <View style={[styles.activeRail, active && styles.activeRailVisible]} />
                       <item.Icon color={iconColor} size={iconSizes.s20} strokeWidth={2} />
                       {!isCollapsed ? (
                         <Animated.Text style={[styles.navLabel, active && styles.navLabelActive, { opacity: labelOpacity }]}>
@@ -281,10 +370,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     top: 0,
-    bottom: 0,
+    zIndex: 1,
     width: 3,
-  },
-  activeRailVisible: {
+    height: controlSizes.default,
     backgroundColor: colors.accent,
   },
   navLabel: {

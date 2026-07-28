@@ -1,5 +1,4 @@
 import { Redirect, Tabs, usePathname } from "expo-router";
-import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { useAuthStore } from "../../src/store/authStore";
@@ -15,13 +14,12 @@ import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import {
   hrefForNavigationItem,
   navigationItemsFor,
-  type NavigationIconProps,
 } from "../../src/navigation/manifest";
 import { GROUP_HREFS, ROUTES, TAB_ROUTE_KEYS } from "../../src/navigation/routes";
-
-const tabIcon = (Icon: ComponentType<NavigationIconProps>, color: string) => (
-  <Icon color={color} size={iconSizes.s22} strokeWidth={2.4} />
-);
+import {
+  AnimatedTabIcon,
+  AnimatedTabLabel,
+} from "../../src/components/AnimatedTabNavigation";
 
 export default function TabsLayout() {
   const { user, tenant, isLoading, refreshCurrentUser } = useAuthStore();
@@ -84,7 +82,6 @@ export default function TabsLayout() {
               },
           tabBarActiveTintColor: colors.inverse,
           tabBarInactiveTintColor: colors.inverseMeta,
-          tabBarLabelStyle: { fontSize: fontSizes.s11, fontWeight: fontWeights.semibold },
           headerShown: true,
           headerStyle: { backgroundColor: colors.surface },
           headerShadowVisible: false,
@@ -110,9 +107,22 @@ export default function TabsLayout() {
               options={{
                 title: route.title,
                 href: navigationItem ? hrefForNavigationItem(navigationItem) : null,
-                tabBarLabel: navigationItem?.label,
+                tabBarLabel: navigationItem
+                  ? ({ focused }) => (
+                      <AnimatedTabLabel
+                        focused={focused}
+                        label={navigationItem.label}
+                      />
+                    )
+                  : undefined,
                 tabBarIcon: navigationItem
-                  ? ({ color }) => tabIcon(navigationItem.Icon, color)
+                  ? ({ focused }) => (
+                      <AnimatedTabIcon
+                        Icon={navigationItem.Icon}
+                        focused={focused}
+                        itemId={navigationItem.id}
+                      />
+                    )
                   : undefined,
                 ...("hideHeaderBack" in route && route.hideHeaderBack
                   ? { headerLeft: () => null }

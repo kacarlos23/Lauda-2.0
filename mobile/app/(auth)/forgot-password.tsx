@@ -15,6 +15,8 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
 
   const handleForgotPassword = async () => {
+    if (loading) return;
+
     if (!email.trim()) {
       Alert.alert("Erro", "Por favor, insira seu e-mail.");
       return;
@@ -47,6 +49,9 @@ export default function ForgotPasswordScreen() {
         keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
+        returnKeyType="send"
+        submitBehavior="blurAndSubmit"
+        onSubmitEditing={() => void handleForgotPassword()}
         accessibilityLabel="E-mail"
       />
 

@@ -439,7 +439,7 @@ async function mockApi(
 async function login(page: Page, email = "ana@example.com", password = "secret123") {
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
-  await page.getByTestId("login-submit").click();
+  await page.getByTestId("login-password").press("Enter");
   await expect
     .poll(async () => {
       const storage = await page.evaluate(() => ({ ...window.localStorage }));
@@ -517,6 +517,31 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
   expect(JSON.stringify(storage)).not.toContain("secret123");
   expect(storage.auth_token).toBe(token);
   expect(storage.auth_tenant).toContain("Igreja Central");
+});
+
+test("anima a seleção entre a sidebar e as abas móveis", async ({ page }) => {
+  await login(page);
+
+  const activeRail = page.getByTestId("sidebar-active-rail");
+  await expect(activeRail).toBeVisible();
+  const initialRailPosition = await activeRail.boundingBox();
+
+  await page.getByTestId("sidebar-nav-ministries").click();
+  await expect(page).toHaveURL(/\/ministries$/);
+  await expect
+    .poll(async () => (await activeRail.boundingBox())?.y)
+    .not.toBe(initialRailPosition?.y);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const ministriesSelection = page.locator(
+    '[data-testid="mobile-tab-selection-ministries"]:visible'
+  ).first();
+  await expect(ministriesSelection).toHaveCSS("opacity", "1");
+
+  await page.getByRole("tab", { name: "Início" }).first().click();
+  await expect(
+    page.locator('[data-testid="mobile-tab-selection-home"]:visible').first()
+  ).toHaveCSS("opacity", "1");
 });
 
 test("admin global vê perfil, home e aba global com lista de igrejas", async ({ page }) => {
@@ -600,7 +625,7 @@ test("TENANT_ADMIN vê aba Igreja, contadores reais e edita nome", async ({ page
 
   await page.getByText("Editar").click();
   await page.getByLabel("Nome da igreja").fill("Igreja Renovada");
-  await page.getByText("Salvar").click();
+  await page.getByLabel("Nome da igreja").press("Enter");
 
   await expect.poll(() => patchPayload?.name).toBe("Igreja Renovada");
   await expect(page.getByText("Igreja Renovada")).toBeVisible();
@@ -850,12 +875,51 @@ test("valida cadastro e conclui fluxo de primeiro administrador", async ({ page 
   await page.getByTestId("register-email").fill("maria@example.com");
   await page.getByTestId("register-password").fill("secret123");
   await page.getByTestId("register-confirm").fill("secret123");
-  await page.getByTestId("register-submit").click();
+  await page.getByTestId("register-confirm").press("Enter");
 
   await expect(page.getByText("Maria Admin", { exact: true })).toBeVisible();
   const storage = await page.evaluate(() => ({ ...window.localStorage }));
   expect(JSON.stringify(storage)).not.toContain("secret123");
   expect(storage.auth_tenant).toContain("Igreja Central");
+});
+
+test("cadastra um novo membro ao pressionar Enter", async ({ page }) => {
+  let createPayload: { name?: string; email?: string } | undefined;
+  await page.route("**/api/members", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+
+    createPayload = route.request().postDataJSON() as {
+      name?: string;
+      email?: string;
+    };
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          ...memberUser,
+          id: "member-created-with-enter",
+          name: createPayload.name,
+          email: createPayload.email,
+        },
+      }),
+    });
+  });
+
+  await login(page);
+  await page.getByRole("button", { name: "Convidar membro" }).click();
+  await expect(page.getByText("Novo membro", { exact: true })).toBeVisible();
+  await page.getByPlaceholder("Nome completo").fill("Carlos Membro");
+  await page.getByPlaceholder("membro@suaigreja.com").fill("carlos@example.com");
+  await page.getByPlaceholder("Mínimo 6 caracteres").fill("secret123");
+  await page.getByPlaceholder("Mínimo 6 caracteres").press("Enter");
+
+  await expect.poll(() => createPayload?.email).toBe("carlos@example.com");
+  await expect(page.getByText("Membro cadastrado com sucesso.")).toBeVisible();
 });
 
 test("permite sair da conta e limpa a sessão local", async ({ page }) => {

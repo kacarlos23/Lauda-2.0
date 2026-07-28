@@ -88,6 +88,8 @@ export default function NewMemberScreen() {
   };
 
   const handleSubmit = async () => {
+    if (loading) return;
+
     const validationError = validate();
     if (validationError) {
       setError(validationError);
@@ -184,6 +186,9 @@ export default function NewMemberScreen() {
             secureTextEntry
             value={form.password}
             onChangeText={(value) => setField("password", value)}
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={() => void handleSubmit()}
           />
 
           <Text style={styles.label}>Tipo de usuário</Text>

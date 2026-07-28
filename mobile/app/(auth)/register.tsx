@@ -21,6 +21,8 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
+    if (loading) return;
+
     if (!churchName || !name || !email || !password) {
       Alert.alert("Atenção", "Preencha todos os campos obrigatórios");
       return;
@@ -121,6 +123,9 @@ export default function RegisterScreen() {
             secureTextEntry
             value={confirm}
             onChangeText={setConfirm}
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={() => void handleRegister()}
             accessibilityLabel="Confirmar senha"
             testID="register-confirm"
             containerStyle={styles.rowField}

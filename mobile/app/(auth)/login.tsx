@@ -32,6 +32,8 @@ export default function LoginScreen() {
   const currentError = localError ?? error;
 
   const handleLogin = async () => {
+    if (loading) return;
+
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!isValidEmail(normalizedEmail)) {
@@ -92,6 +94,9 @@ export default function LoginScreen() {
             setPassword(value);
             setLocalError(null);
           }}
+          returnKeyType="done"
+          submitBehavior="blurAndSubmit"
+          onSubmitEditing={() => void handleLogin()}
           accessibilityLabel="Senha"
           testID="login-password"
         />

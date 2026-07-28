@@ -47,6 +47,8 @@ export default function PublicMemberRegisterScreen() {
   }, [params.code]);
 
   const handleSubmit = async () => {
+    if (loading) return;
+
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedCode = normalizeInviteCode(inviteCode);
 
@@ -188,6 +190,9 @@ export default function PublicMemberRegisterScreen() {
             secureTextEntry
             value={confirm}
             onChangeText={setConfirm}
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={() => void handleSubmit()}
             accessibilityLabel="Confirmar senha"
             testID="member-register-confirm"
             containerStyle={styles.rowField}

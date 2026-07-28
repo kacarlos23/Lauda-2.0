@@ -211,6 +211,7 @@ export const motion = {
   resizeDebounceMs: 120,
   sidebarMs: 220,
   interactionMs: 160,
+  navigationSelectionMs: 220,
   sheetOpenMs: 300,
   sheetCloseMs: 250,
   reducedMs: 0.01,

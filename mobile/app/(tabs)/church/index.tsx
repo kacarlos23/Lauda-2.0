@@ -133,6 +133,9 @@ export default function ChurchAdminScreen() {
                       onChangeText={setName}
                       style={styles.input}
                       autoCapitalize="words"
+                      returnKeyType="done"
+                      submitBehavior="blurAndSubmit"
+                      onSubmitEditing={() => void handleSave()}
                       accessibilityLabel="Nome da igreja"
                     />
                   ) : (
