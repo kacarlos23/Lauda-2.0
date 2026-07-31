@@ -55,6 +55,13 @@ const SongRequestSchema = registry.register(
     content: z.string().min(1).max(100000).meta({ example: "[G]Grande é o [D]Senhor" }),
     bpm: z.number().int().min(30).max(300).nullable().optional(),
     comments: z.string().nullable().optional().meta({ description: "HTML sanitizado; máximo de 3.000 caracteres visíveis" }),
+    cifraUrl: z.string().url().nullable().optional(),
+    letraUrl: z.string().url().nullable().optional(),
+    audioUrl: z.string().url().nullable().optional(),
+    videoUrl: z.string().url().nullable().optional().meta({
+      description: "URL opcional de um vídeo individual do YouTube. Formas watch, youtu.be, shorts, embed e live são aceitas e armazenadas no formato canônico.",
+      example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    }),
   })
 );
 

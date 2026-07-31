@@ -22,6 +22,7 @@ import {
 } from "../theme";
 import { RichCommentEditor } from "./ui/RichCommentEditor";
 import { nav } from "../navigation/routes";
+import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 
 type Props = {
   initial?: Song;
@@ -71,6 +72,16 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     comments: initial?.comments ?? "",
   }), [initial]);
   const dirty = currentSnapshot !== initialSnapshot;
+  const legacyVideoIsUnchanged = Boolean(
+    initial?.videoUrl
+    && !extractYouTubeVideoId(initial.videoUrl)
+    && videoUrl.trim() === initial.videoUrl.trim()
+  );
+  const videoUrlInvalid = Boolean(
+    videoUrl.trim()
+    && !extractYouTubeVideoId(videoUrl)
+    && !legacyVideoIsUnchanged
+  );
 
   usePreventRemove(dirty && !submitted, ({ data }) => {
     Alert.alert("Descartar alterações?", "As alterações ainda não foram salvas.", [
@@ -87,9 +98,9 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
       ["Cifra", cifraUrl],
       ["Letra", letraUrl],
       ["Áudio", audioUrl],
-      ["Vídeo", videoUrl],
     ].find(([, url]) => typeof url === "string" && url.trim() && !isValidExternalLink(url));
     if (invalidLink) return `Informe uma URL válida para ${invalidLink[0]}, começando com http:// ou https://.`;
+    if (videoUrlInvalid) return "Informe um link válido de vídeo do YouTube.";
     return null;
   };
 
@@ -213,6 +224,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     setFormError(validation);
     if (validation || !artist) return;
     try {
+      const normalizedVideoUrl = normalizeLink(videoUrl);
       const songId = await onSave({
         title: title.trim(),
         artistId: artist.id,
@@ -223,7 +235,9 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
         cifraUrl: normalizeLink(cifraUrl),
         letraUrl: normalizeLink(letraUrl),
         audioUrl: normalizeLink(audioUrl),
-        videoUrl: normalizeLink(videoUrl),
+        ...(legacyVideoIsUnchanged
+          ? {}
+          : { videoUrl: normalizedVideoUrl ? canonicalizeYouTubeUrl(normalizedVideoUrl) : null }),
         comments: comments || null,
       });
       setSubmitted(true);
@@ -325,15 +339,27 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           <Text style={styles.label}>BPM</Text>
           <TextInput style={styles.input} value={bpm} onChangeText={setBpm} placeholder="Opcional (30 a 300)" placeholderTextColor={colors.muted} keyboardType="number-pad" testID="song-bpm-input" />
           <Text style={styles.sectionTitle}>Links externos</Text>
-          <Text style={styles.helperText}>Adicione links opcionais de cifra, letra, áudio e vídeo.</Text>
+          <Text style={styles.helperText}>Adicione links opcionais de cifra, letra, áudio e um vídeo do YouTube.</Text>
           <Text style={styles.label}>Cifra</Text>
           <TextInput style={styles.input} value={cifraUrl} onChangeText={setCifraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-cifra-url-input" />
           <Text style={styles.label}>Letra</Text>
           <TextInput style={styles.input} value={letraUrl} onChangeText={setLetraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-letra-url-input" />
           <Text style={styles.label}>Áudio</Text>
           <TextInput style={styles.input} value={audioUrl} onChangeText={setAudioUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-audio-url-input" />
-          <Text style={styles.label}>Vídeo</Text>
-          <TextInput style={styles.input} value={videoUrl} onChangeText={setVideoUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-video-url-input" />
+          <Text style={styles.label}>Vídeo do YouTube</Text>
+          <TextInput
+            accessibilityLabel="Vídeo do YouTube"
+            style={[styles.input, videoUrlInvalid && styles.inputInvalid]}
+            value={videoUrl}
+            onChangeText={setVideoUrl}
+            placeholder="https://www.youtube.com/watch?v=..."
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            testID="song-video-url-input"
+          />
+          {videoUrlInvalid ? <Text style={styles.fieldError}>Informe um link válido de vídeo do YouTube.</Text> : null}
           <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Observações sobre a música, execução ou repertório..." testID="song-comments-input" /></View>
           <TouchableOpacity style={styles.primaryButton} onPress={next} testID="song-next-button"><Text style={styles.primaryText}>Continuar para a cifra</Text></TouchableOpacity>
         </View>
@@ -390,6 +416,8 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginTop: spacing.md, marginBottom: spacing.sm },
   commentsEditor: { marginTop: spacing.md },
   input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
+  inputInvalid: { borderColor: colors.danger },
+  fieldError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   keyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   key: { minWidth: 45, height: controlSizes.medium, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   keyActive: { backgroundColor: colors.primary, borderColor: colors.primary },

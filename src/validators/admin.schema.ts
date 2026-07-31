@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { richTextCommentsSchema } from "./richText.schema";
 import { AssignmentStatus, PermissionEffect, Role } from "@prisma/client";
-import { MUSICAL_KEYS } from "./song.schema";
+import { MUSICAL_KEYS, youtubeVideoUrlSchema } from "./song.schema";
 import { adminResourceNames } from "../repositories/AdminRepository";
 import { legacyPermissionAliases, normalizePermissionKey, permissionDefinitions } from "../constants/permissions";
 
@@ -135,7 +135,7 @@ export const adminUpdateSongSchema = z.object({
   cifraUrl: externalLinkSchema,
   letraUrl: externalLinkSchema,
   audioUrl: externalLinkSchema,
-  videoUrl: externalLinkSchema,
+  videoUrl: youtubeVideoUrlSchema,
   artistId: z.string().uuid("artistId inválido").optional(),
 }).refine((input) => Object.keys(input).length > 0, "Informe ao menos um campo para atualizar");
 

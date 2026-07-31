@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 import { richTextCommentsSchema } from "./richText.schema";
 
 export const MUSICAL_KEYS = [
@@ -25,6 +26,18 @@ const externalLinkSchema = z.preprocess(
     .optional()
 );
 
+export const youtubeVideoUrlSchema = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || null : value,
+  z.string()
+    .refine(
+      (value) => extractYouTubeVideoId(value) !== null,
+      "Informe um link válido de vídeo do YouTube"
+    )
+    .transform((value) => canonicalizeYouTubeUrl(value)!)
+    .nullable()
+    .optional()
+);
+
 export const createSongSchema = z.object({
   title: z.string().trim().min(1, "O título é obrigatório").max(200),
   artistId: z.string().uuid("ID do artista inválido"),
@@ -36,7 +49,7 @@ export const createSongSchema = z.object({
   cifraUrl: externalLinkSchema,
   letraUrl: externalLinkSchema,
   audioUrl: externalLinkSchema,
-  videoUrl: externalLinkSchema,
+  videoUrl: youtubeVideoUrlSchema,
 });
 
 export const updateSongSchema = createSongSchema.partial().refine(

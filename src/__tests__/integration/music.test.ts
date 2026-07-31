@@ -70,8 +70,10 @@ const songLinks = {
   cifraUrl: "https://example.com/cifra",
   letraUrl: "https://example.com/letra",
   audioUrl: "https://example.com/audio",
-  videoUrl: "https://example.com/video",
+  videoUrl: "https://youtu.be/dQw4w9WgXcQ",
 };
+
+const canonicalVideoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine").withEnvironment({
@@ -231,7 +233,7 @@ describe("Artists and songs API", () => {
       .send({ ...songPayload(artist.id), ...songLinks })
       .expect(201);
 
-    expect(created.body.data).toMatchObject(songLinks);
+    expect(created.body.data).toMatchObject({ ...songLinks, videoUrl: canonicalVideoUrl });
 
     const updated = await request(app)
       .patch(`/api/songs/${created.body.data.id}`)
@@ -240,6 +242,7 @@ describe("Artists and songs API", () => {
         cifraUrl: "https://example.com/nova-cifra",
         letraUrl: null,
         audioUrl: "",
+        videoUrl: "https://www.youtube.com/shorts/dQw4w9WgXcQ",
       })
       .expect(200);
 
@@ -247,8 +250,16 @@ describe("Artists and songs API", () => {
       cifraUrl: "https://example.com/nova-cifra",
       letraUrl: null,
       audioUrl: null,
-      videoUrl: songLinks.videoUrl,
+      videoUrl: canonicalVideoUrl,
     });
+
+    const withoutVideo = await request(app)
+      .patch(`/api/songs/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ videoUrl: null })
+      .expect(200);
+
+    expect(withoutVideo.body.data.videoUrl).toBeNull();
   });
 
   it("rejeita links externos inválidos", async () => {
@@ -265,6 +276,26 @@ describe("Artists and songs API", () => {
       .post("/api/songs")
       .set("Authorization", `Bearer ${tenant.token}`)
       .send({ ...songPayload(artist.id), title: "FTP", cifraUrl: "ftp://example.com/cifra" })
+      .expect(400);
+
+    const otherDomain = await request(app)
+      .post("/api/songs")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Outro domínio", videoUrl: "https://example.com/youtube/dQw4w9WgXcQ" })
+      .expect(400);
+
+    expect(JSON.stringify(otherDomain.body)).toContain("Informe um link válido de vídeo do YouTube");
+
+    const validSong = await request(app)
+      .post("/api/songs")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "URL válida" })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/songs/${validSong.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ videoUrl: "youtube" })
       .expect(400);
   });
 

@@ -7,6 +7,7 @@ import Animated, { cancelAnimation, Easing, runOnJS, scrollTo, useAnimatedReacti
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { ChordSheetView } from "../../../src/components/ChordSheetView";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
+import { YouTubePlayerCard } from "../../../src/components/YouTubePlayerCard";
 import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
 import { RichCommentView } from "../../../src/components/ui/RichCommentView";
 import { musicService } from "../../../src/services/musicService";
@@ -27,6 +28,7 @@ import {
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import { getSongDetailViewState } from "../../../src/utils/songDetailState";
 import { nav } from "../../../src/navigation/routes";
+import { extractYouTubeVideoId } from "../../../src/utils/youtube";
 
 export default function SongDetailScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -74,6 +76,8 @@ export default function SongDetailScreen() {
   if (viewState.status === "loading") return <LoadingState message="Carregando música..." />;
   if (viewState.status === "error") return <View style={styles.center}><ErrorBanner message={viewState.message} style={styles.error} action={id ? <Button title="Tentar novamente" variant="secondary" onPress={() => loadSong(id)} /> : undefined} /><AppBackButton href={nav.songs} /></View>;
   const song = viewState.song;
+  const hasEmbeddedVideo = Boolean(song.videoUrl && extractYouTubeVideoId(song.videoUrl));
+  const externalLinks = hasEmbeddedVideo ? { ...song, videoUrl: null } : song;
 
   const exportPdf = async () => {
     setExporting(true);
@@ -107,7 +111,10 @@ export default function SongDetailScreen() {
     >
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
-      <View style={styles.detailLinks}><SongLinkButtons links={song} centered /></View>
+      <View style={styles.mediaSection}>
+        <SongLinkButtons links={externalLinks} centered />
+        {hasEmbeddedVideo && song.videoUrl ? <YouTubePlayerCard videoUrl={song.videoUrl} title={song.title} /> : null}
+      </View>
       {song.comments ? <View style={styles.commentsCard}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={song.comments} /></View> : null}
       <View style={styles.controlToolbar}>
         <View style={styles.controls}>
@@ -136,7 +143,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background }, center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   top: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.line }, topActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm }, icon: { width: controlSizes.default, height: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   content: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding }, title: { color: colors.ink, fontSize: fontSizes.s34, fontWeight: fontWeights.extrabold }, artist: { color: colors.primary, fontSize: fontSizes.s17, fontWeight: fontWeights.bold, marginTop: spacing.xs }, metadata: { flexDirection: "row", flexWrap: "wrap", marginVertical: spacing.md, gap: spacing.md }, meta: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold },
-  detailLinks: { alignItems: "flex-start", paddingBottom: spacing.lg, marginBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  mediaSection: { alignItems: "flex-start", gap: spacing.md, paddingBottom: spacing.lg, marginBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
   commentsCard: { marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line }, commentsTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, letterSpacing: 0.7, textTransform: "uppercase", marginBottom: spacing.sm },
   controlToolbar: { position: Platform.OS === "web" ? "sticky" as any : "relative", top: 0, zIndex: zIndices.sticky, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.background },
   controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm }, control: { minHeight: controlSizes.default, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: fontWeights.extrabold }, keyControl: { minWidth: 72, minHeight: controlSizes.default, alignItems: "center", justifyContent: "center" }, currentKey: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black }, reset: { color: colors.muted, fontSize: fontSizes.s9 }, controlValue: { color: colors.text, fontWeight: fontWeights.bold },

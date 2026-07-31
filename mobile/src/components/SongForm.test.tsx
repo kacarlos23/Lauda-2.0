@@ -225,4 +225,63 @@ describe("SongForm Cifra Club import", () => {
     await act(async () => renderer!.root.findByProps({ testID: "song-save-button" }).props.onPress());
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: "Canção Nova", artistId: "artist-new" }));
   });
+
+  it("mantém os campos e exibe erro específico para um vídeo que não é do YouTube", async () => {
+    const onSave = jest.fn().mockResolvedValue("song-1");
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<SongForm saving={false} onSave={onSave} backHref="/songs" />);
+    });
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "artist-picker" }).props.onPress();
+      renderer!.root.findByProps({ testID: "song-title-input" }).props.onChangeText("Canção");
+      renderer!.root.findByProps({ testID: "song-video-url-input" }).props.onChangeText("https://example.com/video");
+    });
+    await act(async () => renderer!.root.findByProps({ testID: "song-next-button" }).props.onPress());
+
+    expect(renderer!.root.findByProps({ testID: "song-title-input" }).props.value).toBe("Canção");
+    expect(renderer!.root.findAllByType(Text).map((node: TestNode) => node.props.children).join(" "))
+      .toContain("Informe um link válido de vídeo do YouTube.");
+    expect(onSave).not.toHaveBeenCalled();
+
+    act(() => renderer!.root.findByProps({ testID: "song-video-url-input" }).props.onChangeText("https://youtu.be/dQw4w9WgXcQ"));
+    await act(async () => renderer!.root.findByProps({ testID: "song-next-button" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText("[C]Canção"));
+    await act(async () => renderer!.root.findByProps({ testID: "song-save-button" }).props.onPress());
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    }));
+  });
+
+  it("preserva uma URL de vídeo legada quando outros campos são editados", async () => {
+    const onSave = jest.fn().mockResolvedValue("song-legacy");
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <SongForm
+          initial={{
+            id: "song-legacy",
+            title: "Canção legada",
+            originalKey: "C",
+            content: "[C]Canção",
+            videoUrl: "https://example.com/video-antigo",
+            artistId: "artist-1",
+            artist: { id: "artist-1", name: "Artista", imageUrl: null },
+            createdAt: "",
+            updatedAt: "",
+          }}
+          saving={false}
+          onSave={onSave}
+          backHref="/songs/song-legacy"
+        />
+      );
+    });
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText("[C]Canção atualizada"));
+    await act(async () => renderer!.root.findByProps({ testID: "song-save-button" }).props.onPress());
+
+    expect(onSave).toHaveBeenCalled();
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty("videoUrl");
+  });
 });
