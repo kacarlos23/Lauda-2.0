@@ -1,6 +1,9 @@
 @echo off
 setlocal EnableExtensions
 
+set "HEADLESS=0"
+if /I "%~1"=="--headless" set "HEADLESS=1"
+
 set "PROJECT_DIR=%~dp0"
 set "TUNNEL_NAME=laudaapp-local"
 set "TUNNEL_CONFIG=%USERPROFILE%\.cloudflared\laudaapp-local.yml"
@@ -21,6 +24,10 @@ if not exist "scripts\start-project.ps1" (
 )
 if not exist "scripts\setup-cloudflare-tunnel.ps1" (
   echo [ERRO] Arquivo nao encontrado: scripts\setup-cloudflare-tunnel.ps1
+  goto :failure
+)
+if not exist "scripts\start-cloudflare-tunnel.ps1" (
+  echo [ERRO] Arquivo nao encontrado: scripts\start-cloudflare-tunnel.ps1
   goto :failure
 )
 if not exist "package.json" (
@@ -66,7 +73,7 @@ if errorlevel 1 (
 echo [OK] Arquivos, comandos e dependencias validados.
 
 echo.
-echo [2/5] Verificando DB, backend e frontend...
+echo [2/5] Verificando PostgreSQL, Redis, backend e frontend...
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start-project.ps1" -PublicApiUrl "%PUBLIC_API_URL%" -TrustProxyHops 1 -StaticFrontend -RestartBackend
 if errorlevel 1 (
   echo.
@@ -101,22 +108,10 @@ if errorlevel 1 (
 
 echo.
 echo [4/5] Verificando se o Cloudflare Tunnel ja esta rodando...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$process = Get-CimInstance Win32_Process -Filter \"name = 'cloudflared.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*laudaapp-local*' }; if ($process) { exit 0 } else { exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start-cloudflare-tunnel.ps1" -TunnelName "%TUNNEL_NAME%" -ConfigPath "%TUNNEL_CONFIG%"
 if errorlevel 1 (
-  echo Cloudflare Tunnel nao esta rodando. Iniciando em uma nova janela...
-  start "Lauda App - Cloudflare Tunnel" /D "%PROJECT_DIR%" cloudflared.exe tunnel --config "%TUNNEL_CONFIG%" run "%TUNNEL_NAME%"
-  if errorlevel 1 (
-    echo [ERRO] Nao foi possivel iniciar o Cloudflare Tunnel.
-    goto :failure
-  )
-
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(15); do { $process = Get-CimInstance Win32_Process -Filter \"name = 'cloudflared.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*laudaapp-local*' }; if ($process) { exit 0 }; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
-  if errorlevel 1 (
-    echo [ERRO] O processo do Cloudflare Tunnel nao permaneceu em execucao.
-    goto :failure
-  )
-) else (
-  echo Cloudflare Tunnel ja esta rodando.
+  echo [ERRO] Nao foi possivel iniciar o Cloudflare Tunnel em background.
+  goto :failure
 )
 
 echo.
@@ -144,13 +139,15 @@ echo Acesse:
 echo   https://laudaapp.com
 echo   https://api.laudaapp.com/health
 echo.
-echo Para derrubar o acesso publico, feche a janela "Lauda App - Cloudflare Tunnel".
+echo O Cloudflare Tunnel esta oculto. Logs:
+echo   cloudflare-tunnel.out.log
+echo   cloudflare-tunnel.err.log
 echo.
-pause
+if "%HEADLESS%"=="0" pause
 exit /b 0
 
 :failure
 echo.
 echo Inicializacao interrompida.
-pause
+if "%HEADLESS%"=="0" pause
 exit /b 1

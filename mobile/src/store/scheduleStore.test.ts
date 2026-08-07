@@ -128,7 +128,7 @@ describe("scheduleStore", () => {
       date: "2099-01-03T12:00:00.000Z",
       ministryId: "ministry-1",
       songIds: ["song-1"],
-      assignments: [{ userId: "user-1", role: "Vocal", status: "PENDING" as const }],
+      assignments: [{ userId: "user-1", role: "Vocal" }],
     };
     const updated = { ...schedule.schedule, title: payload.title, date: payload.date };
     useScheduleStore.setState({ allSchedules: [schedule.schedule] });

@@ -184,7 +184,7 @@ export const scheduleService = {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
-    assignments: Array<{ userId: string; role: string; status?: AssignmentStatus }>;
+    assignments: Array<{ userId: string; role: string }>;
   }): Promise<Schedule> {
     try {
       const response = await api.patch<ApiResponse<Schedule>>(`/schedules/${id}`, payload);

@@ -47,10 +47,12 @@ jest.mock("react-native", () => {
   const create = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
   return {
     ActivityIndicator: create("ActivityIndicator"),
+    Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
     ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
     StyleSheet: { create: (styles: any) => styles },
     Text: create("Text"),
+    TextInput: create("TextInput"),
     TouchableOpacity: create("TouchableOpacity"),
     View: create("View"),
   };

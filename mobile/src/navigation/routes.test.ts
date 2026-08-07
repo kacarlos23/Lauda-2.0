@@ -29,7 +29,7 @@ import {
   titleForPathname,
   type RouteKey,
 } from "./routes";
-import { navigationItemsFor } from "./manifest";
+import { activeMobileTabIndex, navigationItemsFor } from "./manifest";
 
 const SAMPLE_ID = "123e4567-e89b-12d3-a456-426614174000";
 const routeEntries = Object.entries(ROUTES) as Array<[RouteKey, (typeof ROUTES)[RouteKey]]>;
@@ -131,5 +131,21 @@ describe("manifesto de navegação por papel", () => {
     ["MEMBER", ["profile"]],
   ] as const)("preserva os atalhos Mais de %s", (role, expectedRoutes) => {
     expect(navigationItemsFor("mobile-more", subjects[role]).map((item) => item.route)).toEqual(expectedRoutes);
+  });
+
+  it("mantém a seleção mobile nas rotas internas e nos atalhos de Mais", () => {
+    const user = subjects.TENANT_ADMIN;
+    const tabs = navigationItemsFor("mobile-tab", user);
+    const moreItems = navigationItemsFor("mobile-more", user);
+    const selectedId = (pathname: string) => tabs[
+      activeMobileTabIndex(pathname, tabs, moreItems)
+    ]?.id;
+
+    expect(selectedId("/songs/song-1")).toBe("songs");
+    expect(selectedId("/schedules/schedule-1/edit")).toBe("schedules");
+    expect(selectedId("/ministries/ministry-1/members")).toBe("ministries");
+    expect(selectedId("/profile")).toBe("more");
+    expect(selectedId("/members/new")).toBe("more");
+    expect(selectedId("/rota-inexistente")).toBeUndefined();
   });
 });

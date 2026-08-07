@@ -120,6 +120,15 @@ async function createUserAndLogin(seed: string, tenantId: string, role: "MEMBER"
     },
   });
 
+  for (const roleName of ["Vocal", "Vocalista", "Violão", "ViolÃ£o", "Baixo", "Bateria"]) {
+    const instrument = await prisma.instrument.upsert({
+      where: { tenantId_name: { tenantId, name: roleName } },
+      update: { isActive: true, deletedAt: null },
+      create: { tenantId, name: roleName, colorHex: "#1F6F55" },
+    });
+    await prisma.userInstrument.create({ data: { tenantId, userId: user.id, instrumentId: instrument.id } });
+  }
+
   const login = await request(app)
     .post("/api/auth/login")
     .send({ email: user.email, password: "secret123" })
@@ -155,6 +164,141 @@ beforeAll(async () => {
   const prismaModule = await import("../../config/prisma");
   app = appModule.default;
   prisma = prismaModule.prisma;
+});
+
+describe("Schedule notification pipeline", () => {
+  it("persiste outbox atomicamente, projeta inbox, lê notificações e usa ticket único", async () => {
+    const tenant = await registerTenant("notifications");
+    const ministry = await createMinistry(tenant.token, "Louvor Notificações");
+    const member = await createUserAndLogin("notifications-member", tenant.tenant.id);
+
+    const invalidSchedulesBefore = await prisma.schedule.count({ where: { tenantId: tenant.tenant.id } });
+    const invalidEventsBefore = await prisma.domainEventOutbox.count({ where: { tenantId: tenant.tenant.id } });
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ title: "Rollback", date: "2026-05-08T13:00:00.000Z", ministryId: ministry.id, assignments: [{ userId: member.user.id, role: "Inexistente" }] })
+      .expect(400);
+    expect(await prisma.schedule.count({ where: { tenantId: tenant.tenant.id } })).toBe(invalidSchedulesBefore);
+    expect(await prisma.domainEventOutbox.count({ where: { tenantId: tenant.tenant.id } })).toBe(invalidEventsBefore);
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala notificada",
+        date: "2026-05-08T13:00:00.000Z",
+        ministryId: ministry.id,
+        assignments: [{ userId: member.user.id, role: "Vocal" }],
+      })
+      .expect(201);
+
+    const event = await prisma.domainEventOutbox.findFirst({ where: { aggregateId: created.body.data.id, type: "schedule.created" } });
+    expect(event).toBeTruthy();
+    expect(await prisma.schedule.findUnique({ where: { id: created.body.data.id } })).toBeTruthy();
+
+    const { processOutboxOnce } = await import("../../events/domainEvents");
+    await processOutboxOnce();
+
+    const inbox = await request(app)
+      .get("/api/notifications?limit=1&unreadOnly=true")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect(inbox.body.data.unreadCount).toBe(1);
+    expect(inbox.body.data.items[0]).toMatchObject({ type: "SCHEDULE_ASSIGNED", resourceId: created.body.data.id, readAt: null });
+
+    const notificationId = inbox.body.data.items[0].id as string;
+    await request(app)
+      .patch(`/api/notifications/${notificationId}/read`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    const readInbox = await request(app)
+      .get("/api/notifications")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect(readInbox.body.data.unreadCount).toBe(0);
+    expect(readInbox.body.data.items[0].readAt).toEqual(expect.any(String));
+
+    for (const title of ["Escala notificada — ajuste 1", "Escala notificada — ajuste 2"]) {
+      await request(app)
+        .patch(`/api/schedules/${created.body.data.id}`)
+        .set("Authorization", `Bearer ${tenant.token}`)
+        .send({
+          title,
+          date: "2026-05-08T13:00:00.000Z",
+          ministryId: ministry.id,
+          songIds: [],
+          assignments: [{ userId: member.user.id, role: "Vocal" }],
+        })
+        .expect(200);
+    }
+    await processOutboxOnce();
+    await processOutboxOnce();
+    expect(await prisma.notification.count({ where: { tenantId: tenant.tenant.id, userId: member.user.id } })).toBe(3);
+
+    const firstPage = await request(app)
+      .get("/api/notifications?limit=1")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect(firstPage.body.data.items).toHaveLength(1);
+    expect(firstPage.body.data.nextCursor).toEqual(expect.any(String));
+    expect(firstPage.body.data.items[0].payload.changedFields).toEqual(["title"]);
+    const secondPage = await request(app)
+      .get(`/api/notifications?limit=1&cursor=${encodeURIComponent(firstPage.body.data.nextCursor)}`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect(secondPage.body.data.items[0].id).not.toBe(firstPage.body.data.items[0].id);
+
+    await request(app)
+      .patch(`/api/schedules/${created.body.data.id}/assignments/${created.body.data.assignments[0].id}/status`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .send({ status: "ACCEPTED" })
+      .expect(200);
+    await processOutboxOnce();
+    const managerInbox = await request(app)
+      .get("/api/notifications?unreadOnly=true")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(managerInbox.body.data.items[0]).toMatchObject({ type: "ASSIGNMENT_ACCEPTED", resourceId: created.body.data.id });
+
+    await request(app)
+      .post("/api/notifications/read-all")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect((await request(app).get("/api/notifications").set("Authorization", `Bearer ${member.token}`).expect(200)).body.data.unreadCount).toBe(0);
+
+    const ticketResponse = await request(app)
+      .post("/api/notifications/realtime-ticket")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(201);
+    const { consumeRealtimeTicket } = await import("../../realtime/realtimeHub");
+    const identity = await consumeRealtimeTicket(ticketResponse.body.data.ticket);
+    expect(identity).toMatchObject({ userId: member.user.id, tenantId: tenant.tenant.id });
+    expect(await consumeRealtimeTicket(ticketResponse.body.data.ticket)).toBeNull();
+
+    const expiringTicket = await request(app)
+      .post("/api/notifications/realtime-ticket")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(201);
+    const now = Date.now();
+    const dateNow = jest.spyOn(Date, "now").mockReturnValue(now + 24 * 60 * 60 * 1000);
+    try {
+      expect(await consumeRealtimeTicket(expiringTicket.body.data.ticket)).toBeNull();
+    } finally {
+      dateNow.mockRestore();
+    }
+
+    const device = await request(app)
+      .post("/api/notifications/devices")
+      .set("Authorization", `Bearer ${member.token}`)
+      .send({ expoPushToken: "ExpoPushToken[test-device-token]", platform: "ANDROID", appVersion: "1.0.0" })
+      .expect(201);
+    await request(app)
+      .delete(`/api/notifications/devices/${device.body.data.id}`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+    expect(await prisma.pushDevice.findUnique({ where: { id: device.body.data.id } })).toMatchObject({ enabled: false });
+  });
 });
 
 beforeEach(async () => {
@@ -303,6 +447,90 @@ describe("POST /api/schedules", () => {
       songs: [{ songId: song.id }],
       assignments: [{ userId: member.user.id, role: "Vocal" }],
     });
+  });
+
+  it("exige função e rejeita função que não pertence ao perfil do membro", async () => {
+    const tenant = await registerTenant("assignment-role-validation");
+    const ministry = await createMinistry(tenant.token, "Louvor Validação");
+    const member = await createUserAndLogin("role-validation-member", tenant.tenant.id);
+
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Sem função",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        assignments: [{ userId: member.user.id }],
+      })
+      .expect(400);
+
+    const invalid = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Função incompatível",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        assignments: [{ userId: member.user.id, role: "Regência exclusiva" }],
+      })
+      .expect(400);
+
+    expect(invalid.body.error).toContain("não está vinculada ao perfil");
+  });
+
+  it("preserva atribuição histórica e reinicia a resposta somente ao trocar a função", async () => {
+    const tenant = await registerTenant("assignment-history");
+    const ministry = await createMinistry(tenant.token, "Louvor Histórico");
+    const member = await createUserAndLogin("history-member", tenant.tenant.id);
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala histórica",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        assignments: [{ userId: member.user.id, role: "Vocal" }],
+      })
+      .expect(201);
+    const original = created.body.data.assignments[0];
+
+    await request(app)
+      .patch(`/api/schedules/${created.body.data.id}/assignments/${original.id}/status`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .send({ status: "ACCEPTED" })
+      .expect(200);
+
+    const vocalLink = await prisma.userInstrument.findFirstOrThrow({
+      where: { userId: member.user.id, instrument: { name: "Vocal" } },
+    });
+    await prisma.userInstrument.update({ where: { id: vocalLink.id }, data: { isActive: false, deletedAt: new Date() } });
+
+    const preserved = await request(app)
+      .patch(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala histórica ajustada",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [],
+        assignments: [{ userId: member.user.id, role: "Vocal" }],
+      })
+      .expect(200);
+    expect(preserved.body.data.assignments[0]).toMatchObject({ id: original.id, role: "Vocal", status: "ACCEPTED" });
+
+    const changed = await request(app)
+      .patch(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala histórica ajustada",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [],
+        assignments: [{ userId: member.user.id, role: "Baixo" }],
+      })
+      .expect(200);
+    expect(changed.body.data.assignments[0]).toMatchObject({ id: original.id, role: "Baixo", status: "PENDING", declineReason: null });
   });
 
   it("gera PDF do relatório da escala com músicas e membros", async () => {
@@ -707,6 +935,7 @@ describe("Schedule assignments", () => {
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("my-schedules-a", tenant.tenant.id);
     const memberB = await createUserAndLogin("my-schedules-b", tenant.tenant.id);
+    const song = await createSong(tenant.tenant.id, "Canção da agenda");
 
     const scheduleA = await request(app)
       .post("/api/schedules")
@@ -715,6 +944,7 @@ describe("Schedule assignments", () => {
         title: "Escala A",
         date: "2026-05-09T13:00:00.000Z",
         ministryId: ministry.id,
+        songIds: [song.id],
       })
       .expect(201);
 
@@ -752,6 +982,7 @@ describe("Schedule assignments", () => {
       schedule: {
         title: "Escala A",
         ministry: { id: ministry.id, name: "Louvor" },
+        songs: [{ songId: song.id, song: { id: song.id, title: "Canção da agenda", originalKey: "G", bpm: null } }],
       },
     });
   });

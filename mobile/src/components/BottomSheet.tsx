@@ -44,7 +44,7 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
   useEffect(() => {
     if (isOpen) {
       setModalVisible(true);
-      Animated.parallel([
+      const animation = Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
           duration: motion.sheetOpenMs,
@@ -55,9 +55,13 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
           duration: motion.sheetOpenMs,
           useNativeDriver: true,
         }),
-      ]).start();
-    } else {
-      Animated.parallel([
+      ]);
+      animation.start();
+      return () => animation.stop();
+    }
+
+    if (modalVisible) {
+      const animation = Animated.parallel([
         Animated.timing(translateY, {
           toValue: SCREEN_HEIGHT,
           duration: motion.sheetCloseMs,
@@ -68,10 +72,14 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
           duration: motion.sheetCloseMs,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        setModalVisible(false);
+      ]);
+      animation.start(({ finished }) => {
+        if (finished) setModalVisible(false);
       });
+      return () => animation.stop();
     }
+
+    return undefined;
   }, [isOpen, translateY, opacity]);
 
   const panResponder = useRef(

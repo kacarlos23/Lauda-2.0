@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   CalendarClock,
@@ -30,6 +30,7 @@ import {
   fontWeights,
   iconSizes,
   lineHeights,
+  overlays,
   radii,
   spacing,
   typography,
@@ -48,6 +49,7 @@ import { canManageMusic } from "../../src/utils/musicPermissions";
 import { canManageInstrumentCatalog } from "../../src/utils/instrumentCatalog";
 import { canCreateSchedule } from "../../src/utils/schedulePermissions";
 import { nav } from "../../src/navigation/routes";
+import { ScheduleAssignment } from "../../src/types";
 
 const TEXT = {
   userFallback: "Usuário",
@@ -80,7 +82,11 @@ const TEXT = {
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, tenant } = useAuthStore();
-  const { schedules, loading, error, loadMySchedules } = useScheduleStore();
+  const { schedules, loading, error, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [requestSubstitute, setRequestSubstitute] = useState(false);
   const { members, loading: membersLoading, loadMembers } = useMemberStore();
   const firstName = user?.name?.split(" ")[0] ?? TEXT.userFallback;
   const pendingCount = countPendingSchedules(schedules);
@@ -107,6 +113,24 @@ export default function DashboardScreen() {
       void loadMembers();
     }
   }, [canSeeMembers, loadMembers, members.length]);
+
+  const respond = async (assignment: ScheduleAssignment, status: "ACCEPTED" | "DECLINED", options?: { declineReason?: string; requestSubstitute?: boolean }) => {
+    setUpdatingId(assignment.id);
+    try {
+      await updateScheduleStatus(assignment.scheduleId, assignment.id, status, options);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const submitDecline = async () => {
+    if (!declineAssignment) return;
+    const assignment = declineAssignment;
+    setDeclineAssignment(null);
+    await respond(assignment, "DECLINED", { declineReason: declineReason.trim() || undefined, requestSubstitute });
+    setDeclineReason("");
+    setRequestSubstitute(false);
+  };
 
   const quickActions = [
     canCreateSchedules
@@ -176,6 +200,22 @@ export default function DashboardScreen() {
   ].filter(Boolean);
 
   return (
+    <>
+    <Modal visible={Boolean(declineAssignment)} transparent animationType="fade" onRequestClose={() => setDeclineAssignment(null)}>
+      <View style={styles.modalBackdrop}><View style={styles.modalCard}>
+        <Text style={styles.modalTitle}>Recusar escala</Text>
+        <Text style={styles.modalText}>O motivo é opcional. Você também pode solicitar um substituto.</Text>
+        <TextInput style={styles.reasonInput} value={declineReason} onChangeText={setDeclineReason} placeholder="Motivo da recusa" placeholderTextColor={colors.muted} multiline />
+        <TouchableOpacity style={styles.checkRow} onPress={() => setRequestSubstitute((current) => !current)} accessibilityRole="checkbox" accessibilityState={{ checked: requestSubstitute }}>
+          <View style={[styles.checkbox, requestSubstitute && styles.checkboxActive]} />
+          <Text style={styles.checkText}>Solicitar substituto</Text>
+        </TouchableOpacity>
+        <View style={styles.modalActions}>
+          <Button title="Cancelar" variant="secondary" onPress={() => setDeclineAssignment(null)} />
+          <Button title="Confirmar recusa" onPress={() => void submitDecline()} />
+        </View>
+      </View></View>
+    </Modal>
     <Screen scroll>
       <View style={styles.pageHeader}>
         <Text style={styles.eyebrow}>Hoje</Text>
@@ -297,17 +337,26 @@ export default function DashboardScreen() {
           {loading && schedules.length === 0 ? (
             <LoadingState centered={false} style={styles.inlineLoading} />
           ) : pendingSchedules.length ? (
-            <View>
+            <View style={styles.pendingList}>
               {pendingSchedules.map((assignment) => (
-                <View key={assignment.id} style={styles.listRow}>
-                  <View style={styles.rowMarker}><ClipboardList color={colors.primary} size={iconSizes.s16} strokeWidth={2} /></View>
-                  <View style={styles.rowCopy}>
-                    <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
-                    <Text style={styles.itemMeta}>
-                      {assignment.role || TEXT.roleNotInformed} · {formatScheduleDate(assignment.schedule.date)}
-                    </Text>
+                <View key={assignment.id} style={styles.pendingCard}>
+                  <View style={styles.pendingHeader}>
+                    <View style={styles.rowMarker}><ClipboardList color={colors.primary} size={iconSizes.s16} strokeWidth={2} /></View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.itemTitle}>{assignment.schedule.title}</Text>
+                      <Text style={styles.itemMeta}>{assignment.schedule.ministry?.name ?? TEXT.noMinistry} · {formatScheduleDate(assignment.schedule.date)}</Text>
+                    </View>
+                    <ScheduleStatusBadge status={assignment.status} />
                   </View>
-                  <ScheduleStatusBadge status={assignment.status} />
+                  <View style={styles.roleRow}>
+                    <Text style={styles.roleCaption}>Sua função</Text>
+                    <Text style={styles.roleValue}>{assignment.role}</Text>
+                  </View>
+                  <View style={styles.pendingActions}>
+                    <Button title={updatingId === assignment.id ? "Atualizando..." : "Aceitar"} size="sm" disabled={updatingId === assignment.id} onPress={() => void respond(assignment, "ACCEPTED")} />
+                    <Button title="Recusar" variant="ghost" size="sm" disabled={updatingId === assignment.id} onPress={() => setDeclineAssignment(assignment)} />
+                    <Button title="Ver escala" variant="secondary" size="sm" onPress={() => router.push({ pathname: nav.schedules, params: { date: assignment.schedule.date.slice(0, 10), scheduleId: assignment.schedule.id } } as any)} />
+                  </View>
                 </View>
               ))}
             </View>
@@ -411,6 +460,7 @@ export default function DashboardScreen() {
         <Text style={styles.ministryArrow}>›</Text>
       </TouchableOpacity>
     </Screen>
+    </>
   );
 }
 
@@ -565,6 +615,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   panelHeader: { marginBottom: spacing.sm },
+  pendingList: { gap: spacing.sm },
+  pendingCard: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md },
+  pendingHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  roleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.sm },
+  roleCaption: { ...typography.metadata, color: colors.muted },
+  roleValue: { ...typography.label, color: colors.primary },
+  pendingActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   listRow: {
     minHeight: 60,
     flexDirection: "row",
@@ -608,6 +665,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   inlineLoading: { alignItems: "flex-start", paddingVertical: spacing.lg },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: overlays.modal, padding: spacing.lg },
+  modalCard: { width: "100%", maxWidth: 480, borderRadius: radii.lg, backgroundColor: colors.surface, padding: spacing.xl },
+  modalTitle: { color: colors.ink, fontSize: fontSizes.s20, fontWeight: fontWeights.bold },
+  modalText: { ...typography.body, color: colors.muted, marginTop: spacing.xs },
+  reasonInput: { minHeight: 96, marginTop: spacing.lg, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing.md, color: colors.ink, textAlignVertical: "top" },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radii.sm },
+  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkText: { ...typography.body, color: colors.ink },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg },
   attentionSection: {
     borderTopWidth: 1,
     borderBottomWidth: 1,

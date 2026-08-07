@@ -51,6 +51,7 @@ jest.mock("react-native", () => {
   return {
     ActivityIndicator: create("ActivityIndicator"),
     Alert: { alert: jest.fn() },
+    Image: create("Image"),
     FlatList: ({ data, renderItem, ListHeaderComponent, ListEmptyComponent, ...props }: any) => React.createElement(
       "FlatList",
       props,
@@ -79,6 +80,7 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
+  useLocalSearchParams: () => ({}),
   useFocusEffect: (callback: () => void) => callback(),
 }));
 
@@ -95,7 +97,7 @@ jest.mock("../hooks/useResponsiveLayout", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { CalendarClock: Icon, Copy: Icon, Download: Icon, Edit3: Icon, Plus: Icon, Search: Icon, SlidersHorizontal: Icon, X: Icon };
+  return { CalendarClock: Icon, ChevronDown: Icon, ChevronUp: Icon, Copy: Icon, Download: Icon, Edit3: Icon, Music2: Icon, Plus: Icon, Search: Icon, SlidersHorizontal: Icon, Trash2: Icon, X: Icon };
 });
 
 jest.mock("../services/scheduleService", () => ({

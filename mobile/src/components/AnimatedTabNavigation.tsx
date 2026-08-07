@@ -1,14 +1,36 @@
-import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
-import type { NavigationIconProps } from "../navigation/manifest";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
+import { usePathname } from "expo-router";
+import {
+  activeMobileTabIndex,
+  type NavigationIconProps,
+  type NavigationItem,
+} from "../navigation/manifest";
 import {
   colors,
+  controlSizes,
   fontSizes,
   fontWeights,
   iconSizes,
   motion,
+  overlays,
+  radii,
 } from "../theme";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+
+const MOBILE_TAB_BUBBLE_SIZE = 68;
+
+type AnimatedTabBubbleProps = {
+  tabItems: readonly NavigationItem[];
+  moreItems: readonly NavigationItem[];
+};
 
 type AnimatedTabIconProps = {
   Icon: React.ComponentType<NavigationIconProps>;
@@ -19,6 +41,7 @@ type AnimatedTabIconProps = {
 type AnimatedTabLabelProps = {
   focused: boolean;
   label: string;
+  itemId: string;
 };
 
 function useSelectionProgress(selected: boolean) {
@@ -35,6 +58,133 @@ function useSelectionProgress(selected: boolean) {
   }, [progress, reducedMotion, selected]);
 
   return progress;
+}
+
+export function AnimatedTabBubble({
+  tabItems,
+  moreItems,
+}: AnimatedTabBubbleProps) {
+  const pathname = usePathname();
+  const activeIndex = activeMobileTabIndex(pathname, tabItems, moreItems);
+  const itemCount = tabItems.length;
+  const [trackWidth, setTrackWidth] = useState(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const scaleX = useRef(new Animated.Value(1)).current;
+  const scaleY = useRef(new Animated.Value(1)).current;
+  const initialized = useRef(false);
+  const previousLayout = useRef({ width: 0, itemCount: 0 });
+  const reducedMotion = useReducedMotion();
+  const visible = activeIndex >= 0 && activeIndex < itemCount && itemCount > 0;
+
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextWidth = Math.round(event.nativeEvent.layout.width);
+    setTrackWidth((current) => current === nextWidth ? current : nextWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!visible || trackWidth <= 0) return undefined;
+
+    const itemWidth = trackWidth / itemCount;
+    const target = itemWidth * activeIndex + (itemWidth - MOBILE_TAB_BUBBLE_SIZE) / 2;
+    const layoutChanged = previousLayout.current.width !== trackWidth
+      || previousLayout.current.itemCount !== itemCount;
+    previousLayout.current = { width: trackWidth, itemCount };
+
+    if (!initialized.current || layoutChanged || reducedMotion) {
+      translateX.stopAnimation();
+      scaleX.stopAnimation();
+      scaleY.stopAnimation();
+      translateX.setValue(target);
+      scaleX.setValue(1);
+      scaleY.setValue(1);
+      initialized.current = true;
+      return undefined;
+    }
+
+    const stretchDuration = Math.round(motion.navigationSelectionMs * 0.35);
+    const animation = Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: target,
+        duration: motion.navigationSelectionMs,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scaleX, {
+            toValue: 1.14,
+            duration: stretchDuration,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleY, {
+            toValue: 0.92,
+            duration: stretchDuration,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scaleX, {
+            toValue: 1,
+            duration: stretchDuration,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleY, {
+            toValue: 1,
+            duration: stretchDuration,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]);
+
+    animation.start(({ finished }) => {
+      if (!finished) return;
+      translateX.setValue(target);
+      scaleX.setValue(1);
+      scaleY.setValue(1);
+    });
+    return () => animation.stop();
+  }, [
+    activeIndex,
+    itemCount,
+    reducedMotion,
+    scaleX,
+    scaleY,
+    trackWidth,
+    translateX,
+    visible,
+  ]);
+
+  return (
+    <View
+      style={styles.bubbleTrack}
+      onLayout={handleLayout}
+      pointerEvents="none"
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {visible && trackWidth > 0 ? (
+        <Animated.View
+          style={[
+            styles.selectionBubble,
+            {
+              transform: [
+                { translateX },
+                { scaleX },
+                { scaleY },
+              ],
+            },
+          ]}
+          testID="mobile-tab-bubble"
+        />
+      ) : null}
+    </View>
+  );
 }
 
 export function AnimatedTabIcon({
@@ -74,6 +224,7 @@ export function AnimatedTabIcon({
 export function AnimatedTabLabel({
   focused,
   label,
+  itemId,
 }: AnimatedTabLabelProps) {
   const progress = useSelectionProgress(focused);
   const inactiveOpacity = progress.interpolate({
@@ -92,6 +243,7 @@ export function AnimatedTabLabel({
       <Animated.Text
         numberOfLines={1}
         style={[styles.label, styles.labelActive, { opacity: progress }]}
+        testID={`mobile-tab-label-selection-${itemId}`}
       >
         {label}
       </Animated.Text>
@@ -100,6 +252,19 @@ export function AnimatedTabLabel({
 }
 
 const styles = StyleSheet.create({
+  bubbleTrack: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  selectionBubble: {
+    position: "absolute",
+    top: (controlSizes.tabBar - MOBILE_TAB_BUBBLE_SIZE) / 2,
+    left: 0,
+    width: MOBILE_TAB_BUBBLE_SIZE,
+    height: MOBILE_TAB_BUBBLE_SIZE,
+    borderRadius: radii.pill,
+    backgroundColor: overlays.mobileTabSelection,
+  },
   iconFrame: {
     width: iconSizes.s22,
     height: iconSizes.s22,
@@ -110,13 +275,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   labelFrame: {
-    minWidth: 54,
+    width: "100%",
+    maxWidth: MOBILE_TAB_BUBBLE_SIZE,
     height: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   label: {
     position: "absolute",
+    width: "100%",
     fontSize: fontSizes.s11,
     fontWeight: fontWeights.semibold,
     textAlign: "center",

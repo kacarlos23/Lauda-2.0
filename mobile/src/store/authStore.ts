@@ -314,6 +314,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async (revokeServer = true) => {
     try {
+      try {
+        const { disablePushNotifications } = await import("../services/pushNotificationService");
+        await disablePushNotifications();
+      } catch {
+        // A stale push registration must not block logout.
+      }
       if (revokeServer) await api.post("/auth/logout");
     } catch {
       // A revoked/expired server session must never prevent local cleanup.
@@ -334,6 +340,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logoutAll: async () => {
     try {
+      try {
+        const { disablePushNotifications } = await import("../services/pushNotificationService");
+        await disablePushNotifications();
+      } catch {
+        // A stale push registration must not block logout-all.
+      }
       await api.post("/auth/logout-all");
     } finally {
       await clearSession();

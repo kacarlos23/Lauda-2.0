@@ -17,7 +17,16 @@ export const AssignmentStatusSchema = z.enum(["PENDING", "ACCEPTED", "DECLINED"]
   error: "Status deve ser PENDING, ACCEPTED ou DECLINED",
 });
 
-export const CreateScheduleSchema = z.object({
+const ScheduleAssignmentInputSchema = z.object({
+  userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
+  role: z
+    .string({ error: "Função é obrigatória" })
+    .trim()
+    .min(2, "Função deve ter ao menos 2 caracteres")
+    .max(100, "Função deve ter no máximo 100 caracteres"),
+});
+
+const ScheduleWriteSchema = z.object({
   title: z
     .string({ error: "Título é obrigatório" })
     .trim()
@@ -29,15 +38,12 @@ export const CreateScheduleSchema = z.object({
     .transform((value) => new Date(value)),
   ministryId: z.string({ error: "Ministério é obrigatório" }).uuid("Ministério deve ser um UUID válido"),
   comments: richTextCommentsSchema,
-  assignments: z.array(z.object({
-    userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
-    role: z.string().trim().min(2, "Função deve ter ao menos 2 caracteres").default("Membro"),
-    status: AssignmentStatusSchema.default("PENDING"),
-  })).default([]),
+  assignments: z.array(ScheduleAssignmentInputSchema).default([]),
   songIds: z.array(z.string().uuid("Música deve ser um UUID válido")).default([]),
 });
 
-export const UpdateScheduleSchema = CreateScheduleSchema;
+export const CreateScheduleSchema = ScheduleWriteSchema;
+export const UpdateScheduleSchema = ScheduleWriteSchema;
 
 export const ListSchedulesSchema = z.object({
   from: z.string().datetime({ message: isoDateTimeMessage }).optional().transform((value) => value ? new Date(value) : undefined),
@@ -45,14 +51,7 @@ export const ListSchedulesSchema = z.object({
   ministryId: z.string().uuid("Ministério deve ser um UUID válido").optional(),
 });
 
-export const CreateAssignmentSchema = z.object({
-  userId: z.string({ error: "Usuário é obrigatório" }).uuid("Usuário deve ser um UUID válido"),
-  role: z
-    .string({ error: "Função é obrigatÃ³ria" })
-    .trim()
-    .min(2, "Função deve ter ao menos 2 caracteres"),
-  status: AssignmentStatusSchema.default("PENDING"),
-});
+export const CreateAssignmentSchema = ScheduleAssignmentInputSchema;
 
 export const UpdateAssignmentStatusSchema = z.object({
   status: AssignmentStatusSchema,

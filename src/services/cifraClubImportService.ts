@@ -5,6 +5,8 @@ import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
 
 const BASE_URL = "https://www.cifraclub.com.br";
 const USER_AGENT = "LaudaApp/1.0 (+authorized-cifraclub-import)";
+const MAX_GENERAL_SEARCH_PAGES = 2;
+const MAX_GENERAL_SEARCH_RESULTS = 20;
 
 type MusicalKey = (typeof MUSICAL_KEYS)[number];
 
@@ -62,7 +64,10 @@ export class CifraClubImportService {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage({ acceptDownloads: true, userAgent: USER_AGENT });
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      if (!response?.ok() || !CifraClubImportService.isCifraClubUrl(page.url())) {
+        throw new ValidationError("Não foi possível acessar a cifra informada no Cifra Club.");
+      }
 
       const html = await page.content();
       const metadata = CifraClubImportService.parseSongPage(html, page.url());
@@ -158,9 +163,11 @@ export class CifraClubImportService {
       await collectCurrentPage();
       const pageNumbers = (await page.locator(".gsc-cursor-page").allTextContents())
         .map((value) => Number(value.trim()))
-        .filter((value) => Number.isInteger(value) && value > 1);
+        .filter((value) => Number.isInteger(value) && value > 1)
+        .slice(0, MAX_GENERAL_SEARCH_PAGES - 1);
 
       for (const pageNumber of pageNumbers) {
+        if (results.size >= MAX_GENERAL_SEARCH_RESULTS) break;
         const cursor = page.locator(".gsc-cursor-page").filter({ hasText: new RegExp(`^${pageNumber}$`) }).first();
         if (!await cursor.count()) continue;
         try {
@@ -179,7 +186,9 @@ export class CifraClubImportService {
       return [];
     }
 
-    return Array.from(results.values());
+    return Array.from(results.values())
+      .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input))
+      .slice(0, MAX_GENERAL_SEARCH_RESULTS);
   }
 
   static parseSearchResults(html: string, currentUrl: string, input: CifraClubSearchInput): CifraClubSearchResult[] {
@@ -212,7 +221,7 @@ export class CifraClubImportService {
   static parseSongPage(html: string, pageUrl: string): CifraClubImportResult {
     const title = this.extractSongTitle(html, pageUrl);
     const artist = this.extractSongArtist(html, pageUrl);
-    const keyText = this.cleanText(html).match(/\btom:\s*([A-G](?:#|b)?m?)/i)?.[1] ?? "";
+    const keyText = this.extractMusicalKey(html);
     const originalKey = this.normalizeMusicalKey(keyText);
     const content = this.extractChordContent(html);
 
@@ -237,10 +246,10 @@ export class CifraClubImportService {
     const text = this.cleanText(html)
       .replace(/\r\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n");
-    const start = text.search(/\btom:\s*[A-G](?:#|b)?m?/i);
+    const start = text.search(/\btom\s*:?\s*[A-G](?:#|b)?m?/i);
     const end = text.search(/Repetir\s+Modo teatro|Fechar Miniplayer|Outros vídeos desta música/i);
     if (start < 0 || end <= start) return "";
-    return text.slice(start, end).replace(/^tom:.*$/im, "").trim();
+    return text.slice(start, end).replace(/^tom\s*:?.*$/im, "").trim();
   }
 
   private static cleanPreText(value: string): string {
@@ -280,6 +289,12 @@ export class CifraClubImportService {
   }
 
   private static extractSongTitle(html: string, pageUrl: string): string {
+    const structuredTitle = this.jsonLdNodes(html)
+      .find((node) => this.jsonLdHasType(node, "MusicComposition"))?.name;
+    if (typeof structuredTitle === "string" && structuredTitle.trim()) {
+      return this.cleanText(structuredTitle);
+    }
+
     const headings = Array.from(html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi))
       .map((match) => this.cleanText(match[1]))
       .filter((value) => value && !/^cifra club$/i.test(value));
@@ -295,14 +310,57 @@ export class CifraClubImportService {
   }
 
   private static extractSongArtist(html: string, pageUrl: string): string {
-    const linkedHeading = this.firstMatch(html, /<h2[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/i);
-    if (linkedHeading) return linkedHeading;
-
-    const heading = this.firstMatch(html, /<h2[^>]*>([\s\S]*?)<\/h2>/i);
-    if (heading) return heading;
-
     const parts = new URL(pageUrl).pathname.split("/").filter(Boolean);
-    return this.titleCaseSlug(parts[0] ?? "");
+    const fallbackArtist = this.titleCaseSlug(parts[0] ?? "");
+    const structuredArtist = this.jsonLdNodes(html)
+      .find((node) => this.jsonLdHasType(node, "MusicRecording"))?.byArtist;
+    if (structuredArtist && typeof structuredArtist === "object" && !Array.isArray(structuredArtist)) {
+      const name = (structuredArtist as Record<string, unknown>).name;
+      if (typeof name === "string" && name.trim()) return this.cleanText(name);
+    }
+
+    const headings = Array.from(html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi))
+      .map((match) => this.cleanText(match[1]))
+      .filter(Boolean);
+    return headings.find((heading) => this.normalize(heading) === this.normalize(fallbackArtist)) ?? fallbackArtist;
+  }
+
+  private static extractMusicalKey(html: string): string {
+    return this.cleanText(html).match(/\btom\s*:?\s*([A-G](?:#|b)?m?)(?=\s|\(|$)/i)?.[1] ?? "";
+  }
+
+  private static jsonLdNodes(html: string): Record<string, unknown>[] {
+    const nodes: Record<string, unknown>[] = [];
+    const append = (value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach(append);
+        return;
+      }
+      if (!value || typeof value !== "object") return;
+      const node = value as Record<string, unknown>;
+      nodes.push(node);
+      if (Array.isArray(node["@graph"])) append(node["@graph"]);
+    };
+
+    const scriptRegex = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = scriptRegex.exec(html))) {
+      try {
+        append(JSON.parse(match[1]));
+      } catch {
+        try {
+          append(JSON.parse(this.decodeEntities(match[1])));
+        } catch {
+          // Metadados estruturados inválidos não devem impedir os fallbacks de HTML/URL.
+        }
+      }
+    }
+    return nodes;
+  }
+
+  private static jsonLdHasType(node: Record<string, unknown>, expectedType: string): boolean {
+    const type = node["@type"];
+    return type === expectedType || (Array.isArray(type) && type.includes(expectedType));
   }
 
   private static normalizeMusicalKey(value: string): MusicalKey | null {
@@ -335,6 +393,15 @@ export class CifraClubImportService {
     }
   }
 
+  private static isCifraClubUrl(value: string): boolean {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && url.hostname === "www.cifraclub.com.br";
+    } catch {
+      return false;
+    }
+  }
+
   private static candidateSearchUrls(input: CifraClubSearchInput): string[] {
     const artistSlug = this.slugify(input.artist ?? "");
     const titleSlug = this.slugify(input.title ?? "");
@@ -349,8 +416,9 @@ export class CifraClubImportService {
 
   private static isSongUrl(url: string): boolean {
     const parts = new URL(url).pathname.split("/").filter(Boolean);
-    if (parts.length !== 2) return false;
+    if (parts.length < 2 || parts.length > 3) return false;
     if (parts[1].includes(".")) return false;
+    if (parts[2] && !parts[2].toLowerCase().endsWith(".html")) return false;
     const blockedSections = [
       "academy",
       "blog",
@@ -379,7 +447,7 @@ export class CifraClubImportService {
       title: this.extractSongTitle(html, url) || this.titleCaseSlug(parts[1]),
       artist: this.extractSongArtist(html, url) || this.titleCaseSlug(parts[0]),
       url: parsed.toString(),
-      originalKey: this.firstMatch(html, /\btom:\s*([A-G](?:#|b)?m?)/i) || null,
+      originalKey: this.normalizeMusicalKey(this.extractMusicalKey(html)),
     };
   }
 
@@ -472,8 +540,8 @@ export class CifraClubImportService {
   }
 
   private static findNearbyKey(html: string, index: number): string | null {
-    const nearby = html.slice(index, index + 700);
-    const match = nearby.match(/\b(?:Tom|tom)\s*:?\s*([A-G](?:#|b)?m?)/);
+    const nearby = this.cleanText(html.slice(index, index + 1_200));
+    const match = nearby.match(/\btom\s*:?\s*([A-G](?:#|b)?m?)(?=\s|\(|$)/i);
     return match?.[1] ?? null;
   }
 }

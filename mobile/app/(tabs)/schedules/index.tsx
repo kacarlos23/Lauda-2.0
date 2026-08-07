@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CalendarClock, Plus } from "lucide-react-native";
 import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
 import { musicService } from "../../../src/services/musicService";
@@ -76,6 +76,9 @@ function newScheduleHref(date: string) {
 
 export default function SchedulesScreen() {
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ date?: string | string[]; scheduleId?: string | string[] }>();
+  const routeDate = Array.isArray(routeParams.date) ? routeParams.date[0] : routeParams.date;
+  const highlightedScheduleId = Array.isArray(routeParams.scheduleId) ? routeParams.scheduleId[0] : routeParams.scheduleId;
   const { isDesktop, isMobile } = useResponsiveLayout();
   const { tenant, user } = useAuthStore();
   const { allSchedules, schedules: myAssignments, loading, refreshing, error, loadSchedules, loadMySchedules, updateScheduleStatus, createSchedule, resolveSubstitution } = useScheduleStore();
@@ -86,8 +89,9 @@ export default function SchedulesScreen() {
   const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [requestSubstitute, setRequestSubstitute] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(() => dateKey(new Date()));
-  const [month, setMonth] = useState(() => new Date());
+  const initialRouteDate = routeDate && /^\d{4}-\d{2}-\d{2}$/.test(routeDate) ? new Date(`${routeDate}T12:00:00`) : new Date();
+  const [selectedDate, setSelectedDate] = useState(() => dateKey(initialRouteDate));
+  const [month, setMonth] = useState(() => initialRouteDate);
   const [filters, setFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
   const [draftFilters, setDraftFilters] = useState<ScheduleListFilters>(emptyScheduleFilters);
   const [showFilters, setShowFilters] = useState(false);
@@ -107,6 +111,13 @@ export default function SchedulesScreen() {
     }
     void loadMySchedules({ refresh: myAssignments.length > 0, params: defaultRange });
   }, [allSchedules.length, canManage, defaultRange, loadSchedules, loadMySchedules, myAssignments.length]);
+
+  useEffect(() => {
+    if (!routeDate || !/^\d{4}-\d{2}-\d{2}$/.test(routeDate)) return;
+    const target = new Date(`${routeDate}T12:00:00`);
+    setSelectedDate(routeDate);
+    setMonth(target);
+  }, [routeDate]);
 
   useFocusEffect(useCallback(() => {
     if (canManage) {
@@ -268,6 +279,8 @@ export default function SchedulesScreen() {
           setDeclineAssignment(assignment);
         } : undefined}
         onResolveSubstitution={(target) => void resolveSubstitution(item.id, target.id, "Resolvido manualmente")}
+        onOpenSong={canExportSongs ? (songId) => router.push(nav.songDetail(songId)) : undefined}
+        highlighted={highlightedScheduleId === item.id}
       />
     );
   };

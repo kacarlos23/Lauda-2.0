@@ -85,6 +85,7 @@ export const overlays = {
   inverseAvatarBorder: "rgba(248, 250, 246, 0.2)",
   inverseIconBorder: "rgba(248, 250, 246, 0.24)",
   inverseIconSurface: "rgba(248, 250, 246, 0.08)",
+  mobileTabSelection: "rgba(255, 253, 248, 0.14)",
   activeNavigation: "rgba(31, 111, 85, 0.38)",
   dangerSurface: "rgba(183, 71, 58, 0.12)",
   modal: "rgba(16, 32, 26, 0.46)",

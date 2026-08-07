@@ -30,7 +30,7 @@ const writableFields: Record<AdminResourceName, string[]> = {
   "ministry-songs": ["songId", "ministryId", "tenantId", "isActive", "deletedAt"],
   schedules: ["title", "date", "comments", "tenantId", "ministryId", "isActive", "deletedAt"],
   "schedule-songs": ["scheduleId", "songId", "tenantId", "order", "isActive", "deletedAt"],
-  "schedule-assignments": ["scheduleId", "userId", "role", "tenantId", "status", "isActive", "deletedAt"],
+  "schedule-assignments": ["scheduleId", "userId", "role", "tenantId", "isActive", "deletedAt"],
   "audit-logs": [],
 };
 
@@ -62,7 +62,11 @@ export class AdminService {
     }
     const data = await this.prepareResourceData(resource, input, "create");
     await this.validateResourceRelations(resource, data);
-    const created = await this.repository.createResource(resource, data);
+    const created = resource === "schedules"
+      ? await this.repository.createScheduleResource(data, actor.id)
+      : resource === "schedule-assignments" || resource === "schedule-songs"
+        ? await this.repository.mutateScheduleChildResource(resource, "create", actor.id, data)
+        : await this.repository.createResource(resource, data);
     await this.audit(actor, "create", resource, this.extractId(created), this.extractTenantId(created, data), data);
     return created;
   }
@@ -72,7 +76,11 @@ export class AdminService {
     await this.getResource(resource, id);
     const data = await this.prepareResourceData(resource, input, "update");
     await this.validateResourceRelations(resource, data, resource, id);
-    const updated = await this.repository.updateResource(resource, id, data);
+    const updated = resource === "schedules"
+      ? await this.repository.updateScheduleLifecycle(id, data, actor.id)
+      : resource === "schedule-assignments" || resource === "schedule-songs"
+        ? await this.repository.mutateScheduleChildResource(resource, "update", actor.id, data, id)
+        : await this.repository.updateResource(resource, id, data);
     await this.audit(actor, "update", resource, id, this.extractTenantId(updated, data), data);
     return updated;
   }
@@ -80,7 +88,11 @@ export class AdminService {
   async activateResource(actor: AdminActor, resource: AdminResourceName, id: string) {
     if (resource === "audit-logs") throw new ValidationError("Logs administrativos não podem ser ativados");
     await this.getResource(resource, id);
-    const updated = await this.repository.activateResource(resource, id);
+    const updated = resource === "schedules"
+      ? await this.repository.updateScheduleLifecycle(id, { isActive: true, deletedAt: null }, actor.id)
+      : resource === "schedule-assignments" || resource === "schedule-songs"
+        ? await this.repository.mutateScheduleChildResource(resource, "update", actor.id, { isActive: true, deletedAt: null }, id)
+        : await this.repository.activateResource(resource, id);
     await this.audit(actor, "activate", resource, id, this.extractTenantId(updated), {});
     return updated;
   }
@@ -88,7 +100,11 @@ export class AdminService {
   async deactivateResource(actor: AdminActor, resource: AdminResourceName, id: string) {
     if (resource === "audit-logs") throw new ValidationError("Logs administrativos não podem ser inativados");
     await this.getResource(resource, id);
-    const updated = await this.repository.deactivateResource(resource, id);
+    const updated = resource === "schedules"
+      ? await this.repository.updateScheduleLifecycle(id, { isActive: false, deletedAt: new Date() }, actor.id)
+      : resource === "schedule-assignments" || resource === "schedule-songs"
+        ? await this.repository.mutateScheduleChildResource(resource, "update", actor.id, { isActive: false, deletedAt: new Date() }, id)
+        : await this.repository.deactivateResource(resource, id);
     if (resource === "users") await revokeUserSessions(id, "user_deactivated");
     if (resource === "tenants") await revokeTenantSessions(id, "tenant_deactivated");
     await this.audit(actor, "deactivate", resource, id, this.extractTenantId(updated), {});
@@ -98,7 +114,11 @@ export class AdminService {
   async deleteResource(actor: AdminActor, resource: AdminResourceName, id: string) {
     if (resource === "audit-logs") throw new ValidationError("Logs administrativos não podem ser excluídos");
     const before = await this.getResource(resource, id);
-    const deleted = await this.repository.deleteResource(resource, id);
+    const deleted = resource === "schedules"
+      ? await this.repository.deleteScheduleResource(id, actor.id)
+      : resource === "schedule-assignments" || resource === "schedule-songs"
+        ? await this.repository.mutateScheduleChildResource(resource, "delete", actor.id, {}, id)
+        : await this.repository.deleteResource(resource, id);
     await this.audit(actor, "delete", resource, id, this.extractTenantId(before), {});
     return deleted;
   }
@@ -250,6 +270,12 @@ export class AdminService {
       if (uniqueUserIds.length !== userIds.length) throw new ValidationError("A escala não pode conter o mesmo usuário mais de uma vez");
       const count = await this.repository.countUsersByIds(schedule.tenantId, uniqueUserIds);
       if (count !== uniqueUserIds.length) throw new ValidationError("Um ou mais usuários não pertencem à igreja da escala");
+      const previousRoles = new Map(schedule.assignments.map((assignment) => [assignment.userId, assignment.role]));
+      const changedAssignments = input.assignments.filter((assignment) => previousRoles.get(assignment.userId) !== assignment.role);
+      const users = await this.repository.findUsersWithAssignmentRoles(schedule.tenantId, changedAssignments.map((assignment) => assignment.userId));
+      const rolesByUser = new Map(users.map((target) => [target.id, new Set(target.instruments.map((link) => link.instrument.name))]));
+      const invalid = changedAssignments.find((assignment) => !rolesByUser.get(assignment.userId)?.has(assignment.role));
+      if (invalid) throw new ValidationError("A função informada não está ativa no perfil do membro");
     }
 
     const updated = await this.repository.updateSchedule(
@@ -261,7 +287,8 @@ export class AdminService {
         ...(input.comments !== undefined ? { comments: input.comments } : {}),
       },
       input.songIds,
-      input.assignments
+      input.assignments,
+      actor.id,
     );
     await this.audit(actor, "update", "schedules", scheduleId, schedule.tenantId, {
       ...input,
@@ -325,6 +352,28 @@ export class AdminService {
       if (!related) throw new ValidationError(`${label} não encontrado`);
       if (tenantId && related.tenantId !== tenantId) throw new ValidationError(`${label} não pertence à mesma igreja`);
       if (!tenantId && related.tenantId) data.tenantId = related.tenantId;
+    }
+
+    if (resource === "schedule-assignments") {
+      const current = currentId ? await this.repository.getScheduleAssignmentById(currentId) : null;
+      const targetTenantId = String(data.tenantId ?? current?.tenantId ?? "");
+      const targetUserId = String(data.userId ?? current?.userId ?? "");
+      const targetRole = typeof data.role === "string" ? data.role.trim() : current?.role;
+      if (!targetRole) throw new ValidationError("A função é obrigatória para escalar um membro");
+      if (!current || targetRole !== current.role || targetUserId !== current.userId) {
+        const [target] = await this.repository.findUsersWithAssignmentRoles(targetTenantId, [targetUserId]);
+        if (!target?.instruments.some((link) => link.instrument.name === targetRole)) {
+          throw new ValidationError("A função informada não está ativa no perfil do membro");
+        }
+        if (current) {
+          data.status = "PENDING";
+          data.declineReason = null;
+          data.substituteRequestedAt = null;
+          data.substituteResolvedAt = null;
+          data.substituteResolvedById = null;
+          data.substituteResolutionNote = null;
+        }
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Check, Square, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
-import { SongLinkButtons } from "../SongLinkButtons";
+import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
 import {
   colors,
   controlSizes,
@@ -18,15 +18,30 @@ type Props = {
   selectionMode: boolean;
   selected: boolean;
   isLast: boolean;
+  compactLinkActions?: boolean;
+  onOpenLinks?: () => void;
   onPress: () => void;
 };
 
-export function SongListRow({ song, selectionMode, selected, isLast, onPress }: Props) {
+export function SongListRow({
+  song,
+  selectionMode,
+  selected,
+  isLast,
+  compactLinkActions = false,
+  onOpenLinks,
+  onPress,
+}: Props) {
   const selectionLabel = `${selected ? "Desmarcar" : "Selecionar"} ${song.title}`;
 
   return (
     <TouchableOpacity
-      style={[styles.row, !isLast && styles.rowBorder, selected && styles.rowSelected]}
+      style={[
+        styles.row,
+        compactLinkActions && styles.rowCompact,
+        !isLast && styles.rowBorder,
+        selected && styles.rowSelected,
+      ]}
       testID={`song-row-${song.id}`}
       onPress={onPress}
       accessibilityRole={selectionMode ? "checkbox" : "button"}
@@ -39,13 +54,22 @@ export function SongListRow({ song, selectionMode, selected, isLast, onPress }: 
       ) : (
         <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
       )}
-      <View style={styles.info}>
+      <View style={styles.info} testID={`song-info-${song.id}`}>
         <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
         <Text style={styles.meta} numberOfLines={1}>
           {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
         </Text>
       </View>
-      {!selectionMode ? <SongLinkButtons links={song} compact /> : null}
+      {!selectionMode && hasSongLinks(song) ? (
+        <View style={styles.linkActions} testID={`song-actions-${song.id}`}>
+          <SongLinkButtons
+            links={song}
+            compact
+            collapseMultiple={compactLinkActions}
+            onOpenMultiple={onOpenLinks}
+          />
+        </View>
+      ) : null}
       {selectionMode ? (
         selected ? (
           <View style={styles.check}><Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /></View>
@@ -69,6 +93,12 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
+  rowCompact: {
+    minHeight: 76,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
   rowSelected: { backgroundColor: colors.primarySoft },
   selectedRail: {
     position: "absolute",
@@ -88,6 +118,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   info: { flex: 1, minWidth: 0 },
+  linkActions: { flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
   check: {

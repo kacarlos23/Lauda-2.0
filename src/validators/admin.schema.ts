@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { richTextCommentsSchema } from "./richText.schema";
-import { AssignmentStatus, PermissionEffect, Role } from "@prisma/client";
+import { PermissionEffect, Role } from "@prisma/client";
 import { MUSICAL_KEYS, youtubeVideoUrlSchema } from "./song.schema";
 import { adminResourceNames } from "../repositories/AdminRepository";
 import { legacyPermissionAliases, normalizePermissionKey, permissionDefinitions } from "../constants/permissions";
@@ -147,8 +147,7 @@ export const adminUpdateScheduleSchema = z.object({
   songIds: z.array(z.string().uuid("Música inválida")).optional(),
   assignments: z.array(z.object({
     userId: z.string().uuid("Usuário inválido"),
-    role: z.string().trim().min(2, "Função deve ter ao menos 2 caracteres").default("Membro"),
-    status: z.enum(AssignmentStatus).default(AssignmentStatus.PENDING),
+    role: z.string().trim().min(2, "Função deve ter ao menos 2 caracteres").max(100),
   })).optional(),
 }).refine((input) => Object.keys(input).length > 0, "Informe ao menos um campo para atualizar");
 

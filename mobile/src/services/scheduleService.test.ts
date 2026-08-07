@@ -100,7 +100,7 @@ describe("scheduleService", () => {
       date: "2026-05-25T13:00:00.000Z",
       ministryId: "ministry-1",
       songIds: ["song-2"],
-      assignments: [{ userId: "user-2", role: "Violão", status: "PENDING" as const }],
+      assignments: [{ userId: "user-2", role: "Violão" }],
     };
     const updated = { id: "schedule-1", ...payload, tenantId: "tenant-1" };
     mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });

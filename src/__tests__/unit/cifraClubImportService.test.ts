@@ -21,6 +21,31 @@ const songHtml = `
   </html>
 `;
 
+const currentSongHtml = `
+  <html>
+    <head>
+      <script type="application/ld+json">
+        {"@context":"https://schema.org","@type":["MusicRecording","Article"],"name":"Aline Barros - Autor da Vida","byArtist":{"@type":"MusicGroup","name":"Aline Barros"}}
+      </script>
+      <script type="application/ld+json">
+        {"@context":"https://schema.org","@type":"MusicComposition","name":"Autor da Vida"}
+      </script>
+    </head>
+    <body>
+      <h2 class="u-srOnly">Menu principal</h2>
+      <a href="/academy/">Academy</a>
+      <h1>Autor da Vida</h1>
+      <h2>Aline Barros</h2>
+      <div>Tom<!-- -->:<!-- --> <button>F#<!-- --> (com forma de D)</button></div>
+      <pre>[Intro] D9  F#m  G
+
+D9
+  Conteúdo de teste com acordes
+      </pre>
+    </body>
+  </html>
+`;
+
 const searchHtml = `
   <html>
     <body>
@@ -46,6 +71,23 @@ describe("CifraClubImportService", () => {
     });
     expect(result.content).toContain("[Intro] G  D/F#  Em");
     expect(result.content).toContain("Letra da música");
+  });
+
+  it("suporta o layout atual com JSON-LD, headings de navegação e Tom separado por comentários", () => {
+    const result = CifraClubImportService.parseSongPage(
+      currentSongHtml,
+      "https://www.cifraclub.com.br/aline-barros/autor-da-vida/"
+    );
+
+    expect(result).toMatchObject({
+      title: "Autor da Vida",
+      artist: "Aline Barros",
+      originalKey: "F#",
+      cifraUrl: "https://www.cifraclub.com.br/aline-barros/autor-da-vida/",
+      source: "page-fallback",
+    });
+    expect(result.content).toContain("[Intro] D9  F#m  G");
+    expect(result.content).toContain("Conteúdo de teste com acordes");
   });
 
   it("retorna candidatos compatíveis da busca", () => {
@@ -108,6 +150,22 @@ describe("CifraClubImportService", () => {
     expect(results).toHaveLength(2);
     expect(results[0]).toMatchObject({ title: "Autor da Vida", artist: "Oficina G3" });
     expect(results[1]).toMatchObject({ title: "Autor da Vida Acústico", artist: "Aline Barros" });
+  });
+
+  it("reconhece URLs de versões atuais e o Tom próximo mesmo com separadores no HTML", () => {
+    const results = CifraClubImportService.parseSearchResults(
+      `<a href="/aline-barros/autor-da-vida/sghzkgs.html">Autor da Vida - Aline Barros - Cifra Club</a>
+       <div>Tom<!-- -->:<!-- --> <button>F#</button></div>`,
+      "https://www.cifraclub.com.br/?q=autor%20da%20vida",
+      { artist: "Aline Barros", title: "Autor da Vida" }
+    );
+
+    expect(results).toEqual([expect.objectContaining({
+      title: "Autor da Vida",
+      artist: "Aline Barros",
+      originalKey: "F#",
+      url: "https://www.cifraclub.com.br/aline-barros/autor-da-vida/sghzkgs.html",
+    })]);
   });
 
   it("exige compatibilidade com artista e título quando ambos são informados", () => {

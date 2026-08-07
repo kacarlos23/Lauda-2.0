@@ -79,7 +79,14 @@ async function createMember(token: string, seed: string, role: "MEMBER" | "MINIS
     .send({ name: `Usuário ${seed}`, email, password: "member123", role })
     .expect(201);
 
-  return login(email, "member123");
+  const authenticated = await login(email, "member123");
+  const instrument = await prisma.instrument.findFirstOrThrow({
+    where: { tenantId: authenticated.user.tenantId, name: "Vocalista" },
+  });
+  await prisma.userInstrument.create({
+    data: { tenantId: authenticated.user.tenantId, userId: authenticated.user.id, instrumentId: instrument.id },
+  });
+  return authenticated;
 }
 
 async function createMinistry(token: string, name: string) {
@@ -332,12 +339,20 @@ describe("Admin global API", () => {
       .send({
         title: "Culto Global Editado",
         songIds: [song.id],
-        assignments: [{ userId: assignee.user.id, role: "Violão", status: "PENDING" }],
+        assignments: [{ userId: assignee.user.id, role: "Vocalista" }],
       })
       .expect(200);
     expect(schedulePatch.body.data).toMatchObject({ id: schedule.id, title: "Culto Global Editado" });
     expect(schedulePatch.body.data.songs).toHaveLength(1);
     expect(schedulePatch.body.data.assignments).toHaveLength(1);
+
+    const outboxBeforeDelete = await prisma.domainEventOutbox.count({ where: { aggregateId: schedule.id } });
+    await request(app)
+      .delete(`/api/admin/schedule-assignments/${schedulePatch.body.data.assignments[0].id}?confirm=permanent`)
+      .set("Authorization", `Bearer ${globalAdmin.accessToken}`)
+      .expect(200);
+    expect(await prisma.domainEventOutbox.count({ where: { aggregateId: schedule.id } })).toBe(outboxBeforeDelete + 1);
+    expect(await prisma.scheduleAssignment.count({ where: { scheduleId: schedule.id } })).toBe(0);
   });
 
   it("aceita GLOBAL_ADMIN sem igreja mesmo quando o token salvo não traz tenantId atualizado", async () => {

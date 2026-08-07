@@ -12,7 +12,11 @@ export const LOG_FIELD_ALLOWLIST: Record<LogCategory, ReadonlySet<string>> = {
   access: new Set([...commonFields, "method", "route", "statusCode", "durationMs", "outcome"]),
   security: new Set([...commonFields, "actorId", "tenantId", "resource", "resourceId", "outcome", "errorName"]),
   audit: new Set([...commonFields, "actorId", "tenantId", "resource", "resourceId", "outcome"]),
-  observability: new Set([...commonFields, "component", "statusCode", "durationMs", "outcome", "errorName"]),
+  observability: new Set([
+    ...commonFields,
+    "component", "statusCode", "durationMs", "outcome", "errorName",
+    "backlog", "attempts", "latencyMs", "connections", "reconnections", "deliveries", "failures", "receipts",
+  ]),
 };
 
 type LogFields = Record<string, unknown> & { category?: LogCategory };

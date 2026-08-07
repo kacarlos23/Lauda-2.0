@@ -102,7 +102,6 @@ const resources: ResourceConfig[] = [
       { key: "userId", label: "Usuário", type: "user" },
       { key: "ministryId", label: "Ministério", type: "ministry" },
       { key: "role", label: "Função", optional: true },
-      { key: "status", label: "Status", type: "status" },
       { key: "isLeader", label: "Líder", type: "boolean" },
       { key: "notes", label: "Notas", type: "textarea", optional: true },
     ],

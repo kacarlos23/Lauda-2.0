@@ -104,12 +104,41 @@ Inicie a API:
 npm run dev
 ```
 
-Em outro terminal, inicie o aplicativo:
+Em outro terminal, inicie o aplicativo. Para navegador ou emulador local:
 
 ```powershell
 $env:EXPO_PUBLIC_API_URL = "http://127.0.0.1:3000/api"
 npm --prefix mobile start
 ```
+
+Em um celular físico, `127.0.0.1` aponta para o próprio aparelho. Use o IPv4 da máquina na mesma rede Wi-Fi e mantenha o backend acessível em todas as interfaces:
+
+```powershell
+$env:HOST = "0.0.0.0"
+npm run dev
+$env:EXPO_PUBLIC_API_URL = "http://192.168.1.10:3000/api" # troque pelo IPv4 da máquina
+npm --prefix mobile start
+```
+
+Como alternativa, `npm run dev:full` detecta o IPv4 da LAN automaticamente. Use `-LocalhostOnly` apenas quando não quiser acesso de outros dispositivos. Se o celular ainda não conectar, confirme que ambos estão na mesma rede e que o Firewall do Windows permite a porta 3000 em redes privadas.
+
+### Inicialização completa no Windows
+
+O launcher `start-laudaapp.bat`, na raiz do projeto, recupera o ambiente completo depois de uma reinicialização: abre o Docker Desktop quando necessário, sobe PostgreSQL e Redis, aplica migrations, gera e serve o frontend web, inicia o backend e mantém o Cloudflare Tunnel oculto. Ao final, ele valida os serviços locais e os endereços públicos.
+
+Execute com duplo clique ou pelo terminal:
+
+```bat
+start-laudaapp.bat
+```
+
+Para uso por atalhos ou tarefas agendadas, sem a pausa final:
+
+```bat
+start-laudaapp.bat --headless
+```
+
+O túnel grava diagnóstico em `cloudflare-tunnel.out.log` e `cloudflare-tunnel.err.log`. A primeira configuração pode abrir o navegador para autenticação no Cloudflare; depois que o certificado e o arquivo `%USERPROFILE%\.cloudflared\laudaapp-local.yml` existem, as inicializações seguintes são não interativas. O launcher não se registra automaticamente na inicialização do Windows.
 
 O Expo permite abrir o projeto na web, Android ou iOS. Também estão disponíveis:
 

@@ -48,6 +48,43 @@ describe("api configuration helpers", () => {
     expect(api.defaults.baseURL).toBe("https://api.example.com/api");
   });
 
+  it("troca loopback pelo host do Expo em um dispositivo físico", async () => {
+    mockSessionStorage();
+    const { resolveApiBaseUrl } = await import("./api");
+
+    expect(resolveApiBaseUrl({
+      envUrl: "http://127.0.0.1:3000/api",
+      nodeEnv: "development",
+      platform: "android",
+      expoHostUri: "192.168.18.245:8081",
+    })).toBe("http://192.168.18.245:3000/api");
+  });
+
+  it("mantém loopback no navegador e usa o host do Expo quando a URL não foi definida", async () => {
+    mockSessionStorage();
+    const { resolveApiBaseUrl } = await import("./api");
+
+    expect(resolveApiBaseUrl({
+      envUrl: "http://localhost:3000/api",
+      nodeEnv: "development",
+      platform: "web",
+      expoHostUri: "192.168.18.245:8081",
+    })).toBe("http://localhost:3000/api");
+    expect(resolveApiBaseUrl({
+      nodeEnv: "development",
+      platform: "ios",
+      expoHostUri: "exp://192.168.18.245:8081",
+    })).toBe("http://192.168.18.245:3000/api");
+  });
+
+  it("não inclui fallback local na resolução específica do bundle web", async () => {
+    const { resolveApiBaseUrl } = await import("./apiBaseUrl.web");
+
+    expect(() => resolveApiBaseUrl({ envUrl: "" })).toThrow("EXPO_PUBLIC_API_URL is required on web");
+    expect(resolveApiBaseUrl({ envUrl: "https://api.example.com" }))
+      .toBe("https://api.example.com/api");
+  });
+
   it("falha em producao quando EXPO_PUBLIC_API_URL esta ausente", async () => {
     const mutableEnvironment = process.env as Record<string, string | undefined>;
     const previousNodeEnv = process.env.NODE_ENV;

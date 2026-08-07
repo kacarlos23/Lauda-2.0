@@ -89,7 +89,7 @@ export class ScheduleService {
 
     if (data.assignments.length === 0 || this.isAdmin(user.role) || await hasPermission(user, "schedule:assign_members", user.tenantId)) {
       await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
-      return this.scheduleRepository.create(data);
+      return this.scheduleRepository.create(data, user.id);
     }
 
     if (user.role !== Role.MINISTRY_LEADER) {
@@ -102,7 +102,7 @@ export class ScheduleService {
     }
 
     await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
-    return this.scheduleRepository.create(data);
+    return this.scheduleRepository.create(data, user.id);
   }
 
   async updateForUser(scheduleId: string, data: UpdateScheduleInput, user: RequestUser) {
@@ -129,8 +129,14 @@ export class ScheduleService {
       }
     }
 
-    await this.ensureAssignmentsAreAllowed(data.ministryId, data.assignments, user);
-    const updated = await this.scheduleRepository.update(scheduleId, data);
+    const existingAssignments = await this.scheduleRepository.findScheduleAssignments(scheduleId);
+    await this.ensureAssignmentsAreAllowed(
+      data.ministryId,
+      data.assignments,
+      user,
+      new Map(existingAssignments.map((assignment) => [assignment.userId, assignment.role])),
+    );
+    const updated = await this.scheduleRepository.update(scheduleId, data, user.id);
     if (!updated) {
       throw new NotFoundError("Escala não encontrada");
     }
@@ -140,7 +146,7 @@ export class ScheduleService {
   async deleteForUser(scheduleId: string, user: RequestUser) {
     await requireUserPermission(user, "schedule:delete", user.tenantId);
     await this.ensureCanManageSchedule(scheduleId, user);
-    const deleted = await this.scheduleRepository.deleteSchedule(scheduleId);
+    const deleted = await this.scheduleRepository.deleteSchedule(scheduleId, user.id);
     if (!deleted) {
       throw new NotFoundError("Escala nÃ£o encontrada");
     }
@@ -163,8 +169,10 @@ export class ScheduleService {
       await this.ensureUserBelongsToMinistry(schedule.ministryId, data.userId);
     }
 
+    await this.ensureAssignmentsHaveProfileRoles([data]);
+
     try {
-      const assignment = await this.scheduleRepository.createAssignment(scheduleId, data);
+      const assignment = await this.scheduleRepository.createAssignment(scheduleId, data, user.id);
       if (!assignment) {
         throw new NotFoundError("Escala ou usuário não encontrado");
       }
@@ -193,7 +201,7 @@ export class ScheduleService {
       if (assignment.status !== "PENDING") {
         throw new ValidationError("Esta escala já foi respondida.");
       }
-      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data, user.id);
       if (!updated) {
         throw new NotFoundError("Atribuição não encontrada");
       }
@@ -206,7 +214,7 @@ export class ScheduleService {
       await hasPermission(user, "schedule:assign_members", user.tenantId);
 
     if (canManageStatus) {
-      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+      const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data, user.id);
       if (!updated) {
         throw new NotFoundError("Atribuição não encontrada");
       }
@@ -216,7 +224,7 @@ export class ScheduleService {
     if (user.role === Role.MINISTRY_LEADER) {
       const leadership = await this.scheduleRepository.findMinistryLeadership(assignment.schedule.ministryId, user.id);
       if (leadership) {
-        const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data);
+        const updated = await this.scheduleRepository.updateAssignmentStatus(scheduleId, assignmentId, data, user.id);
         if (!updated) {
           throw new NotFoundError("Atribuição não encontrada");
         }
@@ -245,7 +253,7 @@ export class ScheduleService {
     }
 
     await this.ensureCanManageSchedule(scheduleId, user);
-    const result = await this.scheduleRepository.deleteAssignment(assignmentId);
+    const result = await this.scheduleRepository.deleteAssignment(scheduleId, assignmentId, user.id);
     if (result.count === 0) {
       throw new NotFoundError("Atribuição não encontrada");
     }
@@ -271,7 +279,14 @@ export class ScheduleService {
     }
   }
 
-  private async ensureAssignmentsAreAllowed(ministryId: string, assignments: CreateAssignmentInput[], user: RequestUser) {
+  private async ensureAssignmentsAreAllowed(
+    ministryId: string,
+    assignments: CreateAssignmentInput[],
+    user: RequestUser,
+    existingRoles = new Map<string, string>(),
+  ) {
+    const assignmentsToValidate = assignments.filter((assignment) => existingRoles.get(assignment.userId) !== assignment.role);
+    await this.ensureAssignmentsHaveProfileRoles(assignmentsToValidate);
     for (const assignment of assignments) {
       const targetUser = await this.scheduleRepository.findTenantUserById(assignment.userId);
       if (!targetUser) {
@@ -279,6 +294,23 @@ export class ScheduleService {
       }
       if (!this.isAdmin(user.role) && !await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
         await this.ensureUserBelongsToMinistry(ministryId, assignment.userId);
+      }
+    }
+  }
+
+  private async ensureAssignmentsHaveProfileRoles(assignments: CreateAssignmentInput[]) {
+    if (!assignments.length) return;
+    const users = await this.scheduleRepository.findUsersWithAssignmentRoles(assignments.map((assignment) => assignment.userId));
+    const usersById = new Map(users.map((target) => [target.id, target]));
+
+    for (const assignment of assignments) {
+      const target = usersById.get(assignment.userId);
+      if (!target) {
+        throw new NotFoundError("Usuário não encontrado neste tenant");
+      }
+      const allowedRoles = new Set(target.instruments.map((entry) => entry.instrument.name));
+      if (!allowedRoles.has(assignment.role)) {
+        throw new ValidationError(`A função "${assignment.role}" não está vinculada ao perfil de ${target.name}`);
       }
     }
   }

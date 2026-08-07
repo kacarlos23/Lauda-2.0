@@ -10,6 +10,7 @@ import scheduleRoutes from "./routes/scheduleRoutes";
 import artistRoutes from "./routes/artistRoutes";
 import songRoutes from "./routes/songRoutes";
 import supportRoutes from "./routes/supportRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
 import swaggerUi from "swagger-ui-express";
 import { generateOpenApiDocument } from "./docs/openapi";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -39,6 +40,7 @@ app.use("/api/schedules", scheduleRoutes);
 app.use("/api/artists", artistRoutes);
 app.use("/api/songs", songRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 if (process.env.NODE_ENV !== "production") {
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(generateOpenApiDocument()));

@@ -34,4 +34,4 @@ Os eventos aceitos estao enumerados em `src/audit/adminAudit.ts`. Cada tipo poss
 
 ## Alertas minimos a provisionar
 
-Refresh reuse, erros 5xx, falha de SMTP, falha de Redis, alteracao privilegiada, cross-tenant bloqueado, aumento de 401/403 e falha de backup/restore. Thresholds, plantao e destino ainda dependem de provider e canal 24x7.
+Refresh reuse, erros 5xx, falha de SMTP, falha de Redis, alteracao privilegiada, cross-tenant bloqueado, aumento de 401/403, falha de backup/restore, backlog/latencia/retry do outbox, conexoes/reconexoes WebSocket e falhas/tickets/recibos de push. Thresholds, plantao e destino ainda dependem de provider e canal 24x7.

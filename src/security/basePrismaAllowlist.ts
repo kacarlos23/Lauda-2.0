@@ -1,8 +1,10 @@
 export const basePrismaAllowlist = [
   { path: "src/config/prisma.ts", owner: "Platform Engineering", context: "Constructs the scoped client from the sole raw Prisma client." },
+  { path: "src/events/domainEvents.ts", owner: "Platform Engineering", context: "Cross-tenant background dispatcher claims durable outbox batches and projects tenant-owned notifications without an HTTP tenant context." },
   { path: "src/middlewares/authMiddleware.ts", owner: "Identity Engineering", context: "Resolves current session and canonical authorization state before tenant context exists." },
   { path: "src/repositories/AdminRepository.ts", owner: "Security Engineering", context: "GLOBAL_ADMIN repository; every route is role-gated, MFA-gated in production, step-up gated for writes, and audited." },
   { path: "src/repositories/authRepository.ts", owner: "Identity Engineering", context: "Pre-auth identity lookup, password recovery, MFA enrollment, and atomic session revocation." },
+  { path: "src/realtime/websocketServer.ts", owner: "Platform Engineering", context: "Validates the session bound to an opaque one-use realtime ticket before a tenant request context can be established." },
   { path: "src/repositories/ChurchRepository.ts", owner: "Tenant Platform", context: "Accesses the Tenant root model; every query receives the authenticated tenantId explicitly." },
   { path: "src/repositories/MemberRepository.ts", owner: "Identity Engineering", context: "Atomic member deactivation plus server-session revocation with explicit tenant predicate." },
   { path: "src/services/authSessionService.ts", owner: "Identity Engineering", context: "Server-side sessions and refresh-token families are system-scoped identity records." },

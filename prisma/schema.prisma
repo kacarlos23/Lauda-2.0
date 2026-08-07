@@ -30,6 +30,31 @@ enum PermissionEffect {
   DENY
 }
 
+enum NotificationType {
+  SCHEDULE_ASSIGNED
+  SCHEDULE_UPDATED
+  SCHEDULE_CANCELLED
+  ASSIGNMENT_ROLE_CHANGED
+  ASSIGNMENT_REMOVED
+  ASSIGNMENT_ACCEPTED
+  ASSIGNMENT_DECLINED
+  SUBSTITUTION_REQUESTED
+  SUBSTITUTION_RESOLVED
+}
+
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
+enum PushDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  DEVICE_INVALID
+}
+
 model Tenant {
   id        String    @id @default(uuid())
   name      String
@@ -57,6 +82,9 @@ model Tenant {
   ministrySongs       MinistrySong[]
   userInstruments     UserInstrument[]
   adminAuditLogs      AdminAuditLog[]
+  domainEvents        DomainEventOutbox[]
+  notifications       Notification[]
+  pushDevices         PushDevice[]
 }
 
 model MemberInvite {
@@ -108,6 +136,11 @@ model User {
   authSessions         AuthSession[]
   supportAccessGrants  SupportAccessGrant[] @relation("SupportAccessGrantee")
   grantedSupportAccess SupportAccessGrant[] @relation("SupportAccessGrantor")
+  createdSchedules      Schedule[]           @relation("ScheduleCreatedBy")
+  receivedNotifications Notification[]       @relation("NotificationRecipient")
+  actedNotifications    Notification[]       @relation("NotificationActor")
+  domainEvents           DomainEventOutbox[]  @relation("DomainEventActor")
+  pushDevices            PushDevice[]
 
   resetPasswordToken         String?   @unique
   resetPasswordChallengeId   String?   @unique
@@ -305,6 +338,9 @@ model Schedule {
   ministryId String
   ministry   Ministry @relation(fields: [ministryId], references: [id], onDelete: Cascade)
 
+  createdById String?
+  createdBy   User?   @relation("ScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   assignments ScheduleAssignment[]
   songs       ScheduleSong[]
 
@@ -314,6 +350,7 @@ model Schedule {
   @@index([tenantId])
   @@index([tenantId, date])
   @@index([ministryId])
+  @@index([createdById])
   @@index([tenantId, ministryId, date])
 }
 
@@ -368,6 +405,97 @@ model ScheduleAssignment {
   @@index([tenantId, userId])
   @@index([tenantId, status])
   @@index([tenantId, substituteRequestedAt, substituteResolvedAt])
+}
+
+model DomainEventOutbox {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorId       String?
+  actor         User?    @relation("DomainEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type          String
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  occurredAt    DateTime @default(now())
+  publishedAt   DateTime?
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError     String?
+
+  notifications Notification[]
+
+  @@index([publishedAt, nextAttemptAt])
+  @@index([tenantId, aggregateType, aggregateId])
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  eventId     String
+  event       DomainEventOutbox @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  resourceType String
+  resourceId  String
+  title       String
+  body        String
+  payload     Json
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+  expiresAt   DateTime
+
+  pushDeliveries PushDelivery[]
+
+  @@unique([eventId, userId])
+  @@index([tenantId, userId, createdAt])
+  @@index([userId, readAt, createdAt])
+  @@index([expiresAt])
+}
+
+model PushDevice {
+  id            String       @id @default(uuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expoPushToken String       @unique
+  platform      PushPlatform
+  appVersion    String?
+  enabled       Boolean      @default(true)
+  lastSeenAt    DateTime     @default(now())
+  disabledAt    DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  deliveries PushDelivery[]
+
+  @@index([tenantId, userId, enabled])
+}
+
+model PushDelivery {
+  id               String             @id @default(uuid())
+  notificationId   String
+  notification     Notification       @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  pushDeviceId     String
+  pushDevice       PushDevice         @relation(fields: [pushDeviceId], references: [id], onDelete: Cascade)
+  status           PushDeliveryStatus @default(PENDING)
+  ticketId         String?
+  attempts         Int                @default(0)
+  nextAttemptAt    DateTime           @default(now())
+  lastError        String?
+  sentAt           DateTime?
+  receiptCheckedAt DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([notificationId, pushDeviceId])
+  @@index([status, nextAttemptAt])
+  @@index([ticketId])
 }
 
 model Permission {

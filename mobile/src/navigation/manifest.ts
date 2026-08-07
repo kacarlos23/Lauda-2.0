@@ -82,3 +82,19 @@ export function routeMatches(currentRoute: string, routeKey: RouteKey): boolean 
   const staticPrefix = prefix.split("/[", 1)[0];
   return currentRoute === staticPrefix || currentRoute.startsWith(`${staticPrefix}/`);
 }
+
+export function activeMobileTabIndex(
+  currentRoute: string,
+  tabItems: readonly NavigationItem[],
+  moreItems: readonly NavigationItem[]
+): number {
+  const directIndex = tabItems.findIndex((item) => routeMatches(currentRoute, item.route));
+  if (directIndex >= 0) return directIndex;
+
+  const moreIndex = tabItems.findIndex((item) => item.id === "more");
+  if (moreIndex < 0) return -1;
+
+  return moreItems.some((item) => routeMatches(currentRoute, item.route))
+    ? moreIndex
+    : -1;
+}

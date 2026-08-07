@@ -1,5 +1,5 @@
 import React from "react";
-import { SongLinkButtons, hasSongLinks } from "./SongLinkButtons";
+import { getSongLinkCount, SongLinkButtons, hasSongLinks } from "./SongLinkButtons";
 import { Linking, Alert } from "react-native";
 
 jest.mock("react-native", () => {
@@ -21,6 +21,7 @@ jest.mock("lucide-react-native", () => {
   return {
     Guitar: Icon,
     Headphones: Icon,
+    Link2: Icon,
     Mic: Icon,
     Play: Icon,
   };
@@ -45,7 +46,7 @@ function collect(node: any, type: string): any[] {
 
 function textContent(node: any): string {
   node = renderTree(node);
-  if (typeof node === "string") return node;
+  if (typeof node === "string" || typeof node === "number") return String(node);
   if (!node?.props?.children) return "";
   return React.Children.toArray(node.props.children).map(textContent).join("");
 }
@@ -57,7 +58,50 @@ describe("SongLinkButtons", () => {
 
   it("não renderiza quando a música não tem links", () => {
     expect(hasSongLinks({})).toBe(false);
+    expect(getSongLinkCount({})).toBe(0);
     expect(SongLinkButtons({ links: {} })).toBeNull();
+  });
+
+  it("mantém o botão direto quando há somente um link no modo compacto", () => {
+    const element = SongLinkButtons({
+      links: { cifraUrl: "https://example.com/cifra" },
+      collapseMultiple: true,
+    }) as React.ReactElement;
+
+    expect(getSongLinkCount({ cifraUrl: "https://example.com/cifra" })).toBe(1);
+    expect(textContent(element)).toContain("Cifra");
+    expect(textContent(element)).not.toContain("Links 1");
+    expect(collect(element, "TouchableOpacity")[0].props.accessibilityRole).toBe("link");
+  });
+
+  it("consolida dois ou mais links e evita propagação para a linha", () => {
+    const onOpenMultiple = jest.fn();
+    const stopPropagation = jest.fn();
+    const element = SongLinkButtons({
+      links: {
+        cifraUrl: "https://example.com/cifra",
+        videoUrl: "https://example.com/video",
+      },
+      collapseMultiple: true,
+      onOpenMultiple,
+    }) as React.ReactElement;
+    const buttons = collect(element, "TouchableOpacity");
+
+    expect(getSongLinkCount({
+      cifraUrl: "https://example.com/cifra",
+      videoUrl: "https://example.com/video",
+    })).toBe(2);
+    expect(buttons).toHaveLength(1);
+    expect(textContent(element)).toBe("Links 2");
+    expect(textContent(element)).not.toContain("Cifra");
+    expect(textContent(element)).not.toContain("Vídeo");
+    expect(buttons[0].props.testID).toBe("song-links-trigger");
+    expect(buttons[0].props.accessibilityLabel).toBe("Ver 2 links da música");
+
+    buttons[0].props.onPress({ stopPropagation });
+
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(onOpenMultiple).toHaveBeenCalled();
   });
 
   it("renderiza apenas links preenchidos", () => {
@@ -67,8 +111,28 @@ describe("SongLinkButtons", () => {
 
     expect(hasSongLinks({ cifraUrl: "https://example.com/cifra" })).toBe(true);
     expect(textContent(element)).toContain("Cifra");
-    expect(textContent(element)).toContain("Video");
+    expect(textContent(element)).toContain("Vídeo");
     expect(textContent(element)).not.toContain("Letra");
+  });
+
+  it("renderiza todos os links na variante do bottom sheet", () => {
+    const links = {
+      cifraUrl: "https://example.com/cifra",
+      letraUrl: "https://example.com/letra",
+      audioUrl: "https://example.com/audio",
+      videoUrl: "https://example.com/video",
+    };
+    const element = SongLinkButtons({ links, variant: "sheet" }) as React.ReactElement;
+    const buttons = collect(element, "TouchableOpacity");
+
+    expect(getSongLinkCount(links)).toBe(4);
+    expect(buttons).toHaveLength(4);
+    expect(buttons.map((button) => button.props.accessibilityLabel)).toEqual([
+      "Abrir link de cifra",
+      "Abrir link de letra",
+      "Abrir link de áudio",
+      "Abrir link de vídeo",
+    ]);
   });
 
   it("abre o link externo e evita propagação para a linha da música", async () => {

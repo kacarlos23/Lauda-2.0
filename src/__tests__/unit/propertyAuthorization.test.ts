@@ -88,6 +88,7 @@ describe("property-level authorization matrix", () => {
       assignments: [{
         userId: "00000000-0000-4000-8000-000000000002",
         role: "Vocal",
+        status: "ACCEPTED",
         tenantId: protectedFields.tenantId,
         isActive: false,
         deletedAt: protectedFields.deletedAt,
@@ -101,7 +102,6 @@ describe("property-level authorization matrix", () => {
       expect(parsed.assignments[0]).toEqual({
         userId: "00000000-0000-4000-8000-000000000002",
         role: "Vocal",
-        status: "PENDING",
       });
     }
   });

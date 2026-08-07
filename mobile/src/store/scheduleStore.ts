@@ -34,7 +34,7 @@ interface ScheduleState {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
-    assignments: Array<{ userId: string; role: string; status?: AssignmentStatus }>;
+    assignments: Array<{ userId: string; role: string }>;
   }) => Promise<Schedule>;
   deleteSchedule: (id: string) => Promise<void>;
   updateScheduleStatus: (

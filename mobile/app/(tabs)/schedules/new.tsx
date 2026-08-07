@@ -5,6 +5,8 @@ import { ArrowLeft, Search } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
+import { hasIncompleteMemberRoles, MemberRoleSelector } from "../../../src/components/schedules/MemberRoleSelector";
+import { ScheduleSongCard } from "../../../src/components/schedules/ScheduleSongCard";
 import { ErrorBanner } from "../../../src/components/ui/ErrorBanner";
 import { LoadingState } from "../../../src/components/ui/LoadingState";
 import { RichCommentEditor } from "../../../src/components/ui/RichCommentEditor";
@@ -160,12 +162,6 @@ export default function NewScheduleScreen() {
     setVisibleSongs(songs);
   };
 
-  const toggleMember = (memberId: string) => {
-    setSelectedMembers((current) => current.some((entry) => entry.userId === memberId)
-      ? current.filter((entry) => entry.userId !== memberId)
-      : [...current, { userId: memberId, role: "Membro" }]);
-  };
-
   const createQuickSong = async () => {
     if (!quickSongArtist) return Alert.alert("Dados incompletos", "Selecione ou crie um artista.");
     if (!quickSongTitle.trim()) return Alert.alert("Dados incompletos", "Informe o nome da música.");
@@ -198,6 +194,7 @@ export default function NewScheduleScreen() {
   const save = async () => {
     if (!title.trim()) return Alert.alert("Dados incompletos", "Informe o nome da escala.");
     if (!ministryId) return Alert.alert("Dados incompletos", "Selecione o ministério da escala.");
+    if (hasIncompleteMemberRoles(selectedMembers)) return Alert.alert("Função obrigatória", "Escolha uma função para cada membro selecionado.");
     const isoDate = combineDisplayDateTimeToIso(date, hour);
     if (!isoDate) return Alert.alert("Data ou horário inválido", "Informe data no formato DD/MM/AAAA e horário no formato HH:mm.");
     try {
@@ -246,7 +243,7 @@ export default function NewScheduleScreen() {
           <ScrollView style={styles.modalList}>
             {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
-              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)}>
+              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)} accessibilityRole="button" accessibilityLabel={`Selecionar música ${song.title}`}>
                 <Text style={styles.optionTitle}>{song.title}</Text>
                 <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
               </TouchableOpacity>;
@@ -295,16 +292,14 @@ export default function NewScheduleScreen() {
             <View style={styles.modalHeaderSpacer} />
           </View>
           <Text style={styles.helper}>{user?.role === "MINISTRY_LEADER" ? "Líderes veem apenas membros do ministério selecionado." : "Administradores podem escolher qualquer membro da igreja."}</Text>
-          <ScrollView style={styles.modalList}>
-            {availableMembers.map((member) => {
-              const selected = selectedMembers.some((entry) => entry.userId === member.id);
-              return <TouchableOpacity key={member.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleMember(member.id)}>
-                <Text style={styles.optionTitle}>{member.name}</Text>
-                <Text style={styles.optionMeta}>{selected ? "Selecionado" : "Toque para selecionar"}</Text>
-              </TouchableOpacity>;
-            })}
+          <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+            <MemberRoleSelector members={availableMembers} value={selectedMembers} onChange={setSelectedMembers} />
           </ScrollView>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setMembersModal(false)}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.primaryButton, hasIncompleteMemberRoles(selectedMembers) && styles.disabled]}
+            onPress={() => setMembersModal(false)}
+            disabled={hasIncompleteMemberRoles(selectedMembers)}
+          ><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
         </View></View>
       </Modal>
 
@@ -348,9 +343,12 @@ export default function NewScheduleScreen() {
           <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
 
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
-            <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? selectedSongs.map((song) => song.title).join(", ") : "Nenhuma música adicionada."}</Text></View>
+            <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} música(s) na ordem da escala` : "Nenhuma música adicionada."}</Text></View>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
           </View>
+          {selectedSongs.length ? <View style={styles.songCards}>{selectedSongs.map((song, index) => (
+            <ScheduleSongCard key={song.id} song={song} position={index + 1} onRemove={() => toggleSong(song.id)} />
+          ))}</View> : null}
 
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
             <View style={styles.sectionText}><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View>
@@ -364,7 +362,7 @@ export default function NewScheduleScreen() {
             </View>)}
           </View>
 
-          <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving}>
+          <TouchableOpacity style={[styles.primaryButton, (saving || hasIncompleteMemberRoles(selectedMembers)) && styles.disabled]} onPress={() => void save()} disabled={saving || hasIncompleteMemberRoles(selectedMembers)}>
             <Text style={styles.primaryText}>{saving ? "Salvando..." : "Criar escala"}</Text>
           </TouchableOpacity>
         </View>
@@ -407,6 +405,7 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   loader: { marginVertical: spacing.xl },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
+  songCards: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginTop: spacing.md },
   selectedChip: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   selectedChipTitle: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   selectedChipMeta: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xxs },

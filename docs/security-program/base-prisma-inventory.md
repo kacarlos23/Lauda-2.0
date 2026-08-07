@@ -10,7 +10,9 @@ O cliente cru existe somente em `src/config/prisma.ts`. Novos usos da exportaç�
 | Local | Owner funcional | Contexto autorizado | Restrição/teste |
 |---|---|---|---|
 | `src/config/prisma.ts` | Platform Engineering | Construir o cliente tenant-scoped a partir do único `PrismaClient` cru | Teste impede outro `new PrismaClient`; extensão força tenant em where e data de escritas autenticadas. |
+| `src/events/domainEvents.ts` | Platform Engineering | Executar o dispatcher cross-tenant fora de contexto HTTP, com claim concorrente do outbox e projeção idempotente | IDs de tenant vêm do evento durável; unicidade `eventId + userId`; testes de isolamento, atomicidade e deduplicação. |
 | `src/middlewares/authMiddleware.ts` | Identity Engineering | Resolver sessão e estado canônico antes de abrir o contexto tenant | `authMiddleware.test.ts`; JWT não é fonte de role/tenant/permissão. |
+| `src/realtime/websocketServer.ts` | Platform Engineering | Validar a sessão vinculada ao ticket opaco antes de existir contexto tenant da conexão WebSocket | Ticket curto/de uso único, predicados de usuário e tenant e sessão ativa; `schedules.test.ts`. |
 | `src/repositories/authRepository.ts` | Identity Engineering | Identidade pré-auth, reset, MFA e revogação atômica | `auth.test.ts`, `privilegedAccess.test.ts`, testes unitários de auth. |
 | `src/services/authSessionService.ts` | Identity Engineering | Sessões/refresh families são registros de sistema, não recursos de tenant expostos | `auth.test.ts`, `tokenService.test.ts`. |
 | `src/repositories/MemberRepository.ts` | Identity Engineering | Inativar membro e revogar sessões na mesma transação com predicate de tenant | `members.test.ts`, `auth.test.ts`. |

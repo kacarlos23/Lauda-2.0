@@ -185,6 +185,25 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     throw new Error("RATE_LIMIT_ENABLED must be true in production");
   }
 
+  const realtimeEnabled = environment.REALTIME_ENABLED
+    ? environment.REALTIME_ENABLED === "true"
+    : true;
+  const realtimeRedisUrl = environment.REALTIME_REDIS_URL?.trim()
+    || environment.RATE_LIMIT_REDIS_URL?.trim()
+    || null;
+  if (isProduction && realtimeEnabled && !realtimeRedisUrl) {
+    throw new Error("REALTIME_REDIS_URL or RATE_LIMIT_REDIS_URL is required when realtime is enabled in production");
+  }
+  if (isProduction && realtimeRedisUrl && !realtimeRedisUrl.startsWith("rediss://")) {
+    throw new Error("Realtime Redis must use rediss:// in production");
+  }
+
+  const pushEnabled = environment.PUSH_NOTIFICATIONS_ENABLED === "true";
+  const expoAccessToken = environment.EXPO_PUSH_ACCESS_TOKEN?.trim() || null;
+  if (isProduction && pushEnabled && !expoAccessToken) {
+    throw new Error("EXPO_PUSH_ACCESS_TOKEN is required when push notifications are enabled in production");
+  }
+
   const passwordResetDeliveryMode = (
     environment.PASSWORD_RESET_DELIVERY_MODE || (isProduction ? "smtp" : "disabled")
   ) as PasswordResetDeliveryMode;
@@ -295,6 +314,17 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
       ),
       hmacKey: rateLimitHmacKey,
       failureMode: rateLimitFailureMode,
+    },
+    realtime: {
+      enabled: realtimeEnabled,
+      redisUrl: realtimeRedisUrl,
+      ticketTtlSeconds: parsePositiveInteger(environment.REALTIME_TICKET_TTL_SECONDS, 30, "REALTIME_TICKET_TTL_SECONDS"),
+      outboxPollMs: parsePositiveInteger(environment.OUTBOX_POLL_MS, 1000, "OUTBOX_POLL_MS"),
+    },
+    notifications: {
+      retentionDays: parsePositiveInteger(environment.NOTIFICATION_RETENTION_DAYS, 90, "NOTIFICATION_RETENTION_DAYS"),
+      pushEnabled,
+      expoAccessToken,
     },
     http: {
       host: environment.HOST?.trim() || "0.0.0.0",

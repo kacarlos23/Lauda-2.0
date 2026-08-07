@@ -1,5 +1,11 @@
 import { Prisma, PrismaClient, Role } from "@prisma/client";
 import { basePrisma } from "../config/prisma";
+import {
+  enqueueScheduleCancelled,
+  enqueueScheduleCreated,
+  enqueueScheduleUpdated,
+  loadScheduleNotificationSnapshot,
+} from "../services/scheduleNotificationService";
 
 export const adminResourceNames = [
   "tenants",
@@ -342,8 +348,111 @@ export class AdminRepository {
     return this.delegate(resource).create({ data, select: this.config(resource).select });
   }
 
+  createScheduleResource(data: Record<string, unknown>, actorId: string) {
+    return this.db.$transaction(async (tx) => {
+      const created = await tx.schedule.create({
+        data: { ...(data as Prisma.ScheduleUncheckedCreateInput), createdById: actorId },
+        select: schedulePublicSelect,
+      });
+      const snapshot = await loadScheduleNotificationSnapshot(created.tenantId, created.id, tx);
+      if (snapshot) await enqueueScheduleCreated(tx, snapshot, actorId);
+      return created;
+    });
+  }
+
+  mutateScheduleChildResource(
+    resource: "schedule-assignments" | "schedule-songs",
+    operation: "create" | "update" | "delete",
+    actorId: string,
+    data: Record<string, unknown> = {},
+    id?: string,
+  ) {
+    return this.db.$transaction(async (tx) => {
+      const current = id
+        ? resource === "schedule-assignments"
+          ? await tx.scheduleAssignment.findUnique({ where: { id }, select: { scheduleId: true, tenantId: true } })
+          : await tx.scheduleSong.findUnique({ where: { id }, select: { scheduleId: true, tenantId: true } })
+        : null;
+      const nextScheduleId = typeof data.scheduleId === "string" ? data.scheduleId : current?.scheduleId;
+      const nextTenantId = typeof data.tenantId === "string" ? data.tenantId : current?.tenantId;
+      if (!nextScheduleId || !nextTenantId) throw new Error("Escala e igreja são obrigatórias");
+
+      const affected = new Map<string, string>();
+      if (current) affected.set(current.scheduleId, current.tenantId);
+      affected.set(nextScheduleId, nextTenantId);
+      const before = new Map<string, Awaited<ReturnType<typeof loadScheduleNotificationSnapshot>>>();
+      for (const [scheduleId, tenantId] of affected) {
+        before.set(scheduleId, await loadScheduleNotificationSnapshot(tenantId, scheduleId, tx));
+      }
+
+      let result: unknown;
+      if (resource === "schedule-assignments") {
+        if (operation === "create") {
+          result = await tx.scheduleAssignment.create({
+            data: { ...(data as Prisma.ScheduleAssignmentUncheckedCreateInput), status: "PENDING" },
+            select: resourceConfig["schedule-assignments"].select,
+          });
+        } else if (operation === "update" && id) {
+          result = await tx.scheduleAssignment.update({
+            where: { id },
+            data: data as Prisma.ScheduleAssignmentUncheckedUpdateInput,
+            select: resourceConfig["schedule-assignments"].select,
+          });
+        } else if (id) {
+          result = await tx.scheduleAssignment.delete({
+            where: { id },
+            select: resourceConfig["schedule-assignments"].select,
+          });
+        }
+      } else if (operation === "create") {
+        result = await tx.scheduleSong.create({
+          data: data as unknown as Prisma.ScheduleSongUncheckedCreateInput,
+          select: resourceConfig["schedule-songs"].select,
+        });
+      } else if (operation === "update" && id) {
+        result = await tx.scheduleSong.update({
+          where: { id },
+          data: data as Prisma.ScheduleSongUncheckedUpdateInput,
+          select: resourceConfig["schedule-songs"].select,
+        });
+      } else if (id) {
+        result = await tx.scheduleSong.delete({
+          where: { id },
+          select: resourceConfig["schedule-songs"].select,
+        });
+      }
+
+      for (const [scheduleId, tenantId] of affected) {
+        const previous = before.get(scheduleId);
+        const after = await loadScheduleNotificationSnapshot(tenantId, scheduleId, tx);
+        if (previous && after) await enqueueScheduleUpdated(tx, previous, after, actorId);
+      }
+      return result;
+    });
+  }
+
   updateResource(resource: AdminResourceName, id: string, data: Record<string, unknown>) {
     return this.delegate(resource).update({ where: { id }, data, select: this.config(resource).select });
+  }
+
+  updateScheduleLifecycle(scheduleId: string, data: Record<string, unknown>, actorId: string) {
+    return this.db.$transaction(async (tx) => {
+      const current = await tx.schedule.findUniqueOrThrow({ where: { id: scheduleId }, select: { tenantId: true } });
+      const before = await loadScheduleNotificationSnapshot(current.tenantId, scheduleId, tx);
+      const updated = await tx.schedule.update({
+        where: { id: scheduleId },
+        data: data as Prisma.ScheduleUncheckedUpdateInput,
+        select: schedulePublicSelect,
+      });
+      const cancelled = data.isActive === false || data.deletedAt instanceof Date;
+      if (before && cancelled) {
+        await enqueueScheduleCancelled(tx, before, actorId);
+      } else if (before) {
+        const after = await loadScheduleNotificationSnapshot(current.tenantId, scheduleId, tx);
+        if (after) await enqueueScheduleUpdated(tx, before, after, actorId);
+      }
+      return updated;
+    });
   }
 
   activateResource(resource: AdminResourceName, id: string) {
@@ -356,6 +465,16 @@ export class AdminRepository {
 
   deleteResource(resource: AdminResourceName, id: string) {
     return this.delegate(resource).delete({ where: { id }, select: this.config(resource).select });
+  }
+
+  deleteScheduleResource(scheduleId: string, actorId: string) {
+    return this.db.$transaction(async (tx) => {
+      const current = await tx.schedule.findUniqueOrThrow({ where: { id: scheduleId }, select: { tenantId: true } });
+      const before = await loadScheduleNotificationSnapshot(current.tenantId, scheduleId, tx);
+      const deleted = await tx.schedule.delete({ where: { id: scheduleId }, select: schedulePublicSelect });
+      if (before) await enqueueScheduleCancelled(tx, before, actorId);
+      return deleted;
+    });
   }
 
   listTenants() {
@@ -432,16 +551,22 @@ export class AdminRepository {
   }
 
   getScheduleById(scheduleId: string) {
-    return this.db.schedule.findUnique({ where: { id: scheduleId }, select: { id: true, tenantId: true, ministryId: true } });
+    return this.db.schedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true, tenantId: true, ministryId: true, assignments: { select: { id: true, userId: true, role: true, status: true } } },
+    });
   }
 
   updateSchedule(
     scheduleId: string,
     data: Prisma.ScheduleUpdateInput,
     songIds?: string[],
-    assignments?: Array<{ userId: string; role: string; status: "PENDING" | "ACCEPTED" | "DECLINED" }>
+    assignments?: Array<{ userId: string; role: string }>,
+    actorId?: string,
   ) {
     return this.db.$transaction(async (tx) => {
+      const currentSchedule = await tx.schedule.findUnique({ where: { id: scheduleId }, select: { tenantId: true } });
+      const before = actorId && currentSchedule ? await loadScheduleNotificationSnapshot(currentSchedule.tenantId, scheduleId, tx) : null;
       const schedule = await tx.schedule.update({ where: { id: scheduleId }, data, select: { id: true, tenantId: true } });
 
       if (songIds) {
@@ -452,15 +577,36 @@ export class AdminRepository {
       }
 
       if (assignments) {
-        await tx.scheduleAssignment.deleteMany({ where: { scheduleId } });
-        if (assignments.length > 0) {
-          await tx.scheduleAssignment.createMany({
-            data: assignments.map((assignment) => ({ scheduleId, userId: assignment.userId, role: assignment.role, status: assignment.status, tenantId: schedule.tenantId })),
-          });
+        const existing = await tx.scheduleAssignment.findMany({ where: { scheduleId } });
+        const requestedUserIds = new Set(assignments.map((assignment) => assignment.userId));
+        await tx.scheduleAssignment.deleteMany({ where: { scheduleId, userId: { notIn: [...requestedUserIds] } } });
+        for (const assignment of assignments) {
+          const current = existing.find((item) => item.userId === assignment.userId);
+          if (!current) {
+            await tx.scheduleAssignment.create({ data: { scheduleId, userId: assignment.userId, role: assignment.role, status: "PENDING", tenantId: schedule.tenantId } });
+          } else if (current.role !== assignment.role) {
+            await tx.scheduleAssignment.update({
+              where: { id: current.id },
+              data: {
+                role: assignment.role,
+                status: "PENDING",
+                declineReason: null,
+                substituteRequestedAt: null,
+                substituteResolvedAt: null,
+                substituteResolvedById: null,
+                substituteResolutionNote: null,
+              },
+            });
+          }
         }
       }
 
-      return tx.schedule.findUniqueOrThrow({ where: { id: scheduleId }, select: schedulePublicSelect });
+      const updated = await tx.schedule.findUniqueOrThrow({ where: { id: scheduleId }, select: schedulePublicSelect });
+      if (actorId && before) {
+        const after = await loadScheduleNotificationSnapshot(schedule.tenantId, scheduleId, tx);
+        if (after) await enqueueScheduleUpdated(tx, before, after, actorId);
+      }
+      return updated;
     });
   }
 
@@ -469,7 +615,24 @@ export class AdminRepository {
   }
 
   countUsersByIds(tenantId: string, userIds: string[]) {
-    return this.db.user.count({ where: { tenantId, id: { in: userIds } } });
+    return this.db.user.count({ where: { tenantId, id: { in: userIds }, isActive: true, deletedAt: null } });
+  }
+
+  findUsersWithAssignmentRoles(tenantId: string, userIds: string[]) {
+    return this.db.user.findMany({
+      where: { tenantId, id: { in: userIds }, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        instruments: {
+          where: { isActive: true, deletedAt: null, instrument: { isActive: true, deletedAt: null, tenantId } },
+          select: { instrument: { select: { name: true } } },
+        },
+      },
+    });
+  }
+
+  getScheduleAssignmentById(id: string) {
+    return this.db.scheduleAssignment.findUnique({ where: { id }, select: { id: true, tenantId: true, userId: true, role: true } });
   }
 
   findMinistryById(tenantId: string, ministryId: string) {

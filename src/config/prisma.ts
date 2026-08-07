@@ -21,6 +21,9 @@ const tenantScopedModels = new Set(
     "Instrument",
     "UserInstrument",
     "UserPermission",
+    "DomainEventOutbox",
+    "Notification",
+    "PushDevice",
   ].map((model) => model.toLowerCase())
 );
 

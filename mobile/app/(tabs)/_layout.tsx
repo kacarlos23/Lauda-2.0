@@ -4,6 +4,9 @@ import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-nativ
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { BrandLogo } from "../../src/components/BrandLogo";
+import { NotificationBell } from "../../src/components/NotificationBell";
+import { NotificationRuntime } from "../../src/components/NotificationRuntime";
+import { NotificationToast } from "../../src/components/NotificationToast";
 import {
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_EXPANDED_WIDTH,
@@ -12,14 +15,35 @@ import {
 import { colors, controlSizes, fontSizes, fontWeights, iconSizes, spacing, typography } from "../../src/theme";
 import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import {
+  activeMobileTabIndex,
   hrefForNavigationItem,
   navigationItemsFor,
 } from "../../src/navigation/manifest";
 import { GROUP_HREFS, ROUTES, TAB_ROUTE_KEYS } from "../../src/navigation/routes";
 import {
+  AnimatedTabBubble,
   AnimatedTabIcon,
   AnimatedTabLabel,
 } from "../../src/components/AnimatedTabNavigation";
+
+function MobileTabBubbleBackground() {
+  const user = useAuthStore((state) => state.user);
+  const { screenWidth } = useResponsiveLayout();
+  const tabItems = navigationItemsFor("mobile-tab", user);
+  const moreItems = navigationItemsFor("mobile-more", user);
+
+  return (
+    <AnimatedTabBubble
+      key={screenWidth}
+      tabItems={tabItems}
+      moreItems={moreItems}
+    />
+  );
+}
+
+function renderMobileTabBubbleBackground() {
+  return <MobileTabBubbleBackground />;
+}
 
 export default function TabsLayout() {
   const { user, tenant, isLoading, refreshCurrentUser } = useAuthStore();
@@ -53,9 +77,13 @@ export default function TabsLayout() {
   const showSidebar = !isMobile;
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
   const mobileTabItems = navigationItemsFor("mobile-tab", user);
+  const mobileMoreItems = navigationItemsFor("mobile-more", user);
+  const selectedMobileTabIndex = activeMobileTabIndex(pathname, mobileTabItems, mobileMoreItems);
+  const selectedMobileTabId = mobileTabItems[selectedMobileTabIndex]?.id;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <NotificationRuntime />
       {showSidebar ? (
         <SidebarNavigation
           isCollapsed={sidebarCollapsed}
@@ -82,6 +110,10 @@ export default function TabsLayout() {
               },
           tabBarActiveTintColor: colors.inverse,
           tabBarInactiveTintColor: colors.inverseMeta,
+          tabBarItemStyle: { flex: 1, minWidth: 0 },
+          tabBarBackground: showSidebar
+            ? undefined
+            : renderMobileTabBubbleBackground,
           headerShown: true,
           headerStyle: { backgroundColor: colors.surface },
           headerShadowVisible: false,
@@ -94,12 +126,13 @@ export default function TabsLayout() {
               <BrandLogo variant="symbol" width={32} />
             </View>
           ) : null,
-          headerRight: () => <ProfileHeaderButton />,
+          headerRight: () => <View style={styles.headerActions}>{user.tenantId ? <NotificationBell /> : null}<ProfileHeaderButton /></View>,
         }}
       >
         {TAB_ROUTE_KEYS.map((routeKey) => {
           const route = ROUTES[routeKey];
           const navigationItem = mobileTabItems.find((item) => item.route === routeKey);
+          const visuallySelected = navigationItem?.id === selectedMobileTabId;
           return (
             <Tabs.Screen
               key={routeKey}
@@ -110,8 +143,9 @@ export default function TabsLayout() {
                 tabBarLabel: navigationItem
                   ? ({ focused }) => (
                       <AnimatedTabLabel
-                        focused={focused}
+                        focused={focused || visuallySelected}
                         label={navigationItem.label}
+                        itemId={navigationItem.id}
                       />
                     )
                   : undefined,
@@ -119,7 +153,7 @@ export default function TabsLayout() {
                   ? ({ focused }) => (
                       <AnimatedTabIcon
                         Icon={navigationItem.Icon}
-                        focused={focused}
+                        focused={focused || visuallySelected}
                         itemId={navigationItem.id}
                       />
                     )
@@ -132,6 +166,7 @@ export default function TabsLayout() {
           );
         })}
       </Tabs>
+      <NotificationToast />
     </View>
   );
 }
@@ -148,4 +183,5 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     textTransform: "uppercase",
   },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginRight: spacing.sm },
 });

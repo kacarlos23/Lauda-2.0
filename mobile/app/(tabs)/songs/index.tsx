@@ -16,6 +16,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
+import { BottomSheet } from "../../../src/components/BottomSheet";
+import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
@@ -108,6 +110,7 @@ export default function SongsScreen() {
   const [exportPanelExpanded, setExportPanelExpanded] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
+  const [songForLinks, setSongForLinks] = useState<Song | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
   const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
@@ -191,6 +194,7 @@ export default function SongsScreen() {
   const canApplyFilters = !filtersEqual(filters, draftFilters);
   const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
   const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
+  const compactLinkActions = contentWidth > 0 && contentWidth < 600;
 
   const toggleSong = useCallback((song: Song) => {
     setSelectedSongs((current) => {
@@ -480,6 +484,8 @@ export default function SongsScreen() {
                         selectionMode={isSelectionMode}
                         selected={selectedSongs.has(song.id)}
                         isLast={index === songs.length - 1}
+                        compactLinkActions={compactLinkActions}
+                        onOpenLinks={() => setSongForLinks(song)}
                         onPress={() => {
                           if (isSelectionMode) {
                             toggleSong(song);
@@ -513,6 +519,26 @@ export default function SongsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <BottomSheet
+        isOpen={Boolean(songForLinks)}
+        onClose={() => setSongForLinks(null)}
+        title="Links da música"
+      >
+        {songForLinks ? (
+          <View style={styles.linksSheetContent} testID="song-links-sheet">
+            <Text style={styles.linksSheetSongTitle}>{songForLinks.title}</Text>
+            <Text style={styles.linksSheetSongMeta}>
+              {songForLinks.artist.name}
+              {" · "}
+              Tom {songForLinks.originalKey}
+            </Text>
+            <View style={styles.linksSheetActions}>
+              <SongLinkButtons links={songForLinks} variant="sheet" />
+            </View>
+          </View>
+        ) : null}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -574,4 +600,22 @@ const styles = StyleSheet.create({
   link: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   pageText: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
   disabledText: { opacity: 0.35 },
+  linksSheetContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  linksSheetSongTitle: {
+    color: colors.ink,
+    fontSize: fontSizes.s17,
+    fontWeight: fontWeights.black,
+  },
+  linksSheetSongMeta: {
+    color: colors.muted,
+    fontSize: fontSizes.s13,
+    marginTop: spacing.xs,
+  },
+  linksSheetActions: {
+    marginTop: spacing.lg,
+  },
 });

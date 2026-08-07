@@ -254,11 +254,12 @@ async function mockApi(
     });
   });
 
-  await page.route("**/api/schedules/me", async (route) => {
+  await page.route("**/api/schedules**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ data: schedules }),
+      body: JSON.stringify({ data: path === "/api/schedules/me" ? schedules : schedules.map((assignment) => assignment.schedule) }),
     });
   });
 
@@ -387,6 +388,20 @@ async function mockApi(
     });
   }
 
+  await page.route("**/api/songs**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          items: [],
+          pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+        },
+      }),
+    });
+  });
+
   await page.route("**/api/church/me", async (route) => {
     if (options.churchError) {
       await route.fulfill({
@@ -432,6 +447,23 @@ async function mockApi(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: { ...schedules[0], status: body.status ?? "ACCEPTED" } }),
+    });
+  });
+
+  await page.route("**/api/notifications**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/notifications" && route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: { items: [], unreadCount: 0, nextCursor: null } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [] }),
     });
   });
 }
@@ -520,6 +552,7 @@ test("faz login, envia token em requisições protegidas e não persiste senha",
 });
 
 test("anima a seleção entre a sidebar e as abas móveis", async ({ page }) => {
+  test.setTimeout(60_000);
   await login(page);
 
   const activeRail = page.getByTestId("sidebar-active-rail");
@@ -533,15 +566,90 @@ test("anima a seleção entre a sidebar e as abas móveis", async ({ page }) => 
     .not.toBe(initialRailPosition?.y);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  const bubbles = page.locator('[data-testid="mobile-tab-bubble"]:visible');
+  const bubble = bubbles.first();
+  const bubbleCenterDistance = async (tabName: string) => {
+    const tab = page.getByRole("tab", { name: tabName }).first();
+    const [bubbleBox, tabBox] = await Promise.all([
+      bubble.boundingBox(),
+      tab.boundingBox(),
+    ]);
+    if (!bubbleBox || !tabBox) return Number.POSITIVE_INFINITY;
+    return Math.abs(
+      bubbleBox.x + bubbleBox.width / 2
+      - (tabBox.x + tabBox.width / 2)
+    );
+  };
+
+  await expect(bubble).toBeVisible();
+  await expect(bubbles).toHaveCount(1);
+  await expect.poll(() => bubbleCenterDistance("Ministérios")).toBeLessThanOrEqual(1);
+  await expect.poll(async () => {
+    const box = await bubble.boundingBox();
+    return Math.abs((box?.width ?? 0) - 68) + Math.abs((box?.height ?? 0) - 68);
+  }).toBeLessThanOrEqual(1);
+
   const ministriesSelection = page.locator(
     '[data-testid="mobile-tab-selection-ministries"]:visible'
   ).first();
+  const ministriesLabel = page.locator(
+    '[data-testid="mobile-tab-label-selection-ministries"]:visible'
+  ).first();
   await expect(ministriesSelection).toHaveCSS("opacity", "1");
+  await expect(ministriesLabel).toHaveText("Ministérios");
+  await expect.poll(() => ministriesLabel.evaluate(
+    (element) => element.scrollWidth - element.clientWidth
+  )).toBeLessThanOrEqual(0);
 
   await page.getByRole("tab", { name: "Início" }).first().click();
+  await expect.poll(() => bubbleCenterDistance("Início")).toBeLessThanOrEqual(1);
   await expect(
     page.locator('[data-testid="mobile-tab-selection-home"]:visible').first()
   ).toHaveCSS("opacity", "1");
+
+  await page.getByRole("tab", { name: "Escalas" }).first().click();
+  await page.getByRole("tab", { name: "Músicas" }).first().click();
+  await expect(page).toHaveURL(/\/songs$/);
+  await expect.poll(() => bubbleCenterDistance("Músicas")).toBeLessThanOrEqual(1);
+  await expect(bubbles).toHaveCount(1);
+  await expect(
+    page.locator('[data-testid="mobile-tab-selection-songs"]:visible').first()
+  ).toHaveCSS("opacity", "1");
+  const songsIcon = page.locator(
+    '[data-testid="mobile-tab-selection-songs"]:visible'
+  ).first();
+  const songsLabel = page.locator(
+    '[data-testid="mobile-tab-label-selection-songs"]:visible'
+  ).first();
+  await expect.poll(async () => {
+    const [bubbleBox, iconBox, labelBox] = await Promise.all([
+      bubble.boundingBox(),
+      songsIcon.boundingBox(),
+      songsLabel.boundingBox(),
+    ]);
+    if (!bubbleBox || !iconBox || !labelBox) return Number.POSITIVE_INFINITY;
+    const bubbleRight = bubbleBox.x + bubbleBox.width;
+    const bubbleBottom = bubbleBox.y + bubbleBox.height;
+    return Math.max(
+      0,
+      bubbleBox.x - iconBox.x,
+      iconBox.x + iconBox.width - bubbleRight,
+      bubbleBox.y - iconBox.y,
+      iconBox.y + iconBox.height - bubbleBottom,
+      bubbleBox.x - labelBox.x,
+      labelBox.x + labelBox.width - bubbleRight,
+      bubbleBox.y - labelBox.y,
+      labelBox.y + labelBox.height - bubbleBottom
+    );
+  }).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: "test-results/mobile-tab-bubble.png" });
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  await expect.poll(() => bubbleCenterDistance("Músicas")).toBeLessThanOrEqual(1);
+  await expect(ministriesLabel).toHaveText("Ministérios");
+
+  await page.setViewportSize({ width: 1200, height: 820 });
+  await expect(page.getByTestId("mobile-tab-bubble")).toBeHidden();
 });
 
 test("admin global vê perfil, home e aba global com lista de igrejas", async ({ page }) => {

@@ -57,6 +57,10 @@ jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children, ...props }: any) => React.createElement("SafeAreaView", props, children),
 }));
 
+jest.mock("../components/BottomSheet", () => ({
+  BottomSheet: () => null,
+}));
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
   useFocusEffect: (callback: () => void) => {

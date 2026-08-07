@@ -2,6 +2,7 @@ param(
   [int]$BackendPort = 3000,
   [int]$FrontendPort = 8081,
   [int]$DatabasePort = 5434,
+  [int]$RedisPort = 6379,
   [string]$DatabaseName = "lauda2",
   [string]$DatabaseUser = "postgres",
   [string]$ComposeProjectName,
@@ -17,6 +18,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-PreferredLanIpv4 {
+  $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -AddressState Preferred -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.IPAddress -notlike "127.*" -and
+      $_.IPAddress -notlike "169.254*" -and
+      $_.InterfaceAlias -notmatch "vEthernet|WSL|Docker|Hyper-V|Loopback"
+    })
+
+  return ($candidates | Select-Object -First 1).IPAddress
+}
+
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $MobileRoot = Join-Path $ProjectRoot "mobile"
 $BackendUrl = "http://127.0.0.1:$BackendPort"
@@ -25,6 +37,8 @@ $DbHost = "127.0.0.1"
 $DbPort = $DatabasePort
 $DbName = $DatabaseName
 $DbUser = $DatabaseUser
+$RedisHost = "127.0.0.1"
+$RedisUrl = "redis://${RedisHost}:${RedisPort}"
 $ComposeProjectArguments = if ([string]::IsNullOrWhiteSpace($ComposeProjectName)) { @() } else { @("-p", $ComposeProjectName) }
 $UseStaticFrontend = $Production -or $StaticFrontend
 
@@ -32,7 +46,18 @@ if ($UseStaticFrontend -and [string]::IsNullOrWhiteSpace($PublicApiUrl)) {
   throw "PublicApiUrl e obrigatoria para builds estaticos. Informe, por exemplo: -PublicApiUrl `"https://api.laudaapp.com/api`"."
 }
 
-$ApiUrl = if ([string]::IsNullOrWhiteSpace($PublicApiUrl)) { "$BackendUrl/api" } else { $PublicApiUrl.TrimEnd("/") }
+$BackendBindHost = if ($LocalhostOnly) { "127.0.0.1" } else { "0.0.0.0" }
+$lanAddress = if (-not $LocalhostOnly -and [string]::IsNullOrWhiteSpace($PublicApiUrl)) { Get-PreferredLanIpv4 } else { $null }
+if (-not $LocalhostOnly -and [string]::IsNullOrWhiteSpace($PublicApiUrl) -and [string]::IsNullOrWhiteSpace($lanAddress)) {
+  throw "Nao foi possivel detectar um IPv4 da rede local. Use -LocalhostOnly ou informe -PublicApiUrl explicitamente."
+}
+$ApiUrl = if (-not [string]::IsNullOrWhiteSpace($PublicApiUrl)) {
+  $PublicApiUrl.TrimEnd("/")
+} elseif ($LocalhostOnly) {
+  "$BackendUrl/api"
+} else {
+  "http://${lanAddress}:${BackendPort}/api"
+}
 
 if ($UseStaticFrontend) {
   try {
@@ -78,6 +103,7 @@ function Get-DotEnvValue {
 
 function Initialize-ComposeEnvironment {
   $env:POSTGRES_HOST_PORT = [string]$DbPort
+  $env:REDIS_HOST_PORT = [string]$RedisPort
   $env:POSTGRES_DB = $DbName
   $env:POSTGRES_USER = $DbUser
 
@@ -259,7 +285,8 @@ function Start-Backend {
   $errLog = Join-Path $ProjectRoot "backend.$mode.err.log"
   $runCommand = if ($Production) { "npm start" } else { "npm run dev" }
   $nodeEnvironment = if ($Production) { "set NODE_ENV=production&& " } else { "" }
-  $runtimeEnvironment = "${nodeEnvironment}set HOST=127.0.0.1&& set TRUST_PROXY_HOPS=$TrustProxyHops&& set PORT=$BackendPort&& "
+  $localRedisEnvironment = if ($Production) { "" } else { "set RATE_LIMIT_STORE=redis&& set RATE_LIMIT_REDIS_URL=$RedisUrl&& set REALTIME_REDIS_URL=$RedisUrl&& " }
+  $runtimeEnvironment = "${nodeEnvironment}${localRedisEnvironment}set HOST=$BackendBindHost&& set TRUST_PROXY_HOPS=$TrustProxyHops&& set PORT=$BackendPort&& "
   $command = "${runtimeEnvironment}($runCommand) >> `"$outLog`" 2>> `"$errLog`""
 
   $process = Invoke-LoggedCommand -FilePath "cmd.exe" -ArgumentList @("/d", "/s", "/c", $command) -WorkingDirectory $ProjectRoot
@@ -369,6 +396,38 @@ if (-not $dbReady) {
   throw "DB nao ficou pronto. Veja o status com: docker compose ps"
 }
 
+Write-Step "Verificando Redis"
+if (-not (Test-TcpPort -HostName $RedisHost -Port $RedisPort)) {
+  Write-Warn "Redis nao esta respondendo em ${RedisHost}:${RedisPort}. Subindo container via docker compose."
+  Push-Location $ProjectRoot
+  try {
+    docker compose @ComposeProjectArguments up -d redis
+    if ($LASTEXITCODE -ne 0) {
+      throw "docker compose up -d redis falhou."
+    }
+  } finally {
+    Pop-Location
+  }
+} else {
+  Write-Ok "Porta do Redis ja esta aberta em ${RedisHost}:${RedisPort}."
+}
+
+$redisReady = Wait-Until -Name "Redis" -TimeoutSeconds 60 -Condition {
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $response = docker compose @ComposeProjectArguments exec -T redis redis-cli ping 2>$null
+    $redisExitCode = $LASTEXITCODE
+    return $redisExitCode -eq 0 -and ($response -join "") -eq "PONG"
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
+if (-not $redisReady) {
+  throw "Redis nao ficou pronto. Veja o status com: docker compose ps"
+}
+
 if (-not $SkipMigrations) {
   Write-Step "Conferindo/aplicando migrations do Prisma"
   Push-Location $ProjectRoot
@@ -468,7 +527,9 @@ if (Test-FrontendHealth) {
 
 Write-Step "Resumo"
 Write-Ok "DB conectado e respondendo em ${DbHost}:${DbPort} ($DbName)."
+Write-Ok "Redis conectado e respondendo em ${RedisHost}:${RedisPort}."
 Write-Ok "Backend OK: $BackendUrl/health"
+Write-Ok "API configurada para o app: $ApiUrl"
 Write-Ok "Frontend OK: $FrontendUrl"
 Write-Host ""
 Write-Host "Para rodar novamente:" -ForegroundColor Cyan

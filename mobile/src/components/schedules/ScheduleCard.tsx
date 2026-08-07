@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { Copy, Download, Edit3 } from "lucide-react-native";
 import { Button, Card, RichCommentView, ScheduleStatusBadge } from "../ui";
 import {
@@ -14,6 +14,7 @@ import {
   typography,
 } from "../../theme";
 import { Schedule, ScheduleAssignment } from "../../types";
+import { ScheduleSongCard } from "./ScheduleSongCard";
 
 const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" });
 const time = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -34,6 +35,8 @@ type ScheduleCardProps = {
   onDecline?: () => void;
   onRequestSubstitute?: () => void;
   onResolveSubstitution?: (assignment: ScheduleAssignment) => void;
+  onOpenSong?: (songId: string) => void;
+  highlighted?: boolean;
 };
 
 function statusCounts(schedule: Schedule) {
@@ -63,24 +66,16 @@ export function ScheduleCard({
   onDecline,
   onRequestSubstitute,
   onResolveSubstitution,
+  onOpenSong,
+  highlighted = false,
 }: ScheduleCardProps) {
   const date = new Date(schedule.date);
   const counts = statusCounts(schedule);
   const isPending = assignment?.status === "PENDING";
 
   return (
-    <Card style={styles.card}>
-      <Pressable
-        style={({ hovered, pressed }: any) => [
-          styles.pressArea,
-          canManage && styles.clickable,
-          hovered && canManage && styles.hover,
-          pressed && canManage && styles.pressed,
-        ]}
-        onPress={canManage ? onEdit : undefined}
-        accessibilityRole={canManage ? "button" : undefined}
-        accessibilityLabel={canManage ? `Editar escala ${schedule.title}` : undefined}
-      >
+    <Card style={[styles.card, highlighted && styles.highlighted]}>
+      <View style={styles.pressArea}>
         <View style={styles.summaryDate}>
           <Text style={styles.dayNumber}>{date.getDate()}</Text>
           <Text style={styles.weekday}>{weekday.format(date).replace(".", "")}</Text>
@@ -100,13 +95,21 @@ export function ScheduleCard({
             <Text style={styles.statusText}>Aceites: {counts.accepted}</Text>
             <Text style={styles.statusText}>Recusas: {counts.declined}</Text>
           </View>
-          {schedule.songs?.length ? (
-            <Text style={styles.detail}>Musicas: {schedule.songs.map((entry) => entry.song.title).join(", ")}</Text>
-          ) : null}
+          {schedule.songs?.length ? <View style={styles.songsSection}>
+            <Text style={styles.commentsTitle}>Músicas da escala</Text>
+            <View style={styles.songCards}>{[...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry, index) => (
+              <ScheduleSongCard
+                key={entry.id}
+                song={entry.song}
+                position={index + 1}
+                onPress={onOpenSong ? () => onOpenSong(entry.songId) : undefined}
+              />
+            ))}</View>
+          </View> : null}
           {schedule.comments ? <View style={styles.comments}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={schedule.comments} numberOfLines={5} /></View> : null}
           {schedule.assignments?.length ? (
             <View style={styles.membersList}>
-              {schedule.assignments.map((item) => (
+              {(schedule.assignments ?? []).map((item) => (
                 <View key={item.id} style={styles.memberRow}>
                   <Text style={styles.memberName}>{item.user?.name ?? "Membro"}</Text>
                   <Text style={styles.memberRole}>{item.role}</Text>
@@ -128,7 +131,7 @@ export function ScheduleCard({
             <Text style={styles.status}>Minha atribuicao: {assignment.role}</Text>
           ) : null}
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.actions}>
         {canManage ? (
@@ -166,9 +169,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
   },
   pressArea: { flexDirection: "row", borderRadius: radii.sm },
-  clickable: { cursor: "pointer" } as any,
-  hover: { backgroundColor: colors.primarySoft },
-  pressed: { opacity: 0.86 },
+  highlighted: { borderLeftWidth: 4, borderLeftColor: colors.warning, backgroundColor: colors.primarySoft },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
   dayNumber: { color: colors.primary, fontSize: fontSizes.s28, fontWeight: fontWeights.bold, lineHeight: lineHeights.h33 },
   weekday: { ...typography.badge, color: colors.muted, textTransform: "uppercase" },
@@ -180,6 +181,8 @@ const styles = StyleSheet.create({
   detail: { ...typography.metadata, color: colors.text, marginTop: spacing.xxs },
   comments: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
   commentsTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
+  songsSection: { marginTop: spacing.md },
+  songCards: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
   statusSummary: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
   statusText: { ...typography.badge, color: colors.text },

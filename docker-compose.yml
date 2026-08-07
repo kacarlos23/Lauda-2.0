@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:15
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       # kics-scan ignore-line
@@ -19,6 +20,7 @@ services:
       - no-new-privileges:true
   redis:
     image: redis:7.4-alpine
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     volumes:

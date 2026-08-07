@@ -198,7 +198,7 @@ export const adminService = {
       date?: string;
       ministryId?: string;
       songIds?: string[];
-      assignments?: Array<{ userId: string; role: string; status?: "PENDING" | "ACCEPTED" | "DECLINED" }>;
+      assignments?: Array<{ userId: string; role: string }>;
     }
   ): Promise<GlobalSchedule> {
     try {

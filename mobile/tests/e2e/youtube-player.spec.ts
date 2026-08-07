@@ -59,6 +59,16 @@ test("carrega o player somente após o clique e preserva a cifra em desktop e mo
   await expect(page.getByTestId("auto-scroll")).toBeVisible();
   await expect(page.getByRole("link", { name: "Abrir Depois da Guerra no YouTube" })).toBeVisible();
 
+  const chordPanel = page.getByTestId("song-chord-panel");
+  const [desktopChordBox, desktopPlayerBox] = await Promise.all([
+    chordPanel.boundingBox(),
+    playerCard.boundingBox(),
+  ]);
+  expect(desktopChordBox).not.toBeNull();
+  expect(desktopPlayerBox).not.toBeNull();
+  expect(desktopPlayerBox!.x).toBeGreaterThan(desktopChordBox!.x + desktopChordBox!.width - 1);
+  expect(Math.abs(desktopPlayerBox!.y - desktopChordBox!.y)).toBeLessThanOrEqual(2);
+
   await page.getByRole("button", { name: "Reproduzir vídeo de Depois da Guerra" }).click();
   await expect(iframe).toHaveAttribute(
     "src",
@@ -69,8 +79,9 @@ test("carrega o player somente após o clique e preserva a cifra em desktop e mo
   await expect(playerCard).toBeVisible();
   await expect(page.getByTestId("auto-scroll")).toBeVisible();
 
-  const box = await playerCard.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.width).toBeLessThanOrEqual(390);
-  expect(box!.height).toBeGreaterThanOrEqual(200);
+  await expect.poll(async () => {
+    const [box, mobileChordBox] = await Promise.all([playerCard.boundingBox(), chordPanel.boundingBox()]);
+    if (!box || !mobileChordBox) return false;
+    return box.width <= 390 && box.height >= 200 && box.y + box.height <= mobileChordBox.y;
+  }).toBe(true);
 });

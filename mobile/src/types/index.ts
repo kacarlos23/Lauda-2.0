@@ -4,6 +4,37 @@ export type Role = "GLOBAL_ADMIN" | "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER
 export type { PermissionEffect, PermissionKey };
 export type MemberStatus = "PENDING" | "ACTIVE" | "INACTIVE";
 export type AssignmentStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+export type NotificationType =
+  | "SCHEDULE_ASSIGNED"
+  | "SCHEDULE_UPDATED"
+  | "SCHEDULE_CANCELLED"
+  | "ASSIGNMENT_ROLE_CHANGED"
+  | "ASSIGNMENT_REMOVED"
+  | "ASSIGNMENT_ACCEPTED"
+  | "ASSIGNMENT_DECLINED"
+  | "SUBSTITUTION_REQUESTED"
+  | "SUBSTITUTION_RESOLVED";
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  resourceType: string;
+  resourceId: string;
+  payload: {
+    scheduleId?: string;
+    assignmentId?: string;
+    date?: string;
+    role?: string;
+    status?: AssignmentStatus;
+    changedFields?: string[];
+    [key: string]: unknown;
+  };
+  readAt?: string | null;
+  createdAt: string;
+  actor?: { id: string; name: string } | null;
+}
 
 export interface Tenant {
   id: string;

@@ -1,7 +1,8 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import { Platform } from "react-native";
-import Constants from "expo-constants";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "./sessionStorage";
+import { resolveApiBaseUrl } from "./apiBaseUrl";
+
+export { normalizeApiBaseUrl, resolveApiBaseUrl } from "./apiBaseUrl";
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
@@ -26,42 +27,14 @@ type QueueItem = {
 const failedQueue: QueueItem[] = [];
 let isRefreshing = false;
 
-function getBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (envUrl) return normalizeApiBaseUrl(envUrl);
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL is required in production. Refusing to build a frontend that falls back to localhost."
-    );
-  }
-
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const host = hostUri.split(":")[0];
-    return normalizeApiBaseUrl(`http://${host}:3000/api`);
-  }
-
-  if (Platform.OS === "android") {
-    return normalizeApiBaseUrl("http://10.0.2.2:3000/api");
-  }
-
-  return normalizeApiBaseUrl("http://localhost:3000/api");
-}
-
-export function normalizeApiBaseUrl(url: string): string {
-  const trimmed = url.replace(/\/+$/, "");
-  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
-}
-
 export const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: resolveApiBaseUrl(),
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
 
 const refreshApi = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: resolveApiBaseUrl(),
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
