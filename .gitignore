@@ -99,6 +99,7 @@ security-artifacts/
 .DS_Store
 Thumbs.db
 Desktop.ini
+.offline-markdown-preview/
 .vscode/
 .idea/
 
