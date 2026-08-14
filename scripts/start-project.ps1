@@ -13,6 +13,8 @@ param(
   [switch]$StaticFrontend,
   [switch]$LocalhostOnly,
   [switch]$RestartBackend,
+  [switch]$WaitIndefinitely,
+  [switch]$RecoverUnhealthyPorts,
   [switch]$SkipMigrations
 )
 
@@ -249,17 +251,46 @@ function Wait-Until {
     [int]$TimeoutSeconds = 60
   )
 
-  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $deadline = if ($WaitIndefinitely) { $null } else { (Get-Date).AddSeconds($TimeoutSeconds) }
+  $lastWaitingMessage = Get-Date
   do {
     if (& $Condition) {
       Write-Ok "$Name esta respondendo."
       return $true
     }
+
+    if ($WaitIndefinitely -and ((Get-Date) - $lastWaitingMessage).TotalSeconds -ge 60) {
+      Write-Warn "Ainda aguardando $Name. O processo continuara tentando."
+      $lastWaitingMessage = Get-Date
+    }
     Start-Sleep -Seconds 2
-  } while ((Get-Date) -lt $deadline)
+  } while ($WaitIndefinitely -or (Get-Date) -lt $deadline)
 
   Write-Fail "$Name nao respondeu dentro de $TimeoutSeconds segundos."
   return $false
+}
+
+function Stop-UnhealthyPortProcess {
+  param(
+    [int]$Port,
+    [object]$Process,
+    [string]$ServiceName
+  )
+
+  if (-not $RecoverUnhealthyPorts) {
+    return $false
+  }
+
+  Write-Warn "$ServiceName nao esta saudavel na porta $Port. Encerrando o processo PID $($Process.Id) para recuperacao automatica."
+  Stop-Process -Id $Process.Id -Force -ErrorAction Stop
+
+  $released = Wait-Until -Name "Liberacao da porta $Port" -TimeoutSeconds 15 -Condition {
+    -not (Test-TcpPort -HostName $DbHost -Port $Port)
+  }
+  if (-not $released) {
+    throw "A porta $Port nao foi liberada apos encerrar o processo PID $($Process.Id)."
+  }
+  return $true
 }
 
 function Invoke-LoggedCommand {
@@ -472,9 +503,12 @@ if (Test-BackendHealth) {
 } else {
   $backendProcess = Get-PortProcess -Port $BackendPort
   if ($backendProcess) {
-    Write-Fail "A porta $BackendPort esta ocupada, mas nao respondeu como backend saudavel."
-    Write-Warn "Processo encontrado: PID $($backendProcess.Id), nome $($backendProcess.ProcessName), caminho $($backendProcess.Path)"
-    throw "Libere a porta $BackendPort ou ajuste -BackendPort antes de iniciar o backend."
+    $recovered = Stop-UnhealthyPortProcess -Port $BackendPort -Process $backendProcess -ServiceName "Backend"
+    if (-not $recovered) {
+      Write-Fail "A porta $BackendPort esta ocupada, mas nao respondeu como backend saudavel."
+      Write-Warn "Processo encontrado: PID $($backendProcess.Id), nome $($backendProcess.ProcessName), caminho $($backendProcess.Path)"
+      throw "Libere a porta $BackendPort ou ajuste -BackendPort antes de iniciar o backend."
+    }
   }
 
   Start-Backend
@@ -490,9 +524,12 @@ if (Test-FrontendHealth) {
 } else {
   $frontendProcess = Get-PortProcess -Port $FrontendPort
   if ($frontendProcess) {
-    Write-Fail "A porta $FrontendPort esta ocupada, mas nao respondeu como frontend saudavel."
-    Write-Warn "Processo encontrado: PID $($frontendProcess.Id), nome $($frontendProcess.ProcessName), caminho $($frontendProcess.Path)"
-    throw "Libere a porta $FrontendPort ou ajuste -FrontendPort antes de iniciar o frontend."
+    $recovered = Stop-UnhealthyPortProcess -Port $FrontendPort -Process $frontendProcess -ServiceName "Frontend"
+    if (-not $recovered) {
+      Write-Fail "A porta $FrontendPort esta ocupada, mas nao respondeu como frontend saudavel."
+      Write-Warn "Processo encontrado: PID $($frontendProcess.Id), nome $($frontendProcess.ProcessName), caminho $($frontendProcess.Path)"
+      throw "Libere a porta $FrontendPort ou ajuste -FrontendPort antes de iniciar o frontend."
+    }
   }
 
   Start-Frontend

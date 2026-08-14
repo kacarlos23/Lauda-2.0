@@ -285,7 +285,8 @@ async function checkPushReceipts() {
   });
 }
 
-let running = false;
+let activeRun: Promise<void> | null = null;
+let followUpRequested = false;
 let timer: NodeJS.Timeout | null = null;
 
 async function claimOutboxEvents() {
@@ -308,9 +309,7 @@ async function claimOutboxEvents() {
   });
 }
 
-export async function processOutboxOnce() {
-  if (running) return;
-  running = true;
+async function processOutboxBatch() {
   try {
     const events = await claimOutboxEvents();
     if (events.length) {
@@ -351,9 +350,27 @@ export async function processOutboxOnce() {
       outcome: "failed",
       errorName: error instanceof Error ? error.name : "unknown",
     });
-  } finally {
-    running = false;
   }
+}
+
+export async function processOutboxOnce() {
+  if (activeRun) {
+    followUpRequested = true;
+    await activeRun;
+    return;
+  }
+
+  const runPromise = (async () => {
+    do {
+      followUpRequested = false;
+      await processOutboxBatch();
+    } while (followUpRequested);
+  })().finally(() => {
+    if (activeRun === runPromise) activeRun = null;
+  });
+
+  activeRun = runPromise;
+  await runPromise;
 }
 
 export function startOutboxDispatcher() {
