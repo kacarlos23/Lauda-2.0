@@ -147,6 +147,7 @@ function Write-TunnelConfig {
   $config = @"
 tunnel: $TunnelId
 credentials-file: $escapedCredentialsFile
+protocol: http2
 
 ingress:
   - hostname: $BaseDomain

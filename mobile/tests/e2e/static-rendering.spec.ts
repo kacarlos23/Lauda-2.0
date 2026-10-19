@@ -89,21 +89,22 @@ function scheduleForToday() {
   };
 }
 
-async function prepareSchedules(page: Page) {
+async function prepareSchedules(page: Page, effectivePermissions = permissions) {
   const schedule = scheduleForToday();
   const assignment = { ...schedule.assignments[0], schedule };
+  const currentUser = { ...user, permissions: effectivePermissions };
 
   await page.addInitScript(({ currentUser, currentTenant }) => {
     localStorage.setItem("auth_token", "static-render-token");
     localStorage.setItem("refresh_token", "static-render-refresh");
     localStorage.setItem("auth_user", JSON.stringify(currentUser));
     localStorage.setItem("auth_tenant", JSON.stringify(currentTenant));
-  }, { currentUser: user, currentTenant: tenant });
+  }, { currentUser, currentTenant: tenant });
 
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/auth/me") {
-      await route.fulfill({ json: { success: true, data: { user, tenant, permissions } } });
+      await route.fulfill({ json: { success: true, data: { user: currentUser, tenant, permissions: effectivePermissions } } });
       return;
     }
     if (path === "/api/schedules/me") {
@@ -158,4 +159,13 @@ test("Escalas mobile mantém calendário e agenda empilhados", async ({ page }, 
   await expect(page.getByText("Escalas do dia", { exact: true })).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath("schedules-mobile.png"), fullPage: true });
+});
+
+test("Escalas web não oferece relatório quando view_reports está negada", async ({ page }) => {
+  const deniedPermissions = permissions.filter((permission) => permission !== "schedule:view_reports");
+  await prepareSchedules(page, deniedPermissions);
+  await page.goto("/schedules", { waitUntil: "networkidle" });
+
+  await expect(page.getByText("Culto de celebração", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Gerar relatório da escala/ })).toHaveCount(0);
 });

@@ -504,21 +504,21 @@ test("redireciona usuário anônimo para login e bloqueia área autenticada", as
   await expect(page.getByTestId("login-password")).toBeVisible();
 });
 
-test("exibe globalmente um anel de foco visível", async ({ page }) => {
+test("mantém os controles focáveis sem borda externa de foco", async ({ page }) => {
   const emailInput = page.getByTestId("login-email");
   await emailInput.click();
   await emailInput.fill("ana@example.com");
 
   await expect(emailInput).toBeFocused();
-  await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
-  await expect.poll(() => emailInput.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await expect.poll(() => emailInput.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBe(0);
 
   const submitButton = page.getByTestId("login-submit");
   await submitButton.focus();
 
   await expect(submitButton).toBeFocused();
-  await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
-  await expect.poll(() => submitButton.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
+  await expect.poll(() => submitButton.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBe(0);
 });
 
 test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {

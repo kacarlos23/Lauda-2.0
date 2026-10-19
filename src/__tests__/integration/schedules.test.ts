@@ -42,6 +42,7 @@ async function cleanDatabase(): Promise<void> {
   await prisma.song.deleteMany();
   await prisma.artist.deleteMany();
   await prisma.ministry.deleteMany();
+  await prisma.userPermission.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
 }
@@ -138,6 +139,19 @@ async function createUserAndLogin(seed: string, tenantId: string, role: "MEMBER"
     user,
     token: login.body.data.token as string,
   };
+}
+
+async function setPermissionOverride(
+  userId: string,
+  tenantId: string,
+  grantedById: string,
+  permissionKey: string,
+  effect: "ALLOW" | "DENY",
+) {
+  const permission = await prisma.permission.findUniqueOrThrow({ where: { key: permissionKey } });
+  return prisma.userPermission.create({
+    data: { userId, tenantId, grantedById, permissionId: permission.id, effect },
+  });
 }
 
 beforeAll(async () => {
@@ -568,6 +582,30 @@ describe("POST /api/schedules", () => {
     expect(pdf.headers["content-disposition"]).toContain("Escala - Culto relatorio");
   });
 
+  it("nega a rota de relatório sem schedule:view_reports", async () => {
+    const tenant = await registerTenant("schedule-report-denied");
+    const ministry = await createMinistry(tenant.token, "Louvor relatório protegido");
+    const member = await createUserAndLogin("report-denied-member", tenant.tenant.id);
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Relatório protegido",
+        date: "2026-05-05T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(201);
+
+    const denied = await request(app)
+      .get(`/api/schedules/${created.body.data.id}/report`)
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(403);
+
+    expect(denied.headers["content-type"]).toMatch(/application\/json/);
+    expect(denied.body.error).toContain("Usuário sem permissão");
+  });
+
   it("permite TENANT_ADMIN editar escala substituindo músicas e membros", async () => {
     const tenant = await registerTenant("admin-update-full");
     const ministry = await createMinistry(tenant.token, "Louvor Update");
@@ -608,6 +646,132 @@ describe("POST /api/schedules", () => {
     });
     expect(updated.body.data.songs).toHaveLength(1);
     expect(updated.body.data.assignments).toHaveLength(1);
+  });
+
+  it("exige schedule:assign_members para remover, adicionar ou trocar função via PATCH", async () => {
+    const tenant = await registerTenant("schedule-assignment-diff");
+    const ministry = await createMinistry(tenant.token, "Louvor diff de membros");
+    const assigned = await createUserAndLogin("diff-assigned", tenant.tenant.id);
+    const additional = await createUserAndLogin("diff-additional", tenant.tenant.id);
+    const editor = await createUserAndLogin("diff-editor", tenant.tenant.id);
+
+    await setPermissionOverride(editor.user.id, tenant.tenant.id, tenant.user.id, "schedule:edit", "ALLOW");
+    await setPermissionOverride(editor.user.id, tenant.tenant.id, tenant.user.id, "schedule:assign_members", "DENY");
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Escala protegida",
+        date: "2026-05-09T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [],
+        assignments: [{ userId: assigned.user.id, role: "Vocal" }],
+      })
+      .expect(201);
+
+    const unchanged = await request(app)
+      .patch(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${editor.token}`)
+      .send({
+        title: "Título permitido",
+        date: "2026-05-09T14:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [],
+        assignments: [{ userId: assigned.user.id, role: "Vocal" }],
+      })
+      .expect(200);
+    expect(unchanged.body.data.title).toBe("Título permitido");
+
+    for (const assignments of [
+      [],
+      [{ userId: assigned.user.id, role: "Baixo" }],
+      [
+        { userId: assigned.user.id, role: "Vocal" },
+        { userId: additional.user.id, role: "Vocal" },
+      ],
+    ]) {
+      await request(app)
+        .patch(`/api/schedules/${created.body.data.id}`)
+        .set("Authorization", `Bearer ${editor.token}`)
+        .send({
+          title: "Alteração indevida",
+          date: "2026-05-09T15:00:00.000Z",
+          ministryId: ministry.id,
+          songIds: [],
+          assignments,
+        })
+        .expect(403);
+    }
+
+    const stored = await prisma.schedule.findUniqueOrThrow({
+      where: { id: created.body.data.id },
+      include: { assignments: true },
+    });
+    expect(stored.title).toBe("Título permitido");
+    expect(stored.assignments).toHaveLength(1);
+    expect(stored.assignments[0]).toMatchObject({ userId: assigned.user.id, role: "Vocal" });
+  });
+
+  it("exige song:attach_to_schedule para remover, adicionar ou reordenar músicas via PATCH", async () => {
+    const tenant = await registerTenant("schedule-song-diff");
+    const ministry = await createMinistry(tenant.token, "Louvor diff de músicas");
+    const editor = await createUserAndLogin("song-diff-editor", tenant.tenant.id);
+    const firstSong = await createSong(tenant.tenant.id, "Primeira protegida");
+    const secondSong = await createSong(tenant.tenant.id, "Segunda protegida");
+    const additionalSong = await createSong(tenant.tenant.id, "Terceira protegida");
+
+    await setPermissionOverride(editor.user.id, tenant.tenant.id, tenant.user.id, "schedule:edit", "ALLOW");
+    await setPermissionOverride(editor.user.id, tenant.tenant.id, tenant.user.id, "song:attach_to_schedule", "DENY");
+
+    const created = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Repertório protegido",
+        date: "2026-05-10T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [firstSong.id, secondSong.id],
+        assignments: [],
+      })
+      .expect(201);
+
+    await request(app)
+      .patch(`/api/schedules/${created.body.data.id}`)
+      .set("Authorization", `Bearer ${editor.token}`)
+      .send({
+        title: "Título permitido nas músicas",
+        date: "2026-05-10T14:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [firstSong.id, secondSong.id],
+        assignments: [],
+      })
+      .expect(200);
+
+    for (const songIds of [
+      [],
+      [secondSong.id, firstSong.id],
+      [firstSong.id, secondSong.id, additionalSong.id],
+    ]) {
+      await request(app)
+        .patch(`/api/schedules/${created.body.data.id}`)
+        .set("Authorization", `Bearer ${editor.token}`)
+        .send({
+          title: "Alteração indevida nas músicas",
+          date: "2026-05-10T15:00:00.000Z",
+          ministryId: ministry.id,
+          songIds,
+          assignments: [],
+        })
+        .expect(403);
+    }
+
+    const stored = await prisma.schedule.findUniqueOrThrow({
+      where: { id: created.body.data.id },
+      include: { songs: { orderBy: { order: "asc" } } },
+    });
+    expect(stored.title).toBe("Título permitido nas músicas");
+    expect(stored.songs.map((entry) => entry.songId)).toEqual([firstSong.id, secondSong.id]);
   });
 
   it("permite TENANT_ADMIN excluir escala com soft delete e desativa relacionamentos", async () => {
@@ -722,6 +886,34 @@ describe("POST /api/schedules", () => {
         ministryId: otherMinistry.id,
       })
       .expect(403);
+  });
+
+  it("bloqueia líder de vínculo inativo ao criar escala", async () => {
+    const tenant = await registerTenant("inactive-schedule-leader");
+    const ministry = await createMinistry(tenant.token, "Louvor inativo");
+    const leader = await createUserAndLogin("inactive-schedule-leader", tenant.tenant.id, "MINISTRY_LEADER");
+
+    await prisma.ministryMember.create({
+      data: {
+        tenantId: tenant.tenant.id,
+        userId: leader.user.id,
+        ministryId: ministry.id,
+        isLeader: true,
+        status: "INACTIVE",
+      },
+    });
+
+    await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${leader.token}`)
+      .send({
+        title: "Escala indevida",
+        date: "2026-05-08T13:00:00.000Z",
+        ministryId: ministry.id,
+      })
+      .expect(403);
+
+    expect(await prisma.schedule.count({ where: { ministryId: ministry.id } })).toBe(0);
   });
 
   it("bloqueia lÃ­der ao escalar membro fora do ministÃ©rio", async () => {
@@ -988,3 +1180,112 @@ describe("Schedule assignments", () => {
   });
 });
 
+
+
+describe("Worship orders", () => {
+  const endpoint = "/api/schedules/worship-order/2026-10-18";
+  async function fixture(seed: string) {
+    const tenant = await registerTenant(seed);
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const first = await createSong(tenant.tenant.id, "526 - Grandioso És Tu");
+    const second = await createSong(tenant.tenant.id, "Cantarei Teu Amor");
+    await prisma.song.update({ where: { id: first.id }, data: { videoUrl: "https://youtu.be/original" } });
+    const make = async (title: string, hour: string) => (await request(app).post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ title, ministryId: ministry.id, date: `2026-10-18T${hour}:00:00.000Z`, songIds: [first.id, second.id], assignments: [] }).expect(201)).body.data;
+    const morning = await make("Domingo A", "12"), evening = await make("Domingo B", "22");
+    return { tenant, ministry, first, second, morning, evening };
+  }
+  it.each(["morning", "evening", "both"])("salva, reabre e exporta %s, preservando momentos após editar escala", async (period) => {
+    const { tenant, ministry, first, second, morning, evening } = await fixture(`worship-${period}`);
+    const songs = [
+      { songId: second.id, moment: "Comunhão" },
+      { songId: first.id, moment: "Outro", momentDescription: "Encerramento", videoUrlOverride: "https://youtu.be/participacao" },
+    ];
+    const input = { morning: period !== "evening" ? { scheduleId: morning.id, songs } : null,
+      evening: period !== "morning" ? { scheduleId: evening.id, songs: [{ songId: first.id, moment: "Ofertório" }] } : null };
+    await request(app).put(endpoint).set("Authorization", `Bearer ${tenant.token}`).send(input).expect(200);
+    const read = await request(app).get(endpoint).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    if (input.morning) expect(read.body.data.morning.songs.map((s: any) => [s.songId, s.order, s.moment])).toEqual([[second.id, 0, "Comunhão"], [first.id, 1, "Outro"]]);
+    if (input.evening) expect(read.body.data.evening.songs).toHaveLength(1);
+    expect((await prisma.song.findUniqueOrThrow({ where: { id: first.id } })).videoUrl).toBe("https://youtu.be/original");
+    const selected = input.morning ?? input.evening!;
+    await request(app).patch(`/api/schedules/${selected.scheduleId}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ title: "Título atualizado", ministryId: ministry.id, date: "2026-10-18T12:00:00.000Z", songIds: selected.songs.map((s) => s.songId), assignments: [] }).expect(200);
+    const link = await prisma.scheduleSong.findFirstOrThrow({ where: { scheduleId: selected.scheduleId, songId: first.id } });
+    expect(link.moment).toBe(input.morning ? "Outro" : "Ofertório");
+    if (input.morning) expect(link.videoUrlOverride).toBe("https://youtu.be/participacao");
+    const pdf = await request(app).get(`${endpoint}/pdf`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(pdf.headers["content-disposition"]).toContain("Ordem_de_Culto_18-10-2026.pdf");
+    expect(pdf.body.toString("latin1")).toContain("/Subtype /Link");
+  });
+  it("isola igrejas, rejeita músicas externas e faz rollback dos dois períodos", async () => {
+    const a = await fixture("worship-owner"), b = await fixture("worship-other");
+    await request(app).put(endpoint).set("Authorization", `Bearer ${a.tenant.token}`)
+      .send({ morning: { scheduleId: b.morning.id, songs: [] }, evening: null }).expect(404);
+    await request(app).put(endpoint).set("Authorization", `Bearer ${a.tenant.token}`)
+      .send({ morning: { scheduleId: a.morning.id, songs: [{ songId: a.first.id, moment: "Prelúdio" }] }, evening: { scheduleId: a.evening.id, songs: [{ songId: b.first.id }] } }).expect(404);
+    expect(await prisma.scheduleSong.count({ where: { scheduleId: a.morning.id } })).toBe(2);
+    expect(await prisma.worshipOrder.count()).toBe(0);
+    await request(app).get(endpoint).expect(401);
+    const member = await createUserAndLogin("worship-member", a.tenant.tenant.id);
+    await request(app).put(endpoint).set("Authorization", `Bearer ${member.token}`).send({ morning: null, evening: null }).expect(403);
+  });
+  it("respeita permissões granulares e não revela a ordem de outra igreja", async () => {
+    const a = await fixture("worship-permissions"), b = await fixture("worship-isolation");
+    await setPermissionOverride(a.tenant.user.id, a.tenant.tenant.id, a.tenant.user.id, "song:attach_to_schedule", "DENY");
+    const songs = [{ songId: a.first.id, moment: "Comunhão" }, { songId: a.second.id, moment: "Louvor" }];
+    await request(app).put(endpoint).set("Authorization", `Bearer ${a.tenant.token}`)
+      .send({ morning: { scheduleId: a.morning.id, songs }, evening: null }).expect(200);
+    await request(app).put(endpoint).set("Authorization", `Bearer ${a.tenant.token}`)
+      .send({ morning: { scheduleId: a.morning.id, songs: [...songs].reverse() }, evening: null }).expect(403);
+    const other = await request(app).get(endpoint).set("Authorization", `Bearer ${b.tenant.token}`).expect(200);
+    expect(other.body.data).toBeNull();
+    await request(app).get(`${endpoint}/pdf`).set("Authorization", `Bearer ${b.tenant.token}`).expect(400);
+    await setPermissionOverride(a.tenant.user.id, a.tenant.tenant.id, a.tenant.user.id, "schedule:view_reports", "DENY");
+    await request(app).get(`${endpoint}/pdf`).set("Authorization", `Bearer ${a.tenant.token}`).expect(403);
+  });
+  it("integra momentos e período no cadastro/edição da escala e preserva PDFs existentes", async () => {
+    const { tenant, ministry, first, second } = await fixture("worship-schedule-form");
+    const input = {
+      title: "Ordem cadastrada na escala", date: "2026-10-18T12:00:00.000Z", ministryId: ministry.id,
+      songIds: [second.id, first.id], assignments: [], worshipPeriod: "MORNING",
+      songDetails: [{ songId: second.id, moment: "Comunhão" }, { songId: first.id, moment: "Outro", momentDescription: "Encerramento", videoUrlOverride: "https://youtu.be/participacao" }],
+    };
+    const created = await request(app).post("/api/schedules").set("Authorization", `Bearer ${tenant.token}`).send(input).expect(201);
+    const id = created.body.data.id;
+    expect(created.body.data.morningOrders).toEqual([{ date: "2026-10-18" }]);
+    expect(created.body.data.songs.map((entry: any) => [entry.songId, entry.order, entry.moment])).toEqual([[second.id, 0, "Comunhão"], [first.id, 1, "Outro"]]);
+    const order = await request(app).get(endpoint).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(order.body.data.morning.id).toBe(id);
+    await request(app).get(`${endpoint}/pdf`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    await request(app).get(`/api/schedules/${id}/report`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+
+    const count = await prisma.schedule.count({ where: { tenantId: tenant.tenant.id } });
+    await request(app).post("/api/schedules").set("Authorization", `Bearer ${tenant.token}`).send({ ...input, title: "Período ocupado" }).expect(409);
+    expect(await prisma.schedule.count({ where: { tenantId: tenant.tenant.id } })).toBe(count);
+    expect((await prisma.worshipOrder.findFirstOrThrow({ where: { tenantId: tenant.tenant.id, date: "2026-10-18" } })).morningScheduleId).toBe(id);
+
+    const legacy = { title: input.title, date: input.date, ministryId: ministry.id, songIds: input.songIds, assignments: [] };
+    await request(app).patch(`/api/schedules/${id}`).set("Authorization", `Bearer ${tenant.token}`).send(legacy).expect(200);
+    const preserved = await prisma.scheduleSong.findFirstOrThrow({ where: { scheduleId: id, songId: first.id } });
+    expect(preserved.moment).toBe("Outro");
+    expect(preserved.videoUrlOverride).toBe("https://youtu.be/participacao");
+
+    await setPermissionOverride(tenant.user.id, tenant.tenant.id, tenant.user.id, "song:attach_to_schedule", "DENY");
+    const changed = await request(app).patch(`/api/schedules/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...input, date: "2026-10-19T22:00:00.000Z", worshipPeriod: "EVENING", songDetails: input.songDetails.map((entry) => ({ ...entry, moment: "Ofertório" })) }).expect(200);
+    expect(changed.body.data.eveningOrders).toEqual([{ date: "2026-10-19" }]);
+    expect(changed.body.data.songs[0].moment).toBe("Ofertório");
+    expect((await prisma.worshipOrder.findFirstOrThrow({ where: { tenantId: tenant.tenant.id, date: "2026-10-18" } })).morningScheduleId).toBeNull();
+    await request(app).patch(`/api/schedules/${id}`).set("Authorization", `Bearer ${tenant.token}`).send({ ...legacy, date: "2026-10-19T22:00:00.000Z", worshipPeriod: null }).expect(200);
+    expect((await prisma.worshipOrder.findFirstOrThrow({ where: { tenantId: tenant.tenant.id, date: "2026-10-19" } })).eveningScheduleId).toBeNull();
+    expect((await prisma.song.findUniqueOrThrow({ where: { id: first.id } })).videoUrl).toBe("https://youtu.be/original");
+  });
+  it("não exporta vazio, rejeita data divergente e URLs inseguras", async () => {
+    const { tenant, morning, first } = await fixture("worship-invalid");
+    await request(app).get(`${endpoint}/pdf`).set("Authorization", `Bearer ${tenant.token}`).expect(400);
+    await request(app).put(endpoint).set("Authorization", `Bearer ${tenant.token}`).send({ morning: { scheduleId: morning.id, songs: [{ songId: first.id, videoUrlOverride: "javascript:alert(1)" }] }, evening: null }).expect(400);
+    await request(app).put(endpoint.replace("2026-10-18", "2026-10-19")).set("Authorization", `Bearer ${tenant.token}`).send({ morning: { scheduleId: morning.id, songs: [] }, evening: null }).expect(400);
+  });
+});

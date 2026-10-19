@@ -108,3 +108,6 @@ Desktop.ini
 *.temp
 *.orig.*
 *.download
+
+# Rotated local supervisor output
+*.log.previous

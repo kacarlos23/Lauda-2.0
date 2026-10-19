@@ -4,6 +4,7 @@ import {
   canDeleteSchedule,
   canEditSchedule,
   canViewScheduleAdminList,
+  canViewScheduleReports,
 } from "./schedulePermissions";
 
 describe("schedulePermissions", () => {
@@ -13,6 +14,7 @@ describe("schedulePermissions", () => {
     expect(canEditSchedule("TENANT_ADMIN")).toBe(true);
     expect(canDeleteSchedule("TENANT_ADMIN")).toBe(true);
     expect(canAssignScheduleMembers("TENANT_ADMIN")).toBe(true);
+    expect(canViewScheduleReports("TENANT_ADMIN")).toBe(true);
   });
 
   it("permite líder criar escala sem liberar edição geral", () => {
@@ -26,5 +28,12 @@ describe("schedulePermissions", () => {
     expect(canEditSchedule({ role: "MEMBER", permissions: ["schedule:edit"] })).toBe(true);
     expect(canDeleteSchedule({ role: "MEMBER", permissions: ["schedule:delete"] })).toBe(true);
     expect(canCreateSchedule("MEMBER")).toBe(false);
+  });
+
+  it("respeita o conjunto efetivo ao negar relatório e sub-recursos", () => {
+    const subject = { role: "TENANT_ADMIN" as const, permissions: ["schedule:edit" as const] };
+    expect(canEditSchedule(subject)).toBe(true);
+    expect(canAssignScheduleMembers(subject)).toBe(false);
+    expect(canViewScheduleReports(subject)).toBe(false);
   });
 });

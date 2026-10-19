@@ -1,3 +1,4 @@
+import type { ScheduleSongDetails, WorshipPeriod } from "../types";
 import { AxiosError } from "axios";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -13,7 +14,8 @@ type ApiResponse<T> = {
 
 function handleApiError(error: unknown): never {
   if (error instanceof AxiosError) {
-    const data = error.response?.data as { error?: string; message?: string } | undefined;
+    const data = error.response?.data as { error?: string; message?: string; details?: string[] } | undefined;
+    if (Array.isArray(data?.details) && data.details.length) throw new Error(data.details.join("\n"));
     throw new Error(data?.error ?? data?.message ?? "Não foi possível carregar as escalas.");
   }
 
@@ -168,6 +170,8 @@ export const scheduleService = {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
+    songDetails?: ScheduleSongDetails[];
+    worshipPeriod?: WorshipPeriod;
     assignments: Array<{ userId: string; role: string }>;
   }): Promise<Schedule> {
     try {
@@ -184,6 +188,8 @@ export const scheduleService = {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
+    songDetails?: ScheduleSongDetails[];
+    worshipPeriod?: WorshipPeriod;
     assignments: Array<{ userId: string; role: string }>;
   }): Promise<Schedule> {
     try {
@@ -234,13 +240,8 @@ export const scheduleService = {
     }
   },
 
-  async exportScheduleReport(scheduleId: string, filename: string, schedule?: Schedule): Promise<void> {
+  async exportScheduleReport(scheduleId: string, filename: string): Promise<void> {
     try {
-      if (Platform.OS === "web" && schedule) {
-        openWebScheduleReport(schedule);
-        return;
-      }
-
       const response = await api.get<ArrayBuffer>(`/schedules/${scheduleId}/report`, { responseType: "arraybuffer" });
       const bytes = new Uint8Array(response.data);
 

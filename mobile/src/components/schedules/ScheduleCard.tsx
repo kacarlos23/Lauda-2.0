@@ -1,6 +1,6 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { Copy, Download, Edit3 } from "lucide-react-native";
+import { ActivityIndicator, GestureResponderEvent, Pressable, StyleSheet, Text, View } from "react-native";
+import { Copy, Download } from "lucide-react-native";
 import { Button, Card, RichCommentView, ScheduleStatusBadge } from "../ui";
 import {
   colors,
@@ -30,6 +30,7 @@ type ScheduleCardProps = {
   onEdit?: () => void;
   onDuplicate?: () => void;
   onExport?: () => void;
+  onWorshipOrder?: () => void;
   onExportSongs?: () => void;
   onAccept?: () => void;
   onDecline?: () => void;
@@ -61,6 +62,7 @@ export function ScheduleCard({
   onEdit,
   onDuplicate,
   onExport,
+  onWorshipOrder,
   onExportSongs,
   onAccept,
   onDecline,
@@ -73,7 +75,11 @@ export function ScheduleCard({
   const counts = statusCounts(schedule);
   const isPending = assignment?.status === "PENDING";
 
-  return (
+  const independent = (action?: () => void) => (event?: GestureResponderEvent) => {
+    event?.stopPropagation();
+    action?.();
+  };
+  const card = (
     <Card style={[styles.card, highlighted && styles.highlighted]}>
       <View style={styles.pressArea}>
         <View style={styles.summaryDate}>
@@ -95,17 +101,6 @@ export function ScheduleCard({
             <Text style={styles.statusText}>Aceites: {counts.accepted}</Text>
             <Text style={styles.statusText}>Recusas: {counts.declined}</Text>
           </View>
-          {schedule.songs?.length ? <View style={styles.songsSection}>
-            <Text style={styles.commentsTitle}>Músicas da escala</Text>
-            <View style={styles.songCards}>{[...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry, index) => (
-              <ScheduleSongCard
-                key={entry.id}
-                song={entry.song}
-                position={index + 1}
-                onPress={onOpenSong ? () => onOpenSong(entry.songId) : undefined}
-              />
-            ))}</View>
-          </View> : null}
           {schedule.comments ? <View style={styles.comments}><Text style={styles.commentsTitle}>Comentários</Text><RichCommentView value={schedule.comments} numberOfLines={5} /></View> : null}
           {schedule.assignments?.length ? (
             <View style={styles.membersList}>
@@ -119,7 +114,7 @@ export function ScheduleCard({
                     <View style={styles.substitutionRow}>
                       <Text style={styles.substitutionText}>Substituto solicitado</Text>
                       {canManage && onResolveSubstitution ? (
-                        <Button title="Resolver" variant="secondary" size="sm" onPress={() => onResolveSubstitution(item)} accessibilityLabel={`Resolver substituição de ${item.user?.name ?? "membro"}`} />
+                        <Button title="Resolver" variant="secondary" size="sm" onPress={independent(() => onResolveSubstitution(item))} accessibilityLabel={`Resolver substituição de ${item.user?.name ?? "membro"}`} />
                       ) : null}
                     </View>
                   ) : null}
@@ -133,30 +128,46 @@ export function ScheduleCard({
         </View>
       </View>
 
+          {schedule.songs?.length ? <View style={styles.songsSection}>
+            <Text style={styles.commentsTitle}>Músicas da escala</Text>
+            <View style={styles.songCards}>{[...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry, index) => (
+              <ScheduleSongCard
+                compact
+                key={entry.id}
+                song={entry.song}
+                position={index + 1}
+                momentLabel={entry.moment === "Outro" && entry.momentDescription ? `Outro: ${entry.momentDescription}` : entry.moment ?? "Louvor"}
+                onPress={onOpenSong ? independent(() => onOpenSong(entry.songId)) : undefined}
+              />
+            ))}</View>
+          </View> : null}
+
       <View style={styles.actions}>
         {canManage ? (
           <>
-            <Button title="Editar" icon={<Edit3 color={colors.primary} size={iconSizes.s16} />} variant="secondary" size="sm" onPress={onEdit} accessibilityLabel={`Editar escala ${schedule.title}`} />
-            <Button title={duplicating ? "Duplicando..." : "Duplicar"} icon={duplicating ? <ActivityIndicator color={colors.primary} /> : <Copy color={colors.primary} size={iconSizes.s16} />} variant="secondary" size="sm" disabled={duplicating} onPress={onDuplicate} accessibilityLabel={`Duplicar escala ${schedule.title}`} />
+            <Button title={duplicating ? "Duplicando..." : "Duplicar"} icon={duplicating ? <ActivityIndicator color={colors.primary} /> : <Copy color={colors.primary} size={iconSizes.s16} />} variant="secondary" size="sm" style={styles.actionButton} textStyle={styles.actionText} disabled={duplicating} onPress={independent(onDuplicate)} accessibilityLabel={`Duplicar escala ${schedule.title}`} />
           </>
         ) : null}
+        {onWorshipOrder ? <Button title="Ordem de Culto — PDF" variant="secondary" size="sm" style={styles.actionButton} textStyle={styles.actionText} onPress={independent(onWorshipOrder)} accessibilityLabel={`Abrir Ordem de Culto da escala ${schedule.title}`} /> : null}
         {onExport ? (
-          <Button title={exporting ? "Gerando..." : "Relatório"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exporting} variant="secondary" size="sm" onPress={onExport} accessibilityLabel={`Gerar relatório da escala ${schedule.title}`} />
+          <Button title={exporting ? "Gerando..." : "Relatório de escala"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exporting} variant="secondary" size="sm" style={styles.actionButton} textStyle={styles.actionText} onPress={independent(onExport)} accessibilityLabel={`Gerar relatório da escala ${schedule.title}`} />
         ) : null}
         {onExportSongs ? (
-          <Button title={exportingSongs ? "Gerando..." : "Cifras"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exportingSongs} variant="secondary" size="sm" onPress={onExportSongs} accessibilityLabel={`Exportar cifras da escala ${schedule.title}`} />
+          <Button title={exportingSongs ? "Gerando..." : "Cifras"} icon={<Download color={colors.primary} size={iconSizes.s16} />} loading={exportingSongs} variant="secondary" size="sm" style={styles.actionButton} textStyle={styles.actionText} onPress={independent(onExportSongs)} accessibilityLabel={`Exportar cifras da escala ${schedule.title}`} />
         ) : null}
       </View>
 
       {isPending && assignment ? (
         <View style={styles.responseActions}>
-          <Button title={updating ? "Atualizando..." : "Aceitar"} size="sm" disabled={updating} onPress={onAccept} accessibilityLabel="Aceitar escala" />
-          <Button title="Recusar" variant="ghost" size="sm" disabled={updating} onPress={onDecline} accessibilityLabel="Recusar escala" />
-          <Button title="Solicitar substituto" variant="secondary" size="sm" disabled={updating} onPress={onRequestSubstitute} accessibilityLabel="Solicitar substituto" />
+          <Button title={updating ? "Atualizando..." : "Aceitar"} size="sm" disabled={updating} onPress={independent(onAccept)} accessibilityLabel="Aceitar escala" />
+          <Button title="Recusar" variant="ghost" size="sm" disabled={updating} onPress={independent(onDecline)} accessibilityLabel="Recusar escala" />
+          <Button title="Solicitar substituto" variant="secondary" size="sm" disabled={updating} onPress={independent(onRequestSubstitute)} accessibilityLabel="Solicitar substituto" />
         </View>
       ) : null}
     </Card>
   );
+  return canManage && onEdit ? <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel={`Editar escala ${schedule.title}`}
+    testID={`schedule-card-${schedule.id}`} style={styles.clickableCard}>{card}</Pressable> : card;
 }
 
 const styles = StyleSheet.create({
@@ -170,8 +181,8 @@ const styles = StyleSheet.create({
   },
   pressArea: { flexDirection: "row", borderRadius: radii.sm },
   highlighted: { borderLeftWidth: 4, borderLeftColor: colors.warning, backgroundColor: colors.primarySoft },
-  summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },
-  dayNumber: { color: colors.primary, fontSize: fontSizes.s28, fontWeight: fontWeights.bold, lineHeight: lineHeights.h33 },
+  summaryDate: { width: 48, minHeight: 48, alignSelf: "flex-start", alignItems: "center", justifyContent: "center" },
+  dayNumber: { color: colors.primary, fontSize: fontSizes.s24, fontWeight: fontWeights.bold, lineHeight: lineHeights.h28 },
   weekday: { ...typography.badge, color: colors.muted, textTransform: "uppercase" },
   body: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm },
@@ -182,7 +193,7 @@ const styles = StyleSheet.create({
   comments: { marginTop: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
   commentsTitle: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
   songsSection: { marginTop: spacing.md },
-  songCards: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  songCards: { width: "100%", gap: spacing.sm },
   status: { ...typography.badge, color: colors.primary, marginTop: spacing.xs },
   statusSummary: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
   statusText: { ...typography.badge, color: colors.text },
@@ -193,6 +204,9 @@ const styles = StyleSheet.create({
   reason: { ...typography.metadata, color: colors.danger, width: "100%" },
   substitutionRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, width: "100%", flexWrap: "wrap" },
   substitutionText: { ...typography.badge, color: colors.warning },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: screen.scheduleCardOffset, marginTop: spacing.md },
+  clickableCard: { width: "100%" },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, width: "100%", marginTop: spacing.md },
+  actionButton: { flexGrow: 1, flexBasis: "45%", minWidth: 120, minHeight: 36, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, backgroundColor: colors.primarySoft, borderWidth: 0, borderRadius: radii.sm },
+  actionText: { fontSize: fontSizes.s12, lineHeight: lineHeights.h18 },
   responseActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginLeft: screen.scheduleCardOffset, marginTop: spacing.md },
 });

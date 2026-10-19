@@ -1,11 +1,16 @@
 import { Router } from "express";
 import { ScheduleController } from "../controllers/ScheduleController";
+import { WorshipOrderController } from "../controllers/WorshipOrderController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
 
 const router = Router();
 const ctrl = new ScheduleController();
 
 router.use(authMiddleware);
+const worship = new WorshipOrderController();
+router.get("/worship-order/:date", requirePermission("schedule:view"), (req, res) => worship.get(req, res));
+router.put("/worship-order/:date", requirePermission("schedule:edit"), (req, res) => worship.save(req, res));
+router.get("/worship-order/:date/pdf", requirePermission("schedule:view_reports"), (req, res) => worship.export(req, res));
 
 router.get("/me", (req, res) => ctrl.listMine(req, res));
 router.get("/", requirePermission("schedule:view"), (req, res) => ctrl.list(req, res));

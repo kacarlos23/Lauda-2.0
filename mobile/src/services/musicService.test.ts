@@ -116,6 +116,37 @@ describe("musicService", () => {
     expect(click).toHaveBeenCalled();
   });
 
+  it("revisa, confirma e exporta o catálogo portátil de um ministério", async () => {
+    const document = {
+      format: "lauda.music-catalog" as const,
+      version: 1 as const,
+      songs: [{ title: "Cristo Venceu", artist: "JMM", originalKey: "A" as const, content: "A D E", cifraUrl: null }],
+    };
+    const preview = {
+      documentHash: "a".repeat(64), total: 1, unique: 1,
+      counts: { CREATE: 1, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, CONFLICT: 0, INVALID: 0 },
+      items: [{ index: 0, title: "Cristo Venceu", artist: "JMM", status: "CREATE" as const }],
+    };
+    mockedApi.post.mockResolvedValueOnce({ data: { success: true, data: preview } });
+    await expect(musicService.previewSongData("ministry-1", document)).resolves.toEqual(preview);
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/preview", { ministryId: "ministry-1", document });
+
+    const committed = { created: 1, linked: 1, restored: 0, alreadyLinked: 0, conflicts: 0, invalid: 0, total: 1, documentHash: preview.documentHash };
+    mockedApi.post.mockResolvedValueOnce({ data: { success: true, data: committed } });
+    await expect(musicService.commitSongData("ministry-1", document, preview.documentHash)).resolves.toEqual(committed);
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/commit", { ministryId: "ministry-1", document, documentHash: preview.documentHash });
+
+    const createObjectURL = jest.fn(() => "blob:catalog");
+    const click = jest.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL: jest.fn() });
+    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click })) } });
+    mockedApi.post.mockResolvedValueOnce({ data: document });
+    await musicService.exportSongData("ministry-1", "Louvor da Manhã");
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-export", { ministryId: "ministry-1" });
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+  });
+
   it("converte erro da API em mensagem de domínio", async () => {
     mockedApi.get.mockRejectedValueOnce({ response: { data: { error: "Música não encontrada" } } });
     await expect(musicService.getSong("missing")).rejects.toThrow("Música não encontrada");

@@ -31,6 +31,7 @@ interface DateTimeInputProps {
   error?: string;
   maskInput?: boolean;
   testID?: string;
+  trailingAction?: React.ReactNode;
 }
 
 export function DateTimeInput({
@@ -45,10 +46,10 @@ export function DateTimeInput({
   error,
   maskInput = true,
   testID,
+  trailingAction,
 }: DateTimeInputProps) {
   const Icon = type === "date" ? Calendar : Clock;
   const inputWrapperRef = useRef<View | null>(null);
-  const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(() => parseDisplayDate(value) ?? new Date());
   const [popoverPosition, setPopoverPosition] = useState({ top: spacing.md, left: spacing.md });
@@ -114,13 +115,11 @@ export function DateTimeInput({
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View ref={inputWrapperRef} style={[styles.inputWrapper, focused && styles.inputWrapperFocused, error && styles.inputWrapperError]}>
+      <View ref={inputWrapperRef} style={[styles.inputWrapper, error && styles.inputWrapperError]}>
         <TextInput
           style={styles.input}
           value={value}
           onChangeText={handleChange}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           placeholder={placeholder ?? (type === "date" ? "DD/MM/AAAA" : "HH:MM")}
           placeholderTextColor={colors.muted}
           keyboardType={keyboardType}
@@ -136,6 +135,7 @@ export function DateTimeInput({
         >
           <Icon color={colors.muted} size={iconSizes.s20} strokeWidth={2.3} />
         </TouchableOpacity>
+        {trailingAction}
       </View>
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
         <View style={styles.overlay}>
@@ -214,9 +214,6 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radii.sm,
     backgroundColor: colors.surface,
-  },
-  inputWrapperFocused: {
-    borderColor: colors.primary,
   },
   inputWrapperError: {
     borderColor: colors.danger,

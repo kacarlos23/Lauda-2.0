@@ -17,6 +17,7 @@ $RedisPort = 6379
 $SupervisorLog = Join-Path $ProjectRoot "laudaapp-supervisor.log"
 $TunnelOutLog = Join-Path $ProjectRoot "cloudflare-tunnel.out.log"
 $TunnelErrLog = Join-Path $ProjectRoot "cloudflare-tunnel.err.log"
+$ManagedCloudflaredPath = Join-Path $env:LOCALAPPDATA "LaudaApp\cloudflared\cloudflared.exe"
 $MutexName = "Local\LaudaAppSupervisor"
 $script:LastStatus = $null
 
@@ -67,6 +68,13 @@ function Wait-ForCommand {
   }
 }
 
+function Get-CloudflaredPath {
+  if (Test-Path -LiteralPath $ManagedCloudflaredPath) {
+    return $ManagedCloudflaredPath
+  }
+  return (Get-Command "cloudflared.exe" -ErrorAction SilentlyContinue).Source
+}
+
 function Test-TcpPort {
   param(
     [string]$HostName,
@@ -113,7 +121,7 @@ function Test-FrontendHealth {
 
 function Test-PublicApiHealth {
   try {
-    $response = Invoke-RestMethod -Uri "https://api.laudaapp.com/health" -TimeoutSec 15
+    $response = Invoke-RestMethod -Uri "https://api.laudaapp.com/health" -TimeoutSec 5
     return $response.status -eq "ok"
   } catch {
     return $false
@@ -150,7 +158,12 @@ function Wait-Until {
 }
 
 function Start-LaudaTunnel {
-  Wait-ForCommand "cloudflared.exe"
+  $cloudflaredPath = Get-CloudflaredPath
+  while (-not $cloudflaredPath) {
+    Write-Log "Aguardando o cloudflared ficar disponivel no sistema." "AVISO"
+    Start-Sleep -Seconds 5
+    $cloudflaredPath = Get-CloudflaredPath
+  }
   while (-not (Test-Path -LiteralPath $TunnelConfig)) {
     Write-Log "Configuracao do tunnel ausente. Executando a configuracao assistida." "AVISO"
     try {
@@ -162,7 +175,6 @@ function Start-LaudaTunnel {
     }
   }
 
-  $cloudflaredPath = (Get-Command "cloudflared.exe" -ErrorAction Stop).Source
   while ($true) {
     $existing = Get-LaudaTunnelProcess
     if ($existing) {
@@ -181,7 +193,7 @@ function Start-LaudaTunnel {
     Write-Log "Iniciando Cloudflare Tunnel oculto e com logs redirecionados."
     Start-Process `
       -FilePath $cloudflaredPath `
-      -ArgumentList @("tunnel", "--config", $TunnelConfig, "run", $TunnelName) `
+      -ArgumentList @("tunnel", "--protocol", "http2", "--config", $TunnelConfig, "run", $TunnelName) `
       -WorkingDirectory $ProjectRoot `
       -WindowStyle Hidden `
       -RedirectStandardOutput $TunnelOutLog `

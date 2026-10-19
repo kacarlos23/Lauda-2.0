@@ -68,6 +68,7 @@ model Tenant {
   users               User[]
   ministries          Ministry[]
   schedules           Schedule[]
+  worshipOrders       WorshipOrder[]
   songs               Song[]
   artists             Artist[]
   memberInvites       MemberInvite[]
@@ -343,6 +344,8 @@ model Schedule {
 
   assignments ScheduleAssignment[]
   songs       ScheduleSong[]
+  morningOrders WorshipOrder[] @relation("MorningSchedule")
+  eveningOrders WorshipOrder[] @relation("EveningSchedule")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -367,6 +370,9 @@ model ScheduleSong {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   order     Int       @default(0)
+  moment    String    @default("Louvor")
+  momentDescription String?
+  videoUrlOverride String? @db.Text
   isActive  Boolean   @default(true)
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -375,6 +381,20 @@ model ScheduleSong {
   @@index([tenantId])
   @@index([tenantId, scheduleId])
   @@index([songId])
+}
+
+model WorshipOrder {
+  id String @id @default(uuid())
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date String @db.VarChar(10)
+  morningScheduleId String?
+  morningSchedule Schedule? @relation("MorningSchedule", fields: [morningScheduleId], references: [id], onDelete: SetNull)
+  eveningScheduleId String?
+  eveningSchedule Schedule? @relation("EveningSchedule", fields: [eveningScheduleId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([tenantId, date])
 }
 
 model ScheduleAssignment {
@@ -613,6 +633,8 @@ model MinistrySong {
 
   @@unique([songId, ministryId])
   @@index([tenantId])
+  @@index([tenantId, ministryId, isActive, deletedAt])
+  @@index([tenantId, songId, isActive, deletedAt])
 }
 
 model AdminAuditLog {

@@ -1,0 +1,18 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/songs/new", "destination": "/songs/new.html" },
+    { "source": "/schedules/new", "destination": "/schedules/new.html" },
+    { "source": "/schedules/worship-order", "destination": "/schedules/worship-order.html" },
+    { "source": "/ministries/assign", "destination": "/ministries/assign.html" },
+    { "source": "/schedules/:id([0-9a-fA-F-]{36})/edit", "destination": "/schedules/[id]/edit.html" },
+    { "source": "/songs/:id([0-9a-fA-F-]{36})/edit", "destination": "/songs/[id]/edit.html" },
+    { "source": "/songs/:id([0-9a-fA-F-]{36})", "destination": "/songs/[id].html" },
+    { "source": "/ministries/:id([0-9a-fA-F-]{36})/members", "destination": "/ministries/[id]/members.html" },
+    { "source": "/ministries/:id([0-9a-fA-F-]{36})", "destination": "/ministries/[id].html" }
+  ],
+  "headers": [
+    { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
+  ]
+}

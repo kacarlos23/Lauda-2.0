@@ -19,6 +19,7 @@ import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
+import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
 import {
@@ -112,6 +113,7 @@ export default function SongsScreen() {
   const [contentWidth, setContentWidth] = useState(0);
   const [songForLinks, setSongForLinks] = useState<Song | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
   const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -345,6 +347,17 @@ export default function SongsScreen() {
         </FilterSection>
       </FilterPanel>
 
+      <SongDataTransferPanel
+        visible={showDataTransfer}
+        canImport={canManageMusic(user, "song:import")}
+        canExport={canManageMusic(user, "song:export")}
+        onClose={() => setShowDataTransfer(false)}
+        onImported={(message) => {
+          showFeedback(message);
+          loadVisibleSongs(true);
+        }}
+      />
+
       <ScrollView
         style={styles.scroller}
         contentContainerStyle={styles.page}
@@ -365,6 +378,15 @@ export default function SongsScreen() {
                 <Text style={styles.subtitle}>Cifras da sua igreja</Text>
               </View>
               <View style={styles.actions}>
+                {canManageMusic(user, "song:import") || canManageMusic(user, "song:export") ? (
+                  <Button
+                    title="Importar/exportar"
+                    variant="secondary"
+                    onPress={() => setShowDataTransfer(true)}
+                    accessibilityLabel="Importar ou exportar músicas"
+                    style={styles.transferButton}
+                  />
+                ) : null}
                 {canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") ? (
                   <TouchableOpacity
                     style={styles.iconButton}
@@ -572,6 +594,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primarySoftBorder,
   },
   newSongButton: { minWidth: 150 },
+  transferButton: { minWidth: 170 },
   searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
   searchInput: { flex: 1 },
   filterButton: { height: 50 },

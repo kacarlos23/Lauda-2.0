@@ -60,7 +60,13 @@ export class MinistryService {
   private checkLeadership(ministry: any, userId: string, role: string) {
     if (role === Role.GLOBAL_ADMIN) return;
 
-    const isLeader = ministry.members?.some((m: any) => m.userId === userId && m.isLeader);
+    const isLeader = ministry.members?.some((m: any) =>
+      m.userId === userId &&
+      m.isLeader &&
+      m.status === "ACTIVE" &&
+      m.isActive === true &&
+      m.deletedAt === null
+    );
     if (!isLeader) {
       throw new ForbiddenError("Apenas o líder do ministério ou administradores podem gerenciar membros");
     }
@@ -168,8 +174,12 @@ export class MinistryService {
     return updated;
   }
 
-  async listMinistryMembers(ministryId: string, filters: ListMinistryMembersInput) {
-    await this.getById(ministryId);
+  async listMinistryMembers(
+    ministryId: string,
+    filters: ListMinistryMembersInput,
+    user: { id: string; role: string },
+  ) {
+    await this.getById(ministryId, user);
     return this.ministryRepository.getMinistryMembers(ministryId, filters);
   }
 

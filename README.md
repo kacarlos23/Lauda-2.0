@@ -138,7 +138,7 @@ Para uso por atalhos ou tarefas agendadas, sem a pausa final:
 start-laudaapp.bat --headless
 ```
 
-O túnel grava diagnóstico em `cloudflare-tunnel.out.log` e `cloudflare-tunnel.err.log`. A primeira configuração pode abrir o navegador para autenticação no Cloudflare; depois que o certificado e o arquivo `%USERPROFILE%\.cloudflared\laudaapp-local.yml` existem, as inicializações seguintes são não interativas. O launcher não se registra automaticamente na inicialização do Windows.
+O túnel grava diagnóstico em `cloudflare-tunnel.out.log` e `cloudflare-tunnel.err.log`. A primeira configuração pode abrir o navegador para autenticação no Cloudflare; depois que o certificado e o arquivo `%USERPROFILE%\.cloudflared\laudaapp-local.yml` existem, as inicializações seguintes são não interativas. O transporte é fixado em HTTP/2 para não depender de QUIC/UDP, e o launcher prefere o executável atualizado mantido em `%LOCALAPPDATA%\LaudaApp\cloudflared\cloudflared.exe`. O launcher não se registra automaticamente na inicialização do Windows.
 
 O Expo permite abrir o projeto na web, Android ou iOS. Também estão disponíveis:
 
@@ -302,3 +302,14 @@ git status
 git diff --check
 git check-ignore -v .env
 ```
+
+
+## Ordem de Culto
+
+Na área **Escalas**, use **Gerar Ordem de Culto**, escolha a data e vincule as escalas aos períodos da manhã e/ou da noite. Também é possível definir o período no cadastro ou na edição de uma escala. Organize as músicas pelas setas ou arrastando a alça, escolha o momento de cada participação e salve antes de exportar o PDF.
+
+O relatório usa o título, artista e vídeo cadastrados no repertório. Músicas sem vídeo continuam no documento; títulos e ícones de reprodução recebem hyperlinks somente quando existe um YouTube válido. A exportação de cifras e o relatório de escala continuam separados.
+
+A migration `20261018120000_worship_orders` adiciona os metadados de participação e o vínculo explícito dos períodos por igreja e data. Aplique migrations com `npx prisma migrate deploy` no ambiente configurado, mantendo um backup anterior.
+
+Para desenvolvimento isolado, use `scripts/start-worship-development.ps1` e `scripts/build-worship-test.ps1`. Os scripts de aceitação recusam o banco e a API de produção. Para exportar o pacote público, configure `EXPO_PUBLIC_API_URL=https://api.laudaapp.com/api`, `EXPO_NO_DOTENV=1` e `EXPO_OVERRIDE_METRO_CONFIG` com o caminho absoluto de `mobile/metro.production-release.config.cjs`; execute a exportação Expo para uma pasta de preparação e valide-a com `scripts/validate-frontend-api.cjs` antes de publicar. O cache público é separado do cache de testes.

@@ -1,4 +1,5 @@
 export const basePrismaAllowlist = [
+  { path: "scripts/import-song-catalog.ts", owner: "Tenant Platform", context: "Operator-only CLI resolves one explicitly named tenant, scopes ministry and actor lookup to it, and imports through the existing tenant context after preview." },
   { path: "src/config/prisma.ts", owner: "Platform Engineering", context: "Constructs the scoped client from the sole raw Prisma client." },
   { path: "src/events/domainEvents.ts", owner: "Platform Engineering", context: "Cross-tenant background dispatcher claims durable outbox batches and projects tenant-owned notifications without an HTTP tenant context." },
   { path: "src/middlewares/authMiddleware.ts", owner: "Identity Engineering", context: "Resolves current session and canonical authorization state before tenant context exists." },

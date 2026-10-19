@@ -1,3 +1,4 @@
+import type { ScheduleSongDetails, WorshipPeriod } from "../types";
 import { create } from "zustand";
 import { AssignmentStatus, Schedule, ScheduleAssignment } from "../types";
 import { ScheduleListParams, scheduleService } from "../services/scheduleService";
@@ -26,6 +27,8 @@ interface ScheduleState {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
+    songDetails?: ScheduleSongDetails[];
+    worshipPeriod?: WorshipPeriod;
     assignments: Array<{ userId: string; role: string }>;
   }) => Promise<Schedule>;
   updateSchedule: (id: string, payload: {
@@ -34,6 +37,8 @@ interface ScheduleState {
     comments?: string | null;
     ministryId: string;
     songIds: string[];
+    songDetails?: ScheduleSongDetails[];
+    worshipPeriod?: WorshipPeriod;
     assignments: Array<{ userId: string; role: string }>;
   }) => Promise<Schedule>;
   deleteSchedule: (id: string) => Promise<void>;

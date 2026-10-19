@@ -79,6 +79,7 @@ export const colors = {
 };
 
 export const overlays = {
+  songHoverShadow: "rgba(16, 40, 32, 0.12)",
   subtleInverse: "rgba(248, 250, 246, 0.07)",
   inverseBorder: "rgba(248, 250, 246, 0.12)",
   inverseControlBorder: "rgba(248, 250, 246, 0.18)",

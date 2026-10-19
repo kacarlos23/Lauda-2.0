@@ -135,7 +135,10 @@ export class MinistryController extends BaseController {
     const filters = listMinistryMembersSchema.parse(req.query);
     const repo = new MinistryRepository(req.user!.tenantId);
     const service = new MinistryService(repo);
-    const members = await service.listMinistryMembers(ministryId, filters);
+    const members = await service.listMinistryMembers(ministryId, filters, {
+      id: req.user!.id,
+      role: req.user!.role,
+    });
 
     this.handleSuccess(res, members);
   }

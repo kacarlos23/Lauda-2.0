@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { RouteMetadata } from "../src/components/RouteMetadata";
 import { useAuthStore } from "../src/store/authStore";
 import { GROUP_HREFS } from "../src/navigation/routes";
-import { colors, motion } from "../src/theme";
+import { colors, motion, overlays } from "../src/theme";
 
 export default function RootLayout() {
   const { user, isLoading, loadSession } = useAuthStore();
@@ -37,13 +37,9 @@ export default function RootLayout() {
         box-sizing: border-box;
       }
 
-      *:focus:not(:focus-visible) {
-        outline: none;
-      }
-
+      *:focus,
       *:focus-visible {
-        outline: 3px solid ${colors.accent} !important;
-        outline-offset: 2px !important;
+        outline: none !important;
       }
 
       ::selection {
@@ -66,6 +62,23 @@ export default function RootLayout() {
         [role="button"]:not([aria-disabled="true"]):active,
         [role="link"]:not([aria-disabled="true"]):active {
           transform: translateY(1px);
+        }
+
+        [data-testid^="schedule-card-"]:hover:has([role="button"]:hover, [role="link"]:hover) {
+          filter: none;
+        }
+
+        [data-testid^="schedule-card-"]:active:has([role="button"]:active, [role="link"]:active) {
+          transform: none;
+        }
+
+        [data-testid="schedule-song-compact"] {
+          transition: box-shadow ${motion.interactionMs}ms ease, transform ${motion.interactionMs}ms ease;
+        }
+
+        [data-testid="schedule-song-compact"]:has([role="link"]:hover) {
+          box-shadow: 0 4px 12px ${overlays.songHoverShadow};
+          transform: translateY(-2px);
         }
       }
 

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Lock, LogIn, Mail } from "lucide-react-native";
-import { AxiosError } from "axios";
 import { useAuthStore } from "../../src/store/authStore";
+import { authErrorMessage } from "../../src/services/authError";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
 import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
@@ -14,12 +14,7 @@ function isValidEmail(email: string): boolean {
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    const data = error.response?.data as { error?: string } | undefined;
-    return data?.error ?? "Erro ao fazer login. Tente novamente.";
-  }
-
-  return "Erro ao fazer login. Tente novamente.";
+  return authErrorMessage(error, "Erro ao fazer login. Tente novamente.");
 }
 
 export default function LoginScreen() {

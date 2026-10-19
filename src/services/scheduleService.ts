@@ -3,6 +3,10 @@ import { ScheduleRepository } from "../repositories/ScheduleRepository";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, ResolveSubstitutionInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
 import { hasPermission, requireUserPermission } from "./permissionService";
+import {
+  scheduleAssignmentsChanged,
+  scheduleSongsChanged,
+} from "../security/scheduleMutationPolicy";
 
 type RequestUser = { id: string; role: Role; tenantId?: string };
 
@@ -107,36 +111,51 @@ export class ScheduleService {
 
   async updateForUser(scheduleId: string, data: UpdateScheduleInput, user: RequestUser) {
     await requireUserPermission(user, "schedule:edit", user.tenantId);
-    await this.ensureCanManageSchedule(scheduleId, user);
+    const existingSchedule = await this.ensureCanManageSchedule(scheduleId, user);
 
     const ministry = await this.scheduleRepository.findMinistryById(data.ministryId);
     if (!ministry) {
       throw new NotFoundError("Ministério não encontrado");
     }
 
-    await this.ensureSongsBelongToTenant(data.songIds);
-    if (data.songIds.length > 0) {
+    const [existingAssignments, existingSongs, canModifySongs, canModifyAssignments] = await Promise.all([
+      this.scheduleRepository.findScheduleAssignments(scheduleId),
+      this.scheduleRepository.findScheduleSongs(scheduleId),
+      hasPermission(user, "song:attach_to_schedule", user.tenantId),
+      hasPermission(user, "schedule:assign_members", user.tenantId),
+    ]);
+    const assignmentsChanged = scheduleAssignmentsChanged(
+      existingAssignments,
+      data.assignments,
+      existingSchedule.ministryId !== data.ministryId,
+    );
+    const songsChanged = scheduleSongsChanged(existingSongs.map((entry) => entry.songId), data.songIds);
+
+    if (songsChanged) {
       await requireUserPermission(user, "song:attach_to_schedule", user.tenantId);
     }
-    if (data.assignments.length > 0) {
+    if (assignmentsChanged) {
       await requireUserPermission(user, "schedule:assign_members", user.tenantId);
     }
+    await this.ensureSongsBelongToTenant(data.songIds);
 
-    if (!await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
+    if (!canModifyAssignments && user.role === Role.MINISTRY_LEADER) {
       const leadership = await this.scheduleRepository.findMinistryLeadership(data.ministryId, user.id);
       if (!leadership) {
         throw new ForbiddenError("Líder só pode mover escalas para ministérios que lidera");
       }
     }
 
-    const existingAssignments = await this.scheduleRepository.findScheduleAssignments(scheduleId);
     await this.ensureAssignmentsAreAllowed(
       data.ministryId,
       data.assignments,
       user,
       new Map(existingAssignments.map((assignment) => [assignment.userId, assignment.role])),
     );
-    const updated = await this.scheduleRepository.update(scheduleId, data, user.id);
+    const updated = await this.scheduleRepository.update(scheduleId, data, user.id, {
+      assignments: canModifyAssignments,
+      songs: canModifySongs,
+    });
     if (!updated) {
       throw new NotFoundError("Escala não encontrada");
     }

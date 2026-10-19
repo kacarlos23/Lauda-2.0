@@ -65,6 +65,26 @@ const SongRequestSchema = registry.register(
   })
 );
 
+const PortableSongSchema = registry.register(
+  "PortableSong",
+  z.object({
+    title: z.string().min(1).max(200),
+    artist: z.string().min(1).max(200),
+    originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]),
+    content: z.string().min(1).max(100000),
+    cifraUrl: z.string().url().nullable().optional(),
+  }),
+);
+
+const SongTransferDocumentSchema = registry.register(
+  "SongTransferDocument",
+  z.object({
+    format: z.literal("lauda.music-catalog"),
+    version: z.literal(1),
+    songs: z.array(PortableSongSchema).min(1).max(2000),
+  }),
+);
+
 const UpdateChurchRequestSchema = registry.register(
   "UpdateChurchRequest",
   z.object({
@@ -401,7 +421,7 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get", path: "/api/songs", summary: "Busca músicas e cifras do tenant", security: [{ bearerAuth: [] }],
-  request: { query: z.object({ search: z.string().optional(), artistId: z.string().uuid().optional(), page: z.coerce.number().optional(), limit: z.coerce.number().optional() }) },
+  request: { query: z.object({ search: z.string().optional(), artistId: z.string().uuid().optional(), ministryId: z.string().uuid().optional(), page: z.coerce.number().optional(), limit: z.coerce.number().optional() }) },
   responses: { 200: { description: "Lista paginada de músicas." } },
 });
 registry.registerPath({
@@ -418,6 +438,21 @@ registry.registerPath({
   method: "post", path: "/api/songs/export", summary: "Exporta até 50 cifras em PDF", security: [{ bearerAuth: [] }],
   request: { body: { content: { "application/json": { schema: z.object({ songIds: z.array(z.string().uuid()).min(1).max(50) }) } } } },
   responses: { 200: { description: "PDF gerado.", content: { "application/pdf": { schema: z.string() } } }, 404: { description: "Uma ou mais músicas não pertencem ao tenant." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/songs/data-export", summary: "Exporta o catálogo portátil de um ministério", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), songIds: z.array(z.string().uuid()).max(2000).optional() }) } } } },
+  responses: { 200: { description: "Catálogo JSON gerado.", content: { "application/json": { schema: SongTransferDocumentSchema } } }, 403: { description: "Sem acesso ao ministério." }, 404: { description: "Ministério ou músicas não encontrados." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/songs/data-import/preview", summary: "Revisa um catálogo sem gravar músicas", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema }) } } } },
+  responses: { 200: { description: "Prévia com criações, vínculos, conflitos e itens inválidos." }, 400: { description: "Arquivo inválido." }, 403: { description: "Sem acesso ao ministério." } },
+});
+registry.registerPath({
+  method: "post", path: "/api/songs/data-import/commit", summary: "Confirma a importação de um catálogo revisado", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema, documentHash: z.string().length(64) }) } } } },
+  responses: { 201: { description: "Músicas válidas importadas e vinculadas ao ministério." }, 409: { description: "Arquivo alterado depois da revisão." } },
 });
 
 /**

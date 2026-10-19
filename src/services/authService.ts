@@ -87,18 +87,20 @@ export class AuthService {
     mfaVerifiedAt?: Date | null;
   } = {}) {
     const identity = { id: user.id, email: user.email, role: user.role, tenantId: user.tenantId };
-    const tokenPair = options.rotated
-      ? {
+    const tokenPairPromise = options.rotated
+      ? Promise.resolve({
           accessToken: signAccessToken(identity, options.rotated.sessionId),
           refreshToken: options.rotated.refreshToken,
-        }
-      : await createServerSession(identity, options.metadata, { mfaVerifiedAt: options.mfaVerifiedAt });
+        })
+      : createServerSession(identity, options.metadata, { mfaVerifiedAt: options.mfaVerifiedAt });
+    const [tokenPair, permissions] = await Promise.all([
+      tokenPairPromise,
+      effectivePermissionKeys(
+        { id: user.id, role: user.role as any, tenantId: user.tenantId },
+        user.tenantId,
+      ),
+    ]);
     const { accessToken, refreshToken } = tokenPair;
-
-    const permissions = await effectivePermissionKeys(
-      { id: user.id, role: user.role as any, tenantId: user.tenantId },
-      user.tenantId
-    );
 
     return {
       accessToken,
@@ -223,7 +225,15 @@ export class AuthService {
       await this.applyInviteToExistingUser(input.inviteCode, user);
     }
 
-    return this.buildAuthResponse(user, { metadata, mfaVerifiedAt });
+    const response = await this.buildAuthResponse(user, { metadata, mfaVerifiedAt });
+    logger.info("auth_login_succeeded", {
+      category: "security",
+      actorId: user.id,
+      tenantId: user.tenantId ?? undefined,
+      resource: "auth_session",
+      outcome: "success",
+    });
+    return response;
   }
 
   async setupMfa(userId: string, input: MfaSetupInput) {

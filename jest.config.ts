@@ -2,6 +2,7 @@ import type { Config } from "jest";
 
 const config: Config = {
   preset: "ts-jest",
+  roots: ["<rootDir>/src"],
   testEnvironment: "node",
   testMatch: ["**/src/__tests__/**/*.test.ts"],
   testTimeout: 120000,

@@ -1,4 +1,4 @@
-import { ValidationError } from "../../errors/AppError";
+import { ServiceUnavailableError, ValidationError } from "../../errors/AppError";
 import { CifraClubImportService } from "../../services/cifraClubImportService";
 import { cifraClubSearchSchema } from "../../validators/song.schema";
 
@@ -189,6 +189,25 @@ describe("CifraClubImportService", () => {
     expect(() => CifraClubImportService.parseSongPage("<html></html>", "https://www.cifraclub.com.br/a/b/"))
       .toThrow(ValidationError);
   });
+
+  it.each([403, 429, 500, 503])("classifica HTTP %s do Cifra Club como indisponibilidade externa", (status) => {
+    const response = { status: () => status };
+    const serviceClass = CifraClubImportService as unknown as {
+      assertExternalServiceAvailable(response: unknown): void;
+    };
+
+    expect(() => serviceClass.assertExternalServiceAvailable(response)).toThrow(ServiceUnavailableError);
+  });
+
+  it.each([200, 404])("não classifica HTTP %s como bloqueio do serviço externo", (status) => {
+    const response = { status: () => status };
+    const serviceClass = CifraClubImportService as unknown as {
+      assertExternalServiceAvailable(response: unknown): void;
+    };
+
+    expect(() => serviceClass.assertExternalServiceAvailable(response)).not.toThrow();
+  });
+
   it("ignora falha do download sem gerar rejeicao nao tratada", async () => {
     const service = new CifraClubImportService() as unknown as {
       tryDownloadContent(page: unknown): Promise<string | null>;

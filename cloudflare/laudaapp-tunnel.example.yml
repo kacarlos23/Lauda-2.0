@@ -4,6 +4,7 @@
 
 tunnel: <TUNNEL_UUID>
 credentials-file: C:\Users\<YOUR_USER>\.cloudflared\<TUNNEL_UUID>.json
+protocol: http2
 
 ingress:
   - hostname: laudaapp.com

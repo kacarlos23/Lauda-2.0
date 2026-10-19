@@ -124,6 +124,8 @@ export interface ScheduleMinistry {
 }
 
 export interface Schedule {
+  morningOrders?: Array<{ date: string }>;
+  eveningOrders?: Array<{ date: string }>;
   id: string;
   title: string;
   date: string;
@@ -156,14 +158,25 @@ export interface ScheduleAssignment {
 }
 
 export interface ScheduleSong {
+  moment?: string;
+  momentDescription?: string | null;
+  videoUrlOverride?: string | null;
   id: string;
   scheduleId: string;
   songId: string;
   order: number;
   isActive?: boolean;
   deletedAt?: string | null;
-  song: Pick<Song, "id" | "title" | "originalKey" | "bpm" | "artistId" | "artist">;
+  song: Pick<Song, "id" | "title" | "originalKey" | "bpm" | "artistId" | "artist" | "videoUrl">;
 }
+
+export type ScheduleSongDetails = {
+  songId: string;
+  moment: string;
+  momentDescription?: string | null;
+  videoUrlOverride?: string | null;
+};
+export type WorshipPeriod = "MORNING" | "EVENING" | null;
 
 export type MySchedule = Omit<ScheduleAssignment, "id" | "scheduleId" | "userId" | "tenantId" | "schedule"> & {
   id?: string;

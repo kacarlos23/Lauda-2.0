@@ -16,7 +16,7 @@ keywords = ["LAUDA_CONFIRMED_SECRET_"]
 # redaction in a unit test. Matching requires both this path and exact line;
 # other generic-api-key findings in this file remain enabled.
 [[allowlists]]
-description = "SEC-FP-2026-001 synthetic truncated JWT; expires 2026-10-18"
+description = "SEC-FP-2026-001 synthetic truncated JWT; expires 2026-11-18"
 targetRules = ["generic-api-key"]
 condition = "AND"
 paths = ['''^src/__tests__/unit/rateLimitMiddleware\.test\.ts$''']

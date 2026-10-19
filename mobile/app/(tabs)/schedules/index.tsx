@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CalendarClock, Plus } from "lucide-react-native";
 import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
 import { musicService } from "../../../src/services/musicService";
@@ -42,8 +42,10 @@ import {
   canDeleteSchedule,
   canEditSchedule,
   canViewScheduleAdminList,
+  canViewScheduleReports,
 } from "../../../src/utils/schedulePermissions";
 import { nav } from "../../../src/navigation/routes";
+import { participationDetails, worshipDateKey } from "../../../src/utils/worshipOrder";
 
 const monthTitle = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 const selectedDateTitle = new Intl.DateTimeFormat("pt-BR", {
@@ -97,6 +99,7 @@ export default function SchedulesScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const canManage = canViewScheduleAdminList(user) || canEditSchedule(user);
   const canCreateSchedules = canCreateSchedule(user);
+  const canExportReports = canViewScheduleReports(user);
   const canExportSongs = canManageMusic(user, "song:view");
   const defaultRange = useMemo(() => {
     const now = new Date();
@@ -158,7 +161,7 @@ export default function SchedulesScreen() {
     setExportingId(schedule.id);
     try {
       const date = new Date(schedule.date).toISOString().slice(0, 10);
-      await scheduleService.exportScheduleReport(schedule.id, `Escala - ${schedule.title} - ${date}.pdf`, schedule);
+      await scheduleService.exportScheduleReport(schedule.id, `Escala - ${schedule.title} - ${date}.pdf`);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível gerar o relatório da escala.");
     } finally {
@@ -196,6 +199,7 @@ export default function SchedulesScreen() {
         comments: schedule.comments ?? null,
         ministryId: schedule.ministryId,
         songIds: [...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map((entry) => entry.songId),
+        songDetails: [...(schedule.songs ?? [])].sort((a, b) => a.order - b.order).map(participationDetails),
         assignments: (schedule.assignments ?? []).map((assignment) => ({ userId: assignment.userId, role: assignment.role })),
       });
     } catch (reason) {
@@ -268,9 +272,10 @@ export default function SchedulesScreen() {
         exporting={exportingId === item.id}
         exportingSongs={exportingSongsId === item.id}
         duplicating={duplicatingId === item.id}
-        onEdit={() => router.push(nav.scheduleEdit(item.id))}
+        onEdit={canEditSchedule(user) ? () => router.push(nav.scheduleEdit(item.id)) : undefined}
         onDuplicate={() => void duplicateSchedule(item)}
-        onExport={() => void exportReport(item)}
+        onExport={canExportReports ? () => void exportReport(item) : undefined}
+        onWorshipOrder={canExportReports && canViewScheduleAdminList(user) ? () => router.push({ pathname: nav.worshipOrder, params: { date: worshipDateKey(item.date) } }) : undefined}
         onExportSongs={canExportSongs && item.songs?.length ? () => void exportSongs(item) : undefined}
         onAccept={assignment ? () => void handleStatus(assignment, "ACCEPTED") : undefined}
         onDecline={assignment ? () => setDeclineAssignment(assignment) : undefined}
@@ -445,21 +450,21 @@ export default function SchedulesScreen() {
             <SectionHeader
               title="Escalas"
               subtitle={`Igreja atual: ${tenant?.name ?? "Não identificada"}`}
-              action={canCreateSchedules ? (
+              action={
                 <View style={styles.headerActions}>
                   <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
-                  <Button
+                  {canViewScheduleAdminList(user) ? <Button title="Gerar Ordem de Culto" variant="secondary" style={styles.worshipButton}
+                    onPress={() => router.push({ pathname: nav.worshipOrder, params: { date: selectedDate } })} /> : null}
+                  {canCreateSchedules ? <Button
                     title="Nova Escala"
                     icon={<Plus color={colors.surface} size={iconSizes.s18} />}
                     size="lg"
                     style={styles.newButton}
                     onPress={() => router.push(newScheduleHref(selectedDate))}
                     accessibilityLabel="Criar nova escala"
-                  />
+                  /> : null}
                 </View>
-              ) : (
-                <FilterButton active={activeFilters} onPress={openFilters} accessibilityLabel="Abrir filtros de escalas" />
-              )}
+              }
             />
             {activeFilters ? <Button title="Limpar filtros" variant="ghost" size="sm" style={styles.clearFiltersButton} onPress={clearFilters} accessibilityLabel="Limpar filtros de escalas" /> : null}
             <ErrorBanner
@@ -515,6 +520,7 @@ const styles = StyleSheet.create({
   list: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   listMobile: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   newButton: { paddingHorizontal: spacing.md },
+  worshipButton: { paddingHorizontal: spacing.md, backgroundColor: colors.primarySoft, borderWidth: 0 },
   headerActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center", flexWrap: "wrap" },
   errorText: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.md },
@@ -569,7 +575,7 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: "row" },
   weekLabel: { ...typography.badge, flex: 1, textAlign: "center", color: colors.muted, marginBottom: spacing.xs },
   dayGrid: { flexDirection: "row", flexWrap: "wrap" },
-  dayCell: { width: `${100 / 7}%`, minHeight: controlSizes.default, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
+  dayCell: { width: `${100 / 7}%`, minHeight: controlSizes.default + spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
   todayCell: { borderWidth: 1, borderColor: colors.primary },
   selectedCell: { backgroundColor: colors.primary },
   dayText: { ...typography.metadata, color: colors.text, textAlign: "center" },

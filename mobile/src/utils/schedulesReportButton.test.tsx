@@ -8,6 +8,7 @@ import { scheduleService } from "../services/scheduleService";
 type TestNode = TestRenderer.ReactTestInstance;
 
 const pushMock = jest.fn();
+let currentPermissions: string[] | undefined;
 
 jest.mock("react-native", () => {
   const React = require("react");
@@ -79,7 +80,7 @@ jest.mock("../services/musicService", () => ({
 jest.mock("../store/authStore", () => ({
   useAuthStore: () => ({
     tenant: { id: "tenant-1", name: "Igreja Teste" },
-    user: { id: "admin-1", role: "TENANT_ADMIN" },
+    user: { id: "admin-1", role: "TENANT_ADMIN", permissions: currentPermissions },
   }),
 }));
 
@@ -129,6 +130,7 @@ describe("SchedulesScreen report button", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    currentPermissions = undefined;
   });
 
   it("gera relatório ao clicar no botão do card sem navegar para edição", async () => {
@@ -149,10 +151,23 @@ describe("SchedulesScreen report button", () => {
 
     expect(scheduleService.exportScheduleReport).toHaveBeenCalledWith(
       "schedule-1",
-      expect.stringMatching(/^Escala - Culto relatório - \d{4}-\d{2}-\d{2}\.pdf$/),
-      expect.objectContaining({ id: "schedule-1", title: "Culto relatório" })
+      expect.stringMatching(/^Escala - Culto relatório - \d{4}-\d{2}-\d{2}\.pdf$/)
     );
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("não mostra relatório quando a permissão efetiva foi negada", async () => {
+    currentPermissions = ["schedule:view", "schedule:edit", "song:view"];
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(<SchedulesScreen />);
+    });
+
+    const reportButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Gerar relatório da escala Culto relatório");
+    expect(reportButton).toBeUndefined();
+    expect(scheduleService.exportScheduleReport).not.toHaveBeenCalled();
   });
 
   it("exporta as cifras na ordem da escala sem navegar para edição", async () => {

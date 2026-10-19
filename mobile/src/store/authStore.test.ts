@@ -100,6 +100,11 @@ describe("authStore session", () => {
 
     await useAuthStore.getState().login("ana@example.com", "secret123");
 
+    expect(api.post).toHaveBeenCalledWith(
+      "/auth/login",
+      { email: "ana@example.com", password: "secret123" },
+      { timeout: 30000 },
+    );
     expect(mockStorage.get("auth_tenant")).toBe(JSON.stringify(tenant));
     expect(useAuthStore.getState().tenant).toEqual(tenant);
   });

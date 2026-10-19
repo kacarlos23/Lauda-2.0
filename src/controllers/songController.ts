@@ -7,6 +7,8 @@ import { logger } from "../observability/logger";
 import { SongService } from "../services/songService";
 import { CifraClubImportService } from "../services/cifraClubImportService";
 import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
+import { SongTransferService } from "../services/songTransferService";
+import { songTransferCommitSchema, songTransferExportSchema, songTransferPreviewSchema } from "../validators/songTransfer.schema";
 
 function safeFilename(value: string): string {
   return value.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").replace(/\s+/g, " ").trim();
@@ -76,5 +78,37 @@ export class SongController extends BaseController {
       });
       throw error;
     }
+  }
+
+  async exportData(req: Request, res: Response) {
+    const document = await new SongTransferService(req.user!).export(songTransferExportSchema.parse(req.body));
+    const filename = `lauda-musicas-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.status(200).send(JSON.stringify(document, null, 2));
+  }
+
+  async previewDataImport(req: Request, res: Response) {
+    const input = songTransferPreviewSchema.parse(req.body);
+    this.handleSuccess(res, await new SongTransferService(req.user!).preview(input));
+  }
+
+  async commitDataImport(req: Request, res: Response) {
+    const input = songTransferCommitSchema.parse(req.body);
+    const result = await new SongTransferService(req.user!).commit(input);
+    logger.info("song_catalog_import_completed", {
+      category: "audit",
+      component: "song-transfer",
+      actorId: req.user!.id,
+      tenantId: req.user!.tenantId,
+      ministryId: input.ministryId,
+      created: result.created,
+      linked: result.linked,
+      restored: result.restored,
+      conflicts: result.conflicts,
+      invalid: result.invalid,
+      outcome: "success",
+    });
+    this.handleSuccess(res, result, 201);
   }
 }

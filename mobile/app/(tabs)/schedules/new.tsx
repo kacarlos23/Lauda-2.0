@@ -1,12 +1,16 @@
+import type { ScheduleSongDetails, WorshipPeriod } from "../../../src/types";
+import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../src/components/schedules/ScheduleWorshipFields";
+import { defaultParticipation, worshipDateKey } from "../../../src/utils/worshipOrder";
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
 import { hasIncompleteMemberRoles, MemberRoleSelector } from "../../../src/components/schedules/MemberRoleSelector";
 import { ScheduleSongCard } from "../../../src/components/schedules/ScheduleSongCard";
+import { SortableSongList, moveListItem } from "../../../src/components/schedules/SortableSongList";
 import { ErrorBanner } from "../../../src/components/ui/ErrorBanner";
 import { LoadingState } from "../../../src/components/ui/LoadingState";
 import { RichCommentEditor } from "../../../src/components/ui/RichCommentEditor";
@@ -66,6 +70,8 @@ export default function NewScheduleScreen() {
   const [songSearchError, setSongSearchError] = useState<string | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<Array<{ userId: string; role: string }>>([]);
   const [selectedSongIds, setSelectedSongIds] = useState<string[]>([]);
+  const [songDetails, setSongDetails] = useState<Record<string, ScheduleSongDetails>>({});
+  const [worshipPeriod, setWorshipPeriod] = useState<WorshipPeriod>(null);
   const [membersModal, setMembersModal] = useState(false);
   const [songsModal, setSongsModal] = useState(false);
   const [quickSongModal, setQuickSongModal] = useState(false);
@@ -204,9 +210,11 @@ export default function NewScheduleScreen() {
         comments: comments || null,
         ministryId,
         songIds: selectedSongIds,
+        songDetails: selectedSongIds.map((songId) => songDetails[songId] ?? defaultParticipation(songId)),
+        worshipPeriod,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role })),
       });
-      router.replace(nav.schedules);
+      router.replace(worshipPeriod ? `${nav.worshipOrder}?date=${worshipDateKey(isoDate)}` as Href : nav.schedules);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível criar a escala.");
     }
@@ -310,7 +318,7 @@ export default function NewScheduleScreen() {
       {loading ? <LoadingState centered={false} message="Carregando dados da escala..." style={styles.loader} /> : (
         <View style={[styles.card, compactLayout && styles.cardCompact]}>
           <Text style={styles.label}>Nome da escala *</Text>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
+          <TextInput style={styles.input} value={title} onChangeText={setTitle} accessibilityLabel="Nome da escala" testID="schedule-title" placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
 
           <Text style={styles.label}>Ministério *</Text>
           <View style={styles.chips}>
@@ -340,15 +348,24 @@ export default function NewScheduleScreen() {
             </View>
           </View>
 
+          <ScheduleWorshipPeriod value={worshipPeriod} onChange={setWorshipPeriod} disabled={saving} />
+
           <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
 
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
             <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} música(s) na ordem da escala` : "Nenhuma música adicionada."}</Text></View>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" accessibilityLabel="Adicionar músicas à escala" onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
           </View>
-          {selectedSongs.length ? <View style={styles.songCards}>{selectedSongs.map((song, index) => (
-            <ScheduleSongCard key={song.id} song={song} position={index + 1} onRemove={() => toggleSong(song.id)} />
-          ))}</View> : null}
+          {selectedSongs.length ? <SortableSongList items={selectedSongs} itemKey={(song) => song.id} itemLabel={(song) => song.title} disabled={saving}
+            onMove={(from, to) => setSelectedSongIds((ids) => moveListItem(ids, from, to))} renderItem={(song, index) => (
+            <ScheduleSongCard key={song.id} song={song} position={index + 1} onRemove={() => toggleSong(song.id)}
+              onMoveUp={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}
+              onMoveDown={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}
+              disableMoveUp={index === 0 || saving} disableMoveDown={index === selectedSongs.length - 1 || saving}
+              footer={<ScheduleParticipationFields value={songDetails[song.id] ?? defaultParticipation(song.id)} disabled={saving}
+                onChange={(patch) => setSongDetails((current) => ({ ...current, [song.id]: { ...(current[song.id] ?? defaultParticipation(song.id)), ...patch } }))} />}
+            />
+          )} /> : null}
 
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
             <View style={styles.sectionText}><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View>
@@ -362,8 +379,8 @@ export default function NewScheduleScreen() {
             </View>)}
           </View>
 
-          <TouchableOpacity style={[styles.primaryButton, (saving || hasIncompleteMemberRoles(selectedMembers)) && styles.disabled]} onPress={() => void save()} disabled={saving || hasIncompleteMemberRoles(selectedMembers)}>
-            <Text style={styles.primaryText}>{saving ? "Salvando..." : "Criar escala"}</Text>
+          <TouchableOpacity style={[styles.primaryButton, (saving || hasIncompleteMemberRoles(selectedMembers)) && styles.disabled]} onPress={() => void save()} accessibilityRole="button" accessibilityLabel={worshipPeriod ? "Criar escala e abrir Ordem de Culto" : "Criar escala"} disabled={saving || hasIncompleteMemberRoles(selectedMembers)}>
+            <Text style={styles.primaryText}>{saving ? "Salvando..." : worshipPeriod ? "Criar escala e abrir Ordem de Culto" : "Criar escala"}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -392,7 +409,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.surface },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, marginBottom: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
   sectionTitle: { color: colors.ink, fontSize: fontSizes.s17, fontWeight: fontWeights.black },

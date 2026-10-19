@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Text, TouchableOpacity } from "react-native";
+import { Pressable, Text, TouchableOpacity } from "react-native";
 import SchedulesScreen from "../../app/(tabs)/schedules";
 
 type Role = "TENANT_ADMIN" | "MINISTRY_LEADER" | "MEMBER";
@@ -181,13 +181,13 @@ describe("SchedulesScreen visao administrativa", () => {
 
     expect(loadSchedulesMock).toHaveBeenCalled();
     expect(text).toContain("Nova Escala");
-    expect(text).toContain("Editar");
+    expect(renderer.root.findAllByType(Pressable).some((node: TestNode) => node.props.accessibilityLabel === "Editar escala Culto teste")).toBe(true);
     expect(text).toContain("Duplicar");
   });
 
   it("admin pode acionar edicao e duplicacao", async () => {
     const renderer = await renderScreen("TENANT_ADMIN");
-    const editButton = renderer.root.findAllByType(TouchableOpacity)
+    const editButton = renderer.root.findAllByType(Pressable)
       .find((node: TestNode) => node.props.accessibilityLabel === "Editar escala Culto teste");
     const duplicateButton = renderer.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === "Duplicar escala Culto teste");

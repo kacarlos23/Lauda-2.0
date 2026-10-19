@@ -11,6 +11,8 @@ export const permissionDefinitions = [
   { key: "song:edit", description: "Editar músicas", category: "Músicas", assignable: true },
   { key: "song:delete", description: "Excluir músicas", category: "Músicas", assignable: true },
   { key: "song:attach_to_schedule", description: "Anexar músicas a escalas", category: "Músicas", assignable: true },
+  { key: "song:import", description: "Importar catálogo de músicas", category: "Músicas", assignable: true },
+  { key: "song:export", description: "Exportar catálogo de músicas", category: "Músicas", assignable: true },
   { key: "member:create", description: "Criar membros", category: "Membros", assignable: true },
   { key: "member:view", description: "Visualizar membros", category: "Membros", assignable: true },
   { key: "member:edit", description: "Editar membros", category: "Membros", assignable: true },
@@ -43,7 +45,7 @@ export const rolePermissionMap: Record<PermissionRole, PermissionKey[]> = {
   TENANT_ADMIN: [...assignablePermissionKeys],
   MINISTRY_LEADER: [
     "schedule:create", "schedule:respond", "song:create", "song:view", "song:edit",
-    "song:attach_to_schedule", "ministry:view", "instrument:view",
+    "song:attach_to_schedule", "song:import", "song:export", "ministry:view", "instrument:view",
   ],
   MEMBER: ["schedule:respond", "song:view", "ministry:view", "instrument:view"],
 };

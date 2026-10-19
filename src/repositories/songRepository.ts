@@ -30,6 +30,9 @@ export class SongRepository {
       deletedAt: null,
       ...(input.artistId ? { artistId: input.artistId } : {}),
       ...(input.originalKey ? { originalKey: input.originalKey } : {}),
+      ...(input.ministryId ? {
+        ministries: { some: { ministryId: input.ministryId, isActive: true, deletedAt: null } },
+      } : {}),
       ...(normalizedSearch ? {
         OR: [
           { normalizedTitle: { contains: normalizedSearch } },

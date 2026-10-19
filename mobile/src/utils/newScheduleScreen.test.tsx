@@ -7,12 +7,18 @@ import { musicService } from "../services/musicService";
 type TestNode = TestRenderer.ReactTestInstance;
 let currentRole = "TENANT_ADMIN";
 let routeParams: { date?: string } = {};
+const createScheduleMock = jest.fn();
 
 jest.mock("react-native", () => {
   const React = require("react");
   const create = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
   return {
     ActivityIndicator: create("ActivityIndicator"),
+    Animated: { View: create("View"), ValueXY: class {
+      stopAnimation() {}
+      setValue() {}
+      getTranslateTransform() { return [{ translateX: 0 }, { translateY: 0 }]; }
+    } },
     Alert: { alert: jest.fn() },
     Modal: ({ visible, children, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Dimensions: { get: () => ({ width: 1024, height: 768 }) },
@@ -41,6 +47,10 @@ jest.mock("lucide-react-native", () => {
     Calendar: Icon,
     Clock: Icon,
     Search: Icon,
+    ChevronDown: Icon,
+    ChevronUp: Icon,
+    Music2: Icon,
+    Trash2: Icon,
   };
 });
 
@@ -57,7 +67,7 @@ jest.mock("../../src/store/authStore", () => ({
 }));
 
 jest.mock("../../src/store/scheduleStore", () => ({
-  useScheduleStore: () => ({ createSchedule: jest.fn(), saving: false, error: null }),
+  useScheduleStore: () => ({ createSchedule: createScheduleMock, saving: false, error: null }),
 }));
 
 jest.mock("../../src/services/ministryApi", () => ({
@@ -101,6 +111,23 @@ async function renderNewScheduleScreen() {
 }
 
 describe("NewScheduleScreen", () => {
+  it("cadastra período e momento diretamente no formulário e oferece a Ordem de Culto", async () => {
+    const song = { id: "song-1", title: "526 - Grandioso És Tu", originalKey: "C", artist: { name: "Artista de teste" } } as any;
+    jest.mocked(musicService.listSongs).mockResolvedValue({ items: [song], pagination: { page: 1, limit: 100, total: 1, totalPages: 1 } });
+    const renderer = await renderNewScheduleScreen();
+    expect(flattenText(renderer.root)).toContain("Ordem de Culto — PDF");
+    const button = (label: string) => renderer.root.findAllByType(TouchableOpacity).find((node) => node.props.accessibilityLabel === label)!;
+    act(() => button("Período: Culto da manhã").props.onPress());
+    act(() => button("Adicionar músicas à escala").props.onPress());
+    act(() => button(`Selecionar música ${song.title}`).props.onPress());
+    act(() => button("Momento: Ofertório").props.onPress());
+    act(() => renderer.root.findByProps({ testID: "schedule-title" }).props.onChangeText("Culto de teste"));
+    await act(async () => { await button("Criar escala e abrir Ordem de Culto").props.onPress(); });
+    expect(createScheduleMock).toHaveBeenCalledWith(expect.objectContaining({
+      worshipPeriod: "MORNING", songIds: [song.id], songDetails: [expect.objectContaining({ songId: song.id, moment: "Ofertório" })],
+    }));
+    act(() => renderer.unmount());
+  });
   beforeAll(() => {
     jest.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       if (String(args[0]).includes("react-test-renderer is deprecated")) return;

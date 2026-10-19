@@ -35,11 +35,11 @@ const SAMPLE_ID = "123e4567-e89b-12d3-a456-426614174000";
 const routeEntries = Object.entries(ROUTES) as Array<[RouteKey, (typeof ROUTES)[RouteKey]]>;
 
 describe("catálogo de rotas", () => {
-  it("mantém as 26 rotas com chaves, paths e telas Expo únicos", () => {
-    expect(routeEntries).toHaveLength(26);
+  it("mantém as 27 rotas com chaves, paths e telas Expo únicos", () => {
+    expect(routeEntries).toHaveLength(27);
     expect(new Set(routeEntries.map(([key, route]) => route.key === key))).toEqual(new Set([true]));
-    expect(new Set(routeEntries.map(([, route]) => route.path))).toHaveProperty("size", 26);
-    expect(new Set(routeEntries.map(([, route]) => route.expoScreen))).toHaveProperty("size", 26);
+    expect(new Set(routeEntries.map(([, route]) => route.path))).toHaveProperty("size", 27);
+    expect(new Set(routeEntries.map(([, route]) => route.expoScreen))).toHaveProperty("size", 27);
   });
 
   it("resolve rotas estáticas antes das dinâmicas e fornece títulos web", () => {

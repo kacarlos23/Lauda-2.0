@@ -57,6 +57,11 @@ async function createArtist(token: string, name = "Voz da Verdade") {
   return response.body.data as { id: string; name: string };
 }
 
+async function createMinistry(token: string, name: string) {
+  const response = await request(app).post("/api/ministries").set("Authorization", `Bearer ${token}`).send({ name }).expect(201);
+  return response.body.data as { id: string; name: string };
+}
+
 const songPayload = (artistId: string) => ({
   title: "Pra sempre",
   artistId,
@@ -307,6 +312,73 @@ describe("Artists and songs API", () => {
     await request(app).get(`/api/artists/${artistB.id}`).set("Authorization", `Bearer ${tenantA.token}`).expect(404);
     await request(app).get(`/api/songs/${songB.body.data.id}`).set("Authorization", `Bearer ${tenantA.token}`).expect(404);
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenantA.token}`).send(songPayload(artistB.id)).expect(404);
+  });
+
+  it("revisa, importa, vincula e exporta somente os dados portáteis por ministério", async () => {
+    const tenant = await register("song-transfer");
+    const memberToken = await member(tenant.token, "song-transfer-member", "MEMBER");
+    const ministryA = await createMinistry(tenant.token, "Louvor da manhã");
+    const ministryB = await createMinistry(tenant.token, "Louvor da noite");
+    const document = {
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{
+        title: "Cristo Venceu",
+        artist: "JMM",
+        originalKey: "A",
+        content: "[Intro]\nA D F#m E",
+        cifraUrl: "https://www.cifraclub.com.br/jmm/cristo-venceu/",
+      }],
+    };
+
+    await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${memberToken}`).send({ ministryId: ministryA.id, document }).expect(403);
+
+    const previewA = await request(app)
+      .post("/api/songs/data-import/preview")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryA.id, document })
+      .expect(200);
+    expect(previewA.body.data).toMatchObject({ total: 1, counts: { CREATE: 1, CONFLICT: 0, INVALID: 0 } });
+
+    await request(app)
+      .post("/api/songs/data-import/commit")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryA.id, document, documentHash: "0".repeat(64) })
+      .expect(409);
+
+    const importedA = await request(app)
+      .post("/api/songs/data-import/commit")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryA.id, document, documentHash: previewA.body.data.documentHash })
+      .expect(201);
+    expect(importedA.body.data).toMatchObject({ created: 1, linked: 1, conflicts: 0, invalid: 0 });
+
+    const previewB = await request(app)
+      .post("/api/songs/data-import/preview")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryB.id, document })
+      .expect(200);
+    expect(previewB.body.data.counts).toMatchObject({ LINK: 1, CREATE: 0 });
+
+    await request(app)
+      .post("/api/songs/data-import/commit")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryB.id, document, documentHash: previewB.body.data.documentHash })
+      .expect(201);
+
+    const exported = await request(app)
+      .post("/api/songs/data-export")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministryB.id })
+      .expect(200)
+      .expect("Content-Type", /application\/json/);
+    expect(exported.body).toEqual(document);
+
+    const filtered = await request(app)
+      .get(`/api/songs?ministryId=${ministryA.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(filtered.body.data.items).toHaveLength(1);
   });
 
   it("exporta PDF individual/conjunto e valida a seleção", async () => {

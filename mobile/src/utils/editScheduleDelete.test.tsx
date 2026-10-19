@@ -11,6 +11,7 @@ const deleteScheduleMock = jest.fn();
 const loadSchedulesMock = jest.fn();
 const updateScheduleMock = jest.fn();
 let currentRole = "TENANT_ADMIN";
+let currentPermissions: string[] | undefined;
 
 const schedule = {
   id: "schedule-1",
@@ -85,7 +86,7 @@ jest.mock("../../src/services/scheduleService", () => ({
 }));
 
 jest.mock("../../src/store/authStore", () => ({
-  useAuthStore: (selector: any) => selector({ user: { id: "admin-1", role: currentRole } }),
+  useAuthStore: (selector: any) => selector({ user: { id: "admin-1", role: currentRole, permissions: currentPermissions } }),
 }));
 
 jest.mock("../../src/store/scheduleStore", () => ({
@@ -141,6 +142,7 @@ describe("EditScheduleScreen exclusao", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     currentRole = "TENANT_ADMIN";
+    currentPermissions = undefined;
     deleteScheduleMock.mockResolvedValue(undefined);
     (globalThis as any).window = { confirm: jest.fn() };
     jest.mocked(musicService.listSongs).mockResolvedValue({ items: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } });
@@ -152,6 +154,17 @@ describe("EditScheduleScreen exclusao", () => {
 
     expect(textContent(renderer)).toContain("permiss");
     expect(findDeleteButton(renderer)).toBeUndefined();
+  });
+
+  it("mantém edição básica e oculta sub-recursos e relatório quando as permissões são negadas", async () => {
+    currentPermissions = ["schedule:edit"];
+    const renderer = await renderScreen();
+    const buttons = renderer.root.findAllByType(TouchableOpacity);
+
+    expect(buttons.find((node: TestNode) => node.props.accessibilityLabel === "Gerar relatório da escala")).toBeUndefined();
+    expect(textContent(renderer)).not.toContain("Editar músicas");
+    expect(textContent(renderer)).not.toContain("Editar membros");
+    expect(textContent(renderer)).toContain("Salvar alterações");
   });
 
   it("cancela exclusao sem chamar API", async () => {

@@ -1,5 +1,13 @@
 import { prisma } from "./prismaClient";
 import { CreateAssignmentInput, CreateScheduleInput, ListSchedulesInput, UpdateAssignmentStatusInput, UpdateScheduleInput } from "../validators/schedule.schema";
+import { ConflictError, ForbiddenError } from "../errors/AppError";
+import {
+  normalizeScheduleAssignments,
+  normalizeScheduleSongIds,
+  scheduleAssignmentsChanged,
+  scheduleSongsChanged,
+  ScheduleMutationPermissions,
+} from "../security/scheduleMutationPolicy";
 import {
   enqueueAssignmentResponse,
   enqueueScheduleCancelled,
@@ -10,6 +18,8 @@ import {
 } from "../services/scheduleNotificationService";
 
 const scheduleInclude = {
+  morningOrders: { select: { date: true } },
+  eveningOrders: { select: { date: true } },
   ministry: { select: { id: true, name: true } },
   assignments: { include: { user: { select: { id: true, name: true } } } },
   songs: {
@@ -19,6 +29,7 @@ const scheduleInclude = {
         select: {
           id: true,
           title: true,
+          videoUrl: true,
           originalKey: true,
           bpm: true,
           artistId: true,
@@ -31,6 +42,31 @@ const scheduleInclude = {
 
 export class ScheduleRepository {
   constructor(private readonly tenantId: string) {}
+
+  private songMetadata(data: CreateScheduleInput, songId: string, previous?: {
+    moment: string; momentDescription: string | null; videoUrlOverride: string | null;
+  }) {
+    const details = data.songDetails?.find((entry) => entry.songId === songId);
+    const moment = details?.moment ?? previous?.moment ?? "Louvor";
+    return {
+      moment,
+      momentDescription: moment === "Outro" ? (details?.momentDescription === undefined ? previous?.momentDescription ?? null : details.momentDescription || null) : null,
+      videoUrlOverride: details?.videoUrlOverride === undefined ? previous?.videoUrlOverride ?? null : details.videoUrlOverride || null,
+    };
+  }
+
+  private async associateWorshipPeriod(tx: Pick<typeof prisma, "worshipOrder">, scheduleId: string, date: Date, period: CreateScheduleInput["worshipPeriod"]) {
+    if (period === undefined) return;
+    // Only explicit user selection changes a document; never infer the period from title/time.
+    await tx.worshipOrder.updateMany({ where: { tenantId: this.tenantId, morningScheduleId: scheduleId }, data: { morningScheduleId: null } });
+    await tx.worshipOrder.updateMany({ where: { tenantId: this.tenantId, eveningScheduleId: scheduleId }, data: { eveningScheduleId: null } });
+    if (period === null) return;
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(date);
+    await tx.worshipOrder.upsert({ where: { tenantId_date: { tenantId: this.tenantId, date: day } }, create: { tenantId: this.tenantId, date: day }, update: {} });
+    const field = period === "MORNING" ? "morningScheduleId" : "eveningScheduleId";
+    const claimed = await tx.worshipOrder.updateMany({ where: { tenantId: this.tenantId, date: day, [field]: null }, data: { [field]: scheduleId } });
+    if (!claimed.count) throw new ConflictError("Já existe uma escala neste período e data. Altere a seleção na Ordem de Culto ou escolha outro período.");
+  }
 
   /**
    * Lists schedules for the authenticated tenant.
@@ -87,6 +123,14 @@ export class ScheduleRepository {
     });
   }
 
+  findScheduleSongs(scheduleId: string) {
+    return prisma.scheduleSong.findMany({
+      where: { scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+      select: { songId: true, order: true, moment: true, momentDescription: true, videoUrlOverride: true },
+      orderBy: { order: "asc" },
+    });
+  }
+
   findUsersWithAssignmentRoles(userIds: string[]) {
     if (!userIds.length) return Promise.resolve([]);
     return prisma.user.findMany({
@@ -128,6 +172,7 @@ export class ScheduleRepository {
               select: {
                 id: true,
                 title: true,
+                videoUrl: true,
                 originalKey: true,
                 bpm: true,
                 artist: { select: { id: true, name: true } },
@@ -160,6 +205,10 @@ export class ScheduleRepository {
         userId,
         tenantId: this.tenantId,
         isLeader: true,
+        status: "ACTIVE",
+        isActive: true,
+        deletedAt: null,
+        user: { isActive: true, deletedAt: null },
       },
       select: { id: true },
     });
@@ -196,36 +245,69 @@ export class ScheduleRepository {
             songId,
             order: index,
             tenantId: this.tenantId,
+            ...this.songMetadata(data, songId),
           })),
         },
       },
       include: scheduleInclude,
       });
+      await this.associateWorshipPeriod(tx, created.id, data.date, data.worshipPeriod);
       if (actorId) {
         const snapshot = await loadScheduleNotificationSnapshot(this.tenantId, created.id, tx);
         if (snapshot) await enqueueScheduleCreated(tx, snapshot, actorId);
       }
-      return created;
+      return data.worshipPeriod ? tx.schedule.findFirstOrThrow({ where: { id: created.id, tenantId: this.tenantId }, include: scheduleInclude }) : created;
     });
   }
 
-  update(scheduleId: string, data: UpdateScheduleInput, actorId?: string) {
-    const songIds = Array.from(new Set(data.songIds));
-    const assignments = Array.from(new Map(data.assignments.map((assignment) => [assignment.userId, assignment])).values());
+  update(
+    scheduleId: string,
+    data: UpdateScheduleInput,
+    actorId: string | undefined,
+    permissions: ScheduleMutationPermissions,
+  ) {
+    const songIds = normalizeScheduleSongIds(data.songIds);
+    const assignments = normalizeScheduleAssignments(data.assignments);
 
     return prisma.$transaction(async (tx) => {
+      // Updating the root timestamp acquires the row lock before comparing child state,
+      // preventing a concurrent authorized update from being overwritten by a
+      // stale request that lacks child-resource permissions.
+      const locked = await tx.schedule.updateMany({
+        where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
+        data: { updatedAt: new Date() },
+      });
+      if (locked.count === 0) return null;
+
       const before = actorId ? await loadScheduleNotificationSnapshot(this.tenantId, scheduleId, tx) : null;
       const existing = await tx.schedule.findFirst({
         where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
         select: {
           id: true,
+          ministryId: true,
           assignments: {
             where: { tenantId: this.tenantId, isActive: true, deletedAt: null },
             select: { id: true, userId: true, role: true },
           },
+          songs: {
+            where: { tenantId: this.tenantId, isActive: true, deletedAt: null },
+            select: { songId: true, order: true, moment: true, momentDescription: true, videoUrlOverride: true },
+            orderBy: { order: "asc" },
+          },
         },
       });
       if (!existing) return null;
+
+      if (!permissions.assignments && scheduleAssignmentsChanged(
+        existing.assignments,
+        assignments,
+        existing.ministryId !== data.ministryId,
+      )) {
+        throw new ForbiddenError("Usuário sem permissão para alterar membros da escala");
+      }
+      if (!permissions.songs && scheduleSongsChanged(existing.songs.map((entry) => entry.songId), songIds)) {
+        throw new ForbiddenError("Usuário sem permissão para alterar músicas da escala");
+      }
 
       await tx.schedule.update({
         where: { id: scheduleId },
@@ -240,7 +322,11 @@ export class ScheduleRepository {
       await tx.scheduleSong.deleteMany({ where: { scheduleId, tenantId: this.tenantId } });
       if (songIds.length) {
         await tx.scheduleSong.createMany({
-          data: songIds.map((songId, index) => ({ scheduleId, songId, order: index, tenantId: this.tenantId })),
+          data: songIds.map((songId, index) => {
+            const previous = existing.songs.find((entry) => entry.songId === songId);
+            return { scheduleId, songId, order: index, tenantId: this.tenantId,
+              ...this.songMetadata(data, songId, previous) };
+          }),
           skipDuplicates: true,
         });
       }
@@ -285,6 +371,7 @@ export class ScheduleRepository {
         }
       }
 
+      await this.associateWorshipPeriod(tx, scheduleId, data.date, data.worshipPeriod);
       const updated = await tx.schedule.findFirst({
         where: { id: scheduleId, tenantId: this.tenantId, isActive: true, deletedAt: null },
         include: scheduleInclude,
@@ -494,6 +581,7 @@ export class ScheduleRepository {
                   select: {
                     id: true,
                     title: true,
+                    videoUrl: true,
                     originalKey: true,
                     bpm: true,
                     artistId: true,

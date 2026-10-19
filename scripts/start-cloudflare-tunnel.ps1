@@ -13,15 +13,20 @@ function Get-TunnelProcess {
     Select-Object -First 1
 }
 
-$cloudflared = Get-Command cloudflared -ErrorAction SilentlyContinue
-if (-not $cloudflared) {
+$managedCloudflaredPath = Join-Path $env:LOCALAPPDATA "LaudaApp\cloudflared\cloudflared.exe"
+$cloudflaredPath = if (Test-Path -LiteralPath $managedCloudflaredPath) {
+  $managedCloudflaredPath
+} else {
+  (Get-Command cloudflared -ErrorAction SilentlyContinue).Source
+}
+if (-not $cloudflaredPath) {
   throw "cloudflared nao foi encontrado no PATH."
 }
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
   throw "Configuracao do Cloudflare Tunnel nao encontrada: $ConfigPath"
 }
 
-& $cloudflared.Source tunnel --config $ConfigPath ingress validate
+& $cloudflaredPath tunnel --config $ConfigPath ingress validate
 if ($LASTEXITCODE -ne 0) {
   throw "A configuracao do Cloudflare Tunnel e invalida."
 }
@@ -37,8 +42,8 @@ $errLog = Join-Path $ProjectRoot "cloudflare-tunnel.err.log"
 $quotedConfigPath = '"' + $ConfigPath.Replace('"', '\"') + '"'
 
 $process = Start-Process `
-  -FilePath $cloudflared.Source `
-  -ArgumentList @("tunnel", "--config", $quotedConfigPath, "run", $TunnelName) `
+  -FilePath $cloudflaredPath `
+  -ArgumentList @("tunnel", "--protocol", "http2", "--config", $quotedConfigPath, "run", $TunnelName) `
   -WorkingDirectory $ProjectRoot `
   -WindowStyle Hidden `
   -RedirectStandardOutput $outLog `

@@ -293,6 +293,80 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .expect(200);
   });
 
+  it("revoga liderança para vínculo não ativo e limpa isLeader ao inativar", async () => {
+    const tenant = await registerTenant("inactive-ministry-leader");
+    const ministry = await createMinistry(tenant.token, "Louvor com revogação");
+
+    await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        name: "Líder a revogar",
+        email: "inactive-leader@example.com",
+        password: "secretpassword",
+        role: "MINISTRY_LEADER",
+      })
+      .expect(201);
+
+    const target = await createMember(tenant.token, "inactive-leader-target", "Membro protegido");
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "inactive-leader@example.com", password: "secretpassword" })
+      .expect(200);
+
+    const leaderId = login.body.data.user.id as string;
+    const leaderToken = login.body.data.token as string;
+    const leaderAssignment = await request(app)
+      .post(`/api/ministries/${ministry.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: leaderId, isLeader: true })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/ministries/${ministry.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: target.id, isLeader: false })
+      .expect(201);
+
+    await request(app)
+      .patch("/api/ministries/assignment")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ assignmentId: leaderAssignment.body.data.id, status: "INACTIVE" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data).toMatchObject({ status: "INACTIVE", isLeader: false });
+      });
+
+    const invalidStates = [
+      { status: "INACTIVE" as const, isActive: true, deletedAt: null },
+      { status: "PENDING" as const, isActive: true, deletedAt: null },
+      { status: "ACTIVE" as const, isActive: false, deletedAt: null },
+      { status: "ACTIVE" as const, isActive: true, deletedAt: new Date() },
+    ];
+
+    for (const state of invalidStates) {
+      await prisma.ministryMember.update({
+        where: { id: leaderAssignment.body.data.id },
+        data: { ...state, isLeader: true },
+      });
+
+      await request(app)
+        .delete(`/api/ministries/${ministry.id}/members/${target.id}`)
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .expect(403);
+
+      const visible = await request(app)
+        .get("/api/ministries")
+        .set("Authorization", `Bearer ${leaderToken}`)
+        .expect(200);
+      expect(visible.body.data).toEqual([]);
+    }
+
+    expect(await prisma.ministryMember.count({
+      where: { ministryId: ministry.id, userId: target.id },
+    })).toBe(1);
+  });
+
   it("GET /api/ministries retorna para MEMBER apenas seus ministérios e seus respectivos membros", async () => {
     const tenant = await registerTenant("tenant-member-visible-ministries");
 
@@ -378,6 +452,52 @@ describe("Ministries API - Isolamento Multi-Tenant", () => {
       .get(`/api/ministries/${recepcao.body.data.id}`)
       .set("Authorization", `Bearer ${memberLogin.body.data.token}`)
       .expect(404);
+  });
+
+  it("GET /api/ministries/:id/members impede IDOR entre ministérios do mesmo tenant", async () => {
+    const tenant = await registerTenant("ministry-members-idor");
+    const visibleMinistry = await createMinistry(tenant.token, "Ministério permitido");
+    const hiddenMinistry = await createMinistry(tenant.token, "Ministério protegido");
+    const requester = await createMember(tenant.token, "idor-requester", "Solicitante");
+    const protectedMember = await createMember(tenant.token, "idor-protected", "Pessoa protegida");
+
+    await request(app)
+      .post(`/api/ministries/${visibleMinistry.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: requester.id, isLeader: false })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/ministries/${hiddenMinistry.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: protectedMember.id, isLeader: false })
+      .expect(201);
+
+    const requesterLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "idor-requester@example.com", password: "secretpassword" })
+      .expect(200);
+
+    const ownMembers = await request(app)
+      .get(`/api/ministries/${visibleMinistry.id}/members`)
+      .set("Authorization", `Bearer ${requesterLogin.body.data.token}`)
+      .expect(200);
+    expect(ownMembers.body.data.items.map((item: { userId: string }) => item.userId)).toContain(requester.id);
+
+    const denied = await request(app)
+      .get(`/api/ministries/${hiddenMinistry.id}/members`)
+      .set("Authorization", `Bearer ${requesterLogin.body.data.token}`)
+      .expect(404);
+    expect(denied.body.error).toContain("Ministério não encontrado");
+    expect(JSON.stringify(denied.body)).not.toContain("idor-protected@example.com");
+
+    const adminView = await request(app)
+      .get(`/api/ministries/${hiddenMinistry.id}/members`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(adminView.body.data.items.map((item: { user: { email: string } }) => item.user.email)).toContain(
+      "idor-protected@example.com",
+    );
   });
 
   it("POST /api/ministries/:id/toggle-member alterna vínculo sem duplicidade", async () => {

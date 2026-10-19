@@ -26,6 +26,41 @@ export type SongPayload = {
 export type SongListParams = {
   artistId?: string;
   originalKey?: MusicalKey;
+  ministryId?: string;
+};
+
+export type PortableSong = {
+  title: string;
+  artist: string;
+  originalKey: MusicalKey;
+  content: string;
+  cifraUrl?: string | null;
+};
+
+export type SongTransferDocument = {
+  format: "lauda.music-catalog";
+  version: 1;
+  songs: PortableSong[];
+};
+
+export type SongTransferPreviewStatus = "CREATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "CONFLICT" | "INVALID";
+export type SongTransferPreview = {
+  documentHash: string;
+  total: number;
+  unique: number;
+  counts: Record<SongTransferPreviewStatus, number>;
+  items: Array<{ index: number; title: string; artist: string; status: SongTransferPreviewStatus; reason?: string; differences?: string[] }>;
+};
+
+export type SongTransferResult = {
+  created: number;
+  linked: number;
+  restored: number;
+  alreadyLinked: number;
+  conflicts: number;
+  invalid: number;
+  total: number;
+  documentHash: string;
 };
 
 type ApiErrorPayload = {
@@ -207,5 +242,43 @@ export const musicService = {
       if (!await Sharing.isAvailableAsync()) throw new Error("Compartilhamento não disponível neste dispositivo.");
       await Sharing.shareAsync(file.uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: "Exportar cifras" });
     } catch (error) { apiError(error, "Não foi possível exportar as cifras."); }
+  },
+
+  async exportSongData(ministryId: string, ministryName: string): Promise<void> {
+    try {
+      const response = await api.post<SongTransferDocument>("/songs/data-export", { ministryId });
+      const content = JSON.stringify(response.data, null, 2);
+      const safeMinistry = ministryName.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "ministerio";
+      const filename = `lauda-musicas-${safeMinistry}-${new Date().toISOString().slice(0, 10)}.json`;
+      if (Platform.OS === "web") {
+        const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      const file = new File(Paths.cache, filename);
+      file.create({ overwrite: true });
+      file.write(content);
+      if (!await Sharing.isAvailableAsync()) throw new Error("Compartilhamento não disponível neste dispositivo.");
+      await Sharing.shareAsync(file.uri, { mimeType: "application/json", dialogTitle: "Exportar músicas do Lauda" });
+    } catch (error) { apiError(error, "Não foi possível exportar os dados das músicas."); }
+  },
+
+  async previewSongData(ministryId: string, document: SongTransferDocument): Promise<SongTransferPreview> {
+    try {
+      const response = await api.post<ApiResponse<SongTransferPreview>>("/songs/data-import/preview", { ministryId, document });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível revisar o arquivo de músicas."); }
+  },
+
+  async commitSongData(ministryId: string, document: SongTransferDocument, documentHash: string): Promise<SongTransferResult> {
+    try {
+      const response = await api.post<ApiResponse<SongTransferResult>>("/songs/data-import/commit", { ministryId, document, documentHash });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível importar as músicas."); }
   },
 };

@@ -16,6 +16,12 @@ const ministryMemberInclude = {
   ministry: { select: { id: true, name: true, tenantId: true } },
 };
 
+const activeMinistryMembershipWhere = {
+  status: "ACTIVE" as const,
+  isActive: true,
+  deletedAt: null,
+};
+
 export class MinistryRepository {
   constructor(private readonly tenantId: string) {}
 
@@ -23,7 +29,7 @@ export class MinistryRepository {
     const canSeeAll = user?.role === Role.TENANT_ADMIN || user?.role === Role.GLOBAL_ADMIN;
     const where =
       user && !canSeeAll
-        ? { tenantId: this.tenantId, members: { some: { userId: user.id } } }
+        ? { tenantId: this.tenantId, members: { some: { userId: user.id, ...activeMinistryMembershipWhere } } }
         : { tenantId: this.tenantId };
 
     return prisma.ministry.findMany({
@@ -37,7 +43,7 @@ export class MinistryRepository {
     const canSeeAll = user?.role === Role.TENANT_ADMIN || user?.role === Role.GLOBAL_ADMIN;
     const where =
       user && !canSeeAll
-        ? { id, tenantId: this.tenantId, members: { some: { userId: user.id } } }
+        ? { id, tenantId: this.tenantId, members: { some: { userId: user.id, ...activeMinistryMembershipWhere } } }
         : { id, tenantId: this.tenantId };
 
     return prisma.ministry.findFirst({
@@ -103,7 +109,13 @@ export class MinistryRepository {
 
       return tx.ministryMember.upsert({
         where: { userId_ministryId: { userId, ministryId } },
-        update: { isLeader, tenantId: this.tenantId },
+        update: {
+          isLeader,
+          status: "ACTIVE",
+          isActive: true,
+          deletedAt: null,
+          tenantId: this.tenantId,
+        },
         create: { userId, ministryId, isLeader, tenantId: this.tenantId, status: "ACTIVE" },
       });
     });
@@ -201,7 +213,11 @@ export class MinistryRepository {
         ...(skills !== undefined ? { skills } : {}),
         ...(status !== undefined ? { status } : {}),
         ...(notes !== undefined ? { notes } : {}),
-        ...(isLeader !== undefined ? { isLeader } : {}),
+        ...(status !== undefined && status !== "ACTIVE"
+          ? { isLeader: false }
+          : isLeader !== undefined
+            ? { isLeader }
+            : {}),
       },
     });
 

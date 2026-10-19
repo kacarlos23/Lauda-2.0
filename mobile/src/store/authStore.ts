@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { create } from "zustand";
-import { AxiosError } from "axios";
 import { api } from "../services/api";
 import { memberService } from "../services/memberService";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
 import { Role, Tenant, User } from "../types";
 import { invalidateRelatedData } from "./invalidation";
 import { GROUP_HREFS } from "../navigation/routes";
+import { authErrorMessage, LOGIN_REQUEST_TIMEOUT_MS } from "../services/authError";
 
 type AuthResponse = {
   success: boolean;
@@ -63,12 +63,7 @@ interface AuthState {
 }
 
 function extractAuthError(error: unknown): string {
-  if (error instanceof AxiosError) {
-    const data = error.response?.data as { error?: string } | undefined;
-    return data?.error ?? "Erro ao autenticar. Tente novamente.";
-  }
-
-  return error instanceof Error ? error.message : "Erro ao autenticar. Tente novamente.";
+  return authErrorMessage(error);
 }
 
 function decodeJwtPayload(token: string): JwtUserPayload | null {
@@ -177,7 +172,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true, error: null });
 
     try {
-      const response = await api.post<AuthResponse>("/auth/login", { email, password });
+      const response = await api.post<AuthResponse>(
+        "/auth/login",
+        { email, password },
+        { timeout: LOGIN_REQUEST_TIMEOUT_MS },
+      );
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,

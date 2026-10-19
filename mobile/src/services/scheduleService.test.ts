@@ -126,31 +126,27 @@ describe("scheduleService", () => {
     expect(writeMock).toHaveBeenCalledWith(new Uint8Array([37, 80, 68, 70]));
   });
 
-  it("exportScheduleReport no web usa os dados da escala sem chamar endpoint /report", async () => {
+  it("exportScheduleReport no web baixa o PDF exclusivamente pelo endpoint protegido", async () => {
     const reactNative = jest.requireMock("react-native");
     reactNative.Platform.OS = "web";
-    const documentMock = { open: jest.fn(), write: jest.fn(), close: jest.fn() };
-    const previousWindow = (globalThis as any).window;
-    const openMock = jest.fn().mockReturnValue({ document: documentMock });
-    (globalThis as any).window = { open: openMock };
+    mockedApi.get.mockResolvedValueOnce({ data: new Uint8Array([37, 80, 68, 70]).buffer });
+    const previousDocument = (globalThis as any).document;
+    const previousUrl = (globalThis as any).URL;
+    const anchor = { href: "", download: "", click: jest.fn() };
+    const createObjectURL = jest.fn(() => "blob:protected-report");
+    const revokeObjectURL = jest.fn();
+    (globalThis as any).document = { createElement: jest.fn(() => anchor) };
+    (globalThis as any).URL = { createObjectURL, revokeObjectURL };
 
-    await expect(scheduleService.exportScheduleReport("schedule-1", "relatorio.pdf", {
-      id: "schedule-1",
-      title: "Culto relatório",
-      date: "2026-07-12T22:30:00.000Z",
-      ministryId: "ministry-1",
-      tenantId: "tenant-1",
-      ministry: { id: "ministry-1", name: "Louvor" },
-      songs: [{ id: "ss-1", scheduleId: "schedule-1", songId: "song-1", order: 0, song: { id: "song-1", title: "Senhor Tu És Bom", originalKey: "G", bpm: 96, artistId: "artist-1", artist: { id: "artist-1", name: "Vineyard" } } }],
-      assignments: [{ id: "assignment-1", scheduleId: "schedule-1", userId: "user-1", role: "Vocal", status: "ACCEPTED", user: { id: "user-1", name: "Carlos" }, schedule: {} as any }],
-    })).resolves.toBeUndefined();
+    await expect(scheduleService.exportScheduleReport("schedule-1", "relatorio.pdf")).resolves.toBeUndefined();
 
-    expect(mockedApi.get).not.toHaveBeenCalled();
-    expect(openMock).toHaveBeenCalled();
-    expect(documentMock.write.mock.calls[0][0]).toContain("Senhor Tu És Bom");
-    expect(documentMock.write.mock.calls[0][0]).toContain("Carlos");
+    expect(mockedApi.get).toHaveBeenCalledWith("/schedules/schedule-1/report", { responseType: "arraybuffer" });
+    expect(anchor.download).toBe("relatorio.pdf");
+    expect(anchor.click).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:protected-report");
     reactNative.Platform.OS = "ios";
-    (globalThis as any).window = previousWindow;
+    (globalThis as any).document = previousDocument;
+    (globalThis as any).URL = previousUrl;
   });
 
   it("updateAssignmentStatus chama PATCH com ACCEPTED", async () => {

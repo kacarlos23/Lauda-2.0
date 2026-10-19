@@ -13,13 +13,13 @@ const artists = [
 ];
 
 const songs = [
-  { id: "song-1", title: "Firme nas Promessas", composer: null, originalKey: "G", content: "[G]Firme nas promessas do meu Salvador", bpm: 96, artistId: "artist-1", artist: artists[0], createdAt: "", updatedAt: "" },
-  { id: "song-2", title: "Só Tu És Santo", composer: null, originalKey: "A", content: "[A]Só Tu és Santo", bpm: null, artistId: "artist-2", artist: artists[1], createdAt: "", updatedAt: "" },
-  { id: "song-3", title: "Te Agradeço", composer: null, originalKey: "D", content: "[D]Eu te agradeço, Deus", bpm: 90, artistId: "artist-3", artist: artists[2], createdAt: "", updatedAt: "" },
-  { id: "song-cifra-only", title: "Graça Infinita", composer: null, originalKey: "C", content: "[C]Graça infinita", bpm: null, artistId: "artist-1", artist: artists[0], cifraUrl: "https://example.com/cifra-only", createdAt: "", updatedAt: "" },
-  { id: "song-two-links", title: "Casa do Pai", composer: null, originalKey: "E", content: "[E]Casa do Pai", bpm: 84, artistId: "artist-2", artist: artists[1], cifraUrl: "https://example.com/cifra-two", videoUrl: "https://example.com/video-two", createdAt: "", updatedAt: "" },
+  { id: "123e4567-e89b-42d3-a456-426614174004", title: "Firme nas Promessas", composer: null, originalKey: "G", content: "[G]Firme nas promessas do meu Salvador", bpm: 96, artistId: "artist-1", artist: artists[0], createdAt: "", updatedAt: "" },
+  { id: "123e4567-e89b-42d3-a456-426614174005", title: "Só Tu És Santo", composer: null, originalKey: "A", content: "[A]Só Tu és Santo", bpm: null, artistId: "artist-2", artist: artists[1], createdAt: "", updatedAt: "" },
+  { id: "123e4567-e89b-42d3-a456-426614174006", title: "Te Agradeço", composer: null, originalKey: "D", content: "[D]Eu te agradeço, Deus", bpm: 90, artistId: "artist-3", artist: artists[2], createdAt: "", updatedAt: "" },
+  { id: "123e4567-e89b-42d3-a456-426614174001", title: "Graça Infinita", composer: null, originalKey: "C", content: "[C]Graça infinita", bpm: null, artistId: "artist-1", artist: artists[0], cifraUrl: "https://example.com/cifra-only", createdAt: "", updatedAt: "" },
+  { id: "123e4567-e89b-42d3-a456-426614174002", title: "Casa do Pai", composer: null, originalKey: "E", content: "[E]Casa do Pai", bpm: 84, artistId: "artist-2", artist: artists[1], cifraUrl: "https://example.com/cifra-two", videoUrl: "https://example.com/video-two", createdAt: "", updatedAt: "" },
   {
-    id: "song-all-links",
+    id: "123e4567-e89b-42d3-a456-426614174003",
     title: "Ajuda-me a Vencer",
     composer: null,
     originalKey: "G",
@@ -41,13 +41,13 @@ scheduleDate.setDate(13);
 scheduleDate.setHours(19, 30, 0, 0);
 
 const schedule = {
-  id: "schedule-1",
+  id: "123e4567-e89b-42d3-a456-426614174007",
   title: "Culto de Oração",
   date: scheduleDate.toISOString(),
   ministryId: "ministry-1",
   tenantId: "tenant-1",
   ministry: { id: "ministry-1", name: "Louvor IBC" },
-  songs: songs.slice(0, 3).map((song, order) => ({ id: `ss-${order + 1}`, scheduleId: "schedule-1", songId: song.id, order, song })),
+  songs: songs.slice(0, 3).map((song, order) => ({ id: `ss-${order + 1}`, scheduleId: "123e4567-e89b-42d3-a456-426614174007", songId: song.id, order, song })),
   assignments: [],
 };
 
@@ -101,7 +101,7 @@ async function mockAuthenticatedApp(page: Page) {
       await route.fulfill({ json: { success: true, data: { items, pagination: { page: 1, limit: 10, total: items.length, totalPages: items.length ? 1 : 0 } } } });
       return;
     }
-    if (path === "/api/songs/song-1") {
+    if (path === "/api/songs/123e4567-e89b-42d3-a456-426614174004") {
       await route.fulfill({ json: { success: true, data: songs[0] } });
       return;
     }
@@ -202,16 +202,16 @@ test("links de músicas são consolidados no conteúdo estreito", async ({ page 
   await page.getByText("Músicas", { exact: true }).last().click();
   await expect(page).toHaveURL(/\/songs$/);
 
-  const noLinksRow = page.getByTestId("song-row-song-1");
+  const noLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174004");
   await expect(noLinksRow.getByTestId("song-link-buttons")).toHaveCount(0);
   await expect(noLinksRow.getByTestId("song-links-trigger")).toHaveCount(0);
 
-  const oneLinkRow = page.getByTestId("song-row-song-cifra-only");
+  const oneLinkRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174001");
   await expect(oneLinkRow.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
   await expect(oneLinkRow.getByText("Cifra", { exact: true })).toBeVisible();
   await expect(oneLinkRow.getByText("Links 1", { exact: true })).toHaveCount(0);
 
-  const twoLinksRow = page.getByTestId("song-row-song-two-links");
+  const twoLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174002");
   const twoLinksTrigger = twoLinksRow.getByTestId("song-links-trigger");
   await expect(twoLinksTrigger).toHaveText("Links 2");
   await expect(twoLinksRow.getByRole("link")).toHaveCount(0);
@@ -226,7 +226,7 @@ test("links de músicas são consolidados no conteúdo estreito", async ({ page 
   await page.getByRole("button", { name: "Fechar" }).click();
   await expect(page.getByTestId("song-links-sheet")).toHaveCount(0);
 
-  const allLinksRow = page.getByTestId("song-row-song-all-links");
+  const allLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174003");
   const songTitle = allLinksRow.getByText("Ajuda-me a Vencer", { exact: true });
   const allLinksTrigger = allLinksRow.getByTestId("song-links-trigger");
   await expect(songTitle).toBeVisible();
@@ -277,7 +277,7 @@ test("desktop mantém todos os links de música diretamente na linha", async ({ 
   await page.getByTestId("sidebar-nav-songs").click();
   await expect(page).toHaveURL(/\/songs$/);
 
-  const row = page.getByTestId("song-row-song-all-links");
+  const row = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174003");
   await expect(row.getByText("Ajuda-me a Vencer", { exact: true })).toBeVisible();
   await expect(row.getByRole("link")).toHaveCount(4);
   await expect(row.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
@@ -293,8 +293,8 @@ test("desktop mantém todos os links de música diretamente na linha", async ({ 
 
   // 683 CSS px correspondem à área útil de uma janela de 1366 px com zoom de 200%.
   await page.setViewportSize({ width: 683, height: 384 });
-  const zoomedInfo = row.getByTestId("song-info-song-all-links");
-  const zoomedActions = row.getByTestId("song-actions-song-all-links");
+  const zoomedInfo = row.getByTestId("song-info-123e4567-e89b-42d3-a456-426614174003");
+  const zoomedActions = row.getByTestId("song-actions-123e4567-e89b-42d3-a456-426614174003");
   await expect(zoomedActions.getByRole("link")).toHaveCount(4);
   await row.scrollIntoViewIfNeeded();
   const [zoomedInfoBox, zoomedActionsBox] = await Promise.all([
@@ -325,7 +325,7 @@ test("exclusão de escala usa modal personalizado no navegador", async ({ page }
   await expect(modal).toBeHidden();
 
   await page.getByRole("button", { name: "Excluir escala", exact: true }).click();
-  const deleteRequest = page.waitForRequest((request) => request.method() === "DELETE" && request.url().endsWith("/api/schedules/schedule-1"));
+  const deleteRequest = page.waitForRequest((request) => request.method() === "DELETE" && request.url().endsWith("/api/schedules/123e4567-e89b-42d3-a456-426614174007"));
   await modal.getByRole("button", { name: "Confirmar exclusão da escala" }).click();
   await deleteRequest;
   await expect(page).toHaveURL(/\/schedules$/);

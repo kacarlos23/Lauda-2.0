@@ -1,6 +1,7 @@
 ﻿import { z } from "zod";
 
 import { richTextCommentsSchema } from "./richText.schema";
+import { participationSchema } from "./worshipOrder.schema";
 
 const isoDateTimeMessage = "Data deve estar em formato ISO datetime válido";
 
@@ -40,6 +41,15 @@ const ScheduleWriteSchema = z.object({
   comments: richTextCommentsSchema,
   assignments: z.array(ScheduleAssignmentInputSchema).default([]),
   songIds: z.array(z.string().uuid("Música deve ser um UUID válido")).default([]),
+  songDetails: z.array(participationSchema).optional(),
+  worshipPeriod: z.enum(["MORNING", "EVENING"]).nullable().optional(),
+}).superRefine((input, context) => {
+  if (!input.songDetails) return;
+  const ids = new Set(input.songIds);
+  const details = new Set(input.songDetails.map((entry) => entry.songId));
+  if (details.size !== input.songDetails.length || details.size !== ids.size || [...details].some((id) => !ids.has(id))) {
+    context.addIssue({ code: "custom", path: ["songDetails"], message: "Informe os momentos somente das músicas selecionadas, sem duplicatas" });
+  }
 });
 
 export const CreateScheduleSchema = ScheduleWriteSchema;
