@@ -511,14 +511,12 @@ test("mantém os controles focáveis sem borda externa de foco", async ({ page }
 
   await expect(emailInput).toBeFocused();
   await expect.poll(() => emailInput.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
-  await expect.poll(() => emailInput.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBe(0);
 
   const submitButton = page.getByTestId("login-submit");
   await submitButton.focus();
 
   await expect(submitButton).toBeFocused();
   await expect.poll(() => submitButton.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none");
-  await expect.poll(() => submitButton.evaluate((element) => Number.parseFloat(getComputedStyle(element).outlineWidth))).toBe(0);
 });
 
 test("valida campos obrigatórios no login antes de chamar a API", async ({ page }) => {

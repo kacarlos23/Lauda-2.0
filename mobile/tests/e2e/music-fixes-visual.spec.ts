@@ -129,7 +129,7 @@ test("revisão visual das correções de músicas e escalas", async ({ page }) =
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedules-list-after.png", fullPage: true });
 
-  await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
+  await page.getByText("Culto de Oração", { exact: true }).last().click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedule-edit-after.png", fullPage: true });
@@ -181,7 +181,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
   await expect(page).toHaveURL(/\/schedules$/);
   await page.getByRole("button", { name: /Selecionar .* 13 de/ }).click();
 
-  await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
+  await page.getByText("Culto de Oração", { exact: true }).last().click();
   await expect(page.getByRole("button", { name: "Exportar cifras da escala" })).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedule-edit-mobile-after.png", fullPage: true });
@@ -313,7 +313,7 @@ test("exclusão de escala usa modal personalizado no navegador", async ({ page }
   await page.goto("/");
   await page.getByTestId("sidebar-nav-schedules").click();
   await page.getByText("13", { exact: true }).click();
-  await page.getByRole("button", { name: "Editar escala Culto de Oração" }).last().click();
+  await page.getByText("Culto de Oração", { exact: true }).last().click();
 
   await page.getByRole("button", { name: "Excluir escala", exact: true }).click();
   const modal = page.getByTestId("delete-schedule-modal");

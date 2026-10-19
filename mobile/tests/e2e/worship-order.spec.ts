@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs/promises";
-import { WorshipOrderPdfService } from "../../../src/services/worshipOrderPdfService";
+import path from "node:path";
 
 test.use({ channel: "chromium" });
 
@@ -51,7 +51,8 @@ for (const width of [390, 1440]) {
     }));
     const morning = { id: "123e4567-e89b-42d3-a456-426614174000", title: "Escala A", date: "2026-10-18T12:00:00Z", songs, ministryId: "ministry", tenantId: tenant.id };
     const evening = { ...morning, id: "123e4567-e89b-42d3-a456-426614174001", title: "Escala B", date: "2026-10-18T22:00:00Z", songs: [] };
-    const pdfBytes = await new WorshipOrderPdfService().generate({ date: "2026-10-18", churchName: tenant.name, morning: { songs } });
+    // Test HTTP transport independently; backend tests verify PDF rendering and links.
+    const pdfBytes = await fs.readFile(path.join(__dirname, "fixtures/worship-order.pdf"));
     let saved: any = null, submitted: any = null;
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
