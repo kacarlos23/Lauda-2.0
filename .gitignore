@@ -28,6 +28,7 @@ mobile/web-build/
 docs/
 !docs/
 docs/*
+!docs/instrument-appearance.md
 !docs/security-program/
 !docs/security-program/**
 !docs/Lauda-redesign-handoff/

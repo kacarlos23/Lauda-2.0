@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AccessibilityInfo,
   Alert,
+  Animated,
+  Easing,
   LayoutChangeEvent,
   Platform,
   RefreshControl,
@@ -35,6 +37,7 @@ import {
   FilterSection,
   LoadingState,
 } from "../../../src/components/ui";
+import { useReducedMotion } from "../../../src/hooks/useReducedMotion";
 import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
@@ -55,6 +58,7 @@ import {
   fontSizes,
   fontWeights,
   iconSizes,
+  motion,
   radii,
   screen,
   spacing,
@@ -106,6 +110,39 @@ export default function SongsScreen() {
   const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const pageNumbers = Array.from(new Set([
+    1,
+    ...Array.from({ length: Math.min(5, pagination.totalPages) }, (_, index) =>
+      Math.max(1, Math.min(page - 2, pagination.totalPages - 4)) + index),
+    pagination.totalPages,
+  ])).filter((value) => value > 0).sort((a, b) => a - b);
+  const pageSlots = pageNumbers.flatMap<string | number>((number, index) =>
+    index > 0 && number - pageNumbers[index - 1] > 1 ? [`gap-${number}`, number] : [number]);
+  const [pageTrackWidth, setPageTrackWidth] = useState(0);
+  const pageIndicatorX = useRef(new Animated.Value(0)).current;
+  const pageIndicatorInitialized = useRef(false);
+  const reducedMotion = useReducedMotion();
+  const activePageSlot = pageSlots.indexOf(page);
+  const pageSlotCount = pageSlots.length;
+
+  useEffect(() => {
+    if (pageTrackWidth <= 0 || activePageSlot < 0) return;
+    const slotWidth = pageTrackWidth / pageSlotCount;
+    const target = slotWidth * activePageSlot + (slotWidth - 24) / 2;
+    if (!pageIndicatorInitialized.current || reducedMotion) {
+      pageIndicatorX.setValue(target);
+      pageIndicatorInitialized.current = true;
+      return;
+    }
+    const animation = Animated.timing(pageIndicatorX, {
+      toValue: target,
+      duration: motion.navigationSelectionMs,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [activePageSlot, pageSlotCount, pageTrackWidth, pageIndicatorX, reducedMotion]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState<Map<string, SongSelectionSnapshot>>(() => new Map());
   const [exportPanelExpanded, setExportPanelExpanded] = useState(true);
@@ -523,12 +560,33 @@ export default function SongsScreen() {
 
                 {pagination.totalPages > 1 ? (
                   <View style={styles.pagination}>
-                    <TouchableOpacity disabled={page <= 1} onPress={() => setPage(page - 1)}>
-                      <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text>
+                    <TouchableOpacity style={styles.pageNavigation} accessibilityRole="button" accessibilityLabel="Página anterior" disabled={page <= 1} onPress={() => setPage(page - 1)}>
+                      <Text style={[styles.pageArrow, page <= 1 && styles.disabledText]}>←</Text>
+                      {contentWidth >= 600 ? <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text> : null}
                     </TouchableOpacity>
-                    <Text style={styles.pageText}>{page} de {pagination.totalPages}</Text>
-                    <TouchableOpacity disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}>
-                      <Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>{TEXT.nextPage}</Text>
+                    <View style={styles.pageNumbers} onLayout={(event) => setPageTrackWidth(event.nativeEvent.layout.width)}>
+                      {pageSlots.map((slot) => typeof slot === "string" ? (
+                        <View key={slot} style={styles.pageSlot}><Text style={styles.pageText}>…</Text></View>
+                      ) : (
+                        <TouchableOpacity
+                          key={slot}
+                          style={styles.pageSlot}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Página ${slot}`}
+                          accessibilityState={{ selected: slot === page }}
+                          onPress={() => setPage(slot)}
+                        >
+                          <Text style={[styles.pageNumberText, slot === page && styles.pageNumberActiveText]}>{slot}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {pageTrackWidth > 0 ? <Animated.View
+                        pointerEvents="none"
+                        style={[styles.pageIndicator, { transform: [{ translateX: pageIndicatorX }] }]}
+                      /> : null}
+                    </View>
+                    <TouchableOpacity style={styles.pageNavigation} accessibilityRole="button" accessibilityLabel="Próxima página" disabled={page >= pagination.totalPages} onPress={() => setPage(page + 1)}>
+                      {contentWidth >= 600 ? <Text style={[styles.link, page >= pagination.totalPages && styles.disabledText]}>{TEXT.nextPage}</Text> : null}
+                      <Text style={[styles.pageArrow, page >= pagination.totalPages && styles.disabledText]}>→</Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -619,9 +677,16 @@ const styles = StyleSheet.create({
   listCount: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   inlineLoading: { alignItems: "center", padding: spacing.xl },
   emptyState: { borderWidth: 0, borderRadius: 0 },
-  pagination: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.lg },
-  link: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
-  pageText: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
+  pagination: { width: "100%", maxWidth: 960, alignSelf: "center", flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  pageNumbers: { position: "relative", flex: 1, maxWidth: 600, flexDirection: "row", alignItems: "center", marginHorizontal: spacing.sm },
+  pageNavigation: { minWidth: 44, minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  pageSlot: { flex: 1, minWidth: 0, minHeight: 48, alignItems: "center", justifyContent: "center" },
+  pageNumberText: { color: colors.muted, fontSize: fontSizes.s14, fontWeight: fontWeights.medium },
+  pageNumberActiveText: { color: colors.primary, fontWeight: fontWeights.bold },
+  pageIndicator: { position: "absolute", left: 0, bottom: 0, width: 24, height: 2, borderRadius: 1, backgroundColor: colors.primary },
+  pageArrow: { color: colors.muted, fontSize: fontSizes.s18 },
+  link: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.medium },
+  pageText: { color: colors.muted, fontSize: fontSizes.s13 },
   disabledText: { opacity: 0.35 },
   linksSheetContent: {
     paddingHorizontal: spacing.xl,

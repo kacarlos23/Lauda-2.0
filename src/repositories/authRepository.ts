@@ -5,7 +5,7 @@ import { basePrisma } from "../config/prisma";
 import { revokeUserSessionsInTransaction } from "../services/authSessionService";
 
 export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive" | "deletedAt" | "mfaSecretEncrypted" | "mfaEnabledAt"> & {
-  instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
+  instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
   tenant?: { id: string; name: string; isActive: boolean; deletedAt: Date | null } | null;
 };
 
@@ -35,7 +35,7 @@ export class AuthRepository {
         tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
-            instrument: { select: { id: true, name: true, colorHex: true } },
+            instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
           },
         },
       },
@@ -67,7 +67,7 @@ export class AuthRepository {
         tenant: { select: { id: true, name: true, isActive: true, deletedAt: true } },
         instruments: {
           include: {
-            instrument: { select: { id: true, name: true, colorHex: true } },
+            instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
           },
         },
       },
@@ -235,7 +235,7 @@ export class AuthRepository {
           mfaEnabledAt: true,
           instruments: {
             include: {
-              instrument: { select: { id: true, name: true, colorHex: true } },
+              instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
             },
           },
         },

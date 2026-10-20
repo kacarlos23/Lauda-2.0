@@ -65,6 +65,7 @@ const ministryPublicSelect = {
 } as const;
 
 const instrumentPublicSelect = {
+  iconKey: true,
   id: true,
   name: true,
   colorHex: true,
@@ -217,7 +218,7 @@ const resourceConfig = {
       createdAt: true,
       tenant: { select: tenantMiniSelect },
       user: { select: userMiniSelect },
-      instrument: { select: { id: true, name: true, colorHex: true } },
+      instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
     },
   },
   artists: { delegate: "artist", tenantField: "tenantId", orderBy: [{ tenant: { name: "asc" } }, { name: "asc" }], select: artistPublicSelect },

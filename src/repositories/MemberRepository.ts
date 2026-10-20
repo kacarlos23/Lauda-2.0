@@ -6,11 +6,11 @@ import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schem
 
 const userInstrumentInclude = {
   include: {
-    instrument: { select: { id: true, name: true, colorHex: true } },
+    instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
   },
 };
 
-function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }> }>(
+function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }> }>(
   member: T
 ) {
   const { instruments = [], ...rest } = member;
@@ -210,7 +210,7 @@ export class MemberRepository {
       return tx.userInstrument.findMany({
         where: { userId, tenantId: this.tenantId },
         include: {
-          instrument: { select: { id: true, name: true, colorHex: true } },
+          instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
         },
         orderBy: { instrument: { name: "asc" } },
       });

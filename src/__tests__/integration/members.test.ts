@@ -249,7 +249,7 @@ describe("Members API", () => {
       name: "Novo Membro",
       role: "MEMBER",
       tenantId: tenant.user.tenantId,
-      instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB" }],
+      instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB", iconKey: null }],
     });
     expect(member).not.toHaveProperty("email");
     expect(member).not.toHaveProperty("phone");
@@ -316,8 +316,8 @@ describe("Members API", () => {
         expect(response.body.data).toEqual({
           id: memberA.body.data.id,
           instruments: [
-            { id: keyboard.id, name: "Teclado", colorHex: "#2563EB" },
-            { id: vocal.id, name: "Vocalista", colorHex: "#10B981" },
+            { id: keyboard.id, name: "Teclado", colorHex: "#2563EB", iconKey: null },
+            { id: vocal.id, name: "Vocalista", colorHex: "#10B981", iconKey: null },
           ],
         });
       });
@@ -328,7 +328,7 @@ describe("Members API", () => {
       .send({ instrumentIds: [vocal.id] })
       .expect(200)
       .expect((response) => {
-        expect(response.body.data.instruments).toEqual([{ id: vocal.id, name: "Vocalista", colorHex: "#10B981" }]);
+        expect(response.body.data.instruments).toEqual([{ id: vocal.id, name: "Vocalista", colorHex: "#10B981", iconKey: null }]);
       });
 
     await request(app)
@@ -480,7 +480,7 @@ describe("Members API", () => {
       .expect((response) => {
         expect(response.body.data).toEqual({
           id: member.body.data.id,
-          instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB" }],
+          instruments: [{ id: keyboard.id, name: "Teclado", colorHex: "#2563EB", iconKey: null }],
         });
       });
   });

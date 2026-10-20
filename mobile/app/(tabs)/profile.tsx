@@ -1,4 +1,6 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { InstrumentBadge } from "../../src/components/instruments/InstrumentBadge";
+import { InstrumentAppearanceEditor } from "../../src/components/instruments/InstrumentAppearanceEditor";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +17,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, Check, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
+import { Camera, Check, Pencil, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 import { Button, EmptyState, ErrorBanner, LoadingState, RoleBadge } from "../../src/components/ui";
 import { useAuthStore } from "../../src/store/authStore";
@@ -45,7 +47,7 @@ import {
 } from "../../src/theme";
 import { Instrument } from "../../src/types";
 
-const emptyInstrumentForm = { name: "", colorHex: "" };
+const emptyInstrumentForm = { name: "", colorHex: "", iconKey: "" };
 
 function getInstrumentIds(instruments?: Instrument[]): string[] {
   return instruments?.map((item) => item.id) ?? [];
@@ -57,15 +59,6 @@ function sortInstruments(instruments: Instrument[]): Instrument[] {
   );
 }
 
-function readableTextColor(backgroundColor?: string | null): string {
-  if (!backgroundColor || !/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) return colors.primaryDark;
-
-  const red = parseInt(backgroundColor.slice(1, 3), 16);
-  const green = parseInt(backgroundColor.slice(3, 5), 16);
-  const blue = parseInt(backgroundColor.slice(5, 7), 16);
-  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
-  return luminance > 0.62 ? colors.ink : colors.surface;
-}
 
 export default function ProfileScreen() {
   const { user, logout, applyCurrentUser, refreshCurrentUser } = useAuthStore();
@@ -265,6 +258,7 @@ export default function ProfileScreen() {
       const created = await instrumentService.createInstrument({
         name: normalizeInstrumentName(instrumentForm.name),
         colorHex: normalizeColorHex(instrumentForm.colorHex),
+        iconKey: instrumentForm.iconKey || null,
       });
       const nextIds = Array.from(new Set([...selectedIds, created.id]));
       const result = await instrumentService.updateMyInstruments(nextIds);
@@ -351,6 +345,7 @@ export default function ProfileScreen() {
                 accessibilityLabel="Selecionar instrumentos e cargos"
                 testID="open-instrument-picker"
               >
+                <Pencil color={colors.ink} size={iconSizes.s14} />
                 <Text style={styles.editInstrumentsButtonText}>
                   {selectedInstruments.length > 0 ? "Editar" : "Selecionar"}
                 </Text>
@@ -391,22 +386,7 @@ export default function ProfileScreen() {
             />
           ) : (
             <View style={styles.instrumentList}>
-              {selectedInstruments.map((instrument) => (
-                <View
-                  key={instrument.id}
-                  style={[
-                    styles.instrumentChip,
-                    {
-                      backgroundColor: instrument.colorHex ?? colors.primarySoft,
-                      borderColor: instrument.colorHex ?? colors.line,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.instrumentChipText, { color: readableTextColor(instrument.colorHex) }]}>
-                    {instrument.name}
-                  </Text>
-                </View>
-              ))}
+              {selectedInstruments.map((instrument) => <InstrumentBadge key={instrument.id} instrument={instrument} />)}
             </View>
           )}
         </View>
@@ -434,6 +414,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
               {canManageInstruments ? (
                 <View style={styles.createInstrumentBox}>
                   <Text style={styles.createInstrumentTitle}>Novo instrumento/cargo</Text>
@@ -444,23 +425,14 @@ export default function ProfileScreen() {
                       setInstrumentForm((current) => ({ ...current, name }));
                       setInstrumentFormError(null);
                     }}
+                    accessibilityLabel="Nome do novo instrumento/cargo"
+                    maxLength={50}
                     placeholder="Nome"
                     placeholderTextColor={colors.muted}
                     autoCapitalize="words"
                     testID="profile-instrument-name-input"
                   />
-                  <TextInput
-                    style={styles.modalInput}
-                    value={instrumentForm.colorHex}
-                    onChangeText={(colorHex) => {
-                      setInstrumentForm((current) => ({ ...current, colorHex }));
-                      setInstrumentFormError(null);
-                    }}
-                    placeholder="#RRGGBB opcional"
-                    placeholderTextColor={colors.muted}
-                    autoCapitalize="characters"
-                    testID="profile-instrument-color-input"
-                  />
+                  <InstrumentAppearanceEditor value={instrumentForm} onChange={setInstrumentForm} testID="profile-instrument" />
                   <ErrorBanner message={instrumentFormError} style={styles.profileError} />
                   <TouchableOpacity
                     style={[styles.createInstrumentButton, creatingInstrument && styles.buttonDisabled]}
@@ -479,7 +451,7 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
 
-              <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
+
                 {availableInstruments.length === 0 ? (
                   <EmptyState
                     title="Nenhum instrumento disponível"
@@ -497,13 +469,7 @@ export default function ProfileScreen() {
                         accessibilityLabel={`${selected ? "Remover" : "Adicionar"} ${instrument.name}`}
                         testID={`instrument-toggle-${instrument.id}`}
                       >
-                        <View
-                          style={[
-                            styles.modalInstrumentColor,
-                            { backgroundColor: instrument.colorHex ?? colors.primarySoft },
-                          ]}
-                        />
-                        <Text style={styles.modalInstrumentName}>{instrument.name}</Text>
+                        <View style={{ flex: 1 }}><InstrumentBadge instrument={instrument} /></View>
                         {selected ? <Check color={colors.primary} size={iconSizes.s20} strokeWidth={2.8} /> : null}
                       </TouchableOpacity>
                     );
@@ -649,14 +615,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   editInstrumentsButton: {
-    minHeight: controlSizes.compact,
-    borderRadius: radii.md,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
+    minHeight: 32, paddingHorizontal: spacing.md, borderRadius: radii.pill,
+    backgroundColor: colors.instrumentChip, flexDirection: "row", gap: spacing.xs,
+    alignItems: "center", justifyContent: "center",
   },
-  editInstrumentsButtonText: { ...typography.label, color: colors.primary },
+  editInstrumentsButtonText: { ...typography.label, color: colors.ink },
   instrumentLoading: {
     gap: spacing.sm,
     alignItems: "flex-start",

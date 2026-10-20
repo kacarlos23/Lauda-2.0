@@ -410,13 +410,24 @@ export default function EditScheduleScreen() {
               returnKeyType="search"
             />
             {songSearchLoading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+            {songSearch ? (
+              <TouchableOpacity
+                onPress={() => setSongSearch("")}
+                style={styles.songSearchClear}
+                accessibilityRole="button"
+                accessibilityLabel="Limpar pesquisa de músicas da escala"
+                hitSlop={8}
+              >
+                <X color={colors.muted} size={iconSizes.s18} />
+              </TouchableOpacity>
+            ) : null}
           </View>
           {songSearchError ? <Text style={styles.songSearchError}>{songSearchError}</Text> : null}
           <ScrollView style={styles.modalList}>
             {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
               const order = getSongOrder(song.id);
-              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)} accessibilityRole="button" accessibilityLabel={`Selecionar música ${song.title}`}>
+              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => { toggleSong(song.id); if (!selected) setSongSearch(""); }} accessibilityRole="button" accessibilityLabel={`Selecionar música ${song.title}`}>
                 <View style={styles.optionTitleRow}>
                   <Text style={styles.optionTitle}>{song.title}</Text>
                   {order ? <Text style={styles.orderBadge}>{order}</Text> : null}
@@ -670,6 +681,7 @@ const styles = StyleSheet.create({
   modalHeaderSpacer: { width: controlSizes.medium, height: controlSizes.medium },
   modalTitle: { flex: 1, color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, textAlign: "center" },
   songSearchRow: { minHeight: controlSizes.large, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
+  songSearchClear: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any,
   songSearchError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   modalList: { maxHeight: 440, marginTop: spacing.md },

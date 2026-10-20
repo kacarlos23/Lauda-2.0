@@ -48,6 +48,7 @@ export interface Tenant {
 }
 
 export interface Instrument {
+  iconKey?: string | null;
   id: string;
   name: string;
   colorHex?: string | null;

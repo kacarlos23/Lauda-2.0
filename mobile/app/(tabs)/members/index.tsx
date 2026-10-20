@@ -1,4 +1,5 @@
-﻿import { useCallback, useState } from "react";
+import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
+import { useCallback, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
@@ -71,15 +72,6 @@ function formatMinistries(member: Member): string {
     .join(", ");
 }
 
-function readableTextColor(backgroundColor?: string | null): string {
-  if (!backgroundColor || !/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) return colors.primaryDark;
-
-  const red = parseInt(backgroundColor.slice(1, 3), 16);
-  const green = parseInt(backgroundColor.slice(3, 5), 16);
-  const blue = parseInt(backgroundColor.slice(5, 7), 16);
-  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
-  return luminance > 0.62 ? colors.ink : colors.surface;
-}
 
 function confirmRegenerateInvite(onConfirm: () => void) {
   if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -671,25 +663,7 @@ export default function MembersScreen() {
                 <Text style={styles.instrumentTitle}>Instrumentos/Cargos</Text>
                 {item.instruments?.length ? (
                   <View style={styles.instrumentList}>
-                    {item.instruments.map((instrument) => {
-                      const chipColor = instrument.colorHex ?? colors.primarySoft;
-                      return (
-                        <View
-                          key={instrument.id}
-                          style={[
-                            styles.instrumentChip,
-                            {
-                              backgroundColor: chipColor,
-                              borderColor: instrument.colorHex ?? colors.line,
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.instrumentChipText, { color: readableTextColor(instrument.colorHex) }]}>
-                            {instrument.name}
-                          </Text>
-                        </View>
-                      );
-                    })}
+                    {item.instruments.map((instrument) => <InstrumentBadge key={instrument.id} instrument={instrument} />)}
                   </View>
                 ) : (
                   <Text style={styles.noInstruments}>Nenhum instrumento informado</Text>

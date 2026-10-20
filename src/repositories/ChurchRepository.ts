@@ -25,13 +25,13 @@ const memberSelect = {
   },
   instruments: {
     include: {
-      instrument: { select: { id: true, name: true, colorHex: true } },
+      instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
     },
   },
 } satisfies Prisma.UserSelect;
 
 function mapMemberInstruments<
-  T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }> },
+  T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }> },
 >(member: T) {
   const { instruments = [], ...rest } = member;
   return {
@@ -104,7 +104,7 @@ export class ChurchRepository {
       }),
       basePrisma.instrument.findMany({
         where: { tenantId: this.tenantId },
-        select: { id: true, name: true, colorHex: true },
+        select: { id: true, name: true, colorHex: true, iconKey: true },
         orderBy: { name: "asc" },
       }),
       basePrisma.schedule.findMany({

@@ -52,6 +52,7 @@ export const colors = {
   infoSoft: "#E4ECE8",
   neutral: "#53615B",
   neutralSoft: tokens.surface.muted,
+  instrumentChip: "#E1E7E1",
   accent: tokens.brand.accent,
   accentText: "#B2522A",
   accentOnDark: "#E8875E",

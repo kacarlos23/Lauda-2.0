@@ -6,6 +6,7 @@ const instrumentSelect = {
   id: true,
   name: true,
   colorHex: true,
+  iconKey: true,
 } satisfies Prisma.InstrumentSelect;
 
 export class InstrumentRepository {
@@ -31,6 +32,7 @@ export class InstrumentRepository {
       data: {
         name: data.name,
         colorHex: data.colorHex ?? null,
+        iconKey: data.iconKey ?? null,
         tenantId: this.tenantId,
       },
       select: instrumentSelect,
@@ -42,6 +44,7 @@ export class InstrumentRepository {
       where: { id, tenantId: this.tenantId },
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.iconKey !== undefined ? { iconKey: data.iconKey } : {}),
         ...(data.colorHex !== undefined ? { colorHex: data.colorHex } : {}),
       },
     });

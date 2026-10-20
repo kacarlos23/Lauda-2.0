@@ -238,6 +238,7 @@ model Instrument {
   id        String    @id @default(uuid())
   name      String
   colorHex  String?
+  iconKey   String?
   isActive  Boolean   @default(true)
   deletedAt DateTime?
 

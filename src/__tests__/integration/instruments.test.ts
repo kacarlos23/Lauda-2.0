@@ -128,6 +128,32 @@ afterAll(async () => {
 });
 
 describe("Instruments API", () => {
+  it("persiste ícone e cor personalizados, retorna no perfil e isola alterações por igreja", async () => {
+    const tenant = await registerTenant("appearance-owner");
+    const external = await registerTenant("appearance-external");
+    const created = await request(app).post("/api/instruments").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ name: "Percussão especial", colorHex: "#123456", iconKey: "cajon" }).expect(201);
+    const id = created.body.data.id;
+    await request(app).patch(`/api/instruments/${id}`).set("Authorization", `Bearer ${external.token}`)
+      .send({ iconKey: "harpa" }).expect(404);
+    await request(app).patch(`/api/instruments/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ iconKey: "pandeiro" }).expect(200);
+    const own = await request(app).get("/api/instruments").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(own.body.data).toContainEqual({ id, name: "Percussão especial", colorHex: "#123456", iconKey: "pandeiro" });
+    const selected = await request(app).patch("/api/members/me/instruments").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ instrumentIds: [id] }).expect(200);
+    expect(selected.body.data.instruments[0]).toMatchObject({ id, iconKey: "pandeiro", colorHex: "#123456" });
+    const profile = await request(app).get("/api/members/me").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(profile.body.data.instruments[0]).toMatchObject({ id, iconKey: "pandeiro", colorHex: "#123456" });
+    await request(app).patch(`/api/instruments/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ iconKey: "javascript:alert(1)" }).expect(400);
+    await request(app).patch(`/api/instruments/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ colorHex: "red" }).expect(400);
+    const reset = await request(app).patch(`/api/instruments/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ iconKey: null, colorHex: null }).expect(200);
+    expect(reset.body.data).toMatchObject({ id, iconKey: null, colorHex: null });
+  });
+
   it("lista apenas instrumentos do tenant autenticado e permite acesso de MEMBER", async () => {
     const tenantA = await registerTenant("instruments-list-a");
     await registerTenant("instruments-list-b");
@@ -207,7 +233,7 @@ describe("Instruments API", () => {
       .set("Authorization", `Bearer ${tenantB.token}`)
       .expect(200)
       .expect((response) => {
-        expect(response.body.data).toContainEqual({ id: instrumentB.id, name: "Acordeon", colorHex: "#2563EB" });
+        expect(response.body.data).toContainEqual({ id: instrumentB.id, name: "Acordeon", colorHex: "#2563EB", iconKey: null });
       });
 
     const updated = await request(app)

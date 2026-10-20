@@ -1,4 +1,6 @@
-﻿import { useEffect, useState } from "react";
+import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
+import { InstrumentAppearanceEditor } from "../../../src/components/instruments/InstrumentAppearanceEditor";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +20,6 @@ import { useInstrumentStore } from "../../../src/store/instrumentStore";
 import {
   canManageInstrumentCatalog,
   buildDeleteInstrumentConfirmation,
-  instrumentColorPattern,
   normalizeColorHex,
   normalizeInstrumentName,
   validateInstrumentForm,
@@ -40,7 +41,7 @@ import { safeReturnTo } from "../../../src/utils/navigation";
 import { emptyInstrumentFilters, filterInstruments, hasActiveFilters, InstrumentListFilters } from "../../../src/utils/listFilters";
 import { nav } from "../../../src/navigation/routes";
 
-const emptyForm = { name: "", colorHex: "" };
+const emptyForm = { name: "", colorHex: "", iconKey: "" };
 
 export default function InstrumentCatalogScreen() {
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
@@ -58,6 +59,7 @@ export default function InstrumentCatalogScreen() {
     loadInstruments,
     updateInstrument,
   } = useInstrumentStore();
+  const scrollRef = useRef<ScrollView>(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -105,6 +107,7 @@ export default function InstrumentCatalogScreen() {
     const payload = {
       name: normalizeInstrumentName(form.name),
       colorHex: normalizeColorHex(form.colorHex),
+      iconKey: form.iconKey || null,
     };
 
     if (editingId) {
@@ -123,8 +126,10 @@ export default function InstrumentCatalogScreen() {
     setForm({
       name: instrument.name,
       colorHex: instrument.colorHex ?? "",
+      iconKey: instrument.iconKey ?? "",
     });
     setEditingId(instrument.id);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
     setFormError(null);
   };
 
@@ -180,7 +185,7 @@ export default function InstrumentCatalogScreen() {
           accessibilityLabel="Buscar instrumentos e cargos"
         />
       </FilterPanel>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.backRow}><AppBackButton href={returnTo} /></View>
         <View style={styles.header}>
           <Text style={styles.title}>Instrumentos/Cargos</Text>
@@ -193,33 +198,15 @@ export default function InstrumentCatalogScreen() {
             style={styles.input}
             value={form.name}
             onChangeText={(name) => setForm((current) => ({ ...current, name }))}
+            accessibilityLabel="Nome do instrumento/cargo"
+            maxLength={50}
             placeholder="Nome"
             placeholderTextColor={colors.muted}
             autoCapitalize="words"
             testID="instrument-name-input"
           />
-          <View style={styles.colorRow}>
-            <TextInput
-              style={[styles.input, styles.colorInput]}
-              value={form.colorHex}
-              onChangeText={(colorHex) => setForm((current) => ({ ...current, colorHex }))}
-              placeholder="#RRGGBB opcional"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="characters"
-              testID="instrument-color-input"
-            />
-            <View
-              style={[
-                styles.colorPreview,
-                {
-                  backgroundColor:
-                    form.colorHex && instrumentColorPattern.test(form.colorHex)
-                      ? normalizeColorHex(form.colorHex) ?? colors.surfaceMuted
-                      : colors.surfaceMuted,
-                },
-              ]}
-            />
-          </View>
+          <InstrumentAppearanceEditor key={editingId ?? "new"} value={form} onChange={setForm} />
+          {editingId ? <Text style={styles.subtitle}>O visual deste instrumento será atualizado em todos os perfis que o utilizam.</Text> : null}
           <ErrorBanner message={formError} style={styles.formError} />
           <View style={styles.formActions}>
             <TouchableOpacity
@@ -296,16 +283,7 @@ export default function InstrumentCatalogScreen() {
                 const isDeleting = deletingId === instrument.id;
                 return (
                   <View key={instrument.id} style={styles.instrumentRow}>
-                    <View
-                      style={[
-                        styles.instrumentColor,
-                        { backgroundColor: instrument.colorHex ?? colors.primarySoft },
-                      ]}
-                    />
-                    <View style={styles.instrumentInfo}>
-                      <Text style={styles.instrumentName}>{instrument.name}</Text>
-                      <Text style={styles.instrumentColorText}>{instrument.colorHex ?? "Sem cor definida"}</Text>
-                    </View>
+                    <View style={styles.instrumentInfo}><InstrumentBadge instrument={instrument} /></View>
                     <TouchableOpacity
                       style={styles.iconButton}
                       onPress={() => handleEdit(instrument)}

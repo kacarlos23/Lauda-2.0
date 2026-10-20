@@ -29,6 +29,12 @@ jest.mock("react-native", () => {
   return {
     AccessibilityInfo: { announceForAccessibility: jest.fn() },
     ActivityIndicator: create("ActivityIndicator"),
+    Animated: {
+      Value: class { setValue() {} },
+      View: create("AnimatedView"),
+      timing: () => ({ start() {}, stop() {} }),
+    },
+    Easing: { out: (value: any) => value, cubic: (value: any) => value },
     Alert: { alert: jest.fn() },
     FlatList: ({ data, renderItem, ListHeaderComponent, ListEmptyComponent, ListFooterComponent, ...props }: any) => React.createElement(
       "FlatList",
@@ -60,6 +66,8 @@ jest.mock("react-native-safe-area-context", () => ({
 jest.mock("../components/BottomSheet", () => ({
   BottomSheet: () => null,
 }));
+
+jest.mock("../hooks/useReducedMotion", () => ({ useReducedMotion: () => false }));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
@@ -174,7 +182,7 @@ describe("SongsScreen pagination", () => {
     });
 
     const nextButton = renderer!.root.findAllByType(TouchableOpacity)
-      .find((node: TestNode) => nodeText(node).includes("Próxima"));
+      .find((node: TestNode) => node.props.accessibilityLabel === "Próxima página");
     expect(nextButton).toBeTruthy();
 
     await act(async () => {
@@ -184,7 +192,7 @@ describe("SongsScreen pagination", () => {
     });
 
     const previousButton = renderer!.root.findAllByType(TouchableOpacity)
-      .find((node: TestNode) => nodeText(node).includes("Anterior"));
+      .find((node: TestNode) => node.props.accessibilityLabel === "Página anterior");
     expect(previousButton).toBeTruthy();
 
     await act(async () => {

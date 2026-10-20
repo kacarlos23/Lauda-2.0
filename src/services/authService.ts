@@ -80,7 +80,7 @@ export class AuthService {
     role: string;
     tenantId: string | null;
     tenant?: { id: string; name: string } | null;
-    instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null } }>;
+    instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
   }, options: {
     metadata?: SessionMetadata;
     rotated?: { sessionId: string; refreshToken: string };

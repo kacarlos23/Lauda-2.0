@@ -5,6 +5,7 @@ export const instrumentColorPattern = /^#[0-9A-Fa-f]{6}$/;
 
 export type InstrumentFormValues = {
   name: string;
+  iconKey?: string;
   colorHex?: string;
 };
 

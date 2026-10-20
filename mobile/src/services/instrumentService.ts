@@ -13,11 +13,13 @@ export type UpdateMemberInstrumentsResponse = {
 };
 
 export type CreateInstrumentPayload = {
+  iconKey?: string | null;
   name: string;
   colorHex?: string | null;
 };
 
 export type UpdateInstrumentPayload = {
+  iconKey?: string | null;
   name?: string;
   colorHex?: string | null;
 };

@@ -21,6 +21,12 @@ jest.mock("react-native", () => {
   };
 });
 
+jest.mock("react-native-svg", () => {
+  const React = require("react");
+  const shape = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
+  return { __esModule: true, default: shape("Svg"), Path: shape("Path"), Circle: shape("Circle"), Rect: shape("Rect"), Line: shape("Line"), Ellipse: shape("Ellipse") };
+});
+
 function makeMember(name: string, instruments: Array<{ id: string; name: string; colorHex?: string | null }> = []): Member {
   return {
     id: name.toLowerCase(),
