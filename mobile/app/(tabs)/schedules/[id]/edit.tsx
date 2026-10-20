@@ -1,3 +1,4 @@
+import { useFormExit } from "../../../../src/hooks/useFormExit";
 import type { ScheduleSongDetails, WorshipPeriod } from "../../../../src/types";
 import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../../src/components/schedules/ScheduleWorshipFields";
 import { defaultParticipation, participationDetails, scheduleWorshipPeriod, worshipDateKey } from "../../../../src/utils/worshipOrder";
@@ -92,6 +93,17 @@ export default function EditScheduleScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const deletingRef = useRef(false);
+
+  const formValue = { title, date, hour, comments, ministryId, selectedMembers, selectedSongIds, songDetails, worshipPeriod };
+  const formExit = useFormExit({
+    id: `schedule:${id}`, ready: !loading && Boolean(schedule) && Boolean(date),
+    value: formValue,
+    restore: (value) => {
+      setTitle(value.title); setDate(value.date); setHour(value.hour); setComments(value.comments); setMinistryId(value.ministryId);
+      setSelectedMembers(value.selectedMembers); setSelectedSongIds(value.selectedSongIds); setSongDetails(value.songDetails); setWorshipPeriod(value.worshipPeriod);
+    },
+    save: () => save(),
+  });
 
   useEffect(() => {
     void loadSchedules();
@@ -231,6 +243,7 @@ export default function EditScheduleScreen() {
         worshipPeriod,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role })),
       });
+      if (await formExit.complete(formValue)) return;
       router.replace(openOrder ? `${nav.worshipOrder}?date=${worshipDateKey(isoDate)}` as Href : nav.schedules);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível atualizar a escala.");
@@ -279,6 +292,7 @@ export default function EditScheduleScreen() {
     try {
       await deleteSchedule(id);
       setDeleteModalVisible(false);
+      await formExit.complete(formValue);
       router.replace(nav.schedules);
     } catch (reason) {
       setDeleteError(reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
@@ -323,6 +337,7 @@ export default function EditScheduleScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+      {formExit.dialog}
       <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={closeDeleteModal}>
         <Pressable
           style={styles.deleteModalBackdrop}

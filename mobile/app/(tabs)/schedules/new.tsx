@@ -1,7 +1,8 @@
+import { useFormExit } from "../../../src/hooks/useFormExit";
 import type { ScheduleSongDetails, WorshipPeriod } from "../../../src/types";
 import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../src/components/schedules/ScheduleWorshipFields";
 import { defaultParticipation, worshipDateKey } from "../../../src/utils/worshipOrder";
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search } from "lucide-react-native";
@@ -52,6 +53,8 @@ export default function NewScheduleScreen() {
   const compactLayout = width < breakpoints.formCompact;
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string | string[] }>();
+  const routeDate = Array.isArray(params.date) ? params.date[0] : params.date;
+  const [appliedRouteDate, setAppliedRouteDate] = useState(routeDate);
   const user = useAuthStore((state) => state.user);
   const { createSchedule, saving, error } = useScheduleStore();
   const canCreateSchedules = canCreateSchedule(user);
@@ -81,6 +84,24 @@ export default function NewScheduleScreen() {
   const [quickSongContent, setQuickSongContent] = useState("");
   const [quickSongSaving, setQuickSongSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const formExit = useFormExit({
+    id: `schedule:new:${routeDate ?? "today"}`,
+    ready: !loading && appliedRouteDate === routeDate,
+    value: { title, date, hour, comments, ministryId, selectedMembers, selectedSongIds, songDetails, worshipPeriod, songs: songs.filter((song) => selectedSongIds.includes(song.id)),
+      quickSongArtist, quickSongTitle, quickSongKey, quickSongContent },
+    restore: (value) => {
+      setTitle(value.title); setDate(value.date); setHour(value.hour); setComments(value.comments); setMinistryId(value.ministryId);
+      setSelectedMembers(value.selectedMembers); setSelectedSongIds(value.selectedSongIds); setSongDetails(value.songDetails);
+      setWorshipPeriod(value.worshipPeriod); setSongs((current) => [...new Map([...current, ...value.songs].map((song) => [song.id, song])).values()]); setQuickSongArtist(value.quickSongArtist);
+      setQuickSongTitle(value.quickSongTitle); setQuickSongKey(value.quickSongKey); setQuickSongContent(value.quickSongContent);
+    },
+    save: () => save(),
+  });
+  useEffect(() => {
+    setDate(toDisplayDate(dateFromRouteParam(routeDate)));
+    setAppliedRouteDate(routeDate);
+  }, [routeDate]);
 
   useEffect(() => {
     if (!canCreateSchedules) return;
@@ -214,6 +235,7 @@ export default function NewScheduleScreen() {
         worshipPeriod,
         assignments: selectedMembers.map((entry) => ({ userId: entry.userId, role: entry.role })),
       });
+      if (await formExit.complete()) return;
       router.replace(worshipPeriod ? `${nav.worshipOrder}?date=${worshipDateKey(isoDate)}` as Href : nav.schedules);
     } catch (reason) {
       Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível criar a escala.");
@@ -222,6 +244,7 @@ export default function NewScheduleScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+      {formExit.dialog}
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={closeSongsModal}>
         <View style={styles.backdrop}><View style={styles.modalCard}>
           <View style={styles.modalHeaderRow}>

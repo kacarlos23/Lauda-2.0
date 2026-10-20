@@ -1,4 +1,6 @@
-import { Redirect, Tabs, usePathname } from "expo-router";
+import { requestFormNavigation } from "../../src/navigation/formExitGuard";
+import { Redirect, Tabs, usePathname, useRouter } from "expo-router";
+import { PlatformPressable } from "@react-navigation/elements";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
 import { useAuthStore } from "../../src/store/authStore";
@@ -46,6 +48,7 @@ function renderMobileTabBubbleBackground() {
 }
 
 export default function TabsLayout() {
+  const router = useRouter();
   const { user, tenant, isLoading, refreshCurrentUser } = useAuthStore();
   const { isMobile, isTablet } = useResponsiveLayout();
   const pathname = usePathname();
@@ -93,6 +96,7 @@ export default function TabsLayout() {
       ) : null}
 
       <Tabs
+        backBehavior="fullHistory"
         screenOptions={{
           sceneStyle: {
             backgroundColor: colors.background,
@@ -139,7 +143,12 @@ export default function TabsLayout() {
               name={route.expoScreen}
               options={{
                 title: route.title,
-                href: navigationItem ? hrefForNavigationItem(navigationItem) : null,
+                ...(navigationItem ? {
+                  tabBarButton: (props) => <PlatformPressable {...props} onPress={(event) => {
+                    event.preventDefault();
+                    requestFormNavigation(() => router.navigate(hrefForNavigationItem(navigationItem)));
+                  }} />,
+                } : { href: null }),
                 tabBarLabel: navigationItem
                   ? ({ focused }) => (
                       <AnimatedTabLabel

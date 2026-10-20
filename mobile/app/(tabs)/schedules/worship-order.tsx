@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import { requestFormNavigation } from "../../../src/navigation/formExitGuard";
+import { useFormExit } from "../../../src/hooks/useFormExit";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { AppInput, Button, ErrorBanner, Screen } from "../../../src/components/ui";
 import { colors, iconSizes, overlays, spacing, typography } from "../../../src/theme";
 import { Schedule, ScheduleSong, Song } from "../../../src/types";
@@ -45,24 +47,36 @@ export default function WorshipOrderScreen() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [periods, setPeriods] = useState<Periods>({ morning: null, evening: null });
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false), [message, setMessage] = useState("");
+  const [message, setMessage] = useState("");
   const [picker, setPicker] = useState<{ kind: "schedule" | "song"; period: Period } | null>(null);
   const [search, setSearch] = useState(""), [songs, setSongs] = useState<Song[]>([]);
   const [page, setPage] = useState(1), [hasMore, setHasMore] = useState(false), [searchBusy, setSearchBusy] = useState(false);
   const searchVersion = useRef(0);
   const ready = !busy && loadedDate === date;
 
-  async function load() {
-    if (!canView || !validDate(date)) { setError("Informe uma data válida no formato DD/MM/AAAA."); return; }
+  const formExit = useFormExit({
+    id: `worship-order:${loadedDate || params.date || "today"}`, ready: Boolean(loadedDate),
+    value: { periods },
+    restore: (value) => { setPeriods(value.periods); },
+    save: () => save(),
+  });
+
+  const dirty = formExit.dirty;
+
+  async function load(requestedDate = date) {
+    if (!canView || !validDate(requestedDate)) { setError("Informe uma data válida no formato DD/MM/AAAA."); return; }
     setBusy(true); setError(null); setMessage("");
     try {
-      const [all, order] = await Promise.all([scheduleService.listSchedules(), worshipOrderService.get(date)]);
+      const [all, order] = await Promise.all([scheduleService.listSchedules(), worshipOrderService.get(requestedDate)]);
       setSchedules(all); setPeriods({ morning: order?.morning ?? null, evening: order?.evening ?? null });
-      setLoadedDate(date); setDirty(false);
+      setDate(requestedDate); setLoadedDate(requestedDate);
+      formExit.reset({ periods: { morning: order?.morning ?? null, evening: order?.evening ?? null } });
     } catch (reason) { setLoadedDate(""); setError(errorText(reason)); }
     finally { setBusy(false); }
   }
-  useEffect(() => { if (canView) void load(); }, [canView]);
+  useFocusEffect(useCallback(() => {
+    if (canView) void load(params.date && validDate(params.date) ? params.date : dateKey(new Date().toISOString()));
+  }, [canView, params.date]));
 
   useEffect(() => {
     const version = ++searchVersion.current;
@@ -79,7 +93,7 @@ export default function WorshipOrderScreen() {
   }, [picker, search, page]);
 
   function updatePeriod(period: Period, value: Schedule | null) {
-    setPeriods((current) => ({ ...current, [period]: value })); setDirty(true); setMessage("");
+    setPeriods((current) => ({ ...current, [period]: value })); setMessage("");
   }
   function updateSongs(period: Period, entries: ScheduleSong[]) {
     const schedule = periods[period];
@@ -92,6 +106,7 @@ export default function WorshipOrderScreen() {
     updateSongs(period, moveListItem(periods[period]?.songs ?? [], index, index + direction));
   }
   async function save() {
+    if (!loadedDate || busy) { setError("Carregue a data antes de salvar a ordem de culto."); return; }
     setBusy(true); setError(null); setMessage("");
     try {
       const payload = Object.fromEntries((["morning", "evening"] as const).map((period) => {
@@ -100,11 +115,12 @@ export default function WorshipOrderScreen() {
           songId: entry.songId, moment: entry.moment ?? "Louvor", momentDescription: entry.momentDescription, videoUrlOverride: null,
         })) } : null];
       })) as WorshipOrderPayload;
-      const saved = await worshipOrderService.save(date, payload);
+      const saved = await worshipOrderService.save(loadedDate, payload);
       setPeriods({ morning: saved.morning, evening: saved.evening });
       // Keep the schedule selector consistent with persisted songs.
       setSchedules((all) => all.map((schedule) => saved.morning?.id === schedule.id ? saved.morning : saved.evening?.id === schedule.id ? saved.evening : schedule));
-      setDirty(false); setMessage("Ordem de culto salva.");
+      setMessage("Ordem de culto salva.");
+      await formExit.complete({ periods: { morning: saved.morning, evening: saved.evening } });
     } catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
@@ -118,11 +134,12 @@ export default function WorshipOrderScreen() {
 
   if (!canView) return <Screen><ErrorBanner message="Sem permissão para visualizar escalas." /></Screen>;
   return <Screen scroll contentStyle={styles.content}>
-    <Button title="Voltar às escalas" variant="ghost" onPress={() => router.replace(nav.schedules)} />
+    {formExit.dialog}
+    <Button title="Voltar às escalas" variant="ghost" onPress={() => requestFormNavigation(() => router.replace(nav.schedules))} />
     <Text style={styles.title}>Ordem de Culto</Text>
     <Text style={styles.muted}>Organize o Programa de Louvor. As músicas e os momentos serão salvos nas escalas selecionadas.</Text>
     <DateTimeInput type="date" label="Data do culto" value={date.split("-").reverse().join("/")} onChange={(value) => { if (!busy) setDate(value.split("/").reverse().join("-")); }} testID="worship-date" trailingAction={
-      <TouchableOpacity style={styles.refresh} disabled={busy} accessibilityRole="button" accessibilityLabel={dirty ? "Atualizar data (descarta alterações)" : "Atualizar data"} accessibilityHint="Busca a programação salva para a data informada" onPress={() => void load()}>
+      <TouchableOpacity style={styles.refresh} disabled={busy} accessibilityRole="button" accessibilityLabel={dirty ? "Atualizar data (descarta alterações)" : "Atualizar data"} accessibilityHint="Busca a programação salva para a data informada" onPress={() => requestFormNavigation(() => void load())}>
         <RefreshCw size={iconSizes.s20} color={busy ? colors.muted : colors.primary} />
       </TouchableOpacity>
     } />

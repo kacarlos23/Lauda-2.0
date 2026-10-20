@@ -1,8 +1,8 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useNavigation, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
-import { usePreventRemove } from "@react-navigation/native";
+import { useFormExit } from "../hooks/useFormExit";
 import { ArtistPicker } from "./ArtistPicker";
 import { AppBackButton } from "./AppBackButton";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../types";
@@ -33,7 +33,6 @@ type Props = {
 };
 
 export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
-  const navigation = useNavigation();
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(initial ? 2 : 1);
   const [artist, setArtist] = useState<Artist | null>(initial ? { ...initial.artist, createdAt: "", updatedAt: "" } : null);
@@ -48,7 +47,6 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [audioUrl, setAudioUrl] = useState(initial?.audioUrl ?? "");
   const [videoUrl, setVideoUrl] = useState(initial?.videoUrl ?? "");
   const [comments, setComments] = useState(initial?.comments ?? "");
-  const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [cifraClubModalVisible, setCifraClubModalVisible] = useState(false);
   const [cifraClubLoading, setCifraClubLoading] = useState(false);
@@ -57,21 +55,18 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [cifraClubResults, setCifraClubResults] = useState<CifraClubSearchResult[]>([]);
   const [cifraClubPreview, setCifraClubPreview] = useState<CifraClubImportResult | null>(null);
 
-  const currentSnapshot = useMemo(() => JSON.stringify({ artistId: artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments }), [artist?.id, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments]);
-  const initialSnapshot = useMemo(() => JSON.stringify({
-    artistId: initial?.artistId,
-    title: initial?.title ?? "",
-    composer: initial?.composer ?? "",
-    originalKey: initial?.originalKey ?? "C",
-    content: initial?.content ?? "",
-    bpm: initial?.bpm?.toString() ?? "",
-    cifraUrl: initial?.cifraUrl ?? "",
-    letraUrl: initial?.letraUrl ?? "",
-    audioUrl: initial?.audioUrl ?? "",
-    videoUrl: initial?.videoUrl ?? "",
-    comments: initial?.comments ?? "",
-  }), [initial]);
-  const dirty = currentSnapshot !== initialSnapshot;
+  const formValue = { artist, artistQuery, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments, step };
+  const formExit = useFormExit({
+    id: `song:${initial?.id ?? "new"}`,
+    value: formValue,
+    restore: (value) => {
+      setArtist(value.artist); setArtistQuery(value.artistQuery); setTitle(value.title); setComposer(value.composer);
+      setOriginalKey(value.originalKey); setContent(value.content); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
+      setLetraUrl(value.letraUrl); setAudioUrl(value.audioUrl); setVideoUrl(value.videoUrl); setComments(value.comments); setStep(value.step);
+      setFormError(null);
+    },
+    save: () => save(),
+  });
   const legacyVideoIsUnchanged = Boolean(
     initial?.videoUrl
     && !extractYouTubeVideoId(initial.videoUrl)
@@ -82,13 +77,6 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     && !extractYouTubeVideoId(videoUrl)
     && !legacyVideoIsUnchanged
   );
-
-  usePreventRemove(dirty && !submitted, ({ data }) => {
-    Alert.alert("Descartar alterações?", "As alterações ainda não foram salvas.", [
-      { text: "Continuar editando", style: "cancel" },
-      { text: "Descartar", style: "destructive", onPress: () => navigation.dispatch(data.action) },
-    ]);
-  });
 
   const validateMetadata = () => {
     if (!artist) return "Selecione ou crie um artista.";
@@ -240,13 +228,14 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           : { videoUrl: normalizedVideoUrl ? canonicalizeYouTubeUrl(normalizedVideoUrl) : null }),
         comments: comments || null,
       });
-      setSubmitted(true);
-      setTimeout(() => router.replace(nav.songDetail(songId)), 0);
+      const left = await formExit.complete(initial ? formValue : undefined);
+      if (!left) setTimeout(() => router.replace(nav.songDetail(songId)), 0);
     } catch { /* Store error is rendered without clearing the form. */ }
   };
 
   return (
     <ScrollView contentContainerStyle={[styles.container, step === 2 && styles.editorContainer]} keyboardShouldPersistTaps="handled">
+      {formExit.dialog}
       <Modal visible={cifraClubModalVisible} transparent animationType="fade" onRequestClose={closeCifraClubModal}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>

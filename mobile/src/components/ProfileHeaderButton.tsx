@@ -4,6 +4,7 @@ import { UserRound } from "lucide-react-native";
 import { useAuthStore } from "../store/authStore";
 import { colors, controlSizes, iconSizes, radiusValues, spacing } from "../theme";
 import { nav } from "../navigation/routes";
+import { requestFormNavigation } from "../navigation/formExitGuard";
 
 export function ProfileHeaderButton() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export function ProfileHeaderButton() {
 
   return <TouchableOpacity
     style={styles.button}
-    onPress={() => router.push(nav.profile)}
+    onPress={() => requestFormNavigation(() => router.push(nav.profile))}
     accessibilityRole="button"
     accessibilityLabel="Abrir perfil"
     testID="header-profile-button"

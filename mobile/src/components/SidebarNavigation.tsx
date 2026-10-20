@@ -1,3 +1,4 @@
+import { requestFormNavigation } from "../navigation/formExitGuard";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -198,7 +199,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                     onLayout={(event) => rememberOffset(itemOffsets.current, item.id, event)}
                   >
                     <Pressable
-                      onPress={() => router.push(href)}
+                      onPress={() => requestFormNavigation(() => router.push(href))}
                       onHoverIn={() => setHoveredLabel(item.label)}
                       onHoverOut={() => setHoveredLabel(null)}
                       style={(state) => [
@@ -235,7 +236,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
 
       <View style={styles.footer}>
         <Pressable
-          onPress={() => router.push(nav.profile)}
+          onPress={() => requestFormNavigation(() => router.push(nav.profile))}
           onHoverIn={() => setHoveredLabel("__profile")}
           onHoverOut={() => setHoveredLabel(null)}
           style={({ pressed }) => [
@@ -262,7 +263,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           ) : null}
         </Pressable>
         <Pressable
-          onPress={() => void logout()}
+          onPress={() => requestFormNavigation(() => void logout())}
           onHoverIn={() => setHoveredLabel("__logout")}
           onHoverOut={() => setHoveredLabel(null)}
           style={({ pressed }) => [

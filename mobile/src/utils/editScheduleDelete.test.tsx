@@ -1,3 +1,4 @@
+jest.mock("../hooks/useFormExit", () => ({ useFormExit: () => ({ dialog: null, complete: async () => false, dirty: false }) }));
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Alert, Text, TouchableOpacity } from "react-native";

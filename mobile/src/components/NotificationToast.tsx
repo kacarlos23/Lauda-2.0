@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useNotificationStore } from "../store/notificationStore";
 import { colors, fontSizes, fontWeights, iconSizes, radii, shadow, spacing } from "../theme";
 import { nav } from "../navigation/routes";
+import { requestFormNavigation } from "../navigation/formExitGuard";
 
 export function NotificationToast() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export function NotificationToast() {
         onPress={() => {
           setVisibleId(null);
           clear();
-          router.push({ pathname: nav.schedules, params: { scheduleId: notification.resourceId, date: notification.payload.date?.slice(0, 10) } } as any);
+          requestFormNavigation(() => router.push({ pathname: nav.schedules, params: { scheduleId: notification.resourceId, date: notification.payload.date?.slice(0, 10) } } as any));
         }}
         accessibilityRole="button"
         accessibilityLabel={`Abrir notificação: ${notification.title}`}

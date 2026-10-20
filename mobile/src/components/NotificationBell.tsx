@@ -7,6 +7,7 @@ import { enablePushNotifications } from "../services/pushNotificationService";
 import { colors, fontSizes, fontWeights, iconSizes, lineHeights, overlays, radii, shadow, spacing } from "../theme";
 import { nav } from "../navigation/routes";
 import { AppNotification } from "../types";
+import { requestFormNavigation } from "../navigation/formExitGuard";
 
 const formatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -21,10 +22,10 @@ export function NotificationBell() {
     await markRead(notification.id);
     setOpen(false);
     if (notification.resourceType.toLowerCase() === "schedule") {
-      router.push({
+      requestFormNavigation(() => router.push({
         pathname: nav.schedules,
         params: { scheduleId: notification.resourceId, date: notification.payload.date?.slice(0, 10) },
-      } as any);
+      } as any));
     }
   };
 

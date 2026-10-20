@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { goBackTo } from "../utils/navigation";
+import { requestFormNavigation } from "../navigation/formExitGuard";
 import {
   colors,
   controlSizes,
@@ -24,7 +25,7 @@ export function AppBackButton({ href, label = "Voltar", compact = false }: Props
   const router = useRouter();
   useFocusEffect(useCallback(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      goBackTo(router, href);
+      requestFormNavigation(() => goBackTo(router, href));
       return true;
     });
     return () => subscription.remove();
@@ -33,7 +34,7 @@ export function AppBackButton({ href, label = "Voltar", compact = false }: Props
   return (
     <TouchableOpacity
       style={[styles.button, compact && styles.compact]}
-      onPress={() => goBackTo(router, href)}
+      onPress={() => requestFormNavigation(() => goBackTo(router, href))}
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={compact ? "app-back-button-compact" : "app-back-button"}

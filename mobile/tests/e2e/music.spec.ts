@@ -139,8 +139,8 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
 
   await page.getByLabel("Editar música").click();
   await page.getByTestId("song-edit-metadata-button").last().click();
-  await page.getByTestId("song-title-input").fill("Nova canção editada");
-  await page.getByTestId("song-next-button").click();
+  await page.getByRole("textbox", { name: "Ex: Grande é o Senhor", exact: true }).fill("Nova canção editada");
+  await page.getByTestId("song-next-button").last().click();
   await page.getByTestId("song-save-button").last().click();
   await expect(page).toHaveURL(new RegExp(`/songs/${createdSongId}$`));
   await expect(page.getByText("Nova canção editada", { exact: true }).last()).toBeVisible();

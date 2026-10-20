@@ -5,6 +5,7 @@ import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
 import { addPushResponseListener, addPushTokenRotationListener } from "../services/pushNotificationService";
 import { nav } from "../navigation/routes";
+import { requestFormNavigation } from "../navigation/formExitGuard";
 
 function scheduleHref(scheduleId?: string, date?: string) {
   return {
@@ -51,7 +52,7 @@ export function NotificationRuntime() {
   useEffect(() => {
     const subscription = addPushResponseListener((data) => {
       if (String(data.resourceType ?? "").toLowerCase() === "schedule" || data.scheduleId) {
-        router.push(scheduleHref(String(data.scheduleId ?? data.resourceId ?? "") || undefined, typeof data.date === "string" ? data.date : undefined));
+        requestFormNavigation(() => router.push(scheduleHref(String(data.scheduleId ?? data.resourceId ?? "") || undefined, typeof data.date === "string" ? data.date : undefined)));
       }
     });
     return () => subscription.remove();
