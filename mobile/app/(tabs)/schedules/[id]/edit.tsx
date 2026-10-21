@@ -134,7 +134,7 @@ export default function EditScheduleScreen() {
         setSongs(songResult.items);
         setVisibleSongs(songResult.items);
       })
-      .catch((reason) => Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível carregar dados da escala."))
+      .catch((reason) => Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel carregar dados da escala."))
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [canEditSchedules]);
@@ -155,7 +155,7 @@ export default function EditScheduleScreen() {
           return [...merged.values()];
         });
       } catch (reason) {
-        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "Não foi possível buscar músicas.");
+        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "N�o foi poss�vel buscar m�sicas.");
       } finally {
         if (!cancelled) setSongSearchLoading(false);
       }
@@ -229,9 +229,9 @@ export default function EditScheduleScreen() {
   const save = async (openOrder = false) => {
     if (!id) return;
     if (!title.trim()) return Alert.alert("Dados incompletos", "Informe o nome da escala.");
-    if (hasIncompleteMemberRoles(selectedMembers)) return Alert.alert("Função obrigatória", "Escolha uma função para cada membro selecionado.");
+    if (hasIncompleteMemberRoles(selectedMembers)) return Alert.alert("Fun��o obrigat�ria", "Escolha uma fun��o para cada membro selecionado.");
     const isoDate = combineDisplayDateTimeToIso(date, hour);
-    if (!isoDate) return Alert.alert("Data ou horário inválido", "Informe data no formato DD/MM/AAAA e horário no formato HH:mm.");
+    if (!isoDate) return Alert.alert("Data ou hor�rio inv�lido", "Informe data no formato DD/MM/AAAA e hor�rio no formato HH:mm.");
     try {
       await updateSchedule(id, {
         title: title.trim(),
@@ -246,7 +246,7 @@ export default function EditScheduleScreen() {
       if (await formExit.complete(formValue)) return;
       router.replace(openOrder ? `${nav.worshipOrder}?date=${worshipDateKey(isoDate)}` as Href : nav.schedules);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível atualizar a escala.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel atualizar a escala.");
     }
   };
 
@@ -257,7 +257,7 @@ export default function EditScheduleScreen() {
       const reportDate = new Date(schedule.date).toISOString().slice(0, 10);
       await scheduleService.exportScheduleReport(schedule.id, `Escala - ${schedule.title} - ${reportDate}.pdf`);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível gerar o relatório da escala.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel gerar o relat�rio da escala.");
     } finally {
       setExporting(false);
     }
@@ -270,7 +270,7 @@ export default function EditScheduleScreen() {
       .map((entry) => entry.songId);
     if (!songIds.length) return;
     if (songIds.length > 50) {
-      Alert.alert("Limite de cifras", "É possível exportar até 50 músicas por PDF.");
+      Alert.alert("Limite de cifras", "� poss�vel exportar at� 50 m�sicas por PDF.");
       return;
     }
     setExportingSongs(true);
@@ -278,7 +278,7 @@ export default function EditScheduleScreen() {
       const reportDate = new Date(schedule.date).toISOString().slice(0, 10);
       await musicService.exportSongs(songIds, `Cifras - ${schedule.title} - ${reportDate}.pdf`);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível exportar as cifras da escala.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel exportar as cifras da escala.");
     } finally {
       setExportingSongs(false);
     }
@@ -295,7 +295,7 @@ export default function EditScheduleScreen() {
       await formExit.complete(formValue);
       router.replace(nav.schedules);
     } catch (reason) {
-      setDeleteError(reason instanceof Error ? reason.message : "Não foi possível excluir a escala.");
+      setDeleteError(reason instanceof Error ? reason.message : "N�o foi poss�vel excluir a escala.");
     } finally {
       deletingRef.current = false;
       setDeleting(false);
@@ -315,7 +315,7 @@ export default function EditScheduleScreen() {
   };
 
   if (!canEditSchedules) {
-    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
+    return <View style={styles.center}><Text style={styles.error}>Voc� n�o tem permiss�o para editar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
   }
 
   if (loading) {
@@ -326,7 +326,7 @@ export default function EditScheduleScreen() {
     return (
       <View style={styles.center}>
         <ErrorBanner
-          message="Escala não encontrada."
+          message="Escala n�o encontrada."
           style={styles.error}
           action={<Button title="Tentar novamente" variant="secondary" onPress={() => loadSchedules()} />}
         />
@@ -349,7 +349,7 @@ export default function EditScheduleScreen() {
             style={[styles.deleteModalCard, compactLayout && styles.deleteModalCardCompact]}
             onPress={(event) => event.stopPropagation()}
             accessibilityViewIsModal
-            accessibilityLabel="Confirmação para excluir escala"
+            accessibilityLabel="Confirma��o para excluir escala"
             testID="delete-schedule-modal"
           >
             <View style={styles.deleteModalHeader}>
@@ -369,11 +369,11 @@ export default function EditScheduleScreen() {
             <Text style={styles.deleteModalTitle}>Excluir escala?</Text>
             <Text style={styles.deleteModalScheduleName}>{schedule.title}</Text>
             <Text style={styles.deleteModalDescription}>
-              A escala sairá das listas ativas. As músicas e atribuições relacionadas serão desativadas para preservar o histórico de aceite, recusa e pendência.
+              A escala sair� das listas ativas. As m�sicas e atribui��es relacionadas ser�o desativadas para preservar o hist�rico de aceite, recusa e pend�ncia.
             </Text>
             {deleteError ? (
               <View style={styles.deleteModalError} testID="delete-schedule-error">
-                <Text style={styles.deleteModalErrorTitle}>Não foi possível excluir</Text>
+                <Text style={styles.deleteModalErrorTitle}>N�o foi poss�vel excluir</Text>
                 <Text style={styles.deleteModalErrorText}>{deleteError}</Text>
               </View>
             ) : null}
@@ -392,7 +392,7 @@ export default function EditScheduleScreen() {
                 onPress={() => void handleDelete()}
                 disabled={deleting}
                 accessibilityRole="button"
-                accessibilityLabel="Confirmar exclusão da escala"
+                accessibilityLabel="Confirmar exclus�o da escala"
                 testID="delete-schedule-confirm-button"
               >
                 {deleting ? <ActivityIndicator color={colors.surface} size="small" /> : <Trash2 color={colors.surface} size={iconSizes.s18} strokeWidth={2.4} />}
@@ -408,19 +408,19 @@ export default function EditScheduleScreen() {
             <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Editar músicas</Text>
+            <Text style={styles.modalTitle}>Editar m�sicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
-          <Text style={styles.helper}>O número ao lado indica a ordem atual da música na escala.</Text>
+          <Text style={styles.helper}>O n�mero ao lado indica a ordem atual da m�sica na escala.</Text>
           <View style={styles.songSearchRow}>
             <Search color={colors.muted} size={iconSizes.s19} />
             <TextInput
               style={styles.songSearchInput}
               value={songSearch}
               onChangeText={setSongSearch}
-              placeholder="Buscar por música ou artista"
+              placeholder="Buscar por m�sica ou artista"
               placeholderTextColor={colors.muted}
-              accessibilityLabel="Buscar músicas da escala"
+              accessibilityLabel="Buscar m�sicas da escala"
               testID="schedule-song-search-input"
               returnKeyType="search"
             />
@@ -430,7 +430,7 @@ export default function EditScheduleScreen() {
                 onPress={() => setSongSearch("")}
                 style={styles.songSearchClear}
                 accessibilityRole="button"
-                accessibilityLabel="Limpar pesquisa de músicas da escala"
+                accessibilityLabel="Limpar pesquisa de m�sicas da escala"
                 hitSlop={8}
               >
                 <X color={colors.muted} size={iconSizes.s18} />
@@ -442,15 +442,15 @@ export default function EditScheduleScreen() {
             {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
               const order = getSongOrder(song.id);
-              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => { toggleSong(song.id); if (!selected) setSongSearch(""); }} accessibilityRole="button" accessibilityLabel={`Selecionar música ${song.title}`}>
+              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => { toggleSong(song.id); if (!selected) setSongSearch(""); }} accessibilityRole="button" accessibilityLabel={`Selecionar m�sica ${song.title}`}>
                 <View style={styles.optionTitleRow}>
                   <Text style={styles.optionTitle}>{song.title}</Text>
                   {order ? <Text style={styles.orderBadge}>{order}</Text> : null}
                 </View>
-                <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
+                <Text style={styles.optionMeta}>{song.artist.name} � Tom {song.originalKey}</Text>
               </TouchableOpacity>;
             })}
-            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma música encontrada.</Text> : null}
+            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma m�sica encontrada.</Text> : null}
           </ScrollView>
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalActionSecondary} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
@@ -465,11 +465,11 @@ export default function EditScheduleScreen() {
             <TouchableOpacity style={styles.modalBackButton} onPress={() => setSongOrderModal(false)} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Organizar ordem das músicas</Text>
+            <Text style={styles.modalTitle}>Organizar ordem das m�sicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
-          <Text style={styles.helper}>Arraste as músicas para reorganizar no desktop ou use os botões subir/descer.</Text>
-          {selectedSongs.length === 0 ? <Text style={styles.emptyText}>Nenhuma música selecionada.</Text> : (
+          <Text style={styles.helper}>Arraste as m�sicas para reorganizar no desktop ou use os bot�es subir/descer.</Text>
+          {selectedSongs.length === 0 ? <Text style={styles.emptyText}>Nenhuma m�sica selecionada.</Text> : (
             <ScrollView style={styles.modalList}>
               {selectedSongs.map((song, index) => (
                 <View key={song.id} style={[styles.orderItem, draggedSongIndex === index && styles.orderItemDragging]} {...getSongDragProps(index)}>
@@ -477,22 +477,22 @@ export default function EditScheduleScreen() {
                     <Text style={styles.orderBadgeLarge}>{index + 1}</Text>
                     <View style={styles.orderItemText}>
                       <Text style={styles.optionTitle}>{song.title}</Text>
-                      <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
+                      <Text style={styles.optionMeta}>{song.artist.name} � Tom {song.originalKey}</Text>
                     </View>
                   </View>
                   <View style={styles.orderActions}>
                     <TouchableOpacity style={[styles.orderButton, index === 0 && styles.disabled]} disabled={index === 0} onPress={() => moveSong(index, -1)}>
-                      <Text style={styles.orderButtonText}>↑</Text>
+                      <Text style={styles.orderButtonText}></Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.orderButton, index === selectedSongs.length - 1 && styles.disabled]} disabled={index === selectedSongs.length - 1} onPress={() => moveSong(index, 1)}>
-                      <Text style={styles.orderButtonText}>↓</Text>
+                      <Text style={styles.orderButtonText}></Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ))}
             </ScrollView>
           )}
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setSongOrderModal(false)}><Text style={styles.primaryText}>Concluir organização</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setSongOrderModal(false)}><Text style={styles.primaryText}>Concluir organiza��o</Text></TouchableOpacity>
         </View></View>
       </Modal>
 
@@ -520,20 +520,20 @@ export default function EditScheduleScreen() {
       <View style={[styles.titleRow, compactLayout && styles.titleRowCompact]}>
         <View style={styles.titleGroup}>
           <Text style={styles.title}>Editar Escala</Text>
-          <Text style={styles.subtitle}>Atualize os dados, músicas e membros da escala.</Text>
+          <Text style={styles.subtitle}>Atualize os dados, m�sicas e membros da escala.</Text>
         </View>
         <View style={[styles.exportActions, compactLayout && styles.exportActionsCompact]}>
-          {canExportReports ? <Button title="Ordem de Culto — PDF" variant="secondary" disabled={!worshipPeriod || saving} onPress={() => void save(true)} accessibilityLabel="Salvar e abrir Ordem de Culto em PDF" /> : null}
+          {canExportReports ? <Button title="Ordem de Culto - PDF" variant="secondary" disabled={!worshipPeriod || saving} onPress={() => void save(true)} accessibilityLabel="Salvar e abrir Ordem de Culto em PDF" /> : null}
           {canExportReports ? (
             <TouchableOpacity
               style={styles.reportButton}
               onPress={() => void exportReport()}
               disabled={exporting}
               accessibilityRole="button"
-              accessibilityLabel="Gerar relatório da escala"
+              accessibilityLabel="Gerar relat�rio da escala"
             >
               {exporting ? <ActivityIndicator color={colors.primary} /> : <Download color={colors.primary} size={iconSizes.s16} strokeWidth={2.4} />}
-              <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Relatório de escala"}</Text>
+              <Text style={styles.reportButtonText}>{exporting ? "Gerando..." : "Relat�rio de escala"}</Text>
             </TouchableOpacity>
           ) : null}
           {canExportSongs && schedule.songs?.length ? (
@@ -554,7 +554,7 @@ export default function EditScheduleScreen() {
       <View style={[styles.card, compactLayout && styles.cardCompact]}>
         <Text style={styles.label}>Nome da escala *</Text>
         <TextInput style={styles.input} value={title} onChangeText={setTitle} accessibilityLabel="Nome da escala" testID="schedule-title" placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
-        <Text style={styles.label}>Ministério *</Text>
+        <Text style={styles.label}>Minist�rio *</Text>
         <View style={styles.chips}>{ministries.map((ministry) => (
           <TouchableOpacity key={ministry.id} style={[styles.chip, ministryId === ministry.id && styles.chipActive]} onPress={() => { setMinistryId(ministry.id); setSelectedMembers([]); }}>
             <Text style={[styles.chipText, ministryId === ministry.id && styles.chipTextActive]}>{ministry.name}</Text>
@@ -565,20 +565,20 @@ export default function EditScheduleScreen() {
             <DateTimeInput type="date" label="Dia *" value={date} onChange={setDate} />
           </View>
           <View style={compactLayout ? styles.fieldCompact : styles.field}>
-            <DateTimeInput type="time" label="Horário *" value={hour} onChange={setHour} />
+            <DateTimeInput type="time" label="Hor�rio *" value={hour} onChange={setHour} />
           </View>
         </View>
         <ScheduleWorshipPeriod value={worshipPeriod} onChange={setWorshipPeriod} disabled={saving} />
 
-        <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
+        <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Coment�rios" placeholder="Orienta��es, avisos ou observa��es para esta escala..." testID="schedule-comments-input" /></View>
         <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
           <View style={styles.sectionText}>
-            <Text style={styles.sectionTitle}>Músicas</Text>
-            <Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} música(s) na ordem da escala` : "Nenhuma música adicionada."}</Text>
+            <Text style={styles.sectionTitle}>M�sicas</Text>
+            <Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} m�sica(s) na ordem da escala` : "Nenhuma m�sica adicionada."}</Text>
           </View>
           {canAttachScheduleSongs ? (
             <View style={[styles.sectionActions, compactLayout && styles.sectionActionsCompact]}>
-              <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" accessibilityLabel="Adicionar músicas à escala" onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Editar músicas</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" accessibilityLabel="Adicionar m�sicas � escala" onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Editar m�sicas</Text></TouchableOpacity>
               <TouchableOpacity style={styles.secondaryButton} onPress={() => setSongOrderModal(true)} disabled={selectedSongIds.length < 2}><Text style={styles.secondaryText}>Organizar ordem</Text></TouchableOpacity>
             </View>
           ) : null}
@@ -589,6 +589,7 @@ export default function EditScheduleScreen() {
             key={song.id}
             song={song}
             position={index + 1}
+            momentDrawer momentLabel={songDetails[song.id]?.moment ?? "Louvor"}
             onRemove={canAttachScheduleSongs ? () => toggleSong(song.id) : undefined}
             onMoveUp={canAttachScheduleSongs ? () => moveSong(index, -1) : undefined}
             onMoveDown={canAttachScheduleSongs ? () => moveSong(index, 1) : undefined}
@@ -600,11 +601,11 @@ export default function EditScheduleScreen() {
         )} /> : null}
         <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}><View style={styles.sectionText}><Text style={styles.sectionTitle}>Membros</Text><Text style={styles.helper}>{selectedMemberDetails.length ? `${selectedMemberDetails.length} membro(s) selecionado(s)` : "Nenhum membro adicionado."}</Text></View>{canAssignMembers ? <TouchableOpacity style={styles.secondaryButton} onPress={() => setMembersModal(true)}><Text style={styles.secondaryText}>Editar membros</Text></TouchableOpacity> : null}</View>
         <View style={styles.selectedList}>{selectedMemberDetails.map((entry) => <View key={entry.userId} style={styles.selectedChip}><Text style={styles.selectedChipTitle}>{entry.member?.name}</Text><Text style={styles.selectedChipMeta}>{entry.role}</Text></View>)}</View>
-        {worshipPeriod && canExportReports ? <Button title="Salvar e visualizar Ordem de Culto — PDF" variant="secondary" disabled={saving} onPress={() => void save(true)} /> : null}
-        <TouchableOpacity style={[styles.primaryButton, (saving || hasIncompleteMemberRoles(selectedMembers)) && styles.disabled]} onPress={() => void save()} disabled={saving || hasIncompleteMemberRoles(selectedMembers)}><Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar alterações"}</Text></TouchableOpacity>
+        {worshipPeriod && canExportReports ? <Button title="Salvar e visualizar Ordem de Culto - PDF" variant="secondary" disabled={saving} onPress={() => void save(true)} /> : null}
+        <TouchableOpacity style={[styles.primaryButton, (saving || hasIncompleteMemberRoles(selectedMembers)) && styles.disabled]} onPress={() => void save()} disabled={saving || hasIncompleteMemberRoles(selectedMembers)}><Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar altera��es"}</Text></TouchableOpacity>
         {canDeleteSchedules ? <View style={styles.dangerZone}>
-          <Text style={styles.dangerTitle}>Área de perigo</Text>
-          <Text style={styles.dangerText}>Excluir a escala remove o item das listas ativas e desativa suas atribuições relacionadas.</Text>
+          <Text style={styles.dangerTitle}>�rea de perigo</Text>
+          <Text style={styles.dangerText}>Excluir a escala remove o item das listas ativas e desativa suas atribui��es relacionadas.</Text>
           <TouchableOpacity
             style={[styles.dangerButton, deleting && styles.disabled]}
             onPress={openDeleteModal}

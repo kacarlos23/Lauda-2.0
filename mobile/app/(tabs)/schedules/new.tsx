@@ -118,7 +118,7 @@ export default function NewScheduleScreen() {
       setSongs(songResult.items);
       setVisibleSongs(songResult.items);
     }).catch((reason) => {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível carregar dados para criar escala.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel carregar dados para criar escala.");
     }).finally(() => {
       if (mounted) setLoading(false);
     });
@@ -141,7 +141,7 @@ export default function NewScheduleScreen() {
           return [...merged.values()];
         });
       } catch (reason) {
-        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "Não foi possível buscar músicas.");
+        if (!cancelled) setSongSearchError(reason instanceof Error ? reason.message : "N�o foi poss�vel buscar m�sicas.");
       } finally {
         if (!cancelled) setSongSearchLoading(false);
       }
@@ -175,7 +175,7 @@ export default function NewScheduleScreen() {
   const selectedSongs = useMemo(() => selectedSongIds.map((id) => songs.find((song) => song.id === id)).filter(Boolean) as Song[], [songs, selectedSongIds]);
 
   if (!canCreateSchedules) {
-    return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para criar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
+    return <View style={styles.center}><Text style={styles.error}>Voc� n�o tem permiss�o para criar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
   }
 
   const toggleSong = (songId: string) => {
@@ -191,8 +191,8 @@ export default function NewScheduleScreen() {
 
   const createQuickSong = async () => {
     if (!quickSongArtist) return Alert.alert("Dados incompletos", "Selecione ou crie um artista.");
-    if (!quickSongTitle.trim()) return Alert.alert("Dados incompletos", "Informe o nome da música.");
-    if (!quickSongContent.trim()) return Alert.alert("Dados incompletos", "Informe a cifra da música.");
+    if (!quickSongTitle.trim()) return Alert.alert("Dados incompletos", "Informe o nome da m�sica.");
+    if (!quickSongContent.trim()) return Alert.alert("Dados incompletos", "Informe a cifra da m�sica.");
     try {
       setQuickSongSaving(true);
       const created = await musicService.createSong({
@@ -212,7 +212,7 @@ export default function NewScheduleScreen() {
       setQuickSongContent("");
       setQuickSongModal(false);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível criar a música.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel criar a m�sica.");
     } finally {
       setQuickSongSaving(false);
     }
@@ -220,10 +220,10 @@ export default function NewScheduleScreen() {
 
   const save = async () => {
     if (!title.trim()) return Alert.alert("Dados incompletos", "Informe o nome da escala.");
-    if (!ministryId) return Alert.alert("Dados incompletos", "Selecione o ministério da escala.");
-    if (hasIncompleteMemberRoles(selectedMembers)) return Alert.alert("Função obrigatória", "Escolha uma função para cada membro selecionado.");
+    if (!ministryId) return Alert.alert("Dados incompletos", "Selecione o minist�rio da escala.");
+    if (hasIncompleteMemberRoles(selectedMembers)) return Alert.alert("Fun��o obrigat�ria", "Escolha uma fun��o para cada membro selecionado.");
     const isoDate = combineDisplayDateTimeToIso(date, hour);
-    if (!isoDate) return Alert.alert("Data ou horário inválido", "Informe data no formato DD/MM/AAAA e horário no formato HH:mm.");
+    if (!isoDate) return Alert.alert("Data ou hor�rio inv�lido", "Informe data no formato DD/MM/AAAA e hor�rio no formato HH:mm.");
     try {
       await createSchedule({
         title: title.trim(),
@@ -238,7 +238,7 @@ export default function NewScheduleScreen() {
       if (await formExit.complete()) return;
       router.replace(worshipPeriod ? `${nav.worshipOrder}?date=${worshipDateKey(isoDate)}` as Href : nav.schedules);
     } catch (reason) {
-      Alert.alert("Erro", reason instanceof Error ? reason.message : "Não foi possível criar a escala.");
+      Alert.alert("Erro", reason instanceof Error ? reason.message : "N�o foi poss�vel criar a escala.");
     }
   };
 
@@ -251,20 +251,20 @@ export default function NewScheduleScreen() {
             <TouchableOpacity style={styles.modalBackButton} onPress={closeSongsModal} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Adicionar músicas</Text>
+            <Text style={styles.modalTitle}>Adicionar m�sicas</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
-          <Text style={styles.helper}>Clique nas músicas para adicionar ou remover da escala.</Text>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => { closeSongsModal(); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar Música</Text></TouchableOpacity>
+          <Text style={styles.helper}>Clique nas m�sicas para adicionar ou remover da escala.</Text>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => { closeSongsModal(); setQuickSongModal(true); }}><Text style={styles.secondaryText}>+ Adicionar M�sica</Text></TouchableOpacity>
           <View style={styles.songSearchRow}>
             <Search color={colors.muted} size={iconSizes.s19} />
             <TextInput
               style={styles.songSearchInput}
               value={songSearch}
               onChangeText={setSongSearch}
-              placeholder="Buscar por música ou artista"
+              placeholder="Buscar por m�sica ou artista"
               placeholderTextColor={colors.muted}
-              accessibilityLabel="Buscar músicas da escala"
+              accessibilityLabel="Buscar m�sicas da escala"
               testID="schedule-song-search-input"
               returnKeyType="search"
             />
@@ -274,12 +274,12 @@ export default function NewScheduleScreen() {
           <ScrollView style={styles.modalList}>
             {visibleSongs.map((song) => {
               const selected = selectedSongIds.includes(song.id);
-              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)} accessibilityRole="button" accessibilityLabel={`Selecionar música ${song.title}`}>
+              return <TouchableOpacity key={song.id} style={[styles.option, selected && styles.optionSelected]} onPress={() => toggleSong(song.id)} accessibilityRole="button" accessibilityLabel={`Selecionar m�sica ${song.title}`}>
                 <Text style={styles.optionTitle}>{song.title}</Text>
-                <Text style={styles.optionMeta}>{song.artist.name} · Tom {song.originalKey}</Text>
+                <Text style={styles.optionMeta}>{song.artist.name} � Tom {song.originalKey}</Text>
               </TouchableOpacity>;
             })}
-            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma música encontrada.</Text> : null}
+            {!songSearchLoading && !visibleSongs.length ? <Text style={styles.emptyText}>Nenhuma m�sica encontrada.</Text> : null}
           </ScrollView>
           <TouchableOpacity style={styles.primaryButton} onPress={closeSongsModal}><Text style={styles.primaryText}>Concluir</Text></TouchableOpacity>
         </View></View>
@@ -291,13 +291,13 @@ export default function NewScheduleScreen() {
             <TouchableOpacity style={styles.modalBackButton} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} accessibilityRole="button" accessibilityLabel="Voltar">
               <ArrowLeft color={colors.primary} size={iconSizes.s20} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Adicionar música</Text>
+            <Text style={styles.modalTitle}>Adicionar m�sica</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
-          <Text style={styles.helper}>A música será criada e adicionada à escala sem apagar os dados já preenchidos.</Text>
+          <Text style={styles.helper}>A m�sica ser� criada e adicionada � escala sem apagar os dados j� preenchidos.</Text>
           <ArtistPicker selected={quickSongArtist} onSelect={setQuickSongArtist} />
-          <Text style={styles.label}>Nome da música *</Text>
-          <TextInput style={styles.input} value={quickSongTitle} onChangeText={setQuickSongTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} />
+          <Text style={styles.label}>Nome da m�sica *</Text>
+          <TextInput style={styles.input} value={quickSongTitle} onChangeText={setQuickSongTitle} placeholder="Ex: Grande � o Senhor" placeholderTextColor={colors.muted} />
           <Text style={styles.label}>Tom original *</Text>
           <View style={styles.keyGrid}>{MUSICAL_KEYS.map((key) => (
             <TouchableOpacity key={key} style={[styles.keyChip, quickSongKey === key && styles.keyChipActive]} onPress={() => setQuickSongKey(key)}>
@@ -305,7 +305,7 @@ export default function NewScheduleScreen() {
             </TouchableOpacity>
           ))}</View>
           <Text style={styles.label}>Cifra *</Text>
-          <TextInput style={[styles.input, styles.quickSongContent]} value={quickSongContent} onChangeText={setQuickSongContent} multiline textAlignVertical="top" placeholder="[G]Letra da música" placeholderTextColor={colors.muted} />
+          <TextInput style={[styles.input, styles.quickSongContent]} value={quickSongContent} onChangeText={setQuickSongContent} multiline textAlignVertical="top" placeholder="[G]Letra da m�sica" placeholderTextColor={colors.muted} />
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalActionSecondary} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} disabled={quickSongSaving}><Text style={styles.secondaryText}>Cancelar</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.modalActionPrimary, quickSongSaving && styles.disabled]} onPress={() => void createQuickSong()} disabled={quickSongSaving}><Text style={styles.primaryText}>{quickSongSaving ? "Salvando..." : "Criar e adicionar"}</Text></TouchableOpacity>
@@ -322,7 +322,7 @@ export default function NewScheduleScreen() {
             <Text style={styles.modalTitle}>Adicionar membros</Text>
             <View style={styles.modalHeaderSpacer} />
           </View>
-          <Text style={styles.helper}>{user?.role === "MINISTRY_LEADER" ? "Líderes veem apenas membros do ministério selecionado." : "Administradores podem escolher qualquer membro da igreja."}</Text>
+          <Text style={styles.helper}>{user?.role === "MINISTRY_LEADER" ? "L�deres veem apenas membros do minist�rio selecionado." : "Administradores podem escolher qualquer membro da igreja."}</Text>
           <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
             <MemberRoleSelector members={availableMembers} value={selectedMembers} onChange={setSelectedMembers} />
           </ScrollView>
@@ -336,14 +336,14 @@ export default function NewScheduleScreen() {
 
       <View style={styles.backRow}><AppBackButton href={nav.schedules} /></View>
       <Text style={styles.title}>Nova Escala</Text>
-      <Text style={styles.subtitle}>Monte a escala com ministério, músicas e membros.</Text>
+      <Text style={styles.subtitle}>Monte a escala com minist�rio, m�sicas e membros.</Text>
       <ErrorBanner message={error} style={styles.error} />
       {loading ? <LoadingState centered={false} message="Carregando dados da escala..." style={styles.loader} /> : (
         <View style={[styles.card, compactLayout && styles.cardCompact]}>
           <Text style={styles.label}>Nome da escala *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} accessibilityLabel="Nome da escala" testID="schedule-title" placeholder="Ex: Culto de Domingo" placeholderTextColor={colors.muted} />
 
-          <Text style={styles.label}>Ministério *</Text>
+          <Text style={styles.label}>Minist�rio *</Text>
           <View style={styles.chips}>
             {ministries.map((ministry) => <TouchableOpacity key={ministry.id} style={[styles.chip, ministryId === ministry.id && styles.chipActive]} onPress={() => { setMinistryId(ministry.id); setSelectedMembers([]); }}>
               <Text style={[styles.chipText, ministryId === ministry.id && styles.chipTextActive]}>{ministry.name}</Text>
@@ -363,7 +363,7 @@ export default function NewScheduleScreen() {
             <View style={compactLayout ? styles.fieldCompact : styles.field}>
               <DateTimeInput
                 type="time"
-                label="Horário *"
+                label="Hor�rio *"
                 value={hour}
                 onChange={setHour}
                 testID="schedule-time"
@@ -373,15 +373,16 @@ export default function NewScheduleScreen() {
 
           <ScheduleWorshipPeriod value={worshipPeriod} onChange={setWorshipPeriod} disabled={saving} />
 
-          <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Comentários" placeholder="Orientações, avisos ou observações para esta escala..." testID="schedule-comments-input" /></View>
+          <View style={styles.commentsEditor}><RichCommentEditor value={comments} onChange={setComments} label="Coment�rios" placeholder="Orienta��es, avisos ou observa��es para esta escala..." testID="schedule-comments-input" /></View>
 
           <View style={[styles.sectionHeader, compactLayout && styles.sectionHeaderCompact]}>
-            <View style={styles.sectionText}><Text style={styles.sectionTitle}>Músicas</Text><Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} música(s) na ordem da escala` : "Nenhuma música adicionada."}</Text></View>
-            <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" accessibilityLabel="Adicionar músicas à escala" onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar músicas</Text></TouchableOpacity>
+            <View style={styles.sectionText}><Text style={styles.sectionTitle}>M�sicas</Text><Text style={styles.helper}>{selectedSongs.length ? `${selectedSongs.length} m�sica(s) na ordem da escala` : "Nenhuma m�sica adicionada."}</Text></View>
+            <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" accessibilityLabel="Adicionar m�sicas � escala" onPress={() => setSongsModal(true)}><Text style={styles.secondaryText}>Adicionar m�sicas</Text></TouchableOpacity>
           </View>
           {selectedSongs.length ? <SortableSongList items={selectedSongs} itemKey={(song) => song.id} itemLabel={(song) => song.title} disabled={saving}
             onMove={(from, to) => setSelectedSongIds((ids) => moveListItem(ids, from, to))} renderItem={(song, index) => (
             <ScheduleSongCard key={song.id} song={song} position={index + 1} onRemove={() => toggleSong(song.id)}
+              momentDrawer momentLabel={songDetails[song.id]?.moment ?? "Louvor"}
               onMoveUp={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}
               onMoveDown={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}
               disableMoveUp={index === 0 || saving} disableMoveDown={index === selectedSongs.length - 1 || saving}
