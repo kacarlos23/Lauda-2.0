@@ -88,6 +88,7 @@ for (const width of [390, 1440]) {
     await expect(page.locator('[data-testid^="sortable-"]').first()).toContainText("526 - Grandioso És Tu");
     await page.getByLabel("Mover 526 - Grandioso És Tu para baixo", { exact: true }).click();
     await expect(page.locator('[data-testid^="sortable-"]').first().getByText("Cantarei Teu Amor", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Momento de Cantarei Teu Amor: Louvor", exact: true }).click();
     await page.getByRole("button", { name: "Momento: Comunhão", exact: true }).first().click();
     await expect(page.getByRole("button", { name: "Exportar PDF", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "Salvar alterações", exact: true }).click();
