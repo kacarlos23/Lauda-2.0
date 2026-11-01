@@ -34,7 +34,7 @@ const ScheduleWriteSchema = z.object({
     .min(3, "Título deve ter entre 3 e 100 caracteres")
     .max(100, "Título deve ter entre 3 e 100 caracteres"),
   date: z
-    .string({ error: "Data é obrigatÃ³ria" })
+    .string({ error: "Data é obrigatória" })
     .datetime({ message: isoDateTimeMessage })
     .transform((value) => new Date(value)),
   ministryId: z.string({ error: "Ministério é obrigatório" }).uuid("Ministério deve ser um UUID válido"),

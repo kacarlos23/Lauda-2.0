@@ -113,7 +113,7 @@ async function createUserAndLogin(seed: string, tenantId: string, role: "MEMBER"
   const password = await bcrypt.hash("secret123", 10);
   const user = await prisma.user.create({
     data: {
-      name: `UsuÃ¡rio ${seed}`,
+      name: `Usuário ${seed}`,
       email: `${seed}@example.com`,
       password,
       role,
@@ -121,7 +121,7 @@ async function createUserAndLogin(seed: string, tenantId: string, role: "MEMBER"
     },
   });
 
-  for (const roleName of ["Vocal", "Vocalista", "Violão", "ViolÃ£o", "Baixo", "Bateria"]) {
+  for (const roleName of ["Vocal", "Vocalista", "Violão", "Baixo", "Bateria"]) {
     const instrument = await prisma.instrument.upsert({
       where: { tenantId_name: { tenantId, name: roleName } },
       update: { isActive: true, deletedAt: null },
@@ -353,7 +353,7 @@ describe("POST /api/auth/login", () => {
 });
 
 describe("GET /api/schedules", () => {
-  it("retorna apenas dados do tenant do usuÃ¡rio autenticado", async () => {
+  it("retorna apenas dados do tenant do usuário autenticado", async () => {
     const tenantA = await registerTenant("tenant-a");
     const tenantB = await registerTenant("tenant-b");
     const ministryA = await createMinistry(tenantA.token, "Louvor A");
@@ -393,7 +393,7 @@ describe("GET /api/schedules", () => {
 });
 
 describe("POST /api/schedules", () => {
-  it("retorna 403 se usuÃ¡rio nÃ£o for TENANT_ADMIN ou MINISTRY_LEADER", async () => {
+  it("retorna 403 se usuário não for TENANT_ADMIN ou MINISTRY_LEADER", async () => {
     const tenant = await registerTenant("member-denied");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const password = await bcrypt.hash("secret123", 10);
@@ -438,11 +438,11 @@ describe("POST /api/schedules", () => {
       .expect(201);
   });
 
-  it("permite criar escala com mÃºsicas e membros atribuÃ­dos", async () => {
+  it("permite criar escala com músicas e membros atribuídos", async () => {
     const tenant = await registerTenant("admin-create-full");
     const ministry = await createMinistry(tenant.token, "Louvor Completo");
     const member = await createUserAndLogin("full-member", tenant.tenant.id);
-    const song = await createSong(tenant.tenant.id, "Grande Ã© o Senhor");
+    const song = await createSong(tenant.tenant.id, "Grande é o Senhor");
 
     const response = await request(app)
       .post("/api/schedules")
@@ -851,10 +851,10 @@ describe("POST /api/schedules", () => {
     expect(stored?.deletedAt).toBeNull();
   });
 
-  it("permite lÃ­der criar escala somente no ministÃ©rio que lÃ­dera", async () => {
+  it("permite líder criar escala somente no ministério que lídera", async () => {
     const tenant = await registerTenant("leader-own");
-    const ownMinistry = await createMinistry(tenant.token, "Louvor lÃ­derado");
-    const otherMinistry = await createMinistry(tenant.token, "DanÃ§a");
+    const ownMinistry = await createMinistry(tenant.token, "Louvor líderado");
+    const otherMinistry = await createMinistry(tenant.token, "Dança");
     const leader = await createUserAndLogin("leader-own", tenant.tenant.id, "MINISTRY_LEADER");
 
     await prisma.ministryMember.create({
@@ -871,7 +871,7 @@ describe("POST /api/schedules", () => {
       .post("/api/schedules")
       .set("Authorization", `Bearer ${leader.token}`)
       .send({
-        title: "Culto lÃ­derado",
+        title: "Culto líderado",
         date: "2026-05-06T13:00:00.000Z",
         ministryId: ownMinistry.id,
       })
@@ -916,9 +916,9 @@ describe("POST /api/schedules", () => {
     expect(await prisma.schedule.count({ where: { ministryId: ministry.id } })).toBe(0);
   });
 
-  it("bloqueia lÃ­der ao escalar membro fora do ministÃ©rio", async () => {
+  it("bloqueia líder ao escalar membro fora do ministério", async () => {
     const tenant = await registerTenant("leader-member-scope");
-    const ownMinistry = await createMinistry(tenant.token, "Louvor lÃ­der");
+    const ownMinistry = await createMinistry(tenant.token, "Louvor líder");
     const leader = await createUserAndLogin("leader-member-scope", tenant.tenant.id, "MINISTRY_LEADER");
     const inMinistry = await createUserAndLogin("member-in-ministry", tenant.tenant.id);
     const outside = await createUserAndLogin("member-outside-ministry", tenant.tenant.id);
@@ -955,7 +955,7 @@ describe("POST /api/schedules", () => {
 });
 
 describe("Schedule assignments", () => {
-  it("nÃ£o cria, atualiza ou remove assignments de outro tenant", async () => {
+  it("não cria, atualiza ou remove assignments de outro tenant", async () => {
     const tenantA = await registerTenant("assignment-cross-a");
     const tenantB = await registerTenant("assignment-cross-b");
     const ministryA = await createMinistry(tenantA.token, "Louvor A");
@@ -1014,7 +1014,7 @@ describe("Schedule assignments", () => {
     expect(await prisma.scheduleAssignment.count({ where: { scheduleId: scheduleA.body.data.id } })).toBe(0);
   });
 
-  it("permite resposta da prÃ³pria escala, registra recusa/substituiÃ§Ã£o e bloqueia operaÃ§Ãµes indevidas", async () => {
+  it("permite resposta da própria escala, registra recusa/substituição e bloqueia operações indevidas", async () => {
     const tenant = await registerTenant("assignment-status");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("assignment-member-a", tenant.tenant.id);
@@ -1071,7 +1071,7 @@ describe("Schedule assignments", () => {
       .set("Authorization", `Bearer ${tenant.token}`)
       .send({
         userId: memberB.user.id,
-        role: "ViolÃ£o",
+        role: "Violão",
       })
       .expect(201);
 
@@ -1099,7 +1099,7 @@ describe("Schedule assignments", () => {
     await request(app)
       .patch(`/api/schedules/${scheduleId}/assignments/${secondAssignment.body.data.id}/substitution/resolve`)
       .set("Authorization", `Bearer ${memberA.token}`)
-      .send({ note: "Sem permissÃ£o" })
+      .send({ note: "Sem permissão" })
       .expect(403);
 
     const resolveResponse = await request(app)
@@ -1122,7 +1122,7 @@ describe("Schedule assignments", () => {
       .expect(404);
   });
 
-  it("GET /api/schedules/me retorna apenas escalas do usuÃ¡rio autenticado", async () => {
+  it("GET /api/schedules/me retorna apenas escalas do usuário autenticado", async () => {
     const tenant = await registerTenant("my-schedules");
     const ministry = await createMinistry(tenant.token, "Louvor");
     const memberA = await createUserAndLogin("my-schedules-a", tenant.tenant.id);
@@ -1159,7 +1159,7 @@ describe("Schedule assignments", () => {
     await request(app)
       .post(`/api/schedules/${scheduleB.body.data.id}/assignments`)
       .set("Authorization", `Bearer ${tenant.token}`)
-      .send({ userId: memberB.user.id, role: "ViolÃ£o" })
+      .send({ userId: memberB.user.id, role: "Violão" })
       .expect(201);
 
     const response = await request(app)

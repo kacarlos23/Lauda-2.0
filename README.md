@@ -280,6 +280,8 @@ npm run build
 
 No frontend, configure `EXPO_PUBLIC_API_URL` com o endpoint HTTPS público. Os scripts de inicialização e validação em `scripts/` conferem ambiente, migrations, API exposta e bundle servido.
 
+Salve os arquivos de texto em UTF-8, conforme `.editorconfig`. `npm run check:encoding` verifica os arquivos do projeto e bloqueia bytes inválidos, caracteres substituídos e acentuação corrompida. Essa verificação roda antes dos builds de backend e web e no CI; `npm run test:encoding` também testa o detector.
+
 Após cada deploy web, faça smoke pelo menos em `/login` e em uma rota autenticada acessada diretamente: recarregue a página, confirme que não há erro React no console e que existe um único título específico.
 
 O programa de segurança, evidências, threat model, retenção e resposta a incidentes está em

@@ -77,6 +77,10 @@ export const colors = {
   warningStrong: "#8C6A00",
   warningToast: "#7A5410",
   warningTextStrong: "#6E4813",
+  momentActive: "#1b654e",
+  momentText: "#1b654e",
+  momentBorder: "#cbded5",
+  momentSurface: "#f5f9f6",
 };
 
 export const overlays = {

@@ -36,7 +36,7 @@ export function ScheduleSongCard({ song, position, onPress, onRemove, onMoveUp, 
       )}
       <View style={styles.copy}>
         <Text style={styles.title} numberOfLines={2}>{song.title}</Text>
-        <Text style={styles.artist} numberOfLines={1}>{song.artist?.name ?? "Artista n�o informado"}</Text>
+        <Text style={styles.artist} numberOfLines={1}>{song.artist?.name ?? "Artista não informado"}</Text>
         <View style={[styles.metadata, compact && styles.compactMetadata]}>
           {song.originalKey ? <Text style={styles.metaChip}>Tom {song.originalKey}</Text> : null}
           {hasDrawer ? <TouchableOpacity style={[styles.momentTrigger, momentOpen && styles.momentTriggerOpen]}
@@ -44,7 +44,7 @@ export function ScheduleSongCard({ song, position, onPress, onRemove, onMoveUp, 
             accessibilityState={{ expanded: momentOpen }} aria-controls={drawerId}
             onPress={(event) => { event.stopPropagation(); setMomentOpen((open) => !open); }}>
             <Text style={styles.momentTriggerText}>{momentLabel ?? "Louvor"}</Text>
-            <SongMomentChevron open={momentOpen}><ChevronDown size={14} color="#1b654e" /></SongMomentChevron>
+            <SongMomentChevron open={momentOpen}><ChevronDown size={iconSizes.s14} color={colors.momentText} /></SongMomentChevron>
           </TouchableOpacity> : momentLabel ? <Text style={styles.metaChip}>{momentLabel}</Text> : null}
           {song.bpm ? <Text style={styles.metaChip}>{song.bpm} BPM</Text> : null}
         </View>
@@ -81,9 +81,9 @@ const styles = StyleSheet.create({
   withFooter: { flex: 1, minWidth: 260, gap: spacing.sm },
   withDrawer: { gap: 0 },
   card: { position: "relative", zIndex: 20, flex: 1, minWidth: 260, flexDirection: "row", alignItems: "stretch", borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, overflow: "hidden" },
-  momentTrigger: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: "#cbded5", borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 3, backgroundColor: "#f5f9f6" },
-  momentTriggerOpen: { borderColor: "#1b654e" },
-  momentTriggerText: { color: "#1b654e", fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
+  momentTrigger: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.momentBorder, borderRadius: radii.pill, paddingHorizontal: spacing.sm, paddingVertical: 3, backgroundColor: colors.momentSurface },
+  momentTriggerOpen: { borderColor: colors.momentText },
+  momentTriggerText: { color: colors.momentText, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
   raisedCard: { ...shadow },
   main: { flex: 1, minHeight: 104, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md },
   position: { position: "absolute", top: spacing.xs, left: spacing.xs, zIndex: 1, minWidth: 24, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.surfaceDark },

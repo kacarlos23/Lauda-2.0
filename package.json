@@ -19,6 +19,9 @@
     "security:sbom:verify": "node scripts/security/generate-sbom.cjs --verify",
     "security:dast:logical": "node scripts/security/run-logical-dast.cjs",
     "security:dast:guard": "node scripts/security/validate-dast-target.cjs",
+    "check:encoding": "node scripts/validate-text-encoding.cjs",
+    "test:encoding": "node --test tests/text-encoding.test.cjs",
+    "prebuild": "npm run check:encoding",
     "build": "tsc",
     "start": "node scripts/start-production.cjs"
   },

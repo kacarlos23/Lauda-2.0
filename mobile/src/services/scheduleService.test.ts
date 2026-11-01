@@ -79,7 +79,7 @@ describe("scheduleService", () => {
     expect(mockedApi.get).toHaveBeenCalledWith("/schedules");
   });
 
-  it("createSchedule envia mÃºsicas e membros para POST /schedules", async () => {
+  it("createSchedule envia músicas e membros para POST /schedules", async () => {
     const payload = {
       title: "Culto",
       date: "2026-05-24T13:00:00.000Z",
@@ -185,7 +185,7 @@ describe("scheduleService", () => {
     );
   });
 
-  it("resolveSubstitution chama PATCH do endpoint de resoluÃ§Ã£o", async () => {
+  it("resolveSubstitution chama PATCH do endpoint de resolução", async () => {
     const updated = { ...makeSchedule("DECLINED"), substituteResolvedAt: "2026-05-20T11:00:00.000Z" };
     mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: updated } });
 
@@ -196,7 +196,7 @@ describe("scheduleService", () => {
     );
   });
 
-  it("status invÃ¡lido lanÃ§a erro antes de chamar a API", async () => {
+  it("status inválido lança erro antes de chamar a API", async () => {
     await expect(
       updateAssignmentStatus("schedule-1", "assignment-1", "INVALID" as AssignmentStatus)
     ).rejects.toThrow("Status de escala inválido.");
@@ -204,12 +204,12 @@ describe("scheduleService", () => {
   });
 
   it("usa mensagem amigavel retornada pela API", async () => {
-    mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Escalas indisponÃ­veis." }));
+    mockedApi.get.mockRejectedValueOnce(makeAxiosError({ error: "Escalas indisponíveis." }));
 
-    await expect(getMySchedules()).rejects.toThrow("Escalas indisponÃ­veis.");
+    await expect(getMySchedules()).rejects.toThrow("Escalas indisponíveis.");
   });
 
-  it("usa fallback quando a API nÃ£o retorna mensagem", async () => {
+  it("usa fallback quando a API não retorna mensagem", async () => {
     mockedApi.get.mockRejectedValueOnce(makeAxiosError({}));
 
     await expect(getMySchedules()).rejects.toThrow("Não foi possível carregar as escalas.");

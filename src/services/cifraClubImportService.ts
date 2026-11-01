@@ -523,7 +523,7 @@ export class CifraClubImportService {
   private static candidateLabels(text: string, pathParts: string[], currentUrl: string, input: CifraClubSearchInput) {
     const fallbackTitle = this.titleCaseSlug(pathParts[1] ?? input.title ?? "");
     const fallbackArtist = this.titleCaseSlug(pathParts[0] ?? input.artist ?? "");
-    const conciseText = text.split(/Cifra Club[â€¢•]/i)[0].trim();
+    const conciseText = text.split(/Cifra Club(?:\u00e2\u20ac\u00a2|•)/i)[0].trim();
     const googleLabel = conciseText.match(/^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club$/i);
     if (googleLabel) {
       return { title: googleLabel[1].trim(), artist: googleLabel[2].trim() };

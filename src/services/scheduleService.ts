@@ -167,11 +167,11 @@ export class ScheduleService {
     await this.ensureCanManageSchedule(scheduleId, user);
     const deleted = await this.scheduleRepository.deleteSchedule(scheduleId, user.id);
     if (!deleted) {
-      throw new NotFoundError("Escala nÃ£o encontrada");
+      throw new NotFoundError("Escala não encontrada");
     }
     return {
       ...deleted,
-      message: "Escala cancelada e removida das listas ativas. As atribuiÃ§Ãµes relacionadas foram desativadas para preservar histÃ³rico.",
+      message: "Escala cancelada e removida das listas ativas. As atribuições relacionadas foram desativadas para preservar histórico.",
     };
   }
 
