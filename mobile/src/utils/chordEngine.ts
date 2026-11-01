@@ -34,6 +34,51 @@ export function transposeKey(key: string, semitones: number) {
 type ParserItem = { chords?: string; lyrics?: string; annotation?: string };
 type ParserLine = { type?: string; items?: ParserItem[] };
 
+/** Rebase the stored sheet without rewriting lyrics, comments or section markup. */
+export function transposeChordSheetContent(content: string, semitones: number, originalKey: string): string {
+  if (!semitones) return content;
+  const preferFlats = originalKey.includes("b");
+  const isChordPro = /\[[A-G][#b]?(?:[^\]]*)\]|\{(?:start_of_|soc|title:|key:)/i.test(content);
+  const parser = isChordPro ? new ChordProParser() : new ChordsOverWordsParser();
+  try {
+    parser.parse(content);
+  } catch {
+    throw new Error("Revise o formato da cifra antes de salvar o tom como padrão.");
+  }
+
+  const transposeDirective = (directive: string) => directive.replace(
+    /^(\{\s*(?:key|k)\s*:\s*)([A-G](?:#|b)?m?)(\s*\})$/i,
+    (_, prefix: string, key: string, suffix: string) => `${prefix}${transposeKey(key, semitones)}${suffix}`
+  );
+  if (isChordPro) {
+    return content.replace(/\{[^}\r\n]*\}|\[[^\]\r\n]*\]/g, (token) => token.startsWith("{")
+      ? transposeDirective(token)
+      : `[${transposeChord(token.slice(1, -1), semitones, preferFlats)}]`);
+  }
+
+  return content.split(/(\r?\n)/).map((line) => {
+    if (!line || /^\r?\n$/.test(line)) return line;
+    if (line.trimStart().startsWith("{")) return line.replace(/\{[^}]*\}/g, transposeDirective);
+    const parsed = new ChordsOverWordsParser().parse(line);
+    const chords = new Set(parsed.lines.flatMap((item) => item.items)
+      .filter((item): item is typeof item & { chords: string } => "chords" in item && typeof item.chords === "string")
+      .map((item) => item.chords).filter(Boolean));
+    if (!chords.size) return line;
+
+    // Keep chord columns aligned with the unchanged lyric line when a # adds width.
+    let result = "";
+    let end = 0;
+    for (const match of line.matchAll(/\S+/g)) {
+      const start = match.index!;
+      const gap = line.slice(end, start);
+      result += /\t/.test(gap) ? gap : " ".repeat(Math.max(gap ? 1 : 0, start - result.length));
+      result += chords.has(match[0]) ? transposeChord(match[0], semitones, preferFlats) : match[0];
+      end = start + match[0].length;
+    }
+    return result + line.slice(end);
+  }).join("");
+}
+
 function plainTextFallback(content: string): RenderableChordSheet {
   return {
     lines: content.split(/\r?\n/).map((lyrics) => ({

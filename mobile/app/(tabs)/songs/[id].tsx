@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Download, Edit3, Pause, Play, Trash2 } from "lucide-react-native";
@@ -29,16 +29,21 @@ import { canManageMusic } from "../../../src/utils/musicPermissions";
 import { getSongDetailViewState } from "../../../src/utils/songDetailState";
 import { nav } from "../../../src/navigation/routes";
 import { extractYouTubeVideoId } from "../../../src/utils/youtube";
+import { transposeChordSheetContent } from "../../../src/utils/chordEngine";
+import { MusicalKey } from "../../../src/types";
 
 export default function SongDetailScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { currentSong, detailLoading, detailError, requestedSongId, loadSong, deleteSong, saving } = useMusicStore();
+  const { currentSong, detailLoading, detailError, requestedSongId, loadSong, updateSong, deleteSong, saving } = useMusicStore();
   const chord = useChordStore();
   const [exporting, setExporting] = useState(false);
   const [autoScrolling, setAutoScrolling] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [keyFeedback, setKeyFeedback] = useState<{ message: string; error?: boolean } | null>(null);
+  const keySaveLock = useRef(false);
   const { width: windowWidth } = useWindowDimensions();
   const showSideBySideMedia = Platform.OS === "web" && windowWidth >= 1280;
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -52,6 +57,7 @@ export default function SongDetailScreen() {
   const readySong = viewState.status === "ready" ? viewState.song : null;
 
   useEffect(() => { if (readySong) chord.initializeSong(readySong.id, readySong.originalKey); }, [readySong?.id, readySong?.originalKey]);
+  useEffect(() => { setKeyFeedback(null); }, [id]);
 
   const onScroll = useAnimatedScrollHandler((event) => { scrollY.value = event.contentOffset.y; });
   useAnimatedReaction(() => animatedY.value, (value) => { scrollTo(scrollRef, 0, value, false); });
@@ -78,6 +84,26 @@ export default function SongDetailScreen() {
   if (viewState.status === "loading") return <LoadingState message="Carregando música..." />;
   if (viewState.status === "error") return <View style={styles.center}><ErrorBanner message={viewState.message} style={styles.error} action={id ? <Button title="Tentar novamente" variant="secondary" onPress={() => loadSong(id)} /> : undefined} /><AppBackButton href={nav.songs} /></View>;
   const song = viewState.song;
+  const canSaveKey = canManageMusic(user, "song:edit");
+  const keyControlsDisabled = savingKey || saving;
+  const saveDefaultKey = async () => {
+    if (keySaveLock.current || saving || detailLoading || !canSaveKey || chord.activeSongId !== song.id || !chord.semitoneOffset) return;
+    keySaveLock.current = true;
+    setSavingKey(true);
+    setKeyFeedback(null);
+    stopAutoScroll();
+    try {
+      const content = transposeChordSheetContent(song.content, chord.semitoneOffset, song.originalKey);
+      const saved = await updateSong(song.id, { originalKey: chord.currentKey as MusicalKey, content });
+      useChordStore.getState().acceptDefaultKey(saved.id, saved.originalKey);
+      setKeyFeedback({ message: `Tom ${saved.originalKey} salvo como padrão.` });
+    } catch (reason) {
+      setKeyFeedback({ message: reason instanceof Error ? reason.message : "Não foi possível salvar o tom padrão.", error: true });
+    } finally {
+      keySaveLock.current = false;
+      setSavingKey(false);
+    }
+  };
   const hasEmbeddedVideo = Boolean(song.videoUrl && extractYouTubeVideoId(song.videoUrl));
   const externalLinks = hasEmbeddedVideo ? { ...song, videoUrl: null } : song;
   const youtubePlayer = hasEmbeddedVideo && song.videoUrl
@@ -115,7 +141,7 @@ export default function SongDetailScreen() {
       contentContainerStyle={styles.content}
     >
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
-      <View style={styles.metadata}><Text style={styles.meta}>Tom original: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
+      <View style={styles.metadata}><Text style={styles.meta}>Tom padrão: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
       <View style={styles.mediaSection}>
         <SongLinkButtons links={externalLinks} centered />
       </View>
@@ -125,9 +151,10 @@ export default function SongDetailScreen() {
         <View style={[styles.sheetPanel, showSideBySideMedia && styles.sheetPanelWide]} testID="song-chord-panel">
           <View style={styles.controlToolbar}>
             <View style={styles.controls}>
-              <Control label={"\u22121 Tom"} onPress={() => chord.transpose(-1)} testID="transpose-down" />
-              <TouchableOpacity style={styles.keyControl} onPress={chord.resetTranspose} testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
-              <Control label="+1 Tom" onPress={() => chord.transpose(1)} testID="transpose-up" />
+              <Control label={"\u22121 Tom"} onPress={() => { setKeyFeedback(null); chord.transpose(-1); }} disabled={keyControlsDisabled} testID="transpose-down" />
+              <TouchableOpacity style={styles.keyControl} onPress={() => { setKeyFeedback(null); chord.resetTranspose(); }} disabled={keyControlsDisabled} accessibilityLabel="Restaurar tom padrão" testID="current-key"><Text style={styles.currentKey}>{chord.currentKey}</Text><Text style={styles.reset}>restaurar</Text></TouchableOpacity>
+              <Control label="+1 Tom" onPress={() => { setKeyFeedback(null); chord.transpose(1); }} disabled={keyControlsDisabled} testID="transpose-up" />
+              {canSaveKey ? <Button title="Salvar tom como padrão" variant="secondary" size="sm" onPress={() => void saveDefaultKey()} loading={savingKey} disabled={saving || detailLoading || chord.activeSongId !== song.id || !chord.semitoneOffset} testID="save-default-key" /> : null}
             </View>
             <View style={styles.controls}>
               <Control label={"A\u2212"} onPress={() => chord.changeFontSize(-2)} testID="font-down" />
@@ -137,6 +164,9 @@ export default function SongDetailScreen() {
               <TouchableOpacity style={[styles.play, autoScrolling && styles.playActive]} onPress={toggleAutoScroll} testID="auto-scroll">{autoScrolling ? <Pause color={colors.surface} size={iconSizes.s18} /> : <Play color={colors.surface} size={iconSizes.s18} />}<Text style={styles.playText}>{autoScrolling ? "Pausar" : "Rolar"}</Text></TouchableOpacity>
             </View>
           </View>
+          {keyFeedback ? <View style={styles.keyFeedback}>{keyFeedback.error
+            ? <ErrorBanner message={keyFeedback.message} testID="default-key-error" />
+            : <Text accessibilityLiveRegion="polite" style={styles.meta} testID="default-key-success">{keyFeedback.message}</Text>}</View> : null}
           <View style={styles.chordCard}><ChordSheetView content={song.content} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>
         </View>
         {showSideBySideMedia && youtubePlayer ? <View style={styles.playerColumn}>{youtubePlayer}</View> : null}
@@ -145,8 +175,8 @@ export default function SongDetailScreen() {
   </SafeAreaView>;
 }
 
-function Control({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
-  return <TouchableOpacity style={styles.control} onPress={onPress} testID={testID}><Text style={styles.controlText}>{label}</Text></TouchableOpacity>;
+function Control({ label, onPress, testID, disabled }: { label: string; onPress: () => void; testID?: string; disabled?: boolean }) {
+  return <TouchableOpacity style={styles.control} onPress={onPress} disabled={disabled} accessibilityState={{ disabled }} testID={testID}><Text style={styles.controlText}>{label}</Text></TouchableOpacity>;
 }
 
 const styles = StyleSheet.create({
@@ -162,7 +192,8 @@ const styles = StyleSheet.create({
   sheetPanelWide: { flex: 1.9, minWidth: 0 },
   playerColumn: { flex: 1, minWidth: 320, maxWidth: 480 },
   controlToolbar: { position: Platform.OS === "web" ? "sticky" as any : "relative", top: 0, zIndex: zIndices.sticky, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing.md, padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, borderTopLeftRadius: radii.lg, borderTopRightRadius: radii.lg, backgroundColor: colors.surface },
-  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm }, control: { minHeight: controlSizes.default, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: fontWeights.extrabold }, keyControl: { minWidth: 72, minHeight: controlSizes.default, alignItems: "center", justifyContent: "center" }, currentKey: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black }, reset: { color: colors.muted, fontSize: fontSizes.s9 }, controlValue: { color: colors.text, fontWeight: fontWeights.bold },
+  controls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", maxWidth: "100%", gap: spacing.sm }, control: { minHeight: controlSizes.default, minWidth: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" }, controlText: { color: colors.primary, fontWeight: fontWeights.extrabold }, keyControl: { minWidth: 72, minHeight: controlSizes.default, alignItems: "center", justifyContent: "center" }, currentKey: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black }, reset: { color: colors.muted, fontSize: fontSizes.s9 }, controlValue: { color: colors.text, fontWeight: fontWeights.bold },
   play: { minHeight: controlSizes.default, paddingHorizontal: spacing.md, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", gap: spacing.xs }, playActive: { backgroundColor: colors.danger }, playText: { color: colors.surface, fontWeight: fontWeights.extrabold },
   chordCard: { minHeight: 520, borderLeftWidth: 3, borderLeftColor: colors.accent, borderBottomLeftRadius: radii.lg, borderBottomRightRadius: radii.lg, backgroundColor: colors.surface, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg }, error: { color: colors.danger, marginBottom: spacing.md },
+  keyFeedback: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
 });

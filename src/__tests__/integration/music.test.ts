@@ -102,6 +102,30 @@ beforeEach(async () => cleanDatabase());
 afterAll(async () => { if (prisma) { await cleanDatabase(); await prisma.$disconnect(); } if (container) await container.stop(); });
 
 describe("Artists and songs API", () => {
+  it("persiste o tom padrão junto da cifra editada e respeita tenant e permissão", async () => {
+    const tenant = await register("default-key");
+    const otherTenant = await register("other-default-key");
+    const memberToken = await member(tenant.token, "default-key-member", "MEMBER");
+    const artist = await createArtist(tenant.token);
+    const created = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send(songPayload(artist.id)).expect(201);
+    const id = created.body.data.id;
+    const url = `/api/songs/${id}`;
+    await request(app).patch(url).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ content: "[G]Texto já editado [D/F#]preservado" }).expect(200);
+    const payload = { originalKey: "A", content: "[A]Texto já editado [E/G#]preservado" };
+    await request(app).patch(url).send(payload).expect(401);
+    await request(app).patch(url).set("Authorization", `Bearer ${memberToken}`).send(payload).expect(403);
+    await request(app).patch(url).set("Authorization", `Bearer ${otherTenant.token}`).send(payload).expect(404);
+    await request(app).patch(url).set("Authorization", `Bearer ${tenant.token}`).send(payload).expect(200);
+    // A fresh login/read verifies database persistence, independently of frontend caches.
+    const login = await request(app).post("/api/auth/login").send({ email: tenant.user.email, password: "secret123" }).expect(200);
+    const saved = await request(app).get(url).set("Authorization", `Bearer ${login.body.data.token}`).expect(200);
+    expect(saved.body.data).toMatchObject({ ...payload, title: "Pra sempre", bpm: 96, artistId: artist.id });
+    await request(app).get(url).set("Authorization", `Bearer ${otherTenant.token}`).expect(404);
+    const listed = await request(app).get("/api/songs?originalKey=A").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(listed.body.data.items.map((song: { id: string }) => song.id)).toContain(id);
+  });
   it("aplica as permissões de TENANT_ADMIN, MINISTRY_LEADER, MEMBER e GLOBAL_ADMIN", async () => {
     const tenant = await register("roles");
     const leaderToken = await member(tenant.token, "music-leader", "MINISTRY_LEADER");
