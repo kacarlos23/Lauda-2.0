@@ -23,6 +23,7 @@ import {
 import { RichCommentEditor } from "./ui/RichCommentEditor";
 import { nav } from "../navigation/routes";
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
+import { VisualChordEditor } from "./songs/VisualChordEditor";
 
 type Props = {
   initial?: Song;
@@ -359,18 +360,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
             <TouchableOpacity onPress={() => setStep(1)} testID="song-edit-metadata-button"><Text style={styles.editLink}>Editar dados</Text></TouchableOpacity>
           </View>
           <Text style={styles.label}>Cifra *</Text>
-          <TextInput
-            style={styles.editor}
-            value={content}
-            onChangeText={setContent}
-            placeholder={"Use ChordPro: [G]Grande é o [D]Senhor"}
-            placeholderTextColor={colors.muted}
-            multiline
-            textAlignVertical="top"
-            autoCorrect={false}
-            autoCapitalize="none"
-            testID="song-chord-input"
-          />
+          <VisualChordEditor value={content} onChange={setContent} originalKey={originalKey} disabled={saving} />
           <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving} testID="song-save-button">
             <Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar música"}</Text>
           </TouchableOpacity>

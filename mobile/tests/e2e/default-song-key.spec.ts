@@ -53,6 +53,7 @@ for (const width of [390, 1440]) {
     const api = await setup(page);
     await expect(page.getByTestId("save-default-key")).toBeDisabled();
     await page.getByLabel("Editar música", { exact: true }).click();
+    await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();
     await page.getByTestId("song-chord-input").fill("{key: G}\n[G]Texto já editado [D/F#]preservado");
     await page.getByTestId("song-save-button").last().click();
     await expect(page).toHaveURL(new RegExp(`/songs/${songId}$`));

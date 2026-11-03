@@ -356,6 +356,17 @@ function Start-Frontend {
 }
 
 function Build-ProductionFrontend {
+  # Keep the verified release on service restarts, even if a developer checkout has local edits.
+  $publishedManifestPath = Join-Path $MobileRoot "dist\release.json"
+  if (-not $Production -and (Test-Path -LiteralPath $publishedManifestPath)) {
+    $publishedManifest = Get-Content -LiteralPath $publishedManifestPath -Raw | ConvertFrom-Json
+    if ($publishedManifest.environment -eq "production" -and $publishedManifest.commit -match '^[a-f0-9]{40}$' -and $publishedManifest.apiUrl -eq $ApiUrl) {
+      & node (Join-Path $PSScriptRoot "validate-frontend-api.cjs") --dist (Join-Path $MobileRoot "dist") --expected-api-url $ApiUrl
+      if ($LASTEXITCODE -ne 0) { throw "Published production frontend failed API validation." }
+      Write-Ok "Frontend publicado validado; mantendo o release $($publishedManifest.commit)."
+      return
+    }
+  }
   Write-Step "Gerando frontend de producao atualizado"
   $hadApiUrl = Test-Path Env:EXPO_PUBLIC_API_URL
   $previousApiUrl = $env:EXPO_PUBLIC_API_URL

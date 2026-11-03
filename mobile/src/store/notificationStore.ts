@@ -109,6 +109,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   connect: async () => {
+    // The public test backend intentionally disables realtime and all external delivery.
+    if (process.env.EXPO_PUBLIC_APP_ENV === "staging") return;
     shouldReconnect = true;
     if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
     set({ connectionState: reconnectAttempt ? "reconnecting" : "connecting" });
