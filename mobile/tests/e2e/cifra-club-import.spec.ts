@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const artist = { id: "11111111-1111-4111-8111-111111111111", name: "João & Maria", imageUrl: null };
 const songId = "22222222-2222-4222-8222-222222222222";
 const content = "Capotraste: 4ª casa\n\n[Intro] D9  F#m\n\nD9          G/B\n  Canção de comunhão\n";
-const imported = { title: "Canção de comunhão", artist: artist.name, originalKey: "F#", cifraUrl: "https://www.cifraclub.com.br/joao-e-maria/cancao/", content, source: "page-fallback" };
+const imported = { title: "Canção de comunhão", artist: artist.name, originalKey: "F#", cifraUrl: "https://www.cifraclub.com.br/joao-e-maria/cancao/", content: "\uFEFF" + content.replace("[Intro]", "\u200B[Intro]"), source: "page-fallback" };
 
 async function setup(page: Page, failFirstSearch = false) {
   let saved: any = null;

@@ -49,6 +49,9 @@ describe("chordEngine", () => {
     expect(transposeChord("G7/B", 2)).toBe("A7/C#");
     expect(transposeChord("Bbmaj7", 2, true)).toBe("Cmaj7");
     expect(transposeKey("F#m", 1)).toBe("Gm");
+    expect(transposeChord("G♯m", 1)).toBe("Am");
+    expect(transposeChord("E♭/B♭", 1)).toBe("E/B");
+    expect(transposeChord("Galt", 2)).toBe("Aalt");
   });
 
   it("converte ChordPro em linhas renderizáveis", () => {

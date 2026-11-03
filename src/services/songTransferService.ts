@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
 import { prisma } from "../repositories/prismaClient";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
+import { normalizeChordText } from "../utils/chordText";
 import {
   PortableSong,
   SongTransferCommitInput,
@@ -27,7 +28,7 @@ type ExistingSong = {
 };
 
 function normalizedContent(value: string): string {
-  return value.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trim();
+  return normalizeChordText(value).replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trim();
 }
 
 function normalizedUrl(value: string | null | undefined): string | null {
@@ -91,7 +92,7 @@ export class SongTransferService {
         title: song.title,
         artist: song.artist.name,
         originalKey: song.originalKey as PortableSong["originalKey"],
-        content: song.content,
+        content: normalizeChordText(song.content),
         cifraUrl: song.cifraUrl,
       })),
     };

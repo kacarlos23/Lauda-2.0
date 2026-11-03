@@ -82,6 +82,7 @@ for (const width of [390, 1440]) {
     await expect(page.getByTestId("current-key")).toContainText("G#");
     expect(await page.getByTestId(/^traditional-row-/).allTextContents()).toEqual(displayed);
     await page.getByLabel("Editar música", { exact: true }).click();
+    await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();
     const editor = page.getByTestId("song-chord-input");
     await expect(editor).toHaveValue(api.saved().content);
     await expect(editor).toHaveCSS("white-space", "pre");

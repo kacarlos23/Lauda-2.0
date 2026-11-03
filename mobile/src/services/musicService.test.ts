@@ -9,6 +9,16 @@ import { musicService } from "./musicService";
 const mockedApi = api as jest.Mocked<typeof api>;
 
 describe("musicService", () => {
+  it("limpa conteúdo recebido antes de expor música ou prévia de importação", async () => {
+    const raw = "\uFEFFG\u200B\tC\nTexto editado";
+    const clean = "G       C\nTexto editado";
+    mockedApi.get.mockResolvedValueOnce({ data: { data: { id: "song", content: raw } } });
+    expect((await musicService.getSong("song")).content).toBe(clean);
+    mockedApi.get.mockResolvedValueOnce({ data: { data: { items: [{ id: "song", content: raw }], pagination: {} } } });
+    expect((await musicService.listSongs()).items[0].content).toBe(clean);
+    mockedApi.post.mockResolvedValueOnce({ data: { data: { content: raw } } });
+    expect((await musicService.importCifraClub("https://www.cifraclub.com.br/teste/musica/")).content).toBe(clean);
+  });
   beforeEach(() => jest.clearAllMocks());
 
   it("busca artistas com paginação", async () => {

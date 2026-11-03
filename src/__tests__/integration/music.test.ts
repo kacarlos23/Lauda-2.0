@@ -81,10 +81,18 @@ const songLinks = {
 const canonicalVideoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 
 beforeAll(async () => {
-  container = await new GenericContainer("postgres:16-alpine").withEnvironment({
-    POSTGRES_DB: "lauda_music_test", POSTGRES_USER: "test", POSTGRES_PASSWORD: "test",
-  }).withExposedPorts(5432).start();
-  const databaseUrl = `postgresql://test:test@${container.getHost()}:${container.getMappedPort(5432)}/lauda_music_test`;
+  let databaseUrl = process.env.MUSIC_TEST_DATABASE_URL;
+  if (databaseUrl) {
+    const target = new URL(databaseUrl);
+    if (!["127.0.0.1", "localhost"].includes(target.hostname) || target.pathname !== "/lauda_music_test") {
+      throw new Error("MUSIC_TEST_DATABASE_URL deve apontar para um banco local isolado chamado lauda_music_test");
+    }
+  } else {
+    container = await new GenericContainer("postgres:16-alpine").withEnvironment({
+      POSTGRES_DB: "lauda_music_test", POSTGRES_USER: "test", POSTGRES_PASSWORD: "test",
+    }).withExposedPorts(5432).start();
+    databaseUrl = `postgresql://test:test@${container.getHost()}:${container.getMappedPort(5432)}/lauda_music_test`;
+  }
   Object.assign(process.env, {
     DATABASE_URL: databaseUrl,
     JWT_SECRET: "test_access_secret",
@@ -102,6 +110,44 @@ beforeEach(async () => cleanDatabase());
 afterAll(async () => { if (prisma) { await cleanDatabase(); await prisma.$disconnect(); } if (container) await container.stop(); });
 
 describe("Artists and songs API", () => {
+  it("revisa novas cifras e exibe registros antigos limpos sem reescrever o banco", async () => {
+    const tenant = await register("invisible-chords");
+    const artist = await createArtist(tenant.token);
+    const raw = "\uFEFF    G\u200B\tD\nTexto editado 👩‍🎤";
+    const clean = "    G   D\nTexto editado 👩‍🎤";
+    const created = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), content: raw }).expect(201);
+    const id = created.body.data.id;
+    expect(created.body.data.content).toBe(clean);
+    expect((await prisma.song.findUniqueOrThrow({ where: { id } })).content).toBe(clean);
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Sem texto", content: "\u200B\uFEFF" }).expect(400);
+    await prisma.song.update({ where: { id }, data: { content: raw } });
+    const loaded = await request(app).get(`/api/songs/${id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    const listed = await request(app).get("/api/songs").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(loaded.body.data.content).toBe(clean);
+    expect(listed.body.data.items[0].content).toBe(clean);
+    expect((await prisma.song.findUniqueOrThrow({ where: { id } })).content).toBe(raw);
+  });
+
+  it("revisa cifras do catálogo na prévia, na gravação e na exportação", async () => {
+    const tenant = await register("catalog-invisibles");
+    const ministry = await createMinistry(tenant.token, "Louvor de teste");
+    const raw = "\u200BG\tC\nTexto editado";
+    const clean = "G       C\nTexto editado";
+    const document = { format: "lauda.music-catalog", version: 1, songs: [{ title: "Música revisada", artist: "Artista", originalKey: "G", content: raw }] };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document, documentHash: preview.body.data.documentHash }).expect(201);
+    const stored = await prisma.song.findFirstOrThrow({ where: { title: "Música revisada" } });
+    expect(stored.content).toBe(clean);
+    await prisma.song.update({ where: { id: stored.id }, data: { content: raw } });
+    const exported = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id }).expect(200);
+    expect(exported.body.songs[0].content).toBe(clean);
+    expect((await prisma.song.findUniqueOrThrow({ where: { id: stored.id } })).content).toBe(raw);
+  });
   it("persiste o tom padrão junto da cifra editada e respeita tenant e permissão", async () => {
     const tenant = await register("default-key");
     const otherTenant = await register("other-default-key");

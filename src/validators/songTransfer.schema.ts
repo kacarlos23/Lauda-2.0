@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MUSICAL_KEYS } from "./song.schema";
+import { chordContentSchema, MUSICAL_KEYS } from "./song.schema";
 
 const optionalHttpUrl = z.preprocess(
   (value) => typeof value === "string" ? value.trim() || null : value,
@@ -14,7 +14,7 @@ export const portableSongSchema = z.object({
   title: z.string().trim().min(1, "O nome da música é obrigatório").max(200),
   artist: z.string().trim().min(1, "O artista é obrigatório").max(200),
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido"),
-  content: z.string().min(1, "A cifra é obrigatória").max(100_000, "A cifra deve ter no máximo 100 mil caracteres"),
+  content: chordContentSchema,
   cifraUrl: optionalHttpUrl,
 }).strict();
 

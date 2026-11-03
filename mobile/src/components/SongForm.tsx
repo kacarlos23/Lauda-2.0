@@ -24,6 +24,7 @@ import { RichCommentEditor } from "./ui/RichCommentEditor";
 import { nav } from "../navigation/routes";
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 import { VisualChordEditor } from "./songs/VisualChordEditor";
+import { normalizeChordText } from "../../../src/utils/chordText";
 
 type Props = {
   initial?: Song;
@@ -41,7 +42,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [composer, setComposer] = useState(initial?.composer ?? "");
   const [originalKey, setOriginalKey] = useState<MusicalKey>(initial?.originalKey ?? "C");
-  const [content, setContent] = useState(initial?.content ?? "");
+  const [content, setContent] = useState(normalizeChordText(initial?.content ?? ""));
   const [bpm, setBpm] = useState(initial?.bpm?.toString() ?? "");
   const [cifraUrl, setCifraUrl] = useState(initial?.cifraUrl ?? "");
   const [letraUrl, setLetraUrl] = useState(initial?.letraUrl ?? "");
@@ -62,7 +63,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     value: formValue,
     restore: (value) => {
       setArtist(value.artist); setArtistQuery(value.artistQuery); setTitle(value.title); setComposer(value.composer);
-      setOriginalKey(value.originalKey); setContent(value.content); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
+      setOriginalKey(value.originalKey); setContent(normalizeChordText(value.content)); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
       setLetraUrl(value.letraUrl); setAudioUrl(value.audioUrl); setVideoUrl(value.videoUrl); setComments(value.comments); setStep(value.step);
       setFormError(null);
     },
@@ -175,7 +176,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
         setTitle(preview.title);
         setOriginalKey(preview.originalKey);
         setCifraUrl(preview.cifraUrl);
-        setContent(preview.content);
+        setContent(normalizeChordText(preview.content));
         setStep(2);
         setCifraClubModalVisible(false);
         setCifraClubPreview(null);

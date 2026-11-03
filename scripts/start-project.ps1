@@ -315,6 +315,16 @@ function Start-Backend {
   $outLog = Join-Path $ProjectRoot "backend.$mode.out.log"
   $errLog = Join-Path $ProjectRoot "backend.$mode.err.log"
   $runCommand = if ($Production) { "npm start" } else { "npm run dev" }
+  # Reuse the reviewed API build when a published web release references it.
+  $webReleasePath = Join-Path $MobileRoot "dist\release.json"
+  $apiReleasePath = Join-Path $ProjectRoot "dist\release.json"
+  if ($UseStaticFrontend -and -not $Production -and (Test-Path -LiteralPath $webReleasePath) -and (Test-Path -LiteralPath $apiReleasePath)) {
+    $webRelease = Get-Content -LiteralPath $webReleasePath -Raw | ConvertFrom-Json
+    $apiRelease = Get-Content -LiteralPath $apiReleasePath -Raw | ConvertFrom-Json
+    if ($webRelease.environment -eq "production" -and $apiRelease.commit -match '^[a-f0-9]{40}$' -and $webRelease.backendCommit -eq $apiRelease.commit) {
+      $runCommand = "node dist/server.js"
+    }
+  }
   $nodeEnvironment = if ($Production) { "set NODE_ENV=production&& " } else { "" }
   $localRedisEnvironment = if ($Production) { "" } else { "set RATE_LIMIT_STORE=redis&& set RATE_LIMIT_REDIS_URL=$RedisUrl&& set REALTIME_REDIS_URL=$RedisUrl&& " }
   $runtimeEnvironment = "${nodeEnvironment}${localRedisEnvironment}set HOST=$BackendBindHost&& set TRUST_PROXY_HOPS=$TrustProxyHops&& set PORT=$BackendPort&& "

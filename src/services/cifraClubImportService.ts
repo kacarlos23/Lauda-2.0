@@ -80,11 +80,12 @@ export class CifraClubImportService {
       const html = await page.content();
       const metadata = CifraClubImportService.parseSongPage(html, page.url());
       const downloadContent = await this.tryDownloadContent(page);
+      const cleanDownload = downloadContent ? CifraClubImportService.cleanTextFile(downloadContent) : null;
 
       return {
         ...metadata,
-        content: CifraClubImportService.cleanTextFile(downloadContent ? CifraClubImportService.withCapoInstruction(downloadContent, html) : metadata.content),
-        source: downloadContent?.trim() ? "download" : "page-fallback",
+        content: CifraClubImportService.cleanTextFile(cleanDownload?.trim() ? CifraClubImportService.withCapoInstruction(cleanDownload, html) : metadata.content),
+        source: cleanDownload?.trim() ? "download" : "page-fallback",
       };
     } catch (error) {
       if (error instanceof ValidationError || error instanceof ServiceUnavailableError) throw error;

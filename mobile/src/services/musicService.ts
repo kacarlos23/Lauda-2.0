@@ -4,6 +4,7 @@ import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { api } from "./api";
 import { Artist, MusicalKey, Pagination, Song } from "../types";
+import { normalizeChordText, normalizeSongContent } from "../../../src/utils/chordText";
 
 type ApiResponse<T> = { success: boolean; data: T };
 export type Paginated<T> = { items: T[]; pagination: Pagination };
@@ -170,28 +171,28 @@ export const musicService = {
         params: { ...filters, search, page, limit },
         signal,
       });
-      return response.data.data;
+      return { ...response.data.data, items: response.data.data.items.map(normalizeSongContent) };
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
   },
 
   async getSong(id: string): Promise<Song> {
     try {
       const response = await api.get<ApiResponse<Song>>(`/songs/${id}`);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível carregar a música."); }
   },
 
   async createSong(payload: SongPayload): Promise<Song> {
     try {
       const response = await api.post<ApiResponse<Song>>("/songs", payload);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível criar a música."); }
   },
 
   async updateSong(id: string, payload: Partial<SongPayload>): Promise<Song> {
     try {
       const response = await api.patch<ApiResponse<Song>>(`/songs/${id}`, payload);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível atualizar a música."); }
   },
 
@@ -217,7 +218,7 @@ export const musicService = {
   async importCifraClub(url: string): Promise<CifraClubImportResult> {
     try {
       const response = await api.post<ApiResponse<CifraClubImportResult>>("/songs/cifra-club/import", { url }, { timeout: 45000 });
-      return response.data.data;
+      return { ...response.data.data, content: normalizeChordText(response.data.data.content) };
     } catch (error) { apiError(error, "Não foi possível importar a cifra do Cifra Club. Verifique a conexão com o backend e tente novamente."); }
   },
 

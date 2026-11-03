@@ -60,6 +60,20 @@ const searchHtml = `
 `;
 
 describe("CifraClubImportService", () => {
+  it("não expõe download vazio após a revisão de caracteres invisíveis", async () => {
+    const service = new CifraClubImportService();
+    const browser = { close: jest.fn().mockResolvedValue(undefined) };
+    const page = { goto: jest.fn().mockResolvedValue({ status: () => 200, ok: () => true }), url: () => "https://www.cifraclub.com.br/aline-barros/autor-da-vida/", content: jest.fn().mockResolvedValue(songHtml) };
+    const launch = jest.spyOn(CifraClubImportService as any, "launchBrowser").mockResolvedValue(browser);
+    const newPage = jest.spyOn(CifraClubImportService as any, "newPage").mockResolvedValue(page);
+    const download = jest.spyOn(service as any, "tryDownloadContent").mockResolvedValue("\u200B\u2060\uFEFF");
+    try {
+      const result = await service.import(page.url());
+      expect(result.source).toBe("page-fallback");
+      expect(result.content).toContain("[Intro] G  D/F#  Em");
+      expect(result.content).not.toMatch(/[\u200B\u2060\uFEFF]/);
+    } finally { launch.mockRestore(); newPage.mockRestore(); download.mockRestore(); }
+  });
   it("preserva colunas de elementos inline e limpa invisíveis sem remover os espaços iniciais", () => {
     const html = songHtml.replace(/<pre>[\s\S]*?<\/pre>/, "<pre>\n\u200b    <span>G</span>  <b>D/F#</b>\n&#8203;G\tC\nTexto &lt;editado&gt;<br>Outra linha\n\n</pre>");
     const imported = CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");

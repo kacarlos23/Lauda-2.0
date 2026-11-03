@@ -1,6 +1,6 @@
 /** Text conventions shared by import, the viewer, transposition and PDF export. */
 export function normalizeChordText(content: string): string {
-  return content.replace(/[\u200B\uFEFF]/g, "").replace(/[\u00A0\u202F]/g, " ")
+  return content.replace(/[\u200B\u2060\uFEFF]/g, "").replace(/[\u00A0\u202F]/g, " ")
     .split(/(\r?\n)/).map((line) => {
       let addedColumns = 0;
       return line.replace(/\t/g, (_, index: number) => {
@@ -11,9 +11,16 @@ export function normalizeChordText(content: string): string {
     }).join("");
 }
 
+/** Clean response data without modifying stored records during a read. */
+export function normalizeSongContent<T extends { content: string }>(song: T): T {
+  if (typeof song.content !== "string") return song;
+  const content = normalizeChordText(song.content);
+  return content === song.content ? song : { ...song, content };
+}
+
 // Allow common Brazilian spellings (C7M, Em7(9), A7(9/13)) without
 // mistaking words such as [Final], [Bridge] or [Amigos] for chords.
-const chordSymbol = /^[A-G](?:#|b)?(?:(?:maj|min|dim|aug|sus|add|m|M|ø|°|Δ)|\d|[#b+()\-]|\/(?=\d))*(?:\/[A-G](?:#|b)?)?$/;
+const chordSymbol = /^[A-G](?:#|b|♯|♭)?(?:(?:maj|min|dim|aug|sus|add|omit|alt|no)|[Mm\d#b♯♭()+°ºøΔ^\-]|\/\d+)*(?:\/[A-G](?:#|b|♯|♭)?)?$/;
 export function isChordSymbol(value: string): boolean {
   const symbol = value.startsWith("(") && value.endsWith(")") ? value.slice(1, -1) : value;
   return chordSymbol.test(symbol);

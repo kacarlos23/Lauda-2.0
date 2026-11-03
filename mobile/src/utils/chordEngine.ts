@@ -22,7 +22,7 @@ export function transposeChord(symbol: string, semitones: number, preferFlats = 
   return symbol.split(/([\s,|]+)/).map((token) => {
     if (!isChordSymbol(token)) return token;
     if (token.startsWith("(") && token.endsWith(")")) return `(${transposeChord(token.slice(1, -1), semitones, preferFlats)})`;
-    const match = token.match(CHORD);
+    const match = token.replace(/♯/g, "#").replace(/♭/g, "b").match(CHORD);
     if (!match) return token;
     const [, root, suffix, bass] = match;
     return `${shiftedNote(root, semitones, preferFlats)}${suffix}${bass ? `/${shiftedNote(bass, semitones, preferFlats)}` : ""}`;
