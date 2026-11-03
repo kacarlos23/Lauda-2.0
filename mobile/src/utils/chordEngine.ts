@@ -1,9 +1,11 @@
 import { ChordProParser, ChordsOverWordsParser } from "chordsheetjs";
 import { Note } from "tonal";
+import { hasInlineChords, isChordSymbol, isTraditionalChordLine, mapTraditionalChordLine, normalizeChordText } from "../../../src/utils/chordText";
 
 export type ChordSegment = { chord: string; lyrics: string; annotation?: string };
 export type ChordLine = { type: string; segments: ChordSegment[] };
-export type RenderableChordSheet = { lines: ChordLine[]; warnings: string[] };
+export type TraditionalChordRow = { text: string; chord: boolean };
+export type RenderableChordSheet = { lines: ChordLine[]; warnings: string[]; traditionalRows?: TraditionalChordRow[] };
 
 const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
@@ -15,9 +17,11 @@ function shiftedNote(note: string, semitones: number, preferFlats: boolean) {
   return (preferFlats ? FLATS : SHARPS)[(chroma + semitones % 12 + 12) % 12];
 }
 
-export function transposeChord(symbol: string, semitones: number, preferFlats = symbol.includes("b")) {
+export function transposeChord(symbol: string, semitones: number, preferFlats = symbol.includes("b")): string {
   if (!symbol || semitones === 0) return symbol;
   return symbol.split(/([\s,|]+)/).map((token) => {
+    if (!isChordSymbol(token)) return token;
+    if (token.startsWith("(") && token.endsWith(")")) return `(${transposeChord(token.slice(1, -1), semitones, preferFlats)})`;
     const match = token.match(CHORD);
     if (!match) return token;
     const [, root, suffix, bass] = match;
@@ -38,7 +42,8 @@ type ParserLine = { type?: string; items?: ParserItem[] };
 export function transposeChordSheetContent(content: string, semitones: number, originalKey: string): string {
   if (!semitones) return content;
   const preferFlats = originalKey.includes("b");
-  const isChordPro = /\[[A-G][#b]?(?:[^\]]*)\]|\{(?:start_of_|soc|title:|key:)/i.test(content);
+  content = normalizeChordText(content);
+  const isChordPro = hasInlineChords(content);
   const parser = isChordPro ? new ChordProParser() : new ChordsOverWordsParser();
   try {
     parser.parse(content);
@@ -59,23 +64,7 @@ export function transposeChordSheetContent(content: string, semitones: number, o
   return content.split(/(\r?\n)/).map((line) => {
     if (!line || /^\r?\n$/.test(line)) return line;
     if (line.trimStart().startsWith("{")) return line.replace(/\{[^}]*\}/g, transposeDirective);
-    const parsed = new ChordsOverWordsParser().parse(line);
-    const chords = new Set(parsed.lines.flatMap((item) => item.items)
-      .filter((item): item is typeof item & { chords: string } => "chords" in item && typeof item.chords === "string")
-      .map((item) => item.chords).filter(Boolean));
-    if (!chords.size) return line;
-
-    // Keep chord columns aligned with the unchanged lyric line when a # adds width.
-    let result = "";
-    let end = 0;
-    for (const match of line.matchAll(/\S+/g)) {
-      const start = match.index!;
-      const gap = line.slice(end, start);
-      result += /\t/.test(gap) ? gap : " ".repeat(Math.max(gap ? 1 : 0, start - result.length));
-      result += chords.has(match[0]) ? transposeChord(match[0], semitones, preferFlats) : match[0];
-      end = start + match[0].length;
-    }
-    return result + line.slice(end);
+    return mapTraditionalChordLine(line, (symbol) => transposeChord(symbol, semitones, preferFlats));
   }).join("");
 }
 
@@ -90,7 +79,8 @@ function plainTextFallback(content: string): RenderableChordSheet {
 }
 
 export function parseChordSheet(content: string, semitones = 0, originalKey = "C"): RenderableChordSheet {
-  const isChordPro = /\[[A-G][#b]?(?:[^\]]*)\]|\{(?:start_of_|soc|title:|key:)/i.test(content);
+  content = normalizeChordText(content);
+  const isChordPro = hasInlineChords(content);
   const parser = isChordPro ? new ChordProParser() : new ChordsOverWordsParser();
   let song: { lines?: ParserLine[]; warnings?: Array<{ message?: string } | string> };
 
@@ -103,6 +93,10 @@ export function parseChordSheet(content: string, semitones = 0, originalKey = "C
   const preferFlats = originalKey.includes("b");
 
   return {
+    ...(!isChordPro ? { traditionalRows: content.split(/\r?\n/).map((text) => ({
+      text: mapTraditionalChordLine(text, (symbol) => transposeChord(symbol, semitones, preferFlats)),
+      chord: isTraditionalChordLine(text),
+    })) } : {}),
     lines: (song.lines ?? []).map((line) => ({
       type: line.type ?? "none",
       segments: (line.items ?? [])

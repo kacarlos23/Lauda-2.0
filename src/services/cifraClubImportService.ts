@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { Browser, chromium, Download, LaunchOptions, Page, Response } from "playwright";
 import { NotFoundError, ServiceUnavailableError, ValidationError } from "../errors/AppError";
 import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
+import { normalizeChordText } from "../utils/chordText";
 
 const BASE_URL = "https://www.cifraclub.com.br";
 const MAX_GENERAL_SEARCH_PAGES = 2;
@@ -82,7 +83,7 @@ export class CifraClubImportService {
 
       return {
         ...metadata,
-        content: downloadContent ? CifraClubImportService.withCapoInstruction(downloadContent, html) : metadata.content,
+        content: CifraClubImportService.cleanTextFile(downloadContent ? CifraClubImportService.withCapoInstruction(downloadContent, html) : metadata.content),
         source: downloadContent?.trim() ? "download" : "page-fallback",
       };
     } catch (error) {
@@ -351,11 +352,12 @@ export class CifraClubImportService {
         if (text && !text.endsWith("\n")) text += "\n";
       } else if (!token.startsWith("<")) text += token;
     }
-    return this.decodeEntities(text)
-      .replace(/\u00a0/g, " ")
-      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
-      .replace(/[ \t]+\n/g, "\n")
-      .trim();
+    return this.cleanTextFile(this.decodeEntities(text));
+  }
+
+  private static cleanTextFile(value: string): string {
+    // Keep horizontal padding on the first chord row: it positions the notes.
+    return normalizeChordText(value).replace(/^(?:[ \t]*\r?\n)+|(?:\r?\n[ \t]*)+$/g, "");
   }
 
   private static cleanText(value: string): string {

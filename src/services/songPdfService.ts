@@ -2,6 +2,7 @@ import path from "path";
 import PDFDocument from "pdfkit";
 import { Prisma } from "@prisma/client";
 import { songSelect } from "../repositories/songRepository";
+import { hasInlineChords, isChordSymbol, isTraditionalChordLine, mapTraditionalChordLine, normalizeChordText } from "../utils/chordText";
 
 type ExportSong = Prisma.SongGetPayload<{ select: typeof songSelect }>;
 type ExportSongInput = ExportSong & { semitoneOffset?: number };
@@ -14,7 +15,6 @@ const monoBoldFont = path.join(fontRoot, "DejaVuSansMono-Bold.ttf");
 
 type PrintableLine = { kind: "chord" | "lyrics" | "section" | "blank"; text: string };
 
-const chordToken = /^[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add|M)?\d*(?:[()/+#b0-9-]*)?$/;
 const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const CHORD = /^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/;
@@ -39,9 +39,11 @@ function shiftedNote(note: string, semitones: number, preferFlats: boolean) {
   return (preferFlats ? FLATS : SHARPS)[(chroma + semitones % 12 + 12) % 12];
 }
 
-function transposeChord(symbol: string, semitones: number, preferFlats = symbol.includes("b")) {
+function transposeChord(symbol: string, semitones: number, preferFlats = symbol.includes("b")): string {
   if (!symbol || semitones === 0) return symbol;
   return symbol.split(/([\s,|]+)/).map((token) => {
+    if (!isChordSymbol(token)) return token;
+    if (token.startsWith("(") && token.endsWith(")")) return `(${transposeChord(token.slice(1, -1), semitones, preferFlats)})`;
     const match = token.match(CHORD);
     if (!match) return token;
     const [, root, suffix, bass] = match;
@@ -55,31 +57,28 @@ function transposeKey(key: string, semitones: number) {
   return `${shiftedNote(match[1], semitones, key.includes("b"))}${match[2]}`;
 }
 
-function isLegacyChordLine(line: string) {
-  const tokens = line.trim().replace(/[|,]/g, " ").split(/\s+/).filter(Boolean);
-  return tokens.length > 0 && tokens.every((token) => chordToken.test(token));
-}
-
 function printableChordPro(content: string, semitones = 0, originalKey = "C"): PrintableLine[] {
   const preferFlats = originalKey.includes("b");
-  return content.split("\n").flatMap((line): PrintableLine[] => {
+  return normalizeChordText(content).split(/\r?\n/).flatMap((line): PrintableLine[] => {
     const directive = line.match(/^\{(?:start_of_)?(chorus|verse|bridge|tab)(?::[^}]*)?\}$/i);
     if (directive) return [{ kind: "section", text: directive[1].toUpperCase() }];
     if (/^\{[^}]+\}$/.test(line)) return [];
     if (!line) return [{ kind: "blank", text: " " }];
+    if (!hasInlineChords(line)) {
+      const isChord = isTraditionalChordLine(line);
+      return [{ kind: isChord ? "chord" : "lyrics", text: isChord
+        ? mapTraditionalChordLine(line, (symbol) => transposeChord(symbol, semitones, preferFlats)) : line }];
+    }
     const chordLine: string[] = [];
     let lyrics = "";
     let cursor = 0;
     for (const match of line.matchAll(/\[([^\]]+)\]/g)) {
+      if (!hasInlineChords(match[0])) continue;
       const text = line.slice(cursor, match.index);
       lyrics += text;
       while (chordLine.length < lyrics.length) chordLine.push(" ");
       transposeChord(match[1], semitones, preferFlats).split("").forEach((character, index) => { chordLine[lyrics.length + index] = character; });
       cursor = (match.index ?? 0) + match[0].length;
-    }
-    if (!cursor) {
-      const isChord = isLegacyChordLine(line);
-      return [{ kind: isChord ? "chord" : "lyrics", text: isChord ? transposeChord(line, semitones, preferFlats) : line }];
     }
     lyrics += line.slice(cursor);
     return [

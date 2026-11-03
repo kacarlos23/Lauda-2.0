@@ -1,5 +1,5 @@
-import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { memo, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { parseChordSheet } from "../utils/chordEngine";
 import { colors, fontFamilies, fontSizes, fontWeights, spacing } from "../theme";
 
@@ -7,7 +7,23 @@ type Props = { content: string; originalKey: string; semitones: number; fontSize
 
 export const ChordSheetView = memo(function ChordSheetView({ content, originalKey, semitones, fontSize }: Props) {
   const sheet = useMemo(() => parseChordSheet(content, semitones, originalKey), [content, originalKey, semitones]);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [sourceWidth, setSourceWidth] = useState(0);
   let previousType = "none";
+
+  if (sheet.traditionalRows) return <View accessibilityLabel="Cifra da música">
+    {sourceWidth > viewportWidth && viewportWidth > 0 ? <Text style={styles.scrollHint} testID="traditional-scroll-hint">Deslize na horizontal para ver linhas longas.</Text> : null}
+    <ScrollView horizontal nestedScrollEnabled testID="traditional-sheet-scroll"
+      onLayout={(event) => setViewportWidth(event.nativeEvent.layout.width)}
+      onContentSizeChange={(width) => setSourceWidth(width)}>
+      <View style={styles.traditionalContent}>
+        {sheet.traditionalRows.map((row, index) => <Text key={index} selectable
+          testID={`traditional-row-${index}`}
+          style={[styles.traditionalRow, row.chord && styles.traditionalChord, { fontSize, lineHeight: fontSize * 1.45 }]}
+        >{row.text || " "}</Text>)}
+      </View>
+    </ScrollView>
+  </View>;
 
   return <View accessibilityLabel="Cifra da música">
     {sheet.lines.map((line, lineIndex) => {
@@ -27,6 +43,10 @@ export const ChordSheetView = memo(function ChordSheetView({ content, originalKe
 });
 
 const styles = StyleSheet.create({
+  traditionalContent: { alignItems: "flex-start" },
+  scrollHint: { color: colors.muted, fontSize: fontSizes.s11, marginBottom: spacing.sm },
+  traditionalRow: { color: colors.ink, fontFamily: fontFamilies.monospace, flexShrink: 0 },
+  traditionalChord: { color: colors.primary, fontWeight: fontWeights.extrabold },
   line: { minHeight: 8 },
   segments: { flexDirection: "row", flexWrap: "wrap" },
   segment: { flexShrink: 0 },

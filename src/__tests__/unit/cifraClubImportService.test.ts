@@ -60,6 +60,11 @@ const searchHtml = `
 `;
 
 describe("CifraClubImportService", () => {
+  it("preserva colunas de elementos inline e limpa invisíveis sem remover os espaços iniciais", () => {
+    const html = songHtml.replace(/<pre>[\s\S]*?<\/pre>/, "<pre>\n\u200b    <span>G</span>  <b>D/F#</b>\n&#8203;G\tC\nTexto &lt;editado&gt;<br>Outra linha\n\n</pre>");
+    const imported = CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");
+    expect(imported.content).toBe("    G  D/F#\nG       C\nTexto <editado>\nOutra linha");
+  });
   afterEach(() => jest.restoreAllMocks());
 
   const modernCard = (artist: string, slug: string, title: string, key = "") => `

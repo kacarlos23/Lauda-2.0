@@ -1,6 +1,25 @@
 import { parseChordSheet, transposeChord, transposeKey, transposeChordSheetContent } from "./chordEngine";
 
 describe("chordEngine", () => {
+  it("reconhece cifras importadas com caracteres invisíveis e preserva todas as linhas", () => {
+    const content = "\u200B[Intro] G  D/F#\n\n\u200B    G        D/F#\n\u200BTexto de teste\n[Final]\nC      G";
+    const sheet = parseChordSheet(content, 1, "G");
+    expect(sheet.traditionalRows?.map((row) => row.text)).toEqual([
+      "[Intro] G# D#/G", "", "    G#       D#/G", "Texto de teste", "[Final]", "C#     G#",
+    ]);
+    expect(sheet.traditionalRows?.filter((row) => row.chord)).toHaveLength(3);
+    expect(sheet.warnings).toEqual([]);
+  });
+
+  it("mantém cabeçalhos, letras e tablaturas ao salvar e reabrir o formato tradicional", () => {
+    const content = "[Intro] G  C  G  Em\nG7/B       C7M(9)\nA letra editada fica como está\n[Bridge]\nEm7(9)  Dsus4\ne|----0---|\nB|--1-----|\nG|0-------|";
+    const saved = transposeChordSheetContent(content, 2, "G");
+    expect(saved).toContain("[Intro] A  D  A  F#m");
+    expect(saved).toContain("A7/C#      D7M(9)");
+    expect(saved).toContain("A letra editada fica como está\n[Bridge]\nF#m7(9) Esus4");
+    expect(saved).toContain("e|----0---|\nB|--1-----|\nG|0-------|");
+    expect(parseChordSheet(saved, 0, "A").traditionalRows).toEqual(parseChordSheet(content, 2, "G").traditionalRows);
+  });
   it("salva acordes ChordPro e tom sem reescrever texto, seções ou comentários", () => {
     const content = "{title: Canção editada}\r\n{key: G}\r\n{comment: Entrada [C]}\r\n{start_of_chorus}\r\n[G]Grande é o [D/F#]Senhor [Em7]aqui\r\n{end_of_chorus}";
     const saved = transposeChordSheetContent(content, 2, "G");
