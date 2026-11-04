@@ -23,10 +23,19 @@ export const participationSchema = z.object({
   momentDescription: z.string().trim().max(120).nullable().optional(),
   videoUrlOverride: z.string().trim().max(2048).refine((value) => !value || Boolean(youtubeUrl(value)), "Informe um link HTTPS válido do YouTube").nullable().optional(),
 });
+export const worshipReadingSchema = z.object({
+  id: z.string().min(1).max(100),
+  text: z.string().min(1).max(12000).refine((value) => Boolean(value.trim()), "Informe a leitura bíblica"),
+  position: z.number().int().min(0),
+});
+export type WorshipReading = z.infer<typeof worshipReadingSchema>;
 const periodSchema = z.object({
   scheduleId: z.string().uuid(),
+  readings: z.array(worshipReadingSchema).max(100).optional(),
   songs: z.array(participationSchema).refine((songs) => new Set(songs.map((song) => song.songId)).size === songs.length, "Música duplicada na escala"),
-});
+}).refine(({ readings = [], songs }) => new Set(readings.map((r) => r.id)).size === readings.length
+  && new Set(readings.map((r) => r.position)).size === readings.length
+  && readings.every((r) => r.position < songs.length + readings.length), "Posição ou identificação de leitura inválida");
 export const worshipOrderSchema = z.object({
   morning: periodSchema.nullable(),
   evening: periodSchema.nullable(),

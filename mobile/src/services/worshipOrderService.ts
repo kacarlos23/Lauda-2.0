@@ -2,7 +2,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { api } from "./api";
-import { Schedule } from "../types";
+import { Schedule, WorshipReading } from "../types";
 import { AxiosError } from "axios";
 
 import { worshipMoments } from "../utils/worshipOrder";
@@ -11,6 +11,7 @@ export type WorshipMoment = typeof worshipMoments[number];
 export type WorshipOrder = { date: string; churchName?: string | null; morning: Schedule | null; evening: Schedule | null };
 export type WorshipOrderPayload = Record<"morning" | "evening", {
   scheduleId: string;
+  readings?: WorshipReading[];
   songs: Array<{ songId: string; moment: string; momentDescription?: string | null; videoUrlOverride?: string | null }>;
 } | null>;
 const endpoint = (date: string) => `/schedules/worship-order/${date}`;

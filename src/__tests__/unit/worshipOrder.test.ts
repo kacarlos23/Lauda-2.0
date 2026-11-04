@@ -11,6 +11,23 @@ const song = (index: number, video = true) => ({
   order: index, moment: "Ofertório", song: { title: `${index + 1} - Grandioso És Tu`, artist: { name: "Paulo César Baruk, Leandro Rodrigues e Preto no Branco" }, videoUrl: video ? `https://www.youtube.com/watch?v=video${index}` : null },
 });
 describe("Ordem de Culto", () => {
+  it("preserva texto livre e valida posições e identificações das leituras", () => {
+    const readings = [{ id: "reading-1", text: "  João 3:16\n\nPorque Deus amou o mundo.  ", position: 1 }];
+    const input = { morning: { scheduleId, songs: [{ songId }], readings }, evening: null };
+    expect(worshipOrderSchema.parse(input).morning?.readings).toEqual(readings);
+    for (const invalid of [
+      [{ ...readings[0], text: " \n " }], [{ ...readings[0], position: -1 }], [{ ...readings[0], position: 2 }],
+      [readings[0], { ...readings[0], position: 0 }], [readings[0], { ...readings[0], id: "another" }],
+    ]) expect(worshipOrderSchema.safeParse({ ...input, morning: { ...input.morning, readings: invalid } }).success).toBe(false);
+  });
+  it("gera PDF somente com leitura e pagina leitura longa antes da próxima música", async () => {
+    const reading = { id: "reading", position: 0, text: "Salmo 23\n" + "O Senhor é meu pastor.\n".repeat(180) };
+    const data = { date: "2026-10-18", morning: { title: "Celebração", songs: [song(0)], readings: [reading] } };
+    const raw = (await new WorshipOrderPdfService().generate(data)).toString("latin1");
+    expect(raw.match(/\/Type \/Page\b/g)!.length).toBeGreaterThan(2);
+    expect(raw).toContain("/URI (https://www.youtube.com/watch?v=video0)");
+    expect((await new WorshipOrderPdfService().generate({ ...data, morning: { ...data.morning, songs: [] } })).toString("latin1")).toMatch(/^%PDF/);
+  });
   afterEach(() => jest.restoreAllMocks());
   it.each([true, false])("incorpora foto válida e tolera imagem corrompida (%s)", async (valid) => {
     const bytes = valid ? readFileSync(path.resolve("mobile/assets/brand/png/lauda-symbol-512.png")) : Buffer.from("broken-image");

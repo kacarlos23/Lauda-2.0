@@ -22,7 +22,7 @@ export class WorshipOrderController extends BaseController {
   async export(req: Request, res: Response) {
     const date = worshipDateSchema.parse(req.params.date);
     const order = await new WorshipOrderRepository(req.user!.tenantId).find(date);
-    if (!order || (!order.morning?.songs.length && !order.evening?.songs.length)) throw new ValidationError("Salve uma ordem com ao menos uma música antes de exportar");
+    if (!order || ![order.morning, order.evening].some((period) => period && (period.songs.length || period.readings.length))) throw new ValidationError("Salve uma ordem com ao menos uma música ou leitura antes de exportar");
     const pdf = await new WorshipOrderPdfService().generate(order);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "private, no-store");

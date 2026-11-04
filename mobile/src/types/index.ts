@@ -125,6 +125,7 @@ export interface ScheduleMinistry {
 }
 
 export interface Schedule {
+  readings?: WorshipReading[];
   morningOrders?: Array<{ date: string }>;
   eveningOrders?: Array<{ date: string }>;
   id: string;
@@ -139,6 +140,8 @@ export interface Schedule {
   assignments?: ScheduleAssignment[];
   songs?: ScheduleSong[];
 }
+
+export type WorshipReading = { id: string; text: string; position: number };
 
 export interface ScheduleAssignment {
   id: string;
