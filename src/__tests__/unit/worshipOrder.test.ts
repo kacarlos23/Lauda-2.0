@@ -4,6 +4,7 @@ import { createScheduleSchema } from "../../validators/schedule.validator";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import * as artistImages from "../../services/pdfArtistImage";
+import PDFDocument from "pdfkit";
 
 const scheduleId = "123e4567-e89b-42d3-a456-426614174000";
 const songId = "123e4567-e89b-42d3-a456-426614174001";
@@ -11,6 +12,18 @@ const song = (index: number, video = true) => ({
   order: index, moment: "Ofertório", song: { title: `${index + 1} - Grandioso És Tu`, artist: { name: "Paulo César Baruk, Leandro Rodrigues e Preto no Branco" }, videoUrl: video ? `https://www.youtube.com/watch?v=video${index}` : null },
 });
 describe("Ordem de Culto", () => {
+  it("omite os títulos internos das escalas e mantém os períodos e as músicas no PDF", async () => {
+    const rendered = jest.spyOn(PDFDocument.prototype, "text");
+    await new WorshipOrderPdfService().generate({
+      date: "2026-11-08",
+      morning: { title: "Título interno da escala da manhã", songs: [song(0)] },
+      evening: { title: "Título interno da escala da noite", songs: [song(1)] },
+    });
+    const texts = rendered.mock.calls.map(([value]) => value);
+    expect(texts).toEqual(expect.arrayContaining(["ORDEM DE CULTO", "CULTO DA MANHÃ", "CULTO DA NOITE", song(0).song.title, song(1).song.title]));
+    expect(texts).not.toContain("Título interno da escala da manhã");
+    expect(texts).not.toContain("Título interno da escala da noite");
+  });
   it("preserva texto livre e valida posições e identificações das leituras", () => {
     const readings = [{ id: "reading-1", text: "  João 3:16\n\nPorque Deus amou o mundo.  ", position: 1 }];
     const input = { morning: { scheduleId, songs: [{ songId }], readings }, evening: null };

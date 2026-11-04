@@ -57,10 +57,6 @@ export class WorshipOrderPdfService {
             doc.font("Bold").fontSize(12).fillColor(green).text(label + (continued ? " · continuação" : ""), x, y, { width });
             doc.font("Body").fontSize(9).fillColor("#65746D").text(`${songs.length} ${songs.length === 1 ? "música" : "músicas"}`, x, y + 18, { width });
             y += 34;
-            if (period.title) {
-              doc.font("Body").fontSize(10).fillColor("#172C25").text(text(period.title), x, y, { width });
-              y = doc.y + 10;
-            }
           };
           const textX = x + 64, textWidth = width - 118;
           const measure = (entry: Participation) => {
