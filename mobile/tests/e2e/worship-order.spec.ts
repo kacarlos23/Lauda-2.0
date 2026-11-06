@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-test.use({ channel: "chromium" });
-
 async function animatedDrag(page: import("@playwright/test").Page) {
   const handle = page.getByTestId("drag-526 - Grandioso És Tu");
   await handle.scrollIntoViewIfNeeded();
@@ -44,6 +42,11 @@ for (const width of [390, 1440]) {
     await page.addInitScript(({ user, tenant }) => {
       localStorage.setItem("auth_token", "test-token"); localStorage.setItem("refresh_token", "test-refresh");
       localStorage.setItem("auth_user", JSON.stringify(user)); localStorage.setItem("auth_tenant", JSON.stringify(tenant));
+      const createObjectURL = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = (blob: Blob) => {
+        if (blob.type === "application/pdf") (window as any).__pdfBlob = { type: blob.type, size: blob.size };
+        return createObjectURL(blob);
+      };
     }, { user, tenant });
     const songs = ["526 - Grandioso És Tu", "Cantarei Teu Amor"].map((title, order) => ({
       id: `entry-${order}`, songId: `song-${order}`, order, moment: "Louvor",
@@ -61,6 +64,7 @@ for (const width of [390, 1440]) {
       let data: unknown = [];
       if (path === "/api/auth/me") data = { user, tenant, permissions };
       if (path === "/api/schedules") data = [morning, evening];
+      if (path === `/api/schedules/${morning.id}`) data = morning;
       if (path === "/api/ministries") data = [{ id: "ministry", name: "Louvor" }];
       if (path === "/api/songs") data = { items: songs.map((entry) => entry.song), pagination: { page: 1, totalPages: 1 } };
       if (path.endsWith("/worship-order/2026-10-18")) {
@@ -79,6 +83,11 @@ for (const width of [390, 1440]) {
     await expect(page).toHaveTitle("Ordem de Culto | Lauda");
     await page.getByRole("button", { name: "Selecionar escala", exact: true }).first().click();
     await page.getByRole("button", { name: /Escala A/ }).click();
+    for (const name of ["Adicionar música do repertório", "Adicionar leitura bíblica"]) {
+      const action = page.getByRole("button", { name, exact: true });
+      await expect(action).toBeVisible();
+      expect((await action.boundingBox())!.width).toBeLessThan(250);
+    }
     await expect(page.getByRole("button", { name: /^Atualizar data/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Carregar data", exact: true })).toHaveCount(0);
     await expect(page.getByText("YouTube específico (opcional)", { exact: true })).toHaveCount(0);
@@ -101,7 +110,8 @@ for (const width of [390, 1440]) {
     const preview = page.waitForEvent("popup");
     await page.getByRole("button", { name: "Prévia do PDF", exact: true }).click();
     const popup = await preview;
-    await popup.waitForURL(/^blob:/);
+    // Headless Chromium has no PDF viewer; verify the actual PDF blob instead.
+    await expect.poll(() => page.evaluate(() => (window as any).__pdfBlob)).toEqual({ type: "application/pdf", size: pdfBytes.length });
     await popup.close();
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Exportar PDF", exact: true }).click();

@@ -13,7 +13,7 @@ import { scheduleService } from "../../../src/services/scheduleService";
 import { musicService } from "../../../src/services/musicService";
 import { worshipOrderService, WorshipOrderPayload } from "../../../src/services/worshipOrderService";
 import { nav } from "../../../src/navigation/routes";
-import { RefreshCw } from "lucide-react-native";
+import { BookOpen, CalendarDays, Download, Eye, FileText, Music2, Plus, RefreshCw, Save } from "lucide-react-native";
 import { ScheduleSongCard } from "../../../src/components/schedules/ScheduleSongCard";
 import { ScheduleParticipationFields } from "../../../src/components/schedules/ScheduleWorshipFields";
 import { SortableSongList, moveListItem } from "../../../src/components/schedules/SortableSongList";
@@ -187,7 +187,7 @@ export default function WorshipOrderScreen() {
         <Text accessibilityRole="header" style={styles.periodTitle}>{period === "morning" ? "CULTO DA MANHÃ" : "CULTO DA NOITE"}</Text>
         <Text style={styles.muted}>{schedule ? `${schedule.title} · ${schedule.songs?.length ?? 0} músicas` : "Período não incluído"}</Text>
         {canEdit ? <View style={styles.actions}>
-          <Button title="Selecionar escala" variant="secondary" disabled={!ready} onPress={() => openPicker("schedule", period)} />
+          <Button title="Selecionar escala" size="sm" icon={<CalendarDays size={iconSizes.s18} />} variant="secondary" disabled={!ready} onPress={() => openPicker("schedule", period)} />
           {schedule ? <Button title="Não incluir período" variant="ghost" disabled={!ready} onPress={() => updatePeriod(period, null)} /> : null}
         </View> : null}
         <SortableSongList items={items} itemKey={(item) => item.kind === "song" ? item.entry.songId : `reading:${item.entry.id}`} itemLabel={(item) => item.kind === "song" ? item.entry.song.title : `leitura ${items.indexOf(item) + 1}`}
@@ -212,18 +212,25 @@ export default function WorshipOrderScreen() {
           />; }}
         />
         {schedule && !schedule.songs?.length ? <Text style={styles.muted}>Nenhuma música nesta escala.</Text> : null}
-        {schedule && canSongs && canManageMusic(user, "song:view") ? <Button title="Adicionar música do repertório" variant="secondary" disabled={!ready} onPress={() => openPicker("song", period)} /> : null}
-        {schedule && canEdit ? <Button title="Adicionar leitura bíblica" variant="secondary" disabled={!ready} onPress={() => { setReadingText(""); setReadingEditor({ period }); }} /> : null}
+        {schedule && canEdit ? <View style={styles.addBar}>
+          <View style={styles.addLabel}><Plus size={iconSizes.s16} color={colors.muted} /><Text style={styles.addLabelText}>Incluir na ordem</Text></View>
+          <View style={styles.actions}>
+            {canSongs && canManageMusic(user, "song:view") ? <Button title="Música" accessibilityLabel="Adicionar música do repertório" size="sm" style={styles.compactAction} icon={<Music2 size={iconSizes.s18} />} variant="secondary" disabled={!ready} onPress={() => openPicker("song", period)} /> : null}
+            <Button title="Leitura bíblica" accessibilityLabel="Adicionar leitura bíblica" size="sm" style={styles.compactAction} icon={<BookOpen size={iconSizes.s18} />} variant="secondary" disabled={!ready} onPress={() => { setReadingText(""); setReadingEditor({ period }); }} />
+          </View>
+        </View> : null}
       </View>;
     })}
     {dirty ? <Text style={styles.muted}>Há alterações pendentes. Salve antes de visualizar ou exportar.</Text> : null}
-    <View style={styles.actions}>
-      {canEdit ? <Button title="Salvar alterações" loading={busy} disabled={!ready || !dirty || (!periods.morning && !periods.evening)} onPress={() => void save()} /> : null}
+    <View style={styles.documentActions}>
+      {canEdit ? <Button title="Salvar alterações" size="sm" icon={<Save size={iconSizes.s18} />} loading={busy} disabled={!ready || !dirty || (!periods.morning && !periods.evening)} onPress={() => void save()} /> : null}
+      <View style={styles.actions}>
       {canExport ? <>
-        <Button title="Visualizar texto" variant="secondary" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => { setCopyMessage(""); setTextVisible(true); }} />
-        <Button title="Prévia do PDF" variant="secondary" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(true)} />
-        <Button title="Exportar PDF" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(false)} />
+        <Button title="Visualizar texto" size="sm" icon={<FileText size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => { setCopyMessage(""); setTextVisible(true); }} />
+        <Button title="Prévia do PDF" size="sm" icon={<Eye size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(true)} />
+        <Button title="Exportar PDF" size="sm" icon={<Download size={iconSizes.s18} />} variant="secondary" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(false)} />
       </> : null}
+      </View>
     </View>
     <Modal visible={Boolean(readingEditor)} transparent animationType="fade" onRequestClose={() => setReadingEditor(null)}>
       <View style={styles.backdrop}><View style={styles.modal}>
@@ -286,6 +293,11 @@ const styles = StyleSheet.create({
   eveningSection: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.xl, marginTop: spacing.xl },
   card: { gap: spacing.sm },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  addBar: { alignSelf: "flex-start", maxWidth: "100%", gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surfaceMuted, borderRadius: 12 },
+  addLabel: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  addLabelText: { ...typography.metadata, color: colors.muted },
+  compactAction: { flexGrow: 0, alignSelf: "flex-start" },
+  documentActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg },
   backdrop: { flex: 1, backgroundColor: overlays.modal, justifyContent: "center", alignItems: "center", padding: spacing.lg },
   modal: { backgroundColor: colors.surface, width: "100%", maxWidth: 680, maxHeight: "90%", padding: spacing.lg, borderRadius: 16, gap: spacing.md },
 });

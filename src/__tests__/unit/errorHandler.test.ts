@@ -10,6 +10,16 @@ function response(): Response {
 }
 
 describe("errorHandler logging", () => {
+  it.each([
+    ["entity.too.large", 413, "PAYLOAD_TOO_LARGE"],
+    ["entity.parse.failed", 400, "INVALID_JSON"],
+  ])("returns a client error for %s", (type, status, code) => {
+    const res = response();
+    errorHandler(Object.assign(new Error("body-parser"), { type }), {} as Request, res, jest.fn());
+    expect(res.status).toHaveBeenCalledWith(status);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false, code }));
+  });
+
   it("does not log error messages that may contain credentials or PII", () => {
     const records: string[] = [];
     setLogSinkForTests((record) => records.push(record));

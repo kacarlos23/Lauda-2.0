@@ -510,4 +510,111 @@ describe("Artists and songs API", () => {
       details: { songIds: [removed.body.data.id] },
     });
   });
+  it("exige nova revisão quando o catálogo ou ministério muda antes da confirmação", async () => {
+    const tenant = await register("transfer-stale");
+    const ministry = await createMinistry(tenant.token, "Destino original");
+    const other = await createMinistry(tenant.token, "Outro destino");
+    const document = { format: "lauda.music-catalog", version: 1, songs: [{ title: "Revisão", artist: "Louvor", originalKey: "C", content: "[C]Revisão" }] };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: ministry.id, document }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: other.id, document, documentHash: preview.body.data.documentHash }).expect(409);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: ministry.id, document, documentHash: preview.body.data.documentHash }).expect(201);
+    const artist = await prisma.artist.findFirstOrThrow({ where: { tenantId: (await prisma.user.findUniqueOrThrow({ where: { id: tenant.user.id } })).tenantId!, name: "Louvor" } });
+    const song = await prisma.song.findFirstOrThrow({ where: { artistId: artist.id } });
+    const again = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: other.id, document }).expect(200);
+    await request(app).patch(`/api/songs/${song.id}`).set("Authorization", `Bearer ${tenant.token}`).send({ content: "[G]Atualizada" }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: other.id, document, documentHash: again.body.data.documentHash }).expect(409);
+    expect(await prisma.ministrySong.count({ where: { ministryId: other.id } })).toBe(0);
+    expect((await prisma.song.findUniqueOrThrow({ where: { id: song.id } })).content).toBe("[G]Atualizada");
+  });
+
+
+  it("importa e reexporta catálogo maior que 4 MB sem recusar um arquivo válido", async () => {
+    const tenant = await register("large-song-transfer");
+    const ministry = await createMinistry(tenant.token, "Catálogo completo");
+    const document = {
+      format: "lauda.music-catalog", version: 1,
+      songs: Array.from({ length: 72 }, (_, index) => ({
+        title: `Canção ${String(index + 1).padStart(3, "0")}`, artist: "Louvor", originalKey: "Am",
+        content: "Am Dm E\n".repeat(8_000), cifraUrl: null,
+      })),
+    };
+    expect(Buffer.byteLength(JSON.stringify(document))).toBeGreaterThan(4 * 1024 * 1024);
+    const preview = await request(app).post("/api/songs/data-import/preview")
+      .set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: ministry.id, document }).expect(200);
+    expect(preview.body.data.counts.CREATE).toBe(72);
+    const result = await request(app).post("/api/songs/data-import/commit")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document, documentHash: preview.body.data.documentHash }).expect(201);
+    expect(result.body.data).toMatchObject({ created: 72, linked: 72, conflicts: 0, invalid: 0 });
+    const exported = await request(app).post("/api/songs/data-export")
+      .set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: ministry.id }).expect(200);
+    expect(exported.body).toEqual(document);
+  });
+
+
+  it("ignora duplicatas e conflitos, preserva a cifra existente e restaura músicas removidas", async () => {
+    const tenant = await register("transfer-conflicts");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const artist = await createArtist(tenant.token, "Voz da Verdade");
+    const existing = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send(songPayload(artist.id)).expect(201);
+    const incoming = { title: "Canção nova", artist: artist.name, originalKey: "C", content: "C F G", cifraUrl: null };
+    const document = {
+      format: "lauda.music-catalog", version: 1,
+      songs: [
+        { ...incoming, title: existing.body.data.title, originalKey: "G", content: "cifra diferente" },
+        incoming,
+        { ...incoming, title: "  CANÇÃO NOVA  " },
+      ],
+    };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document }).expect(200);
+    expect(preview.body.data.counts).toMatchObject({ CREATE: 1, CONFLICT: 1, INVALID: 1 });
+    const imported = await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document, documentHash: preview.body.data.documentHash }).expect(201);
+    expect(imported.body.data).toMatchObject({ created: 1, linked: 1, conflicts: 1, invalid: 1 });
+    const unchanged = await request(app).get(`/api/songs/${existing.body.data.id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(unchanged.body.data.content).toBe(songPayload(artist.id).content);
+    const exported = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id }).expect(200);
+    expect(exported.body.songs).toEqual([incoming]);
+
+    await request(app).delete(`/api/songs/${existing.body.data.id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    const restoreDocument = { ...document, songs: [{
+      title: existing.body.data.title, artist: artist.name, originalKey: "G", content: songPayload(artist.id).content,
+    }] };
+    const restorePreview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: restoreDocument }).expect(200);
+    expect(restorePreview.body.data.counts.RESTORE).toBe(1);
+    const restored = await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: restoreDocument, documentHash: restorePreview.body.data.documentHash }).expect(201);
+    expect(restored.body.data).toMatchObject({ created: 0, restored: 1, linked: 1 });
+    await request(app).get(`/api/songs/${existing.body.data.id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+  });
+
+
+  it("informa erros de formato, campo inválido e limite de tamanho da importação", async () => {
+    const tenant = await register("transfer-invalid");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const endpoint = "/api/songs/data-import/preview";
+    const malformed = await request(app).post(endpoint).set("Authorization", `Bearer ${tenant.token}`)
+      .set("Content-Type", "application/json").send("{invalid").expect(400);
+    expect(malformed.body.code).toBe("INVALID_JSON");
+    const invalidSong = await request(app).post(endpoint).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: {
+        format: "lauda.music-catalog", version: 1,
+        songs: [{ title: "Canção", artist: "Artista", content: "C F G", originalKey: "H" }],
+      } }).expect(400);
+    expect(invalidSong.body.code).toBe("VALIDATION_ERROR");
+    expect(invalidSong.body.details[0]).toContain("document.songs.0.originalKey");
+    const tooLarge = await request(app).post(endpoint).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ data: "x".repeat(32 * 1024 * 1024) }).expect(413);
+    expect(tooLarge.body.code).toBe("PAYLOAD_TOO_LARGE");
+    const normalRoute = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ data: "x".repeat(4 * 1024 * 1024) }).expect(413);
+    expect(normalRoute.body.code).toBe("PAYLOAD_TOO_LARGE");
+  });
+
+
 });
+
