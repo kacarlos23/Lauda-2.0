@@ -484,10 +484,10 @@ export default function EditScheduleScreen() {
                   </View>
                   <View style={styles.orderActions}>
                     <TouchableOpacity style={[styles.orderButton, index === 0 && styles.disabled]} disabled={index === 0} onPress={() => moveSong(index, -1)}>
-                      <Text style={styles.orderButtonText}>↑</Text>
+                      <Text style={styles.orderButtonText}></Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.orderButton, index === selectedSongs.length - 1 && styles.disabled]} disabled={index === selectedSongs.length - 1} onPress={() => moveSong(index, 1)}>
-                      <Text style={styles.orderButtonText}>↓</Text>
+                      <Text style={styles.orderButtonText}></Text>
                     </TouchableOpacity>
                   </View>
                 </View>

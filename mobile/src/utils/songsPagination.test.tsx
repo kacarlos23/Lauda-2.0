@@ -5,6 +5,7 @@ import SongsScreen from "../../app/(tabs)/songs";
 import { musicService, SongsUnavailableClientError } from "../services/musicService";
 import { useMusicStore } from "../store/musicStore";
 import { Song } from "../types";
+jest.mock("../components/songs/SongDataTransferPanel", () => ({ SongDataTransferPanel: () => null }));
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 

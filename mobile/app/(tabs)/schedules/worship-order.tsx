@@ -2,10 +2,10 @@ import { uiPatterns } from "../../../src/components/ui/patterns";
 import { requestFormNavigation } from "../../../src/navigation/formExitGuard";
 import { useFormExit } from "../../../src/hooks/useFormExit";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { AppInput, Button, ErrorBanner, Screen } from "../../../src/components/ui";
-import { colors, iconSizes, overlays, spacing, typography } from "../../../src/theme";
+import { breakpoints, colors, iconSizes, overlays, spacing, typography } from "../../../src/theme";
 import { Schedule, ScheduleSong, Song } from "../../../src/types";
 import { useAuthStore } from "../../../src/store/authStore";
 import { canEditSchedule, canViewScheduleAdminList, canViewScheduleReports } from "../../../src/utils/schedulePermissions";
@@ -14,7 +14,7 @@ import { scheduleService } from "../../../src/services/scheduleService";
 import { musicService } from "../../../src/services/musicService";
 import { worshipOrderService, WorshipOrderPayload } from "../../../src/services/worshipOrderService";
 import { nav } from "../../../src/navigation/routes";
-import { BookOpen, CalendarDays, Download, Eye, FileText, Music2, Plus, RefreshCw, Save } from "lucide-react-native";
+import { ArrowLeft, BookOpen, CalendarDays, Download, Eye, FileText, Music2, Plus, RefreshCw, Save } from "lucide-react-native";
 import { ScheduleSongCard } from "../../../src/components/schedules/ScheduleSongCard";
 import { ScheduleParticipationFields } from "../../../src/components/schedules/ScheduleWorshipFields";
 import { SortableSongList, moveListItem } from "../../../src/components/schedules/SortableSongList";
@@ -41,11 +41,13 @@ const safeVideo = (value?: string | null) => {
 
 export default function WorshipOrderScreen() {
   const router = useRouter();
+  const compactLayout = useWindowDimensions().width < breakpoints.mobile;
   const params = useLocalSearchParams<{ date?: string }>();
   const { user } = useAuthStore();
   const canView = canViewScheduleAdminList(user), canEdit = canEditSchedule(user);
   const canSongs = canEdit && canManageMusic(user, "song:attach_to_schedule");
   const canExport = canViewScheduleReports(user);
+  const canExportSongs = canManageMusic(user, "song:view");
   const [date, setDate] = useState(params.date && validDate(params.date) ? params.date : dateKey(new Date().toISOString()));
   const [loadedDate, setLoadedDate] = useState("");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -165,12 +167,24 @@ export default function WorshipOrderScreen() {
     catch (reason) { setError(errorText(reason)); }
     finally { setBusy(false); }
   }
+  // A song used in both periods needs only one chart in the combined booklet.
+  const songIds = [...new Set(([periods.morning, periods.evening]).flatMap((period) =>
+    [...(period?.songs ?? [])].sort((a, b) => a.order - b.order).map((entry) => entry.songId)
+  ))];
+  async function exportChords() {
+    if (!ready || dirty || !songIds.length) return;
+    if (songIds.length > 50) { setError("É possível exportar até 50 músicas por PDF."); return; }
+    setBusy(true); setError(null);
+    try { await musicService.exportSongs(songIds, `Cifras_${date.split("-").reverse().join("-")}.pdf`); }
+    catch (reason) { setError(errorText(reason)); }
+    finally { setBusy(false); }
+  }
   const openPicker = (kind: "song" | "schedule", period: Period) => { setSearch(""); setPage(1); setSongs([]); setPicker({ kind, period }); };
 
   if (!canView) return <Screen><ErrorBanner message="Sem permissão para visualizar escalas." /></Screen>;
   return <Screen scroll contentStyle={styles.content}>
     {formExit.dialog}
-    <Button title="Voltar às escalas" variant="ghost" onPress={() => requestFormNavigation(() => router.replace(nav.schedules))} />
+    <Button title="Voltar às escalas" size="sm" style={styles.backButton} icon={<ArrowLeft size={iconSizes.s16} />} variant="secondary" onPress={() => requestFormNavigation(() => router.replace(nav.schedules))} />
     <Text style={styles.title}>Ordem de Culto</Text>
     <Text style={styles.muted}>Organize músicas, momentos e leituras bíblicas na sequência do culto.</Text>
     <DateTimeInput type="date" label="Data do culto" value={date.split("-").reverse().join("/")} onChange={(value) => { if (!busy) setDate(value.split("/").reverse().join("-")); }} testID="worship-date" trailingAction={
@@ -223,14 +237,15 @@ export default function WorshipOrderScreen() {
       </View>;
     })}
     {dirty ? <Text style={styles.muted}>Há alterações pendentes. Salve antes de visualizar ou exportar.</Text> : null}
-    <View style={styles.documentActions}>
-      {canEdit ? <Button title="Salvar alterações" size="sm" icon={<Save size={iconSizes.s18} />} loading={busy} disabled={!ready || !dirty || (!periods.morning && !periods.evening)} onPress={() => void save()} /> : null}
-      <View style={styles.actions}>
+    <View testID="worship-document-actions" style={[styles.documentActions, compactLayout && styles.documentActionsCompact]}>
+      {canEdit ? <Button title="Salvar alterações" style={compactLayout && styles.mobileAction} size="sm" icon={<Save size={iconSizes.s18} />} loading={busy} disabled={!ready || !dirty || (!periods.morning && !periods.evening)} onPress={() => void save()} /> : null}
+      <View style={[styles.exportActions, compactLayout && styles.documentActionsCompact]}>
       {canExport ? <>
-        <Button title="Visualizar texto" size="sm" icon={<FileText size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => { setCopyMessage(""); setTextVisible(true); }} />
-        <Button title="Prévia do PDF" size="sm" icon={<Eye size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(true)} />
-        <Button title="Exportar PDF" size="sm" icon={<Download size={iconSizes.s18} />} variant="secondary" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(false)} />
+        <Button title="Visualizar texto" style={compactLayout && styles.mobileAction} size="sm" icon={<FileText size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => { setCopyMessage(""); setTextVisible(true); }} />
+        <Button title="Prévia do PDF" style={compactLayout && styles.mobileAction} size="sm" icon={<Eye size={iconSizes.s18} />} variant="ghost" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(true)} />
+        <Button title="Exportar PDF" style={compactLayout && styles.mobileAction} size="sm" icon={<Download size={iconSizes.s18} />} variant="secondary" disabled={!ready || dirty || ![periods.morning, periods.evening].some((p) => p && worshipItems(p).length)} onPress={() => void exportPdf(false)} />
       </> : null}
+      {canExportSongs ? <Button title="Gerar PDF das cifras" style={compactLayout && styles.mobileAction} size="sm" icon={<Music2 size={iconSizes.s18} />} variant="secondary" disabled={!ready || dirty || !songIds.length} onPress={() => void exportChords()} /> : null}
       </View>
     </View>
     <Modal visible={Boolean(readingEditor)} transparent animationType="fade" onRequestClose={() => setReadingEditor(null)}>
@@ -298,6 +313,10 @@ const styles = StyleSheet.create({
   addLabel: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   addLabelText: { ...typography.metadata, color: colors.muted },
   compactAction: { flexGrow: 0, alignSelf: "flex-start" },
+  backButton: { alignSelf: "flex-start" },
+  mobileAction: { width: "100%" },
+  documentActionsCompact: { flexDirection: "column", alignItems: "stretch", width: "100%" },
+  exportActions: { flexDirection: "row", flexWrap: "wrap", flexShrink: 1, minWidth: 0, maxWidth: "100%", gap: spacing.sm },
   documentActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg },
   backdrop: { flex: 1, backgroundColor: overlays.modal, justifyContent: "center", alignItems: "center", padding: spacing.lg },
   modal: { backgroundColor: colors.surface, width: "100%", maxWidth: 680, maxHeight: "90%", padding: spacing.lg, borderRadius: 16, gap: spacing.md },

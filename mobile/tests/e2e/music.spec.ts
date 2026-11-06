@@ -149,6 +149,7 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
   await page.getByText("Oficina G3", { exact: true }).click();
   await page.getByTestId("song-title-input").fill("Nova canção");
   await page.getByTestId("song-next-button").click();
+  await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();
   await page.getByTestId("song-chord-input").fill("C\nNova cifra");
   await page.getByTestId("song-save-button").last().click();
   await expect(page).toHaveURL(new RegExp(`/songs/${createdSongId}$`));
