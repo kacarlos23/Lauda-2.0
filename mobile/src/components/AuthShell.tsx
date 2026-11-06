@@ -95,7 +95,7 @@ export function AuthShell({
 }
 
 const styles = StyleSheet.create({
-  themeToggle: { position: "absolute", top: spacing.lg, right: spacing.lg },
+  themeToggle: { position: "absolute", top: spacing.lg, right: spacing.lg, zIndex: 1 },
   root: {
     flex: 1,
     backgroundColor: colors.background,
