@@ -10,6 +10,8 @@
     "dev:full": "powershell -ExecutionPolicy Bypass -File scripts/start-project.ps1",
     "dev:navigation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-navigation-dev.ps1",
     "dev:navigation:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-navigation-dev.ps1",
+    "dev:theme": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-theme-preview.ps1",
+    "dev:theme:seed": "node scripts/prepare-theme-preview.cjs",
     "debug:admin-tenants": "ts-node scripts/debug-admin-tenants.ts",
     "promote:global-admin": "ts-node scripts/promote-global-admin.ts",
     "resilience:restore-drill": "node scripts/resilience/backup-restore-drill.cjs",
@@ -19,6 +21,9 @@
     "security:sbom:verify": "node scripts/security/generate-sbom.cjs --verify",
     "security:dast:logical": "node scripts/security/run-logical-dast.cjs",
     "security:dast:guard": "node scripts/security/validate-dast-target.cjs",
+    "check:encoding": "node scripts/validate-text-encoding.cjs",
+    "test:encoding": "node --test tests/text-encoding.test.cjs",
+    "prebuild": "npm run check:encoding",
     "build": "tsc",
     "start": "node scripts/start-production.cjs"
   },

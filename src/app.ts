@@ -22,6 +22,8 @@ const app = express();
 app.set("trust proxy", config.http.trustProxyHops);
 app.use(cors());
 app.use(requestObservability);
+// Catalogs contain full chord sheets and can exceed the regular API body limit.
+app.use("/api/songs/data-import", express.json({ limit: "32mb" }));
 app.use(express.json({ limit: "4mb" }));
 
 // Health check

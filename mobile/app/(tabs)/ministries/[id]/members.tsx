@@ -1,8 +1,9 @@
-﻿import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { uiPatterns } from "../../../../src/components/ui/patterns";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Plus, Search, User as UserIcon } from "lucide-react-native";
+import { Plus, User as UserIcon } from "lucide-react-native";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { useAuthStore } from "../../../../src/store/authStore";
 import { MemberStatus, MinistryMember } from "../../../../src/types";
@@ -17,7 +18,7 @@ import {
   spacing,
 } from "../../../../src/theme";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
-import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge } from "../../../../src/components/ui";
+import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge, SearchField } from "../../../../src/components/ui";
 import { can } from "../../../../src/utils/permissions";
 import { nav } from "../../../../src/navigation/routes";
 
@@ -104,17 +105,13 @@ export default function MinistryMembersScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.filters}>
-            <View style={styles.searchBox}>
-              <Search color={colors.muted} size={iconSizes.s18} />
-              <TextInput
-                style={styles.searchInput}
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Buscar por nome ou e-mail"
-                placeholderTextColor={colors.muted}
-                autoCapitalize="none"
-              />
-            </View>
+            <SearchField
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar por nome ou e-mail"
+              accessibilityLabel="Buscar membros do ministério"
+              containerStyle={styles.searchField}
+            />
             <View style={styles.chips}>
               {statuses.map((item) => (
                 <TouchableOpacity
@@ -182,22 +179,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   iconBtn: { padding: spacing.sm },
-  title: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.extrabold },
+  title: { ...uiPatterns.pageTitle },
   list: { padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   filters: { marginBottom: spacing.lg },
-  searchBox: {
-    minHeight: 46,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  searchInput: { flex: 1, color: colors.ink, fontSize: fontSizes.s15 },
+  searchField: { marginBottom: spacing.md },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
     minHeight: controlSizes.compact,
@@ -212,12 +197,7 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   chipText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   chipTextActive: { color: colors.primary },
-  card: {
-    flexDirection: "row",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
+  card: { ...uiPatterns.dataCard, flexDirection: "row", marginBottom: spacing.sm },
   avatar: {
     width: 42,
     height: 42,

@@ -17,6 +17,11 @@ const document = {
 };
 
 describe("songTransfer schemas", () => {
+  it("limpa cifras do catálogo antes da revisão e rejeita conteúdo apenas invisível", () => {
+    const parsed = songTransferDocumentSchema.parse({ ...document, songs: [{ ...document.songs[0], content: "\u200BG\tC\nTexto editado" }] });
+    expect(parsed.songs[0].content).toBe("G       C\nTexto editado");
+    expect(() => songTransferDocumentSchema.parse({ ...document, songs: [{ ...document.songs[0], content: "\uFEFF\u200B" }] })).toThrow("texto visível");
+  });
   it("aceita somente os cinco campos portáteis da música", () => {
     expect(songTransferDocumentSchema.parse(document)).toEqual(document);
     expect(() => songTransferDocumentSchema.parse({
@@ -47,3 +52,4 @@ describe("songTransfer schemas", () => {
     expect(songTransferCommitSchema.parse({ ministryId, document, documentHash: "a".repeat(64) }).documentHash).toHaveLength(64);
   });
 });
+

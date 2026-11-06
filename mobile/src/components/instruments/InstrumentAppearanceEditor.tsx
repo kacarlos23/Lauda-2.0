@@ -1,5 +1,7 @@
+import { uiPatterns } from "../ui/patterns";
+import { InputControl as TextInput } from "../ui/InputControl";
 import React, { useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { colors, iconSizes, fontSizes, fontWeights, radii, spacing } from "../../theme";
 import { INSTRUMENT_CATALOG, INSTRUMENT_COLORS } from "../../constants/instrumentCatalog";
 import { getInstrumentColor, getInstrumentIconKey, InstrumentGlyph } from "../../utils/instrumentVisual";
@@ -44,7 +46,7 @@ export function InstrumentAppearanceEditor({ value, onChange, testID = "instrume
   </View>;
 }
 const styles = StyleSheet.create({
-  container: { gap: spacing.sm, marginVertical: spacing.md }, label: { color: colors.ink, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
+  container: { gap: spacing.sm, marginVertical: spacing.md }, label: { ...uiPatterns.fieldLabel },
   preview: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm },
   action: { minHeight: 44, paddingHorizontal: spacing.sm, justifyContent: "center" }, actionText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.bold },
   options: { gap: spacing.sm }, icons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }, iconScroll: { maxHeight: 210 },

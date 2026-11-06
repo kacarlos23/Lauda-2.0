@@ -44,17 +44,17 @@ export const adminTenantScopedQuerySchema = z.object({
 });
 
 export const adminUserPermissionsQuerySchema = z.object({
-  tenantId: z.string().uuid("tenantId invÃ¡lido").optional(),
+  tenantId: z.string().uuid("tenantId inválido").optional(),
 });
 
 const deprecatedAdminGrantPermissionSchema = z.object({
   permissionKey: z.enum(permissionKeys),
-  tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
+  tenantId: z.string().uuid("tenantId inválido").nullable().optional(),
 });
 
 const deprecatedAdminSetPermissionsSchema = z.object({
   permissionKeys: z.array(z.enum(permissionKeys)),
-  tenantId: z.string().uuid("tenantId invÃ¡lido").nullable().optional(),
+  tenantId: z.string().uuid("tenantId inválido").nullable().optional(),
 });
 
 export const adminGrantPermissionSchema = z.object({

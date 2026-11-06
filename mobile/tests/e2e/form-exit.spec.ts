@@ -7,6 +7,7 @@ const song = { id: "22222222-2222-4222-8222-222222222222", tenantId: tenant.id, 
 const schedule = { id: "schedule-1", tenantId: tenant.id, title: "Culto", date: "2026-10-20T22:00:00Z", ministryId: "ministry", songs: [], assignments: [] };
 
 async function setup(page: Page) {
+  await page.clock.setFixedTime(new Date("2026-10-20T12:00:00Z"));
   await page.addInitScript(({ user, tenant }) => {
     localStorage.setItem("auth_token", "test"); localStorage.setItem("refresh_token", "test");
     localStorage.setItem("auth_user", JSON.stringify(user)); localStorage.setItem("auth_tenant", JSON.stringify(tenant));

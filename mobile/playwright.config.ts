@@ -1,9 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+if (process.env.LAUDA_THEME_PREVIEW_TEST === "1" && externalBaseURL !== "http://127.0.0.1:8094") {
+  throw new Error("Visual preview tests require PLAYWRIGHT_BASE_URL=http://127.0.0.1:8094");
+}
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: process.env.LAUDA_THEME_PREVIEW_TEST === "1" ? "./tests/e2e/theme-preview.setup.ts" : undefined,
   timeout: 30_000,
   expect: {
     timeout: 10_000,

@@ -1,9 +1,11 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useFormExit } from "../../../src/hooks/useFormExit";
 import type { ScheduleSongDetails, WorshipPeriod } from "../../../src/types";
 import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../src/components/schedules/ScheduleWorshipFields";
 import { defaultParticipation, worshipDateKey } from "../../../src/utils/worshipOrder";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
@@ -297,7 +299,7 @@ export default function NewScheduleScreen() {
           <Text style={styles.helper}>A música será criada e adicionada à escala sem apagar os dados já preenchidos.</Text>
           <ArtistPicker selected={quickSongArtist} onSelect={setQuickSongArtist} />
           <Text style={styles.label}>Nome da música *</Text>
-          <TextInput style={styles.input} value={quickSongTitle} onChangeText={setQuickSongTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} />
+          <TextInput accessibilityLabel="Nome da música" style={styles.input} value={quickSongTitle} onChangeText={setQuickSongTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} />
           <Text style={styles.label}>Tom original *</Text>
           <View style={styles.keyGrid}>{MUSICAL_KEYS.map((key) => (
             <TouchableOpacity key={key} style={[styles.keyChip, quickSongKey === key && styles.keyChipActive]} onPress={() => setQuickSongKey(key)}>
@@ -305,7 +307,7 @@ export default function NewScheduleScreen() {
             </TouchableOpacity>
           ))}</View>
           <Text style={styles.label}>Cifra *</Text>
-          <TextInput style={[styles.input, styles.quickSongContent]} value={quickSongContent} onChangeText={setQuickSongContent} multiline textAlignVertical="top" placeholder="[G]Letra da música" placeholderTextColor={colors.muted} />
+          <TextInput accessibilityLabel="Cifra" style={[styles.input, styles.quickSongContent]} value={quickSongContent} onChangeText={setQuickSongContent} multiline textAlignVertical="top" placeholder="[G]Letra da música" placeholderTextColor={colors.muted} />
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.modalActionSecondary} onPress={() => { setQuickSongModal(false); setSongsModal(true); }} disabled={quickSongSaving}><Text style={styles.secondaryText}>Cancelar</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.modalActionPrimary, quickSongSaving && styles.disabled]} onPress={() => void createQuickSong()} disabled={quickSongSaving}><Text style={styles.primaryText}>{quickSongSaving ? "Salvando..." : "Criar e adicionar"}</Text></TouchableOpacity>
@@ -382,6 +384,7 @@ export default function NewScheduleScreen() {
           {selectedSongs.length ? <SortableSongList items={selectedSongs} itemKey={(song) => song.id} itemLabel={(song) => song.title} disabled={saving}
             onMove={(from, to) => setSelectedSongIds((ids) => moveListItem(ids, from, to))} renderItem={(song, index) => (
             <ScheduleSongCard key={song.id} song={song} position={index + 1} onRemove={() => toggleSong(song.id)}
+              momentDrawer momentLabel={songDetails[song.id]?.moment ?? "Louvor"}
               onMoveUp={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}
               onMoveDown={() => setSelectedSongIds((ids) => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}
               disableMoveUp={index === 0 || saving} disableMoveDown={index === selectedSongs.length - 1 || saving}
@@ -416,12 +419,12 @@ const styles = StyleSheet.create({
   containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
-  subtitle: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.semibold, marginTop: spacing.xs, marginBottom: spacing.lg },
-  card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
+  title: { ...uiPatterns.pageTitle },
+  subtitle: { ...uiPatterns.subtitle, marginTop: spacing.xs, marginBottom: spacing.lg },
+  card: { ...uiPatterns.section },
   cardCompact: { paddingVertical: spacing.md },
   commentsEditor: { marginTop: spacing.md, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginTop: spacing.md, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel, marginTop: spacing.md },
   input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   rowFieldsCompact: { flexDirection: "column" },
@@ -435,12 +438,12 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.xl, marginBottom: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line },
   sectionHeaderCompact: { flexDirection: "column", alignItems: "stretch" },
   sectionText: { flex: 1 },
-  sectionTitle: { color: colors.ink, fontSize: fontSizes.s17, fontWeight: fontWeights.black },
+  sectionTitle: { ...uiPatterns.sectionTitle },
   helper: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
-  secondaryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  primaryButton: { minHeight: controlSizes.default, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryText: { ...uiPatterns.actionText, color: colors.primary },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.xl },
+  primaryText: { ...uiPatterns.actionText, color: colors.surface },
   disabled: { opacity: 0.65 },
   error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   loader: { marginVertical: spacing.xl },

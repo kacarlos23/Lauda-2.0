@@ -18,6 +18,7 @@ import {
   typography,
 } from "../theme";
 import { BrandLogo } from "./BrandLogo";
+import { ThemeToggle } from "./ThemeControls";
 
 type AuthShellProps = {
   overline: string;
@@ -74,6 +75,7 @@ export function AuthShell({
         ) : null}
 
         <View style={[styles.formPanel, desktop && styles.formPanelDesktop]}>
+          <View style={styles.themeToggle}><ThemeToggle /></View>
           <View
             style={[
               styles.formContent,
@@ -93,6 +95,7 @@ export function AuthShell({
 }
 
 const styles = StyleSheet.create({
+  themeToggle: { position: "absolute", top: spacing.lg, right: spacing.lg },
   root: {
     flex: 1,
     backgroundColor: colors.background,

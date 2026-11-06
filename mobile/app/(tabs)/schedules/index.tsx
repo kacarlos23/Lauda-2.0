@@ -1,15 +1,7 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  FlatList,
-  Modal,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, FlatList, Modal, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CalendarClock, Plus } from "lucide-react-native";
 import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
@@ -595,7 +587,7 @@ const styles = StyleSheet.create({
   legendScheduleDot: { width: 6, height: 6, borderRadius: radiusValues.r3, backgroundColor: colors.primary },
   legendToday: { width: 14, height: 14, borderRadius: radii.sm, borderWidth: 1, borderColor: colors.primary },
   legendText: { ...typography.metadata, color: colors.muted },
-  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
+  sectionTitle: { ...uiPatterns.sectionTitle, marginBottom: spacing.md },
   inlineLoading: { alignItems: "flex-start", marginBottom: spacing.md },
   modalBackdrop: { flex: 1, backgroundColor: overlays.modalCool, alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", maxWidth: 520, backgroundColor: colors.surface, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.line, padding: spacing.lg },

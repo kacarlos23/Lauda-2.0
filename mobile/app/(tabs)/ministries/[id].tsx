@@ -1,14 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
@@ -364,7 +357,7 @@ export default function MinistryDetailsScreen() {
         <View style={styles.form}>
           <ErrorBanner message={formError ?? error} style={styles.formError} />
           <Text style={styles.label}>Nome *</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Nome"
             style={styles.input}
             placeholder="Ex: Louvor"
             placeholderTextColor={colors.muted}
@@ -375,7 +368,7 @@ export default function MinistryDetailsScreen() {
             }}
           />
           <Text style={styles.label}>Descrição</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Descrição"
             style={[styles.input, styles.textArea]}
             placeholder="Descreva o objetivo deste ministério"
             placeholderTextColor={colors.muted}
@@ -431,12 +424,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  title: {
-    fontSize: fontSizes.s32,
-    fontWeight: fontWeights.extrabold,
-    color: colors.ink,
-    marginBottom: spacing.xs,
-  },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.xs },
   description: {
     fontSize: fontSizes.s16,
     color: colors.text,
@@ -470,13 +458,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.s13,
     fontWeight: fontWeights.extrabold,
   },
-  memberCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
+  memberCard: { ...uiPatterns.dataCard, flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
   memberAvatar: {
     width: controlSizes.medium,
     height: controlSizes.medium,
@@ -629,7 +611,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     marginBottom: spacing.lg,
   },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
@@ -648,25 +630,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: "flex-end",
   },
-  cancelButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
-  },
-  cancelButtonText: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
-  saveButton: {
-    minHeight: controlSizes.default,
-    minWidth: 96,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-  },
-  saveButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
+  cancelButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  cancelButtonText: { ...uiPatterns.actionText, color: colors.text },
+  saveButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, minWidth: 96 },
+  saveButtonText: { ...uiPatterns.actionText, color: colors.surface },
   buttonDisabled: { opacity: 0.6 },
   mutedText: { color: colors.muted, fontSize: fontSizes.s15, lineHeight: lineHeights.h22 },
 });

@@ -1,9 +1,11 @@
+import { uiPatterns } from "../../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../../src/components/ui/InputControl";
 import { useFormExit } from "../../../../src/hooks/useFormExit";
 import type { ScheduleSongDetails, WorshipPeriod } from "../../../../src/types";
 import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../../src/components/schedules/ScheduleWorshipFields";
 import { defaultParticipation, participationDetails, scheduleWorshipPeriod, worshipDateKey } from "../../../../src/utils/worshipOrder";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 import { Button, ErrorBanner, LoadingState } from "../../../../src/components/ui";
@@ -589,6 +591,7 @@ export default function EditScheduleScreen() {
             key={song.id}
             song={song}
             position={index + 1}
+            momentDrawer momentLabel={songDetails[song.id]?.moment ?? "Louvor"}
             onRemove={canAttachScheduleSongs ? () => toggleSong(song.id) : undefined}
             onMoveUp={canAttachScheduleSongs ? () => moveSong(index, -1) : undefined}
             onMoveDown={canAttachScheduleSongs ? () => moveSong(index, 1) : undefined}
@@ -625,19 +628,19 @@ const styles = StyleSheet.create({
   containerCompact: { padding: spacing.md, paddingBottom: screen.contentBottomPadding },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background, padding: spacing.xl },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
+  title: { ...uiPatterns.pageTitle },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.md, marginBottom: spacing.lg },
   titleRowCompact: { flexDirection: "column" },
   titleGroup: { flex: 1 },
-  subtitle: { color: colors.muted, fontSize: fontSizes.s15, fontWeight: fontWeights.semibold, marginTop: spacing.xs, marginBottom: spacing.lg },
+  subtitle: { ...uiPatterns.subtitle, marginTop: spacing.xs, marginBottom: spacing.lg },
   exportActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: spacing.sm },
   exportActionsCompact: { width: "100%", justifyContent: "flex-start" },
   reportButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   reportButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
+  card: { ...uiPatterns.section },
   cardCompact: { paddingVertical: spacing.md },
   commentsEditor: { marginTop: spacing.md, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginTop: spacing.md, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel, marginTop: spacing.md },
   input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   rowFields: { flexDirection: "row", gap: spacing.md },
   rowFieldsCompact: { flexDirection: "column" },
@@ -653,12 +656,12 @@ const styles = StyleSheet.create({
   sectionText: { flex: 1 },
   sectionActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, justifyContent: "flex-end" },
   sectionActionsCompact: { justifyContent: "flex-start" },
-  sectionTitle: { color: colors.ink, fontSize: fontSizes.s17, fontWeight: fontWeights.black },
+  sectionTitle: { ...uiPatterns.sectionTitle },
   helper: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19, marginTop: spacing.xs },
-  secondaryButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.md },
-  secondaryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  primaryButton: { minHeight: controlSizes.default, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryText: { ...uiPatterns.actionText, color: colors.primary },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.xl },
+  primaryText: { ...uiPatterns.actionText, color: colors.surface },
   disabled: { opacity: 0.65 },
   error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   selectedList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
@@ -712,8 +715,8 @@ const styles = StyleSheet.create({
   orderItemMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
   orderItemText: { flex: 1 },
   orderActions: { flexDirection: "row", gap: spacing.xs },
-  orderButton: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, alignItems: "center", justifyContent: "center" },
-  orderButtonText: { color: colors.primary, fontSize: fontSizes.s18, fontWeight: fontWeights.black },
+  orderButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction, width: 38 },
+  orderButtonText: { ...uiPatterns.actionText, color: colors.primary },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
   modalActionSecondary: { minHeight: controlSizes.large, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primarySoftBorder, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   modalActionPrimary: { minHeight: controlSizes.large, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },

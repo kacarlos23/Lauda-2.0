@@ -1,6 +1,7 @@
-import { ServiceUnavailableError, ValidationError } from "../../errors/AppError";
+import { NotFoundError, ServiceUnavailableError, ValidationError } from "../../errors/AppError";
 import { CifraClubImportService } from "../../services/cifraClubImportService";
 import { cifraClubSearchSchema } from "../../validators/song.schema";
+import { promises as fs } from "node:fs";
 
 const songHtml = `
   <html>
@@ -59,6 +60,124 @@ const searchHtml = `
 `;
 
 describe("CifraClubImportService", () => {
+  it("não expõe download vazio após a revisão de caracteres invisíveis", async () => {
+    const service = new CifraClubImportService();
+    const browser = { close: jest.fn().mockResolvedValue(undefined) };
+    const page = { goto: jest.fn().mockResolvedValue({ status: () => 200, ok: () => true }), url: () => "https://www.cifraclub.com.br/aline-barros/autor-da-vida/", content: jest.fn().mockResolvedValue(songHtml) };
+    const launch = jest.spyOn(CifraClubImportService as any, "launchBrowser").mockResolvedValue(browser);
+    const newPage = jest.spyOn(CifraClubImportService as any, "newPage").mockResolvedValue(page);
+    const download = jest.spyOn(service as any, "tryDownloadContent").mockResolvedValue("\u200B\u2060\uFEFF");
+    try {
+      const result = await service.import(page.url());
+      expect(result.source).toBe("page-fallback");
+      expect(result.content).toContain("[Intro] G  D/F#  Em");
+      expect(result.content).not.toMatch(/[\u200B\u2060\uFEFF]/);
+    } finally { launch.mockRestore(); newPage.mockRestore(); download.mockRestore(); }
+  });
+  it("preserva colunas de elementos inline e limpa invisíveis sem remover os espaços iniciais", () => {
+    const html = songHtml.replace(/<pre>[\s\S]*?<\/pre>/, "<pre>\n\u200b    <span>G</span>  <b>D/F#</b>\n&#8203;G\tC\nTexto &lt;editado&gt;<br>Outra linha\n\n</pre>");
+    const imported = CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");
+    expect(imported.content).toBe("    G  D/F#\nG       C\nTexto <editado>\nOutra linha");
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  const modernCard = (artist: string, slug: string, title: string, key = "") => `
+    <a href="/${slug}/cancao/">
+      <div><p class="label primaryLabel">${title}</p>
+      <span class="label secondaryLabel"><span>${artist}</span></span></div>
+      ${key ? `<span class="tertiaryLabel">${key}</span>` : ""}
+      <button title="Opções"><span>Opções</span></button>
+    </a>`;
+
+  function mockSearchBrowser(pages: string[], pagination = false) {
+    let current = 0;
+    const next = { count: jest.fn().mockResolvedValue(1), isDisabled: jest.fn().mockResolvedValue(false), click: jest.fn(async () => { current++; }) };
+    const navigation = { count: jest.fn().mockResolvedValue(pagination ? 1 : 0), getByRole: jest.fn(() => next) };
+    const page = {
+      goto: jest.fn().mockResolvedValue({ status: () => 200, ok: () => true }),
+      waitForSelector: jest.fn().mockResolvedValue({}),
+      waitForFunction: jest.fn().mockResolvedValue({}),
+      content: jest.fn(async () => pages[current]),
+      url: () => "https://www.cifraclub.com.br/?q=cancao",
+      getByRole: jest.fn(() => navigation),
+      locator: jest.fn(() => ({ allTextContents: jest.fn().mockResolvedValue([]) })),
+    };
+    const browser = { close: jest.fn().mockResolvedValue(undefined) };
+    jest.spyOn(CifraClubImportService as any, "launchBrowser").mockResolvedValue(browser);
+    jest.spyOn(CifraClubImportService as any, "newPage").mockResolvedValue(page);
+    return { page, browser, next };
+  }
+
+  it("lê os cartões atuais sem misturar título, artista, tom e botão de opções", () => {
+    const html = modernCard("João &amp; Maria", "joao-e-maria", "Can&#231;&#227;o de Comunh&atilde;o", "Bb");
+    expect(CifraClubImportService.parseSearchResults(html, "https://www.cifraclub.com.br/?q=cancao", { title: "Canção" }))
+      .toEqual([{ title: "Canção de Comunhão", artist: "João & Maria", originalKey: "A#", url: "https://www.cifraclub.com.br/joao-e-maria/cancao/" }]);
+  });
+
+  it("preserva o título com acentos e o tom no catálogo de artista redirecionado", () => {
+    const html = modernCard("", "oficina-g3", "A Lição", "Ab").replace(/<span class="label secondaryLabel">[\s\S]*?<\/span><\/span>/, "");
+    const results = CifraClubImportService.parseSearchResults(html, "https://www.cifraclub.com.br/explorar/musicas/?artist=oficina-g3", { artist: "Oficina G3" });
+    expect(results[0]).toMatchObject({ title: "A Lição", originalKey: "G#" });
+  });
+
+  it("consulta e pagina a busca atual sem depender das classes do Google CSE", async () => {
+    const mock = mockSearchBrowser([modernCard("João", "joao", "Canção"), modernCard("Maria", "maria", "Canção")], true);
+    const { items } = await new CifraClubImportService().search({ title: "Canção" });
+    expect(items.map(item => item.artist)).toEqual(["João", "Maria"]);
+    expect(mock.next.click).toHaveBeenCalledTimes(1);
+    expect(mock.browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("distingue ausência real de resultados de falha na consulta externa", async () => {
+    const mock = mockSearchBrowser(['<main><h2>Nenhum resultado</h2></main>']);
+    await expect(new CifraClubImportService().search({ title: "Inexistente" })).rejects.toBeInstanceOf(NotFoundError);
+    mock.page.waitForSelector.mockRejectedValueOnce(new Error("Timeout"));
+    await expect(new CifraClubImportService().search({ title: "Canção" })).rejects.toBeInstanceOf(ServiceUnavailableError);
+    expect(mock.browser.close).toHaveBeenCalledTimes(2);
+  });
+
+  it("mantém resultados já encontrados se a próxima página falhar", async () => {
+    const mock = mockSearchBrowser([modernCard("João", "joao", "Canção")], true);
+    mock.next.click.mockRejectedValueOnce(new Error("Timeout"));
+    await expect(new CifraClubImportService().search({ title: "Canção" })).resolves.toMatchObject({ items: [{ title: "Canção", artist: "João" }] });
+  });
+
+  it("não insere quebras em spans, preserva espaços e decodifica letras sem interpretá-las como HTML", () => {
+    const html = `<h1>Canção</h1><h2>Artista</h2><p>Tom: C</p>
+      <pre data-chord-content="true"><div>\u200b<span><b>C</b>    <b>G/B</b></span>\n</div><div><span>  Cora&#231;&#227;o &lt;3</span> &amp; f&eacute;\n\n</div><div><span><b>Am</b></span>\n</div></pre>`;
+    const result = CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/artista/cancao/");
+    expect(result.content).toBe("C    G/B\n  Coração <3 & fé\n\nAm");
+  });
+
+  it("importa o bloco da cifra e conserva a instrução de capotraste junto dos acordes originais", () => {
+    const html = `<h1>Canção</h1><h2>Artista</h2><p>Tom: C</p>
+      <button data-anchor="--chord-tone">F# (com forma de D)</button>
+      <button data-anchor="--chord-capo">4ª casa</button>
+      <pre>Conteúdo de outro componente</pre><pre data-chord-content="true">D9  F#m\nCanção</pre>`;
+    expect(CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/artista/cancao/"))
+      .toMatchObject({ originalKey: "F#", content: "Capotraste: 4ª casa\n\nD9  F#m\nCanção" });
+  });
+
+  it("classifica falha de navegação na importação como indisponibilidade e fecha o navegador", async () => {
+    const mock = mockSearchBrowser([]);
+    mock.page.goto.mockRejectedValueOnce(new Error("Timeout"));
+    await expect(new CifraClubImportService().import("https://www.cifraclub.com.br/artista/cancao/"))
+      .rejects.toBeInstanceOf(ServiceUnavailableError);
+    expect(mock.browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([Buffer.from("%PDF-1.7"), Buffer.from([0xff, 0xfe, 0x80]), Buffer.from("<html>Erro externo</html>")])(
+    "usa a página quando o download não é texto UTF-8 da cifra (%s)", async bytes => {
+      const service = new CifraClubImportService() as any;
+      const page = {
+        getByText: () => ({ first: () => ({ count: async () => 1, click: async () => undefined }) }),
+        isClosed: () => false,
+        waitForEvent: async () => ({ path: async () => "temporary-download" }),
+      };
+      jest.spyOn(fs, "readFile").mockResolvedValue(bytes);
+      await expect(service.tryDownloadContent(page)).resolves.toBeNull();
+    }
+  );
   it("extrai metadados e cifra pública da página", () => {
     const result = CifraClubImportService.parseSongPage(songHtml, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");
 
@@ -227,3 +346,4 @@ describe("CifraClubImportService", () => {
     await expect(service.tryDownloadContent(page)).resolves.toBeNull();
   });
 });
+

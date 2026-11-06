@@ -4,6 +4,7 @@ import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
 import { CreateSongInput, SongListInput, UpdateSongInput } from "../validators/song.schema";
+import { normalizeChordText, normalizeSongContent } from "../utils/chordText";
 
 export class SongService {
   constructor(
@@ -15,7 +16,7 @@ export class SongService {
   async list(input: SongListInput) {
     const result = await this.repository.list(input, normalizeCatalogText(input.search));
     return {
-      items: result.items,
+      items: result.items.map(normalizeSongContent),
       pagination: {
         page: input.page,
         limit: input.limit,
@@ -28,7 +29,7 @@ export class SongService {
   async get(id: string) {
     const song = await this.repository.findById(id);
     if (!song) throw new NotFoundError("Música não encontrada");
-    return song;
+    return normalizeSongContent(song);
   }
 
   async create(input: CreateSongInput) {
@@ -41,7 +42,7 @@ export class SongService {
         artistId: input.artistId,
         composer: input.composer ? cleanCatalogText(input.composer) : null,
         originalKey: input.originalKey,
-        content: input.content,
+        content: normalizeChordText(input.content),
         comments: input.comments ?? null,
         bpm: input.bpm ?? null,
         cifraUrl: input.cifraUrl ?? null,
@@ -65,7 +66,7 @@ export class SongService {
         ...(input.artistId !== undefined ? { artistId: input.artistId } : {}),
         ...(input.composer !== undefined ? { composer: input.composer ? cleanCatalogText(input.composer) : null } : {}),
         ...(input.originalKey !== undefined ? { originalKey: input.originalKey } : {}),
-        ...(input.content !== undefined ? { content: input.content } : {}),
+        ...(input.content !== undefined ? { content: normalizeChordText(input.content) } : {}),
         ...(input.comments !== undefined ? { comments: input.comments } : {}),
         ...(input.bpm !== undefined ? { bpm: input.bpm } : {}),
         ...(input.cifraUrl !== undefined ? { cifraUrl: input.cifraUrl } : {}),
@@ -75,7 +76,7 @@ export class SongService {
         updatedById: this.userId,
       });
       if (!song) throw new NotFoundError("Música não encontrada");
-      return song;
+      return normalizeSongContent(song);
     } catch (error) {
       this.handleConflict(error);
     }
@@ -99,7 +100,7 @@ export class SongService {
       }
       throw new SongsUnavailableError(unavailableIds);
     }
-    return ids.map((id) => byId.get(id)!);
+    return ids.map((id) => normalizeSongContent(byId.get(id)!));
   }
 
   private async requireArtist(id: string) {
@@ -113,3 +114,4 @@ export class SongService {
     throw error;
   }
 }
+

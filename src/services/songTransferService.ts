@@ -1,3 +1,4 @@
+import { normalizeChordText } from "../utils/chordText";
 import { createHash } from "node:crypto";
 import { Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
@@ -27,7 +28,7 @@ type ExistingSong = {
 };
 
 function normalizedContent(value: string): string {
-  return value.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trim();
+  return normalizeChordText(value).replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "").trim();
 }
 
 function normalizedUrl(value: string | null | undefined): string | null {
@@ -38,8 +39,8 @@ function identity(song: Pick<PortableSong, "title" | "artist">): string {
   return `${normalizeCatalogText(song.artist)}\u0000${normalizeCatalogText(song.title)}`;
 }
 
-function documentHash(document: SongTransferDocument): string {
-  return createHash("sha256").update(JSON.stringify(document), "utf8").digest("hex");
+function documentHash(document: SongTransferDocument, ministryId: string, items: unknown): string {
+  return createHash("sha256").update(JSON.stringify({ document, ministryId, items }), "utf8").digest("hex");
 }
 
 function songDifferences(existing: ExistingSong, incoming: PortableSong): string[] {
@@ -91,7 +92,7 @@ export class SongTransferService {
         title: song.title,
         artist: song.artist.name,
         originalKey: song.originalKey as PortableSong["originalKey"],
-        content: song.content,
+        content: normalizeChordText(song.content),
         cifraUrl: song.cifraUrl,
       })),
     };
@@ -165,7 +166,7 @@ export class SongTransferService {
     }, { CREATE: 0, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, CONFLICT: 0, INVALID: 0 });
 
     return {
-      documentHash: documentHash(input.document),
+      documentHash: documentHash(input.document, input.ministryId, items),
       total: input.document.songs.length,
       unique: incomingIdentities.size,
       counts,
@@ -176,7 +177,7 @@ export class SongTransferService {
   async commit(input: SongTransferCommitInput) {
     const preview = await this.preview(input);
     if (preview.documentHash !== input.documentHash) {
-      throw new ConflictError("O arquivo mudou depois da revisão. Revise novamente antes de importar");
+      throw new ConflictError("O arquivo, ministério ou catálogo mudou depois da revisão. Selecione o arquivo e revise novamente antes de importar");
     }
     const tenantId = this.requireTenantId();
     const allowedIndexes = new Set(preview.items
@@ -215,7 +216,10 @@ export class SongTransferService {
         }) as ExistingSong | null;
 
         if (song && songDifferences(song, incoming).length) {
-          counts.conflicts += 1;
+          throw new ConflictError("Uma música mudou durante a importação. Nenhuma alteração foi aplicada. Revise o arquivo novamente");
+        }
+        if (song?.isActive && !song.deletedAt && song.ministries[0]?.isActive && !song.ministries[0].deletedAt) {
+          counts.alreadyLinked += 1;
           continue;
         }
         if (!song) {
@@ -252,7 +256,7 @@ export class SongTransferService {
         if (!currentLink?.isActive || currentLink.deletedAt) counts.linked += 1;
       }
       return counts;
-    });
+    }, { timeout: 120_000 });
 
     return { ...result, total: input.document.songs.length, documentHash: preview.documentHash };
   }

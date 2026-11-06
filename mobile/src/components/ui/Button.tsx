@@ -10,7 +10,8 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { colors, controlSizes, radii, spacing, typography } from "../../theme";
+import { colors, controlSizes, spacing, typography } from "../../theme";
+import { uiPatterns } from "./patterns";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -37,6 +38,8 @@ export function Button({
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const foreground = variant === "primary" || variant === "danger" ? colors.surface : colors.primary;
+  const actionIcon = React.isValidElement<{ color?: string }>(icon) ? React.cloneElement(icon, { color: foreground }) : icon;
 
   return (
     <TouchableOpacity
@@ -57,7 +60,7 @@ export function Button({
         <ActivityIndicator color={variant === "primary" || variant === "danger" ? colors.surface : colors.primary} />
       ) : (
         <View style={styles.content}>
-          {icon}
+          {actionIcon}
           <Text style={[styles.text, textVariantStyles[variant], textStyle]}>{title}</Text>
         </View>
       )}
@@ -67,9 +70,8 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
+    ...uiPatterns.action,
+    flexShrink: 1,
   },
   sm: {
     minHeight: controlSizes.default,
@@ -99,12 +101,10 @@ const styles = StyleSheet.create({
 
 const variantStyles = StyleSheet.create({
   primary: {
-    backgroundColor: colors.primary,
+    ...uiPatterns.primaryAction,
   },
   secondary: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
+    ...uiPatterns.secondaryAction,
   },
   ghost: {
     backgroundColor: "transparent",

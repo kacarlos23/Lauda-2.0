@@ -8,6 +8,7 @@ import {
   radii,
   radiusValues,
   spacing,
+  typography,
 } from "../../theme";
 
 type Props = {
@@ -53,7 +54,7 @@ export function RichCommentEditor({ value, onChange, label = "Comentários", pla
   return (
     <div data-testid={testID} style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <label style={{ color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold }}>{label}</label>
+        <label style={{ color: colors.text, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight }}>{label}</label>
         <span aria-live="polite" style={{ color: limitReached ? colors.danger : colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold }}>{count}/{RICH_TEXT_MAX_CHARACTERS}</span>
       </div>
       <div role="toolbar" aria-label="Formatação dos comentários" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: spacing.xs }}>
@@ -70,13 +71,14 @@ export function RichCommentEditor({ value, onChange, label = "Comentários", pla
         role="textbox"
         aria-label={label}
         aria-multiline="true"
+        data-lauda-rich-editor="true"
         data-placeholder={placeholder}
         onInput={handleInput}
         onPaste={(event) => {
           event.preventDefault();
           document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
         }}
-        style={{ minHeight: 130, boxSizing: "border-box", border: `1px solid ${limitReached ? colors.danger : colors.line}`, borderRadius: radii.md, background: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: fontSizes.s15, lineHeight: "23px", outlineColor: colors.primary, overflowY: "auto" }}
+        style={{ minHeight: 130, boxSizing: "border-box", border: `1px solid ${limitReached ? colors.danger : colors.lineStrong}`, borderRadius: radii.md, background: disabled ? colors.surfaceMuted : colors.surface, color: colors.ink, padding: spacing.md, fontSize: typography.body.fontSize, lineHeight: `${typography.body.lineHeight}px`, outlineColor: colors.primary, overflowY: "auto" }}
       />
       {limitReached ? <span role="alert" style={{ color: colors.danger, fontSize: fontSizes.s12 }}>O limite é de 3.000 caracteres visíveis.</span> : null}
     </div>

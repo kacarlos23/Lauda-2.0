@@ -1,5 +1,7 @@
 import React from "react";
-import { StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from "react-native";
+import { Platform, StyleProp, StyleSheet, Text, TextInputProps, View, ViewStyle } from "react-native";
+import { InputControl } from "./InputControl";
+import { uiPatterns } from "./patterns";
 import { colors, controlSizes, fontSizes, radii, spacing, typography } from "../../theme";
 
 type AppInputProps = TextInputProps & {
@@ -25,12 +27,15 @@ export function AppInput({
   return (
     <View style={containerStyle}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={[styles.inputGroup, error && styles.inputGroupError]}>
+      <View {...(Platform.OS === "web" ? { dataSet: { laudaField: "true", invalid: Boolean(error) } } : {})} style={[styles.inputGroup, props.editable === false && styles.disabled, error && styles.inputGroupError]}>
         {icon}
-        <TextInput
+        <InputControl
+          embedded
           style={[styles.input, icon ? styles.inputWithIcon : null, style]}
           placeholderTextColor={placeholderTextColor}
           {...props}
+          accessibilityLabel={props.accessibilityLabel ?? label ?? props.placeholder}
+          invalid={Boolean(error)}
           accessibilityState={{ disabled: Boolean(props.editable === false) }}
         />
         {endAdornment}
@@ -45,9 +50,7 @@ export { AppInput as Field, AppInput as TextInput };
 
 const styles = StyleSheet.create({
   label: {
-    color: colors.text,
-    ...typography.label,
-    marginBottom: spacing.xs,
+    ...uiPatterns.fieldLabel,
   },
   inputGroup: {
     minHeight: controlSizes.default,
@@ -57,8 +60,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
   },
+  disabled: { backgroundColor: colors.surfaceMuted },
   inputGroupError: {
     borderColor: colors.danger,
   },

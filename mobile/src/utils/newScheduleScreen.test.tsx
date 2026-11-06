@@ -1,4 +1,5 @@
 jest.mock("../hooks/useFormExit", () => ({ useFormExit: () => ({ dialog: null, complete: async () => false, dirty: false }) }));
+jest.mock("../components/schedules/SongMomentDrawer", () => jest.requireActual("../components/schedules/SongMomentDrawer.web"));
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { Text, TextInput, TouchableOpacity } from "react-native";

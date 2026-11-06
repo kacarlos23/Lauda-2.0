@@ -3,6 +3,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from ".
 import { WorshipOrderInput } from "../validators/worshipOrder.schema";
 import { scheduleSongsChanged } from "../security/scheduleMutationPolicy";
 import { enqueueScheduleUpdated, loadScheduleNotificationSnapshot } from "../services/scheduleNotificationService";
+import { parseReadings } from "../services/worshipOrderItems";
 
 const active = { isActive: true, deletedAt: null };
 const scheduleInclude = (tenantId: string) => ({
@@ -28,7 +29,9 @@ export class WorshipOrderRepository {
       load(order.morningScheduleId), load(order.eveningScheduleId),
       prisma.tenant.findUnique({ where: { id: this.tenantId }, select: { name: true } }),
     ]);
-    return { date, updatedAt: order.updatedAt, churchName: tenant?.name ?? null, morning, evening };
+    return { date, updatedAt: order.updatedAt, churchName: tenant?.name ?? null,
+      morning: morning ? { ...morning, readings: parseReadings(morning.readings) } : null,
+      evening: evening ? { ...evening, readings: parseReadings(evening.readings) } : null };
   }
 
   async save(date: string, input: WorshipOrderInput, actorId: string, canModifySongs: boolean) {
@@ -58,7 +61,8 @@ export class WorshipOrderRepository {
               create: { ...data, tenantId: this.tenantId, scheduleId: schedule.id, songId: entry.songId }, update: data,
             });
           }
-          await tx.schedule.update({ where: { id: schedule.id, tenantId: this.tenantId }, data: { updatedAt: new Date() } });
+          // Missing readings means an older client: preserve the saved sequence.
+          await tx.schedule.update({ where: { id: schedule.id, tenantId: this.tenantId }, data: { updatedAt: new Date(), readings: period.readings } });
           const after = await loadScheduleNotificationSnapshot(this.tenantId, schedule.id, tx);
           if (before && after) await enqueueScheduleUpdated(tx, before, after, actorId);
         }

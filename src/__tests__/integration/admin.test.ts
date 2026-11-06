@@ -182,7 +182,7 @@ afterAll(async () => {
 });
 
 describe("Admin global API", () => {
-  it("executa CRUD global padronizado, lifecycle, log e bloqueia relaÃ§Ãµes entre igrejas", async () => {
+  it("executa CRUD global padronizado, lifecycle, log e bloqueia relações entre igrejas", async () => {
     const tenantA = await registerTenant("ops-a");
     const tenantB = await registerTenant("ops-b");
     const ministryA = await createMinistry(tenantA.accessToken, "Louvor Ops A");

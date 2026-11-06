@@ -1,14 +1,7 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
@@ -259,7 +252,7 @@ export default function MinistriesScreen() {
         <View style={styles.form}>
           <ErrorBanner message={formError ?? error} style={styles.formError} />
           <Text style={styles.label}>Nome *</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Nome"
             style={styles.input}
             placeholder="Ex: Louvor"
             placeholderTextColor={colors.muted}
@@ -271,7 +264,7 @@ export default function MinistriesScreen() {
             autoFocus
           />
           <Text style={styles.label}>Descrição</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Descrição"
             style={[styles.input, styles.textArea]}
             placeholder="Descreva o objetivo deste ministério"
             placeholderTextColor={colors.muted}
@@ -305,15 +298,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginTop: spacing.lg,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 0,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    marginBottom: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
+  card: { ...uiPatterns.dataCard, marginBottom: spacing.sm },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -337,7 +322,7 @@ const styles = StyleSheet.create({
   formError: {
     marginBottom: spacing.lg,
   },
-  label: { ...typography.label, color: colors.text, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel },
   input: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radii.md,
@@ -355,24 +340,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     justifyContent: "flex-end",
   },
-  cancelButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceMuted,
-  },
-  cancelButtonText: { ...typography.button, color: colors.text },
-  saveButton: {
-    minHeight: controlSizes.default,
-    minWidth: 96,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-  },
-  saveButtonText: { ...typography.button, color: colors.surface },
+  cancelButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  cancelButtonText: { ...uiPatterns.actionText, color: colors.text },
+  saveButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, minWidth: 96 },
+  saveButtonText: { ...uiPatterns.actionText, color: colors.surface },
   buttonDisabled: { opacity: 0.6 },
 });

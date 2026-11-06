@@ -1,5 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { uiPatterns } from "./ui/patterns";
+import { InputControl as TextInput } from "./ui/InputControl";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import React from "react";
 import { Plus, UserRound } from "lucide-react-native";
 import { Artist } from "../types";
@@ -92,6 +94,7 @@ export function ArtistPicker({
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
+          accessibilityLabel={label}
           style={styles.input}
           value={query}
           onChangeText={(value) => { setQuery(value); onQueryChange?.(value); onSelect(null); setError(null); }}
@@ -126,7 +129,7 @@ export function ArtistPicker({
 }
 
 const styles = StyleSheet.create({
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel },
   inputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   input: { flex: 1, minHeight: controlSizes.large, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   options: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, marginTop: spacing.xs, overflow: "hidden" },

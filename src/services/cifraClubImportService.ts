@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { Browser, chromium, Download, LaunchOptions, Page, Response } from "playwright";
 import { NotFoundError, ServiceUnavailableError, ValidationError } from "../errors/AppError";
 import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
+import { normalizeChordText } from "../utils/chordText";
 
 const BASE_URL = "https://www.cifraclub.com.br";
 const MAX_GENERAL_SEARCH_PAGES = 2;
@@ -47,6 +48,7 @@ export class CifraClubImportService {
       let artistCatalogItems: CifraClubSearchResult[] = [];
       if (input.artist) {
         merge(await this.searchDirectCandidates(page, input));
+        if (results.size) return { items: Array.from(results.values()) };
         artistCatalogItems = await this.searchArtistSongs(page, input);
         merge(artistCatalogItems);
       }
@@ -78,12 +80,16 @@ export class CifraClubImportService {
       const html = await page.content();
       const metadata = CifraClubImportService.parseSongPage(html, page.url());
       const downloadContent = await this.tryDownloadContent(page);
+      const cleanDownload = downloadContent ? CifraClubImportService.cleanTextFile(downloadContent) : null;
 
       return {
         ...metadata,
-        content: downloadContent?.trim() || metadata.content,
-        source: downloadContent?.trim() ? "download" : "page-fallback",
+        content: CifraClubImportService.cleanTextFile(cleanDownload?.trim() ? CifraClubImportService.withCapoInstruction(cleanDownload, html) : metadata.content),
+        source: cleanDownload?.trim() ? "download" : "page-fallback",
       };
+    } catch (error) {
+      if (error instanceof ValidationError || error instanceof ServiceUnavailableError) throw error;
+      throw new ServiceUnavailableError("Não foi possível concluir a importação do Cifra Club. Tente novamente.");
     } finally {
       await browser.close().catch(() => undefined);
     }
@@ -144,7 +150,11 @@ export class CifraClubImportService {
       if (!download) return null;
       const filePath = await download.path();
       if (!filePath) return null;
-      return await fs.readFile(filePath, "utf8");
+      const bytes = await fs.readFile(filePath);
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").trim();
+      if (!text || /<\/?(?:html|body|script)\b|^%PDF-|\uFFFD/i.test(text)) return null;
+      return text;
     } catch {
       await downloadPromise?.catch(() => null);
       return null;
@@ -204,7 +214,12 @@ export class CifraClubImportService {
         timeout: NAVIGATION_TIMEOUT_MS,
       });
       CifraClubImportService.assertExternalServiceAvailable(response);
-      await page.waitForSelector(".gsc-webResult.gsc-result", { state: "attached", timeout: 12_000 });
+      if (!response?.ok()) throw new ServiceUnavailableError("Não foi possível consultar a busca do Cifra Club.");
+      // The current site renders its own search cards; older pages used Google CSE.
+      await page.waitForSelector(
+        '.primaryLabel, .gsc-webResult.gsc-result, nav[aria-label="Paginação dos resultados da busca"], main :text-is("Nenhum resultado")',
+        { state: "attached", timeout: 12_000 }
+      );
 
       const collectCurrentPage = async () => {
         for (const item of CifraClubImportService.parseSearchResults(await page.content(), page.url(), input)) {
@@ -216,6 +231,21 @@ export class CifraClubImportService {
       };
 
       await collectCurrentPage();
+      const modernPagination = page.getByRole("navigation", { name: "Paginação dos resultados da busca" });
+      if (await modernPagination.count()) {
+        for (let pageNumber = 2; pageNumber <= MAX_GENERAL_SEARCH_PAGES; pageNumber++) {
+          if (results.size >= MAX_GENERAL_SEARCH_RESULTS) break;
+          const next = modernPagination.getByRole("button", { name: "Próxima página", exact: true });
+          if (!await next.count() || await next.isDisabled()) break;
+          await next.click({ timeout: 5_000 });
+          await page.waitForFunction(
+            (expectedPage) => document.querySelector('nav[aria-label="Paginação dos resultados da busca"] [aria-current="page"]')?.textContent?.trim() === String(expectedPage),
+            pageNumber,
+            { timeout: 8_000 }
+          );
+          await collectCurrentPage();
+        }
+      }
       const pageNumbers = (await page.locator(".gsc-cursor-page").allTextContents())
         .map((value) => Number(value.trim()))
         .filter((value) => Number.isInteger(value) && value > 1)
@@ -239,7 +269,7 @@ export class CifraClubImportService {
       }
     } catch (error) {
       if (error instanceof ServiceUnavailableError) throw error;
-      return [];
+      if (!results.size) throw new ServiceUnavailableError("Não foi possível concluir a busca no Cifra Club. Tente novamente.");
     }
 
     return Array.from(results.values())
@@ -260,10 +290,16 @@ export class CifraClubImportService {
 
       const text = this.cleanText(match[2]);
       const pathParts = new URL(url).pathname.split("/").filter(Boolean);
-      const { artist, title } = this.candidateLabels(text, pathParts, currentUrl, input);
+      const cardTitle = this.cardLabel(match[2], "primaryLabel");
+      const cardArtist = this.cardLabel(match[2], "secondaryLabel");
+      const labels = this.candidateLabels(text, pathParts, currentUrl, input);
+      const title = cardTitle || labels.title;
+      const artist = cardArtist || (input.artist && this.normalize(labels.artist) === this.normalize(input.artist) ? input.artist : labels.artist);
 
       if (!this.matchesCandidate({ title, artist }, input)) continue;
-      const candidate = { title, artist, url, originalKey: this.findNearbyKey(html, match.index) };
+      const originalKey = this.normalizeMusicalKey(this.cardLabel(match[2], "tertiaryLabel"))
+        ?? this.findNearbyKey(html, match.index);
+      const candidate = { title, artist, url, originalKey };
       const previous = results.get(url);
       if (!previous || this.labelQuality(candidate) > this.labelQuality(previous)) {
         results.set(url, candidate);
@@ -279,7 +315,7 @@ export class CifraClubImportService {
     const artist = this.extractSongArtist(html, pageUrl);
     const keyText = this.extractMusicalKey(html);
     const originalKey = this.normalizeMusicalKey(keyText);
-    const content = this.extractChordContent(html);
+    const content = this.withCapoInstruction(this.extractChordContent(html), html);
 
     if (!title || !artist || !originalKey || !content) {
       throw new ValidationError("Não foi possível importar a cifra. O layout do Cifra Club pode ter mudado.");
@@ -296,7 +332,8 @@ export class CifraClubImportService {
   }
 
   private static extractChordContent(html: string): string {
-    const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+    const preMatch = html.match(/<pre\b[^>]*data-chord-content=["']true["'][^>]*>([\s\S]*?)<\/pre>/i)
+      ?? html.match(/<pre\b[^>]*>([\s\S]*?)<\/pre>/i);
     if (preMatch?.[1]) return this.cleanPreText(preMatch[1]);
 
     const text = this.cleanText(html)
@@ -309,34 +346,60 @@ export class CifraClubImportService {
   }
 
   private static cleanPreText(value: string): string {
-    return this.decodeEntities(value)
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/div>|<\/p>|<\/span>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/\u00a0/g, " ")
-      .replace(/[ \t]+\n/g, "\n")
-      .trim();
+    let text = "";
+    for (const token of value.match(/<[^>]*>|[^<]+/g) ?? []) {
+      if (/^<br\b/i.test(token)) text += "\n";
+      else if (/^<\/(?:div|p)>/i.test(token)) {
+        if (text && !text.endsWith("\n")) text += "\n";
+      } else if (!token.startsWith("<")) text += token;
+    }
+    return this.cleanTextFile(this.decodeEntities(text));
+  }
+
+  private static cleanTextFile(value: string): string {
+    // Keep horizontal padding on the first chord row: it positions the notes.
+    return normalizeChordText(value).replace(/^(?:[ \t]*\r?\n)+|(?:\r?\n[ \t]*)+$/g, "");
   }
 
   private static cleanText(value: string): string {
-    return this.decodeEntities(value)
+    return this.decodeEntities(value
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/p>|<\/div>|<\/li>|<\/h\d>|<\/tr>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
+      .replace(/<[^>]+>/g, " "))
       .replace(/\s+/g, " ")
       .trim();
   }
 
   private static decodeEntities(value: string): string {
     return value
+      .replace(/&#(x[0-9a-f]+|\d+);/gi, (entity, number: string) => {
+        const point = number[0].toLowerCase() === "x" ? parseInt(number.slice(1), 16) : Number(number);
+        return point > 0 && point <= 0x10FFFF && !(point >= 0xD800 && point <= 0xDFFF) ? String.fromCodePoint(point) : entity;
+      })
+      .replace(/&([AEIOUaeiouCcNn])(acute|grave|circ|tilde|uml|cedil);/g, (_, letter: string, accent: string) => {
+        const accents: Record<string, string> = { acute: "\u0301", grave: "\u0300", circ: "\u0302", tilde: "\u0303", uml: "\u0308", cedil: "\u0327" };
+        return `${letter}${accents[accent]}`.normalize("NFC");
+      })
       .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
       .replace(/&quot;/g, "\"")
       .replace(/&#39;|&apos;/g, "'")
       .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">");
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+  }
+
+  private static cardLabel(html: string, className: string): string {
+    const match = html.match(new RegExp(`<([a-z][\\w]*)\\b[^>]*\\bclass=["'][^"']*\\b${className}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/\\1>`, "i"));
+    return match ? this.cleanText(match[2]) : "";
+  }
+
+  private static withCapoInstruction(content: string, html: string): string {
+    if (!content || /\bcapotraste\b/i.test(content)) return content;
+    const button = html.match(/<button\b[^>]*data-anchor=["']--chord-capo["'][^>]*>([\s\S]*?)<\/button>/i);
+    const fret = button && this.cleanText(button[1]).match(/^(\d{1,2})[ªa]?\s*casa/i)?.[1];
+    return fret && Number(fret) > 0 ? `Capotraste: ${fret}ª casa\n\n${content}` : content;
   }
 
   private static firstMatch(html: string, regex: RegExp): string {
@@ -382,7 +445,9 @@ export class CifraClubImportService {
   }
 
   private static extractMusicalKey(html: string): string {
-    return this.cleanText(html).match(/\btom\s*:?\s*([A-G](?:#|b)?m?)(?=\s|\(|$)/i)?.[1] ?? "";
+    const tone = html.match(/<button\b[^>]*data-anchor=["']--chord-tone["'][^>]*>([\s\S]*?)<\/button>/i);
+    return tone ? this.cleanText(tone[1]).split(/\s/)[0]
+      : this.cleanText(html).match(/\btom\s*:?\s*([A-G](?:#|b)?m?)(?=\s|\(|$)/i)?.[1] ?? "";
   }
 
   private static jsonLdNodes(html: string): Record<string, unknown>[] {
@@ -420,7 +485,7 @@ export class CifraClubImportService {
   }
 
   private static normalizeMusicalKey(value: string): MusicalKey | null {
-    const normalized = value.trim();
+    const normalized = value.trim().replace(/♭/g, "b").replace(/♯/g, "#").replace(/^[a-g]/, (note) => note.toUpperCase());
     const flatMap: Record<string, MusicalKey> = {
       Db: "C#",
       Eb: "D#",
@@ -523,7 +588,7 @@ export class CifraClubImportService {
   private static candidateLabels(text: string, pathParts: string[], currentUrl: string, input: CifraClubSearchInput) {
     const fallbackTitle = this.titleCaseSlug(pathParts[1] ?? input.title ?? "");
     const fallbackArtist = this.titleCaseSlug(pathParts[0] ?? input.artist ?? "");
-    const conciseText = text.split(/Cifra Club[â€¢•]/i)[0].trim();
+    const conciseText = text.split(/Cifra Club(?:\u00e2\u20ac\u00a2|•)/i)[0].trim();
     const googleLabel = conciseText.match(/^(.*?)\s+-\s+(.*?)\s+-\s+Cifra Club$/i);
     if (googleLabel) {
       return { title: googleLabel[1].trim(), artist: googleLabel[2].trim() };
@@ -601,3 +666,4 @@ export class CifraClubImportService {
     return match?.[1] ?? null;
   }
 }
+

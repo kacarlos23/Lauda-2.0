@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.xl,
   },
-  textGroup: { flexShrink: 1 },
+  textGroup: { flexShrink: 1, minWidth: 0 },
   title: { ...typography.screenTitle, color: colors.ink, marginBottom: spacing.xs },
   sectionTitle: { ...typography.sectionTitle, letterSpacing: 0 },
   subtitle: { ...typography.subtitle, color: colors.muted },

@@ -1,5 +1,7 @@
-﻿import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Check } from "lucide-react-native";
@@ -122,7 +124,7 @@ export default function AssignMemberScreen() {
         </View>
 
         <Text style={styles.label}>ID do usuário *</Text>
-        <TextInput
+        <TextInput accessibilityLabel="ID do usuário"
           style={styles.input}
           value={userId}
           onChangeText={setUserId}
@@ -132,7 +134,7 @@ export default function AssignMemberScreen() {
         />
 
         <Text style={styles.label}>Cargo</Text>
-        <TextInput
+        <TextInput accessibilityLabel="Cargo"
           style={styles.input}
           value={role}
           onChangeText={setRole}
@@ -141,7 +143,7 @@ export default function AssignMemberScreen() {
         />
 
         <Text style={styles.label}>Habilidades</Text>
-        <TextInput
+        <TextInput accessibilityLabel="Habilidades"
           style={styles.input}
           value={skillsText}
           onChangeText={setSkillsText}
@@ -171,7 +173,7 @@ export default function AssignMemberScreen() {
         </TouchableOpacity>
 
         <Text style={styles.label}>Notas</Text>
-        <TextInput
+        <TextInput accessibilityLabel="Notas"
           style={[styles.input, styles.textArea]}
           value={notes}
           onChangeText={setNotes}
@@ -200,9 +202,9 @@ const styles = StyleSheet.create({
   content: { width: "100%", maxWidth: screen.formMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   topBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   iconBtn: { padding: spacing.sm },
-  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.extrabold },
+  title: { ...uiPatterns.pageTitle },
   loader: { marginBottom: spacing.lg },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
+  label: { ...uiPatterns.fieldLabel },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
@@ -243,14 +245,8 @@ const styles = StyleSheet.create({
   },
   checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   toggleText: { color: colors.text, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
-  submitButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitText: { color: colors.surface, fontSize: fontSizes.s15, fontWeight: fontWeights.extrabold },
+  submitButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
+  submitText: { ...uiPatterns.actionText, color: colors.surface },
   disabled: { opacity: 0.6 },
   errorText: { color: colors.danger, fontSize: fontSizes.s16, fontWeight: fontWeights.bold, textAlign: "center" },
 });

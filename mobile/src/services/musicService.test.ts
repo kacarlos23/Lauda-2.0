@@ -5,11 +5,15 @@ jest.mock("./api", () => ({ api: { get: jest.fn(), patch: jest.fn(), post: jest.
 
 import { api } from "./api";
 import { musicService } from "./musicService";
+import { File } from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { Platform } from "react-native";
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
 describe("musicService", () => {
   beforeEach(() => jest.clearAllMocks());
+  afterEach(() => Object.assign(Platform, { OS: "web" }));
 
   it("busca artistas com paginação", async () => {
     const data = { items: [{ id: "a1", name: "Oficina G3" }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } };
@@ -106,14 +110,23 @@ describe("musicService", () => {
     const createObjectURL = jest.fn(() => "blob:url");
     const revokeObjectURL = jest.fn();
     const click = jest.fn();
+    const remove = jest.fn();
+    const appendChild = jest.fn();
+    jest.useFakeTimers();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
-    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click })) } });
+    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click, remove })), body: { appendChild } } });
     mockedApi.post.mockResolvedValueOnce({ data: new ArrayBuffer(4) });
 
     await musicService.exportSongs(["s1"], "cifra.pdf", { s1: 2 });
 
     expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/export", { songIds: ["s1"], transpositions: { s1: 2 } }, { responseType: "arraybuffer" });
     expect(click).toHaveBeenCalled();
+    expect(appendChild).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(60_000);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:url");
+    jest.useRealTimers();
   });
 
   it("revisa, confirma e exporta o catálogo portátil de um ministério", async () => {
@@ -129,27 +142,59 @@ describe("musicService", () => {
     };
     mockedApi.post.mockResolvedValueOnce({ data: { success: true, data: preview } });
     await expect(musicService.previewSongData("ministry-1", document)).resolves.toEqual(preview);
-    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/preview", { ministryId: "ministry-1", document });
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/preview", { ministryId: "ministry-1", document }, { timeout: 120_000 });
 
     const committed = { created: 1, linked: 1, restored: 0, alreadyLinked: 0, conflicts: 0, invalid: 0, total: 1, documentHash: preview.documentHash };
     mockedApi.post.mockResolvedValueOnce({ data: { success: true, data: committed } });
     await expect(musicService.commitSongData("ministry-1", document, preview.documentHash)).resolves.toEqual(committed);
-    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/commit", { ministryId: "ministry-1", document, documentHash: preview.documentHash });
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-import/commit", { ministryId: "ministry-1", document, documentHash: preview.documentHash }, { timeout: 150_000 });
 
     const createObjectURL = jest.fn(() => "blob:catalog");
     const click = jest.fn();
+    const remove = jest.fn();
+    const appendChild = jest.fn();
+    jest.useFakeTimers();
     Object.assign(URL, { createObjectURL, revokeObjectURL: jest.fn() });
-    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click })) } });
+    Object.assign(globalThis, { document: { createElement: jest.fn(() => ({ click, remove })), body: { appendChild } } });
     mockedApi.post.mockResolvedValueOnce({ data: document });
     await musicService.exportSongData("ministry-1", "Louvor da Manhã");
-    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-export", { ministryId: "ministry-1" });
+    expect(mockedApi.post).toHaveBeenLastCalledWith("/songs/data-export", { ministryId: "ministry-1" }, { timeout: 120_000 });
     expect(createObjectURL).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
+    expect(appendChild).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(60_000);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:catalog");
+    jest.useRealTimers();
   });
 
   it("converte erro da API em mensagem de domínio", async () => {
     mockedApi.get.mockRejectedValueOnce({ response: { data: { error: "Música não encontrada" } } });
     await expect(musicService.getSong("missing")).rejects.toThrow("Música não encontrada");
+  });
+
+  it("mostra o campo e a música que causaram a recusa da importação", async () => {
+    mockedApi.post.mockRejectedValueOnce({ response: { status: 400, data: {
+      error: "Erro de validação", code: "VALIDATION_ERROR",
+      details: ["document.songs.2.originalKey: Tom inválido"],
+    } } });
+    await expect(musicService.previewSongData("ministry-1", {} as any)).rejects.toThrow("Música 3 · originalKey: Tom inválido");
+  });
+
+  it("salva e compartilha o JSON UTF-8 no aplicativo nativo", async () => {
+    Object.assign(Platform, { OS: "android" });
+    const document = { format: "lauda.music-catalog", version: 1, songs: [
+      { title: "Canção de adoração", artist: "Louvor", originalKey: "Am", content: "Am\nAdoração", cifraUrl: null },
+    ] };
+    const file = { uri: "file:///cache/catalog.json", create: jest.fn(), write: jest.fn() };
+    jest.mocked(File).mockImplementationOnce(() => file as unknown as File);
+    jest.mocked(Sharing.isAvailableAsync).mockResolvedValueOnce(true);
+    mockedApi.post.mockResolvedValueOnce({ data: document });
+    await musicService.exportSongData("ministry-1", "Louvor da Manhã");
+    expect(file.create).toHaveBeenCalledWith({ overwrite: true });
+    expect(JSON.parse(file.write.mock.calls[0][0])).toEqual(document);
+    expect(Sharing.shareAsync).toHaveBeenCalledWith(file.uri, expect.objectContaining({ mimeType: "application/json" }));
   });
 
   it("converte indisponibilidade binária da exportação em erro tipado", async () => {
@@ -165,4 +210,17 @@ describe("musicService", () => {
     await expect(musicService.exportSongs(["song-1", "song-2"], "cifras.pdf"))
       .rejects.toEqual(expect.objectContaining({ songIds: ["song-2"] }));
   });
+  it("limpa conteúdo recebido antes de expor música ou prévia de importação", async () => {
+    const raw = "\uFEFFG\u200B\tC\nTexto editado";
+    const clean = "G       C\nTexto editado";
+    mockedApi.get.mockResolvedValueOnce({ data: { data: { id: "song", content: raw } } });
+    expect((await musicService.getSong("song")).content).toBe(clean);
+    mockedApi.get.mockResolvedValueOnce({ data: { data: { items: [{ id: "song", content: raw }], pagination: {} } } });
+    expect((await musicService.listSongs()).items[0].content).toBe(clean);
+    mockedApi.post.mockResolvedValueOnce({ data: { data: { content: raw } } });
+    expect((await musicService.importCifraClub("https://www.cifraclub.com.br/teste/musica/")).content).toBe(clean);
+  });
+  beforeEach(() => jest.clearAllMocks());
+
+
 });

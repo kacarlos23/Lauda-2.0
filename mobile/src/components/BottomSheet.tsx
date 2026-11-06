@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import {
   colors,
@@ -22,6 +23,8 @@ import {
   radiusValues,
   shadow,
   spacing,
+  breakpoints,
+  typography,
 } from "../theme";
 import { ArrowLeft, X } from "lucide-react-native";
 
@@ -32,11 +35,15 @@ interface BottomSheetProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  presentation?: "sheet" | "modal";
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet" }: BottomSheetProps) {
+  const dimensions = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 390 };
+  const wide = dimensions.width >= breakpoints.mobile;
+  const fixedModal = presentation === "modal";
   const [modalVisible, setModalVisible] = useState(isOpen);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -114,17 +121,17 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer }
       animationType="none"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, wide && styles.overlayWide, fixedModal && styles.overlayModal]}>
         <Animated.View style={[styles.backdrop, { opacity }]}>
           <Pressable style={styles.backdropPressable} onPress={onClose} />
         </Animated.View>
         
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY }] }]}
+          style={[styles.sheet, (wide || fixedModal) && styles.sheetWide, !fixedModal && { transform: [{ translateY }] }]}
         >
-          <View style={styles.dragHandleTouch} {...panResponder.panHandlers}>
+          {!fixedModal && <View style={styles.dragHandleTouch} {...panResponder.panHandlers}>
             <View style={styles.dragHandle} />
-          </View>
+          </View>}
           <View style={[styles.header, onBack && styles.headerWithBack]}>
             {onBack ? (
               <Pressable onPress={onBack} style={styles.backBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Voltar">
@@ -158,6 +165,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
+  overlayWide: { justifyContent: "center", padding: spacing.xl },
+  overlayModal: { justifyContent: "center", padding: spacing.md },
+  sheetWide: { width: "100%", maxWidth: 720, alignSelf: "center", borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: overlays.modal,
@@ -201,8 +211,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: fontSizes.s20,
-    fontWeight: fontWeights.black,
+    ...typography.sectionTitle,
     color: colors.ink,
     textAlign: "center",
   },

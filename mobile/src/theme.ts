@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { createThemeTokens, themePreviewEnabled } from "./tokens/colorModes";
 export { fontSizes } from "./tokens/primitives";
 export { printTheme } from "./tokens/print";
 
@@ -31,7 +32,7 @@ export const tokens = {
   },
 } as const;
 
-export const colors = {
+export const lightColors = {
   background: tokens.surface.canvas,
   surface: tokens.surface.base,
   surfaceMuted: tokens.surface.muted,
@@ -77,9 +78,14 @@ export const colors = {
   warningStrong: "#8C6A00",
   warningToast: "#7A5410",
   warningTextStrong: "#6E4813",
+  brandPanel: tokens.brand.deep,
+  momentActive: "#1b654e",
+  momentText: "#1b654e",
+  momentBorder: "#cbded5",
+  momentSurface: "#f5f9f6",
 };
 
-export const overlays = {
+export const lightOverlays = {
   songHoverShadow: "rgba(16, 40, 32, 0.12)",
   subtleInverse: "rgba(248, 250, 246, 0.07)",
   inverseBorder: "rgba(248, 250, 246, 0.12)",
@@ -98,6 +104,11 @@ export const overlays = {
   modalCool: "rgba(15, 23, 42, 0.46)",
   modalNeutral: "rgba(23, 33, 26, 0.42)",
 } as const;
+
+// Existing native and production builds retain their original colors.
+// Web preview uses CSS variables so already-mounted screens and portal dialogs update together.
+export const colors = createThemeTokens(lightColors, "color", Platform.OS === "web" && themePreviewEnabled);
+export const overlays = createThemeTokens(lightOverlays, "overlay", Platform.OS === "web" && themePreviewEnabled);
 
 export const spacing = {
   xxs: 2,
@@ -233,8 +244,8 @@ export const screen = {
   formMaxWidth: 720,
   sidebarWidth: 248,
   sidebarCollapsedWidth: 72,
-  desktopPadding: 32,
-  tabletPadding: 20,
+  desktopPadding: 24,
+  tabletPadding: 24,
   mobilePadding: 16,
   contentBottomPadding: spacing.xxl,
   scheduleCardOffset: 58,

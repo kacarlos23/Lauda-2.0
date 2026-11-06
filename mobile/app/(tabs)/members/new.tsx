@@ -1,16 +1,7 @@
-﻿import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { Check, Save, UserPlus } from "lucide-react-native";
 import { memberService } from "../../../src/services/memberService";
@@ -149,7 +140,7 @@ export default function NewMemberScreen() {
           {success ? <Text style={styles.success}>{success}</Text> : null}
 
           <Text style={styles.label}>Nome *</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Nome"
             style={styles.input}
             placeholder="Nome completo"
             placeholderTextColor={colors.muted}
@@ -158,7 +149,7 @@ export default function NewMemberScreen() {
           />
 
           <Text style={styles.label}>E-mail *</Text>
-          <TextInput
+          <TextInput accessibilityLabel="E-mail"
             style={styles.input}
             placeholder="membro@suaigreja.com"
             placeholderTextColor={colors.muted}
@@ -169,7 +160,7 @@ export default function NewMemberScreen() {
           />
 
           <Text style={styles.label}>Telefone</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Telefone"
             style={styles.input}
             placeholder="(00) 00000-0000"
             placeholderTextColor={colors.muted}
@@ -179,7 +170,7 @@ export default function NewMemberScreen() {
           />
 
           <Text style={styles.label}>Senha provisória *</Text>
-          <TextInput
+          <TextInput accessibilityLabel="Senha provisória"
             style={styles.input}
             placeholder="Mínimo 6 caracteres"
             placeholderTextColor={colors.muted}
@@ -303,9 +294,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  title: { fontSize: fontSizes.s32, fontWeight: fontWeights.extrabold, color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { fontSize: fontSizes.s15, lineHeight: lineHeights.h22, color: colors.muted, marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.bold, marginBottom: spacing.sm },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.xs },
+  subtitle: { ...uiPatterns.subtitle, marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  label: { ...uiPatterns.fieldLabel },
   input: {
     minHeight: controlSizes.default,
     backgroundColor: colors.surface,
@@ -400,17 +391,7 @@ const styles = StyleSheet.create({
   },
   checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkboxText: { flex: 1, color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
-  button: {
-    minHeight: controlSizes.default,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.control,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
+  button: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.sm },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: colors.surface, fontSize: fontSizes.s16, fontWeight: fontWeights.bold },
+  buttonText: { ...uiPatterns.actionText, color: colors.surface },
 });

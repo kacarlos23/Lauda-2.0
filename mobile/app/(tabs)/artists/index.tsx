@@ -1,3 +1,4 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
 import { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect } from "expo-router";
@@ -180,13 +181,7 @@ const styles = StyleSheet.create({
   backRow: { marginBottom: spacing.sm },
   toolbar: { marginBottom: spacing.xl },
   search: { flex: 1, minWidth: 240 },
-  editor: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
-    backgroundColor: colors.surfaceMuted,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-  },
+  editor: { ...uiPatterns.section, borderLeftColor: colors.accent, marginBottom: spacing.xl },
   editorTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
   editorFields: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   editorField: { flex: 1, minWidth: 240 },
@@ -203,16 +198,8 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.sectionTitle, color: colors.ink },
   count: { ...typography.metadata, color: colors.muted },
   loading: { paddingVertical: spacing.xl, alignItems: "flex-start" },
-  list: { borderBottomWidth: 1, borderBottomColor: colors.line },
-  row: {
-    minHeight: 60,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    paddingVertical: spacing.sm,
-  },
+  list: { ...uiPatterns.surface, overflow: "hidden" },
+  row: { ...uiPatterns.listRow, flexDirection: "row", alignItems: "center", gap: spacing.md },
   avatar: { width: 38, height: 38, borderRadius: radiusValues.r19, backgroundColor: colors.surfaceMuted },
   placeholder: {
     width: 38,

@@ -1,5 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -248,17 +250,9 @@ const styles = StyleSheet.create({
     paddingBottom: screen.contentBottomPadding,
   },
   header: { marginBottom: spacing.xl },
-  title: { fontSize: fontSizes.s30, fontWeight: fontWeights.black, color: colors.ink, marginBottom: spacing.sm },
-  subtitle: { fontSize: fontSizes.s15, color: colors.muted, fontWeight: fontWeights.bold },
-  churchCard: {
-    backgroundColor: "transparent",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: spacing.lg,
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.sm },
+  subtitle: { ...uiPatterns.subtitle },
+  churchCard: { ...uiPatterns.section, gap: spacing.md, marginBottom: spacing.lg },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBox: {
     width: 46,
@@ -300,63 +294,21 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: fontSizes.s26, fontWeight: fontWeights.black, color: colors.primaryDark, marginTop: spacing.sm },
   metricLabel: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.xs },
   section: { marginTop: spacing.sm },
-  sectionTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.black, marginBottom: spacing.md },
-  list: { borderTopWidth: 1, borderTopColor: colors.line },
-  manageRow: {
-    minHeight: 76,
-    backgroundColor: "transparent",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    paddingVertical: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
+  sectionTitle: { ...uiPatterns.sectionTitle, marginBottom: spacing.md },
+  list: { ...uiPatterns.surface, overflow: "hidden" },
+  manageRow: { ...uiPatterns.listRow, flexDirection: "row", alignItems: "center", gap: spacing.md },
   manageCopy: { flex: 1 },
   manageTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.black, marginBottom: spacing.xs },
   manageDescription: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, lineHeight: lineHeights.h18 },
-  actionButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
+  actionButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
   actionButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
   editActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  primaryButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  primaryButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
-  secondaryButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryButtonText: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
+  primaryButtonText: { ...uiPatterns.actionText, color: colors.surface },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryButtonText: { ...uiPatterns.actionText, color: colors.text },
   disabledButton: { opacity: 0.55 },
-  stateBox: {
-    backgroundColor: "transparent",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: spacing.xl,
-    gap: spacing.md,
-    alignItems: "flex-start",
-  },
+  stateBox: { ...uiPatterns.section, gap: spacing.md, alignItems: "flex-start" },
   inlineError: { marginBottom: spacing.lg },
   denied: {
     flex: 1,

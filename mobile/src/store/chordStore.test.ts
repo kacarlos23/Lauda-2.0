@@ -1,6 +1,26 @@
 import { useChordStore } from "./chordStore";
 
 describe("chordStore", () => {
+  it("adota o tom salvo e restaura/reabre sem duplicar a transposição", () => {
+    const store = () => useChordStore.getState();
+    store().initializeSong("song-1", "G");
+    store().transpose(2);
+    store().acceptDefaultKey("song-1", "A");
+    expect(store()).toMatchObject({ originalKey: "A", currentKey: "A", semitoneOffset: 0 });
+    store().transpose(-1);
+    store().resetTranspose();
+    expect(store().currentKey).toBe("A");
+    store().initializeSong("song-2", "C");
+    store().initializeSong("song-1", "A");
+    expect(store()).toMatchObject({ currentKey: "A", semitoneOffset: 0 });
+  });
+
+  it("não altera a música ativa quando termina o salvamento de outra música", () => {
+    useChordStore.getState().initializeSong("song-2", "D");
+    useChordStore.getState().transpose(1);
+    useChordStore.getState().acceptDefaultKey("song-1", "A");
+    expect(useChordStore.getState()).toMatchObject({ activeSongId: "song-2", currentKey: "D#", semitoneOffset: 1, songOffsets: { "song-1": 0, "song-2": 1 } });
+  });
   beforeEach(() => useChordStore.setState({ activeSongId: null, originalKey: "C", currentKey: "C", semitoneOffset: 0, fontSize: 16, scrollSpeed: 1, songOffsets: {} }));
 
   it("persiste a transposição por música durante a sessão", () => {
@@ -18,3 +38,4 @@ describe("chordStore", () => {
     expect(useChordStore.getState()).toMatchObject({ fontSize: 32, scrollSpeed: 0.5 });
   });
 });
+

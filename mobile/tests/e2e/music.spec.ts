@@ -104,6 +104,39 @@ async function openSongs(page: Page) {
   await page.getByRole("link", { name: /M.*sicas/ }).click();
 }
 
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  test(`verifica cifra colada e aplica cifragem automática (${viewport.width}px)`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await authenticated(page, "TENANT_ADMIN");
+    await mockMusicApi(page);
+    await page.goto("/songs/new");
+    await page.getByTestId("artist-search-input").fill("Oficina");
+    await page.getByText("Oficina G3", { exact: true }).click();
+    await page.getByTestId("song-title-input").fill("Canção colada");
+    await page.getByTestId("song-next-button").click();
+    await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();
+    const editor = page.getByTestId("song-chord-input");
+    const pasted = "\uFEFFG\u200B\u00A0\u00A0\u00A0D\nDeus é bom";
+    await editor.fill(pasted);
+    await expect(page.getByTestId("song-auto-chords-button")).toBeVisible();
+    await page.getByTestId("song-verify-chords-button").click();
+    await expect(editor).toHaveValue("G   D\nDeus é bom");
+    await expect(page.getByTestId("song-chord-notice")).toContainText("corrigidos: 5");
+    await page.getByTestId("song-undo-chords-button").click();
+    await expect(editor).toHaveValue(pasted);
+    await page.getByTestId("song-auto-chords-button").click();
+    await expect(editor).toHaveValue("[G]Deus[D] é bom");
+    await page.getByTestId("song-verify-chords-button").click();
+    await expect(editor).toHaveValue("[G]Deus[D] é bom");
+    await expect(page.getByTestId("song-auto-chords-button")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const request = page.waitForRequest((req) => req.method() === "POST" && new URL(req.url()).pathname === "/api/songs");
+    await page.getByTestId("song-save-button").click();
+    expect((await request).postDataJSON().content).toBe("[G]Deus[D] é bom");
+    await expect(page).toHaveURL(new RegExp(`/songs/${createdSongId}$`));
+  });
+}
+
 test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF", async ({ page }) => {
   await authenticated(page, "TENANT_ADMIN");
   await mockMusicApi(page);

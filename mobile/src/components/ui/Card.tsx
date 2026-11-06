@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from "react-native";
-import { colors, radii, spacing } from "../../theme";
+import { spacing } from "../../theme";
+import { uiPatterns } from "./patterns";
 
 type CardProps = ViewProps & {
   children: React.ReactNode;
@@ -18,12 +19,9 @@ export function Card({ children, padded = true, style, ...props }: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
+    ...uiPatterns.surface,
   },
   padded: {
-    padding: spacing.lg,
+    padding: spacing.xl,
   },
 });

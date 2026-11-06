@@ -32,9 +32,10 @@ function DragHandle({ label, disabled, onStart, onMove, onEnd }: {
   </View>;
 }
 
-export function SortableSongList<T>({ items, itemKey, itemLabel, onMove, disabled = false, renderItem }: {
+export function SortableSongList<T>({ items, itemKey, itemLabel, onMove, disabled = false, renderItem, canDragItem }: {
   items: T[]; itemKey: (item: T) => string; itemLabel: (item: T) => string;
   onMove: (from: number, to: number) => void; disabled?: boolean; renderItem: (item: T, index: number) => React.ReactNode;
+  canDragItem?: (item: T) => boolean;
 }) {
   const refs = useRef(new Map<string, View>());
   const translations = useRef(new Map<string, Animated.ValueXY>());
@@ -121,7 +122,7 @@ export function SortableSongList<T>({ items, itemKey, itemLabel, onMove, disable
     style={elevatedKey === itemKey(item) ? styles.elevated : undefined}>
     <Animated.View testID={`sortable-motion-${itemKey(item)}`} style={[styles.row, { transform: translation(itemKey(item)).getTranslateTransform() },
       feedback?.from === index && styles.dragging, feedback?.to === index && feedback.from !== index && styles.target]}>
-      {!disabled && items.length > 1 ? <DragHandle label={itemLabel(item)} disabled={disabled} onStart={() => start(index)} onMove={move} onEnd={end} /> : null}
+      {!disabled && items.length > 1 && (canDragItem?.(item) ?? true) ? <DragHandle label={itemLabel(item)} disabled={disabled} onStart={() => start(index)} onMove={move} onEnd={end} /> : null}
       {renderItem(item, index)}
     </Animated.View>
   </View>)}</View>;

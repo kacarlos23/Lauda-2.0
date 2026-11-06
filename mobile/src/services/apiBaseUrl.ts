@@ -29,6 +29,9 @@ function replaceNativeLoopbackHost(baseUrl: string, expoHost: string | null): st
 
 export function resolveApiBaseUrl(options: ApiBaseUrlOptions = {}): string {
   const envUrl = options.envUrl ?? process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (process.env.EXPO_PUBLIC_APP_ENV === "staging" && envUrl !== "https://testes.laudaapp.com/api") {
+    throw new Error("O ambiente de testes exige sua API isolada em testes.laudaapp.com.");
+  }
   const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV;
   const platform = options.platform ?? Platform.OS;
   const expoGoConfig = (Constants as typeof Constants & { expoGoConfig?: { debuggerHost?: string | null } }).expoGoConfig;
@@ -62,3 +65,4 @@ export function resolveApiBaseUrl(options: ApiBaseUrlOptions = {}): string {
 }
 
 export { normalizeApiBaseUrl } from "./apiBaseUrl.shared";
+

@@ -1,5 +1,7 @@
+import { uiPatterns } from "./patterns";
+import { InputControl as TextInput } from "./InputControl";
 import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, TextInputSelectionChangeEventData, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TextInputSelectionChangeEventData, TouchableOpacity, View } from "react-native";
 import { countRichTextCharacters, RICH_TEXT_MAX_CHARACTERS } from "../../../../src/contracts/richText";
 import {
   colors,
@@ -90,7 +92,7 @@ function FormatButton({ label, onPress, style, disabled }: { label: string; onPr
 const styles = StyleSheet.create({
   container: { gap: spacing.sm },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
+  label: { ...uiPatterns.fieldLabel },
   counter: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.bold },
   limit: { color: colors.danger },
   toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs },

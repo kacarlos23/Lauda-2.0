@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     alignSelf: "center",
     borderRadius: radii.md,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.brandPanel,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     ...shadow,

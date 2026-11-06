@@ -1,6 +1,8 @@
+import { uiPatterns } from "./ui/patterns";
+import { InputControl as TextInput } from "./ui/InputControl";
 import React, { useRef, useState } from "react";
 import type { KeyboardTypeOptions, StyleProp, ViewStyle } from "react-native";
-import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar, Clock } from "lucide-react-native";
 import {
   colors,
@@ -24,6 +26,7 @@ interface DateTimeInputProps {
   value: string;
   onChange: (value: string) => void;
   label?: string;
+  accessibilityLabel?: string;
   placeholder?: string;
   maxLength?: number;
   keyboardType?: KeyboardTypeOptions;
@@ -39,6 +42,7 @@ export function DateTimeInput({
   value,
   onChange,
   label,
+  accessibilityLabel,
   placeholder,
   maxLength,
   keyboardType = "number-pad",
@@ -115,8 +119,10 @@ export function DateTimeInput({
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View ref={inputWrapperRef} style={[styles.inputWrapper, error && styles.inputWrapperError]}>
-        <TextInput
+      <View ref={inputWrapperRef} {...(Platform.OS === "web" ? { dataSet: { laudaField: "true", invalid: Boolean(error) } } : {})} style={[styles.inputWrapper, error && styles.inputWrapperError]}>
+        <TextInput embedded
+          accessibilityLabel={accessibilityLabel ?? label ?? (type === "date" ? "Data" : "Horário")}
+          invalid={Boolean(error)}
           style={styles.input}
           value={value}
           onChangeText={handleChange}
@@ -199,20 +205,14 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
   },
-  label: {
-    color: colors.text,
-    fontSize: fontSizes.s13,
-    fontWeight: fontWeights.black,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
+  label: { ...uiPatterns.fieldLabel, marginTop: spacing.lg },
   inputWrapper: {
-    minHeight: 52,
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.sm,
+    borderColor: colors.lineStrong,
+    borderRadius: radii.md,
     backgroundColor: colors.surface,
   },
   inputWrapperError: {
@@ -220,14 +220,15 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 50,
+    minHeight: 42,
     color: colors.ink,
-    fontSize: fontSizes.s15,
-    padding: spacing.md,
+    fontSize: fontSizes.s14,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   iconButton: {
     minWidth: 44,
-    minHeight: 50,
+    minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
   },

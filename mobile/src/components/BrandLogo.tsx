@@ -1,4 +1,6 @@
 import { Image, Platform, type ImageStyle, type StyleProp } from "react-native";
+import { themePreviewEnabled } from "../tokens/colorModes";
+import { useThemeStore } from "../store/themeStore";
 
 type BrandLogoProps = {
   variant?: "horizontal" | "symbol";
@@ -16,14 +18,16 @@ const nativeSources = {
 
 export function BrandLogo({
   variant = "horizontal",
-  tone = "dark",
+  tone,
   width = variant === "horizontal" ? 152 : 36,
   style,
 }: BrandLogoProps) {
-  const key = `${variant}-${tone}` as keyof typeof nativeSources;
+  const mode = useThemeStore((state) => state.mode);
+  const resolvedTone = tone ?? (themePreviewEnabled && mode === "dark" ? "light" : "dark");
+  const key = `${variant}-${resolvedTone}` as keyof typeof nativeSources;
   const filename = variant === "horizontal"
-    ? `lauda-logo-horizontal${tone === "light" ? "-light" : ""}.svg`
-    : `lauda-symbol${tone === "light" ? "-light" : ""}.svg`;
+    ? `lauda-logo-horizontal${resolvedTone === "light" ? "-light" : ""}.svg`
+    : `lauda-symbol${resolvedTone === "light" ? "-light" : ""}.svg`;
   const height = variant === "horizontal" ? Math.round(width * 0.3) : width;
 
   return (

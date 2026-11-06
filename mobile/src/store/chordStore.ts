@@ -13,6 +13,7 @@ type ChordState = {
   initializeSong: (songId: string, originalKey: string) => void;
   transpose: (delta: number) => void;
   resetTranspose: () => void;
+  acceptDefaultKey: (songId: string, key: string) => void;
   changeFontSize: (delta: number) => void;
   changeScrollSpeed: (delta: number) => void;
 };
@@ -43,6 +44,11 @@ export const useChordStore = create<ChordState>((set) => ({
     currentKey: state.originalKey,
     songOffsets: state.activeSongId ? { ...state.songOffsets, [state.activeSongId]: 0 } : state.songOffsets,
   })),
+  acceptDefaultKey: (songId, key) => set((state) => ({
+    songOffsets: { ...state.songOffsets, [songId]: 0 },
+    ...(state.activeSongId === songId ? { originalKey: key, currentKey: key, semitoneOffset: 0 } : {}),
+  })),
   changeFontSize: (delta) => set((state) => ({ fontSize: Math.max(12, Math.min(32, state.fontSize + delta)) })),
   changeScrollSpeed: (delta) => set((state) => ({ scrollSpeed: Math.max(0.5, Math.min(3, Math.round((state.scrollSpeed + delta) * 100) / 100)) })),
 }));
+

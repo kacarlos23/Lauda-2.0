@@ -7,6 +7,7 @@ import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { BrandLogo } from "../../src/components/BrandLogo";
 import { NotificationBell } from "../../src/components/NotificationBell";
+import { ThemeToggle } from "../../src/components/ThemeControls";
 import { NotificationRuntime } from "../../src/components/NotificationRuntime";
 import { NotificationToast } from "../../src/components/NotificationToast";
 import {
@@ -130,7 +131,7 @@ export default function TabsLayout() {
               <BrandLogo variant="symbol" width={32} />
             </View>
           ) : null,
-          headerRight: () => <View style={styles.headerActions}>{user.tenantId ? <NotificationBell /> : null}<ProfileHeaderButton /></View>,
+          headerRight: () => <View style={styles.headerActions}><ThemeToggle />{user.tenantId ? <NotificationBell /> : null}<ProfileHeaderButton /></View>,
         }}
       >
         {TAB_ROUTE_KEYS.map((routeKey) => {

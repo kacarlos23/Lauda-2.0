@@ -105,6 +105,7 @@ Desktop.ini
 .idea/
 
 # Temporary files
+.lauda-publisher/
 *.tmp
 *.temp
 *.orig.*

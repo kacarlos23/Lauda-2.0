@@ -1,6 +1,8 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 import { colors } from "../src/theme";
+import { themePreviewEnabled } from "../src/tokens/colorModes";
+import { themeBootstrapScript } from "../src/store/themeStore";
 
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
@@ -26,6 +28,18 @@ export default function RootHtml({ children }: PropsWithChildren) {
         />
         <link rel="manifest" href="/site.webmanifest" />
         <ScrollViewStyleReset />
+        <style dangerouslySetInnerHTML={{ __html: `
+          [data-lauda-control]:focus { outline: none; }
+          [data-lauda-control="standalone"]:focus,
+          [data-lauda-field]:focus-within {
+            border-color: ${colors.primary};
+            box-shadow: 0 0 0 3px ${colors.primarySoft};
+          }
+          [data-lauda-control][aria-invalid="true"], [data-lauda-field][data-invalid="true"] { border-color: ${colors.danger}; }
+          [role="button"]:focus-visible, a:focus-visible { outline: 2px solid ${colors.primary}; outline-offset: 3px; }
+          [data-lauda-rich-editor]:focus { outline: 2px solid ${colors.primary}; outline-offset: 2px; }
+        ` }} />
+        {themePreviewEnabled ? <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript() }} /> : null}
       </head>
       <body>{children}</body>
     </html>

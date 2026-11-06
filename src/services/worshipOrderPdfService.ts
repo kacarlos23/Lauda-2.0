@@ -4,6 +4,8 @@ import PDFDocument from "pdfkit";
 import { ValidationError } from "../errors/AppError";
 import { youtubeUrl } from "../validators/worshipOrder.schema";
 import { loadPdfArtistImages } from "./pdfArtistImage";
+import { WorshipReading } from "../validators/worshipOrder.schema";
+import { worshipItems } from "./worshipOrderItems";
 
 type Participation = {
   order: number; moment: string; momentDescription?: string | null; videoUrlOverride?: string | null;
@@ -11,8 +13,8 @@ type Participation = {
 };
 export type WorshipPdfData = {
   date: string; churchName?: string | null;
-  morning?: { songs: Participation[] } | null;
-  evening?: { songs: Participation[] } | null;
+  morning?: { title?: string; songs: Participation[]; readings?: WorshipReading[] } | null;
+  evening?: { title?: string; songs: Participation[]; readings?: WorshipReading[] } | null;
 };
 const fontRoot = path.join(path.dirname(require.resolve("dejavu-fonts-ttf/package.json")), "ttf");
 const logoRelative = "mobile/assets/brand/png/lauda-symbol-512.png";
@@ -26,7 +28,7 @@ export class WorshipOrderPdfService {
     const logo = [path.resolve(__dirname, "../../", logoRelative), path.resolve(process.cwd(), logoRelative), path.resolve(process.cwd(), "../", logoRelative)].find(existsSync);
     if (!logo) throw new ValidationError("A logo do Lauda não está disponível para gerar o PDF.");
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: "A4", margin: 46, bufferPages: true, info: { Title: "Ordem de Culto", Author: "Lauda" } });
+      const doc = new PDFDocument({ size: "A4", margins: { top: 46, bottom: 64, left: 46, right: 46 }, bufferPages: true, info: { Title: "Ordem de Culto", Author: "Lauda" } });
       const chunks: Buffer[] = [];
       doc.on("data", (chunk: Buffer) => chunks.push(chunk));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -48,8 +50,9 @@ export class WorshipOrderPdfService {
         y += 96;
 
         for (const [label, period] of [["CULTO DA MANHÃ", data.morning], ["CULTO DA NOITE", data.evening]] as const) {
-          if (!period?.songs.length) continue;
+          if (!period || (!period.songs.length && !period.readings?.length)) continue;
           const songs = [...period.songs].sort((a, b) => a.order - b.order);
+          const items = worshipItems(songs, period.readings);
           const section = (continued = false) => {
             doc.font("Bold").fontSize(12).fillColor(green).text(label + (continued ? " · continuação" : ""), x, y, { width });
             doc.font("Body").fontSize(9).fillColor("#65746D").text(`${songs.length} ${songs.length === 1 ? "música" : "músicas"}`, x, y + 18, { width });
@@ -65,9 +68,21 @@ export class WorshipOrderPdfService {
             const badgeWidth = Math.min(textWidth, doc.widthOfString(moment) + 12);
             return { title, artist, moment, titleHeight, artistHeight, momentHeight, badgeWidth, height: Math.max(72, 28 + titleHeight + artistHeight + momentHeight) };
           };
-          if (y + 34 + measure(songs[0]!).height > bottom) { doc.addPage(); y = 46; }
+          if (y + 110 > bottom) { doc.addPage(); y = 46; }
           section();
-          songs.forEach((entry, index) => {
+          items.forEach((item, index) => {
+            if (item.kind === "reading") {
+              if (y + 60 > bottom) { doc.addPage(); y = 46; section(true); }
+              doc.font("Bold").fontSize(11).fillColor(green).text("Leitura bíblica", x, y + 8, { width });
+              // PDFKit paginates long readings, preserving explicit line breaks.
+              const marginBottom = doc.page.margins.bottom;
+              doc.page.margins.bottom = 64;
+              doc.font("Body").fontSize(10).fillColor("#172C25").text(item.entry.text.replace(/\r\n?/g, "\n").replace(/[\x00-\x09\x0b-\x1f\x7f]/g, " "), x, doc.y + 6, { width, lineGap: 3 });
+              y = doc.y + 14;
+              doc.page.margins.bottom = marginBottom;
+              return;
+            }
+            const entry = item.entry;
             const row = measure(entry);
             if (row.height > bottom - 80) throw new ValidationError("O título ou artista de uma música é extenso demais para uma página A4. Revise o cadastro.");
             if (y + row.height > bottom) { doc.addPage(); y = 46; section(true); }
@@ -102,7 +117,7 @@ export class WorshipOrderPdfService {
               doc.moveTo(cx - 4, cy - 6).lineTo(cx + 6, cy).lineTo(cx - 4, cy + 6).closePath().fill(green);
               doc.link(cx - 17, cy - 17, 34, 34, url);
             }
-            if (index < songs.length - 1) doc.save().strokeOpacity(0.22).lineWidth(0.5).moveTo(x, y + row.height).lineTo(x + width, y + row.height).strokeColor(green).stroke().restore();
+            if (index < items.length - 1) doc.save().strokeOpacity(0.22).lineWidth(0.5).moveTo(x, y + row.height).lineTo(x + width, y + row.height).strokeColor(green).stroke().restore();
             y += row.height;
           });
           y += 18;

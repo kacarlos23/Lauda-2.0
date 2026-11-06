@@ -1,11 +1,13 @@
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
+import { TestEnvironmentBanner } from "../src/components/TestEnvironmentBanner";
 import { Stack, useSegments } from "expo-router";
 import { useRouter } from "expo-router";
 import { RouteMetadata } from "../src/components/RouteMetadata";
 import { useAuthStore } from "../src/store/authStore";
 import { GROUP_HREFS } from "../src/navigation/routes";
 import { colors, motion, overlays } from "../src/theme";
+import { ThemeRuntime } from "../src/components/ThemeControls";
 
 export default function RootLayout() {
   const { user, isLoading, loadSession } = useAuthStore();
@@ -108,13 +110,15 @@ export default function RootLayout() {
   }, [user, isLoading, router, segments]);
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
+      <ThemeRuntime />
+      <TestEnvironmentBanner />
       <RouteMetadata />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="convite" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
       </Stack>
-    </>
+    </View>
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { ScrollView, StyleProp, StyleSheet, View, ViewProps, ViewStyle } from "react-native";
-import { colors, spacing } from "../../theme";
+import { uiPatterns } from "./patterns";
 
 type DataListProps = ViewProps & {
   children: React.ReactNode;
@@ -25,19 +25,15 @@ export function DataTable({ children, style, ...props }: DataListProps) {
 
 const styles = StyleSheet.create({
   list: {
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
+    ...uiPatterns.surface,
+    overflow: "hidden",
   },
   row: {
-    minHeight: 56,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    ...uiPatterns.listRow,
   },
   table: {
     minWidth: "100%",
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
+    ...uiPatterns.surface,
+    overflow: "hidden",
   },
 });

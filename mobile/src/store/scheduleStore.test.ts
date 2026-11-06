@@ -235,7 +235,7 @@ describe("scheduleStore", () => {
     });
   });
 
-  it("resolve solicitaÃ§Ã£o de substituto atualizando o cache local", async () => {
+  it("resolve solicitação de substituto atualizando o cache local", async () => {
     const pendingSubstitution = {
       ...schedule,
       status: "DECLINED" as const,

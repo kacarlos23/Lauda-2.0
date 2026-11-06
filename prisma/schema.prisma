@@ -327,6 +327,7 @@ model MinistryMember {
 }
 
 model Schedule {
+  readings Json @default("[]")
   id        String    @id @default(uuid())
   title     String
   date      DateTime

@@ -1,16 +1,9 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
 import { InstrumentAppearanceEditor } from "../../../src/components/instruments/InstrumentAppearanceEditor";
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { Edit3, Plus, Save, Trash2, X } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -326,18 +319,10 @@ const styles = StyleSheet.create({
   },
   header: { marginBottom: spacing.lg },
   backRow: { marginBottom: spacing.lg },
-  title: { color: colors.ink, fontSize: fontSizes.s28, fontWeight: fontWeights.extrabold, marginBottom: spacing.xs },
-  subtitle: { color: colors.muted, fontSize: fontSizes.s15, lineHeight: lineHeights.h22 },
-  section: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
-  },
-  sectionTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.extrabold, marginBottom: spacing.md },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.xs },
+  subtitle: { ...uiPatterns.subtitle },
+  section: { ...uiPatterns.section, marginBottom: spacing.lg },
+  sectionTitle: { ...uiPatterns.sectionTitle, marginBottom: spacing.md },
   input: {
     minHeight: 46,
     borderRadius: radii.md,
@@ -361,28 +346,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   formActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  primaryButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  primaryButtonText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
-  secondaryButton: {
-    minHeight: controlSizes.medium,
-    borderRadius: radii.md,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  secondaryButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
+  primaryButtonText: { ...uiPatterns.actionText, color: colors.surface },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryButtonText: { ...uiPatterns.actionText, color: colors.primary },
   disabledButton: { opacity: 0.72 },
   listHeader: {
     flexDirection: "row",

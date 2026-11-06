@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { uiPatterns } from "./ui/patterns";
+import { InputControl as TextInput } from "./ui/InputControl";
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { useFormExit } from "../hooks/useFormExit";
@@ -23,6 +25,8 @@ import {
 import { RichCommentEditor } from "./ui/RichCommentEditor";
 import { nav } from "../navigation/routes";
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
+import { reviewChordText } from "../utils/chordText";
+import { VisualChordEditor } from "./songs/VisualChordEditor";
 
 type Props = {
   initial?: Song;
@@ -41,6 +45,31 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [composer, setComposer] = useState(initial?.composer ?? "");
   const [originalKey, setOriginalKey] = useState<MusicalKey>(initial?.originalKey ?? "C");
   const [content, setContent] = useState(initial?.content ?? "");
+  const [chordNotice, setChordNotice] = useState<string | null>(null);
+  const [previousContent, setPreviousContent] = useState<string | null>(null);
+  const chordReview = useMemo(() => reviewChordText(content), [content]);
+  const changeContent = (value: string) => {
+    setContent(value);
+    setChordNotice(null);
+    setPreviousContent(null);
+  };
+  const verifyChords = () => {
+    if (chordReview.cleanedContent !== content) setPreviousContent(content);
+    setContent(chordReview.cleanedContent);
+    setChordNotice([
+      chordReview.correctedCharacters
+        ? `Caracteres invisíveis e espaços especiais corrigidos: ${chordReview.correctedCharacters}.`
+        : "Nenhum caractere invisível encontrado.",
+      chordReview.chordCount
+        ? `Acordes identificados: ${chordReview.chordCount}. Você pode aplicar a cifragem automática.`
+        : "Nenhum acorde acima da letra para converter. A letra e os acordes entre colchetes foram preservados.",
+    ].join(" "));
+  };
+  const applyAutomaticChords = () => {
+    setPreviousContent(content);
+    setContent(chordReview.convertedContent);
+    setChordNotice(`Cifragem automática aplicada. Acordes convertidos: ${chordReview.chordCount}. Confira o resultado antes de salvar.`);
+  };
   const [bpm, setBpm] = useState(initial?.bpm?.toString() ?? "");
   const [cifraUrl, setCifraUrl] = useState(initial?.cifraUrl ?? "");
   const [letraUrl, setLetraUrl] = useState(initial?.letraUrl ?? "");
@@ -61,7 +90,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     value: formValue,
     restore: (value) => {
       setArtist(value.artist); setArtistQuery(value.artistQuery); setTitle(value.title); setComposer(value.composer);
-      setOriginalKey(value.originalKey); setContent(value.content); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
+      setOriginalKey(value.originalKey); changeContent(value.content); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
       setLetraUrl(value.letraUrl); setAudioUrl(value.audioUrl); setVideoUrl(value.videoUrl); setComments(value.comments); setStep(value.step);
       setFormError(null);
     },
@@ -174,7 +203,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
         setTitle(preview.title);
         setOriginalKey(preview.originalKey);
         setCifraUrl(preview.cifraUrl);
-        setContent(preview.content);
+        changeContent(preview.content);
         setStep(2);
         setCifraClubModalVisible(false);
         setCifraClubPreview(null);
@@ -305,7 +334,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           <Text style={styles.title}>Dados da música</Text>
           <ArtistPicker selected={artist} onSelect={setArtist} onQueryChange={setArtistQuery} />
           <Text style={styles.label}>Nome da música *</Text>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} testID="song-title-input" />
+          <TextInput accessibilityLabel="Nome da música" style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex: Grande é o Senhor" placeholderTextColor={colors.muted} testID="song-title-input" />
           <TouchableOpacity
             style={[styles.importButton, cifraClubLoading && styles.disabled]}
             onPress={() => void searchCifraClub()}
@@ -316,7 +345,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
             <Text style={styles.importButtonText}>{cifraClubLoading ? "Buscando..." : "Buscar no Cifra Club"}</Text>
           </TouchableOpacity>
           <Text style={styles.label}>Compositor</Text>
-          <TextInput style={styles.input} value={composer} onChangeText={setComposer} placeholder="Opcional" placeholderTextColor={colors.muted} testID="song-composer-input" />
+          <TextInput accessibilityLabel="Compositor" style={styles.input} value={composer} onChangeText={setComposer} placeholder="Opcional" placeholderTextColor={colors.muted} testID="song-composer-input" />
           <Text style={styles.label}>Tom *</Text>
           <View style={styles.keyGrid}>
             {MUSICAL_KEYS.map((key) => (
@@ -326,19 +355,20 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
             ))}
           </View>
           <Text style={styles.label}>BPM</Text>
-          <TextInput style={styles.input} value={bpm} onChangeText={setBpm} placeholder="Opcional (30 a 300)" placeholderTextColor={colors.muted} keyboardType="number-pad" testID="song-bpm-input" />
+          <TextInput accessibilityLabel="BPM" style={styles.input} value={bpm} onChangeText={setBpm} placeholder="Opcional (30 a 300)" placeholderTextColor={colors.muted} keyboardType="number-pad" testID="song-bpm-input" />
           <Text style={styles.sectionTitle}>Links externos</Text>
           <Text style={styles.helperText}>Adicione links opcionais de cifra, letra, áudio e um vídeo do YouTube.</Text>
           <Text style={styles.label}>Cifra</Text>
-          <TextInput style={styles.input} value={cifraUrl} onChangeText={setCifraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-cifra-url-input" />
+          <TextInput accessibilityLabel="Cifra" style={styles.input} value={cifraUrl} onChangeText={setCifraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-cifra-url-input" />
           <Text style={styles.label}>Letra</Text>
-          <TextInput style={styles.input} value={letraUrl} onChangeText={setLetraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-letra-url-input" />
+          <TextInput accessibilityLabel="Letra" style={styles.input} value={letraUrl} onChangeText={setLetraUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-letra-url-input" />
           <Text style={styles.label}>Áudio</Text>
-          <TextInput style={styles.input} value={audioUrl} onChangeText={setAudioUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-audio-url-input" />
+          <TextInput accessibilityLabel="Áudio" style={styles.input} value={audioUrl} onChangeText={setAudioUrl} placeholder="https://..." placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" testID="song-audio-url-input" />
           <Text style={styles.label}>Vídeo do YouTube</Text>
           <TextInput
             accessibilityLabel="Vídeo do YouTube"
-            style={[styles.input, videoUrlInvalid && styles.inputInvalid]}
+            style={styles.input}
+            invalid={videoUrlInvalid}
             value={videoUrl}
             onChangeText={setVideoUrl}
             placeholder="https://www.youtube.com/watch?v=..."
@@ -359,18 +389,30 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
             <TouchableOpacity onPress={() => setStep(1)} testID="song-edit-metadata-button"><Text style={styles.editLink}>Editar dados</Text></TouchableOpacity>
           </View>
           <Text style={styles.label}>Cifra *</Text>
-          <TextInput
-            style={styles.editor}
-            value={content}
-            onChangeText={setContent}
-            placeholder={"Use ChordPro: [G]Grande é o [D]Senhor"}
-            placeholderTextColor={colors.muted}
-            multiline
-            textAlignVertical="top"
-            autoCorrect={false}
-            autoCapitalize="none"
-            testID="song-chord-input"
-          />
+          <Text style={styles.helperText}>Cole a cifra com os acordes acima da letra ou entre colchetes, como [G]. A verificação corrige caracteres invisíveis sem remover o alinhamento.</Text>
+          <VisualChordEditor value={content} onChange={changeContent} originalKey={originalKey} disabled={saving} />
+          <View style={styles.chordActions}>
+            <TouchableOpacity
+              style={[styles.secondaryButton, (!content || saving) && styles.disabled]}
+              accessibilityRole="button"
+              onPress={verifyChords}
+              disabled={!content || saving}
+              testID="song-verify-chords-button"
+            >
+              <Text style={styles.secondaryButtonText}>Verificar cifra novamente</Text>
+            </TouchableOpacity>
+            {chordReview.chordCount > 0 ? (
+              <TouchableOpacity style={[styles.primarySmallButton, saving && styles.disabled]} accessibilityRole="button" onPress={applyAutomaticChords} disabled={saving} testID="song-auto-chords-button">
+                <Text style={styles.primaryText}>Aplicar cifragem automática</Text>
+              </TouchableOpacity>
+            ) : null}
+            {previousContent !== null ? (
+              <TouchableOpacity style={styles.secondaryButton} accessibilityRole="button" disabled={saving} onPress={() => changeContent(previousContent)} testID="song-undo-chords-button">
+                <Text style={styles.secondaryButtonText}>Desfazer correção</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {chordNotice ? <Text style={styles.helperText} accessibilityLiveRegion="polite" testID="song-chord-notice">{chordNotice}</Text> : null}
           <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void save()} disabled={saving} testID="song-save-button">
             <Text style={styles.primaryText}>{saving ? "Salvando..." : "Salvar música"}</Text>
           </TouchableOpacity>
@@ -396,13 +438,14 @@ function isValidExternalLink(value: string): boolean {
 const styles = StyleSheet.create({
   container: { width: "100%", maxWidth: screen.formMaxWidth, alignSelf: "center", padding: spacing.xl, paddingBottom: screen.contentBottomPadding },
   editorContainer: { width: "100%", maxWidth: "100%" },
+  chordActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginVertical: spacing.md },
   backRow: { marginBottom: spacing.md },
   progress: { height: 4, borderRadius: radii.sm, backgroundColor: colors.line, overflow: "hidden", marginBottom: spacing.sm },
   progressBar: { height: "100%", backgroundColor: colors.accent },
   stepLabel: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: spacing.lg },
-  card: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.lg },
-  title: { color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, marginBottom: spacing.md },
-  label: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, marginTop: spacing.md, marginBottom: spacing.sm },
+  card: { ...uiPatterns.section },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.md },
+  label: { ...uiPatterns.fieldLabel, marginTop: spacing.md },
   commentsEditor: { marginTop: spacing.md },
   input: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15 },
   inputInvalid: { borderColor: colors.danger },
@@ -414,10 +457,10 @@ const styles = StyleSheet.create({
   keyTextActive: { color: colors.surface },
   importButton: { minHeight: controlSizes.default, marginTop: spacing.sm, borderRadius: radii.md, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   importButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  sectionTitle: { color: colors.ink, fontSize: fontSizes.s18, fontWeight: fontWeights.black, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, marginBottom: spacing.xs },
+  sectionTitle: { ...uiPatterns.sectionTitle, marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, marginBottom: spacing.xs },
   helperText: { color: colors.muted, fontSize: fontSizes.s13, lineHeight: lineHeights.h19 },
-  primaryButton: { minHeight: controlSizes.default, marginTop: spacing.xl, borderRadius: radii.md, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.surface, fontSize: fontSizes.s14, fontWeight: fontWeights.black },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.xl },
+  primaryText: { ...uiPatterns.actionText, color: colors.surface },
   disabled: { opacity: 0.65 },
   error: { color: colors.danger, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radii.md, marginBottom: spacing.md },
   summary: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: spacing.md },
@@ -441,7 +484,7 @@ const styles = StyleSheet.create({
   previewLabel: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black, marginTop: spacing.lg, marginBottom: spacing.sm },
   previewText: { maxHeight: 260, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, color: colors.ink, padding: spacing.md, fontSize: fontSizes.s13, lineHeight: lineHeights.h19, fontFamily: fontFamilies.monospace },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.lg, flexWrap: "wrap" },
-  secondaryButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  secondaryButtonText: { color: colors.text, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  primarySmallButton: { minHeight: controlSizes.default, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryButtonText: { ...uiPatterns.actionText, color: colors.text },
+  primarySmallButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
 });

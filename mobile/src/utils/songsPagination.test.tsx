@@ -6,6 +6,8 @@ import { musicService, SongsUnavailableClientError } from "../services/musicServ
 import { useMusicStore } from "../store/musicStore";
 import { Song } from "../types";
 
+jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
+
 type TestNode = TestRenderer.ReactTestInstance;
 
 const pushMock = jest.fn();

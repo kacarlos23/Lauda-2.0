@@ -1,5 +1,7 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CheckCircle2, Database, Edit3, Plus, RefreshCcw, ShieldAlert, Trash2, X, XCircle } from "lucide-react-native";
 import { DateTimeInput } from "../../../src/components/DateTimeInput";
@@ -698,6 +700,7 @@ function FieldInput({ field, value, references, onChange }: { field: FieldConfig
       {type === "datetime" ? (
         <DateTimeInput
           type="date"
+          accessibilityLabel={field.label}
           value={value === null || value === undefined ? "" : String(value)}
           onChange={onChange}
           placeholder="2026-07-08T20:00:00.000Z"
@@ -707,6 +710,7 @@ function FieldInput({ field, value, references, onChange }: { field: FieldConfig
       ) : (
         <TextInput
           style={[styles.input, type === "textarea" && styles.textArea]}
+          accessibilityLabel={field.label}
           value={value === null || value === undefined ? "" : String(value)}
           onChangeText={onChange}
           multiline={type === "textarea"}
@@ -981,13 +985,13 @@ const styles = StyleSheet.create({
   mainContent: { padding: spacing.lg, paddingBottom: screen.contentBottomPadding, gap: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, alignItems: "flex-start", flexWrap: "wrap" },
   headerText: { flex: 1, minWidth: 220 },
-  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
-  subtitle: { color: colors.muted, fontSize: fontSizes.s14, fontWeight: fontWeights.bold, marginTop: spacing.xs },
+  title: { ...uiPatterns.pageTitle },
+  subtitle: { ...uiPatterns.subtitle, marginTop: spacing.xs },
   headerActions: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 },
-  primaryButton: { minHeight: 42, borderRadius: radii.md, backgroundColor: colors.primary, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  primaryButtonText: { color: colors.white, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
-  secondaryButton: { minHeight: 42, borderRadius: radii.md, backgroundColor: colors.primarySoft, paddingHorizontal: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  secondaryButtonText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.black },
+  primaryButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
+  primaryButtonText: { ...uiPatterns.actionText, color: colors.surface },
+  secondaryButton: { ...uiPatterns.action, ...uiPatterns.secondaryAction },
+  secondaryButtonText: { ...uiPatterns.actionText, color: colors.primary },
   filters: { backgroundColor: "transparent", borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, paddingVertical: spacing.md, gap: spacing.md },
   searchInput: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
   chips: { gap: spacing.sm, alignItems: "center" },
@@ -995,7 +999,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
   chipTextActive: { color: colors.white },
-  table: { backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, overflow: "hidden" },
+  table: { ...uiPatterns.surface, overflow: "hidden" },
   tableHeader: { flexDirection: "row", backgroundColor: colors.surfaceMuted, padding: spacing.md, gap: spacing.md, alignItems: "center" },
   th: { flex: 1, color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
   actionTh: { width: 165, color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
@@ -1031,7 +1035,7 @@ const styles = StyleSheet.create({
   modalBody: { padding: spacing.lg, gap: spacing.md },
   modalFooter: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm },
   field: { gap: spacing.xs },
-  fieldLabel: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.black },
+  fieldLabel: { ...uiPatterns.fieldLabel },
   input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.bold },
   textArea: { minHeight: 140, textAlignVertical: "top" },
   permissionGroup: { gap: spacing.sm },

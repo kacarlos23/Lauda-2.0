@@ -1,3 +1,4 @@
+import { normalizeChordText, normalizeSongContent } from "../../../src/utils/chordText";
 import { AxiosError } from "axios";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -67,7 +68,7 @@ type ApiErrorPayload = {
   error?: string;
   message?: string;
   code?: string | number;
-  details?: { songIds?: string[] };
+  details?: { songIds?: string[] } | string[];
 };
 
 export class SongsUnavailableClientError extends Error {
@@ -134,7 +135,11 @@ function apiError(error: unknown, fallback: string): never {
     }
     const data = parseErrorPayload(axiosError.response.data);
     if (axiosError.response.status === 409 && data?.code === "SONGS_UNAVAILABLE") {
-      throw new SongsUnavailableClientError(data.details?.songIds ?? [], data.error ?? fallback);
+      throw new SongsUnavailableClientError(!Array.isArray(data.details) ? data.details?.songIds ?? [] : [], data.error ?? fallback);
+    }
+    if (data?.code === "VALIDATION_ERROR" && Array.isArray(data.details)) {
+      const details = data.details.slice(0, 5).map((detail) => detail.replace(/document\.songs\.(\d+)\./g, (_, index) => `Música ${Number(index) + 1} · `));
+      throw new Error(`${data.error ?? fallback}: ${details.join("; ")}`);
     }
     throw new Error(data?.error ?? data?.message ?? fallback);
   }
@@ -170,28 +175,28 @@ export const musicService = {
         params: { ...filters, search, page, limit },
         signal,
       });
-      return response.data.data;
+      return { ...response.data.data, items: response.data.data.items.map(normalizeSongContent) };
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
   },
 
   async getSong(id: string): Promise<Song> {
     try {
       const response = await api.get<ApiResponse<Song>>(`/songs/${id}`);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível carregar a música."); }
   },
 
   async createSong(payload: SongPayload): Promise<Song> {
     try {
       const response = await api.post<ApiResponse<Song>>("/songs", payload);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível criar a música."); }
   },
 
   async updateSong(id: string, payload: Partial<SongPayload>): Promise<Song> {
     try {
       const response = await api.patch<ApiResponse<Song>>(`/songs/${id}`, payload);
-      return response.data.data;
+      return normalizeSongContent(response.data.data);
     } catch (error) { apiError(error, "Não foi possível atualizar a música."); }
   },
 
@@ -217,7 +222,7 @@ export const musicService = {
   async importCifraClub(url: string): Promise<CifraClubImportResult> {
     try {
       const response = await api.post<ApiResponse<CifraClubImportResult>>("/songs/cifra-club/import", { url }, { timeout: 45000 });
-      return response.data.data;
+      return { ...response.data.data, content: normalizeChordText(response.data.data.content) };
     } catch (error) { apiError(error, "Não foi possível importar a cifra do Cifra Club. Verifique a conexão com o backend e tente novamente."); }
   },
 
@@ -231,8 +236,12 @@ export const musicService = {
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = filename;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        document.body.appendChild(anchor);
+        try { anchor.click(); }
+        finally {
+          anchor.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        }
         return;
       }
 
@@ -246,7 +255,7 @@ export const musicService = {
 
   async exportSongData(ministryId: string, ministryName: string): Promise<void> {
     try {
-      const response = await api.post<SongTransferDocument>("/songs/data-export", { ministryId });
+      const response = await api.post<SongTransferDocument>("/songs/data-export", { ministryId }, { timeout: 120_000 });
       const content = JSON.stringify(response.data, null, 2);
       const safeMinistry = ministryName.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "ministerio";
       const filename = `lauda-musicas-${safeMinistry}-${new Date().toISOString().slice(0, 10)}.json`;
@@ -256,8 +265,13 @@ export const musicService = {
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = filename;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        document.body.appendChild(anchor);
+        try { anchor.click(); }
+        finally {
+          anchor.remove();
+          // Some browsers begin reading the blob only after the click handler returns.
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        }
         return;
       }
       const file = new File(Paths.cache, filename);
@@ -270,14 +284,14 @@ export const musicService = {
 
   async previewSongData(ministryId: string, document: SongTransferDocument): Promise<SongTransferPreview> {
     try {
-      const response = await api.post<ApiResponse<SongTransferPreview>>("/songs/data-import/preview", { ministryId, document });
+      const response = await api.post<ApiResponse<SongTransferPreview>>("/songs/data-import/preview", { ministryId, document }, { timeout: 120_000 });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível revisar o arquivo de músicas."); }
   },
 
   async commitSongData(ministryId: string, document: SongTransferDocument, documentHash: string): Promise<SongTransferResult> {
     try {
-      const response = await api.post<ApiResponse<SongTransferResult>>("/songs/data-import/commit", { ministryId, document, documentHash });
+      const response = await api.post<ApiResponse<SongTransferResult>>("/songs/data-import/commit", { ministryId, document, documentHash }, { timeout: 150_000 });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível importar as músicas."); }
   },

@@ -285,4 +285,54 @@ describe("SongForm Cifra Club import", () => {
     expect(onSave).toHaveBeenCalled();
     expect(onSave.mock.calls[0][0]).not.toHaveProperty("videoUrl");
   });
+
+  it("oferece cifragem para uma cifra colada, limpa invisíveis, permite desfazer e salva a conversão", async () => {
+    const onSave = jest.fn().mockResolvedValue("song-new");
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<SongForm saving={false} onSave={onSave} backHref="/songs" />);
+    });
+    act(() => {
+      renderer!.root.findByProps({ testID: "artist-picker" }).props.onPress();
+      renderer!.root.findByProps({ testID: "song-title-input" }).props.onChangeText("Canção colada");
+    });
+    act(() => renderer!.root.findByProps({ testID: "song-next-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-verify-chords-button" }).props.disabled).toBe(true);
+    const pasted = "\uFEFFG\u200B\u00A0\u00A0\u00A0D\nDeus é bom";
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText(pasted));
+    expect(renderer!.root.findByProps({ testID: "song-auto-chords-button" })).toBeTruthy();
+    act(() => renderer!.root.findByProps({ testID: "song-verify-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe("G   D\nDeus é bom");
+    expect(renderer!.root.findByProps({ testID: "song-chord-notice" }).props.children).toContain("corrigidos: 5");
+    act(() => renderer!.root.findByProps({ testID: "song-undo-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe(pasted);
+    act(() => renderer!.root.findByProps({ testID: "song-auto-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe("[G]Deus[D] é bom");
+    expect(renderer!.root.findAllByProps({ testID: "song-auto-chords-button" })).toHaveLength(0);
+    act(() => renderer!.root.findByProps({ testID: "song-verify-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe("[G]Deus[D] é bom");
+    await act(async () => renderer!.root.findByProps({ testID: "song-save-button" }).props.onPress());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ content: "[G]Deus[D] é bom", title: "Canção colada" }));
+  });
+
+  it("verifica músicas já cadastradas e reavalia o conteúdo após cada alteração manual", async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<SongForm initial={{
+        id: "song-edit", title: "Canção", originalKey: "C", content: "[C]\u200BAmor",
+        artistId: "artist-1", artist: { id: "artist-1", name: "Artista", imageUrl: null }, createdAt: "", updatedAt: "",
+      }} saving={false} onSave={jest.fn()} backHref="/songs" />);
+    });
+    act(() => renderer!.root.findByProps({ testID: "song-verify-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe("[C]Amor");
+    expect(renderer!.root.findAllByProps({ testID: "song-auto-chords-button" })).toHaveLength(0);
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText("C\nGraça"));
+    expect(renderer!.root.findByProps({ testID: "song-auto-chords-button" })).toBeTruthy();
+    expect(renderer!.root.findAllByProps({ testID: "song-chord-notice" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "song-undo-chords-button" })).toHaveLength(0);
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText("A graça de Deus"));
+    expect(renderer!.root.findAllByProps({ testID: "song-auto-chords-button" })).toHaveLength(0);
+    act(() => renderer!.root.findByProps({ testID: "song-verify-chords-button" }).props.onPress());
+    expect(renderer!.root.findByProps({ testID: "song-chord-input" }).props.value).toBe("A graça de Deus");
+  });
 });

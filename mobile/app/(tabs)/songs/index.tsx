@@ -1,3 +1,4 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
@@ -638,9 +639,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   headerCopy: { flexGrow: 1 },
-  title: { color: colors.ink, fontSize: fontSizes.s30, fontWeight: fontWeights.black },
-  subtitle: { color: colors.muted, fontSize: fontSizes.s14, marginTop: spacing.xs, fontWeight: fontWeights.bold },
-  actions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  title: { ...uiPatterns.pageTitle },
+  subtitle: { ...uiPatterns.subtitle, marginTop: spacing.xs },
+  actions: { flexDirection: "row", flexWrap: "wrap", maxWidth: "100%", alignItems: "center", gap: spacing.sm },
   iconButton: {
     width: controlSizes.default,
     height: controlSizes.default,
@@ -655,7 +656,7 @@ const styles = StyleSheet.create({
   transferButton: { minWidth: 170 },
   searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
   searchInput: { flex: 1 },
-  filterButton: { height: 50 },
+  filterButton: { height: controlSizes.default },
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   error: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },

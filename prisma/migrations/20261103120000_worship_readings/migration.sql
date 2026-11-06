@@ -1,0 +1,2 @@
+ALTER TABLE "Schedule"
+ADD COLUMN "readings" JSONB NOT NULL DEFAULT '[]';

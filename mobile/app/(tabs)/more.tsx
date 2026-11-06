@@ -1,3 +1,4 @@
+import { uiPatterns } from "../../src/components/ui/patterns";
 import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -54,8 +55,8 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   header: { marginBottom: spacing.xl },
   eyebrow: { ...typography.eyebrow, color: colors.accentText, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: spacing.xs },
-  title: { ...typography.heroTitle, color: colors.ink, marginBottom: spacing.xs },
-  subtitle: { ...typography.subtitle, color: colors.text },
+  title: { ...uiPatterns.pageTitle, marginBottom: spacing.xs },
+  subtitle: { ...uiPatterns.subtitle },
   rolePill: {
     marginTop: spacing.md,
     alignSelf: "flex-start",
@@ -69,17 +70,8 @@ const styles = StyleSheet.create({
   },
   roleText: { ...typography.label, color: colors.primaryDark },
   section: { gap: spacing.md },
-  list: { borderTopWidth: 1, borderTopColor: colors.line },
-  card: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-    minHeight: 76,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    backgroundColor: "transparent",
-    paddingVertical: spacing.md,
-  },
+  list: { ...uiPatterns.surface, overflow: "hidden" },
+  card: { ...uiPatterns.listRow, flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBox: {
     width: controlSizes.default,
     height: controlSizes.default,

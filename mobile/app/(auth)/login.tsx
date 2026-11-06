@@ -109,7 +109,7 @@ export default function LoginScreen() {
 
       <Button
         title="Entrar"
-        icon={<LogIn color={colors.inverse} size={iconSizes.s18} strokeWidth={2.2} />}
+        icon={<LogIn color={colors.surface} size={iconSizes.s18} strokeWidth={2.2} />}
         loading={loading}
         style={styles.button}
         onPress={handleLogin}

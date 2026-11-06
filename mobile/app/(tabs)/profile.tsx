@@ -1,19 +1,10 @@
+import { uiPatterns } from "../../src/components/ui/patterns";
+import { InputControl as TextInput } from "../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../src/components/instruments/InstrumentBadge";
 import { InstrumentAppearanceEditor } from "../../src/components/instruments/InstrumentAppearanceEditor";
+import { AppearancePreferences } from "../../src/components/ThemeControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -296,9 +287,9 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Editar dados</Text>
           <Text style={styles.rowLabel}>Nome</Text>
-          <TextInput style={styles.profileInput} value={name} onChangeText={setName} autoCapitalize="words" testID="profile-name-input" />
+          <TextInput accessibilityLabel="Nome" style={styles.profileInput} value={name} onChangeText={setName} autoCapitalize="words" testID="profile-name-input" />
           <Text style={styles.rowLabel}>Telefone</Text>
-          <TextInput style={styles.profileInput} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Opcional" placeholderTextColor={colors.muted} testID="profile-phone-input" />
+          <TextInput accessibilityLabel="Telefone" style={styles.profileInput} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Opcional" placeholderTextColor={colors.muted} testID="profile-phone-input" />
           <Text style={styles.rowLabel}>E-mail</Text>
           <View style={styles.readonlyInput}><Text style={styles.rowValue}>{user?.email}</Text></View>
           {avatarUrl ? <TouchableOpacity style={styles.removePhotoButton} onPress={() => setAvatarUrl(null)}><Trash2 color={colors.danger} size={iconSizes.s16} /><Text style={styles.removePhotoText}>Remover foto</Text></TouchableOpacity> : null}
@@ -309,6 +300,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <View style={styles.permissionRow}><Text style={styles.rowLabel}>Permissão</Text><Text style={styles.rowValue}>{formatRoleLabel(user?.role)}</Text></View>
         </View>
+
+        <AppearancePreferences />
 
         {hasGlobalAccess ? (
           <View style={styles.globalAccessCard}>
@@ -511,18 +504,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     paddingBottom: screen.contentBottomPadding,
   },
-  profileCard: {
-    backgroundColor: "transparent",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: spacing.lg,
-    paddingVertical: spacing.lg,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
-    marginBottom: spacing.lg,
-  },
+  profileCard: { ...uiPatterns.section, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg, marginBottom: spacing.lg },
   profileIdentity: { flex: 1, minWidth: 220, alignItems: "flex-start" },
   avatarCircle: {
     width: 92,
@@ -543,13 +525,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { ...typography.badge, textTransform: "uppercase" },
   refreshingText: { ...typography.badge, color: colors.muted, fontWeight: fontWeights.regular, marginTop: spacing.sm },
-  section: {
-    backgroundColor: "transparent",
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    marginBottom: spacing.lg,
-  },
+  section: { ...uiPatterns.section, marginBottom: spacing.lg },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -558,20 +534,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionHeaderText: { flex: 1 },
-  sectionTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.md },
+  sectionTitle: { ...uiPatterns.sectionTitle, marginBottom: spacing.md },
   row: {
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.line,
   },
-  rowLabel: { ...typography.badge, color: colors.primary, textTransform: "uppercase", marginBottom: spacing.xs },
+  rowLabel: { ...uiPatterns.fieldLabel },
   rowValue: { ...typography.body, color: colors.text },
   profileInput: { minHeight: controlSizes.default, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.ink, paddingHorizontal: spacing.md, fontSize: fontSizes.s15, marginBottom: spacing.md },
-  readonlyInput: { minHeight: 46, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.background, paddingHorizontal: spacing.md, justifyContent: "center", marginBottom: spacing.md },
+  readonlyInput: { ...uiPatterns.readonlyField, marginBottom: spacing.md },
   removePhotoButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
   removePhotoText: { ...typography.label, color: colors.danger },
-  saveProfileButton: { minHeight: 46, borderRadius: radii.md, backgroundColor: colors.primary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
-  saveProfileText: { ...typography.button, color: colors.surface },
+  saveProfileButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.xs },
+  saveProfileText: { ...uiPatterns.actionText, color: colors.surface },
   permissionRow: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: spacing.lg, paddingTop: spacing.md },
   globalAccessCard: {
     backgroundColor: colors.primarySoft,
@@ -598,15 +574,8 @@ const styles = StyleSheet.create({
   globalAccessTextBox: { flex: 1 },
   globalAccessTitle: { ...typography.sectionTitle, color: colors.ink, marginBottom: spacing.xs },
   globalAccessText: { ...typography.metadata, color: colors.text },
-  globalAccessButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.md,
-  },
-  globalAccessButtonText: { ...typography.button, color: colors.surface },
+  globalAccessButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
+  globalAccessButtonText: { ...uiPatterns.actionText, color: colors.surface },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -701,18 +670,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
-  createInstrumentButton: {
-    minHeight: controlSizes.default,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  createInstrumentButtonText: { ...typography.button, color: colors.surface },
+  createInstrumentButton: { ...uiPatterns.action, ...uiPatterns.primaryAction, marginTop: spacing.xs },
+  createInstrumentButtonText: { ...uiPatterns.actionText, color: colors.surface },
   buttonDisabled: { opacity: 0.7 },
   modalList: { flexGrow: 0 },
   modalListContent: { gap: spacing.sm },

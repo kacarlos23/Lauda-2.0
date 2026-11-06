@@ -1,5 +1,6 @@
+import { InputControl as TextInput } from "../../src/components/ui/InputControl";
 import React, { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   CalendarClock,
@@ -500,7 +501,7 @@ const styles = StyleSheet.create({
     minHeight: 232,
     justifyContent: "center",
     borderRadius: radii.lg,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.brandPanel,
     padding: spacing.xl,
   },
   nextKicker: {

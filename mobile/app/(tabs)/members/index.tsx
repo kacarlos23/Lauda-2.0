@@ -1,3 +1,4 @@
+import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
 import { useCallback, useState } from "react";
 import {
@@ -747,16 +748,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flexWrap: "wrap",
   },
-  card: {
-    padding: spacing.lg,
-    marginBottom: 0,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    borderRadius: 0,
-    borderTopWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
+  card: { ...uiPatterns.dataCard, flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.sm },
   avatar: {
     width: controlSizes.large,
     height: controlSizes.large,
@@ -914,15 +906,7 @@ const styles = StyleSheet.create({
   leaderToggleDisabled: { opacity: 0.45 },
   leaderToggleText: { ...typography.badge, color: colors.text },
   leaderToggleTextActive: { color: colors.surface },
-  savePermissionButton: {
-    minHeight: controlSizes.large,
-    borderRadius: radii.md,
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
+  savePermissionButton: { ...uiPatterns.action, ...uiPatterns.primaryAction },
   savePermissionButtonDisabled: { opacity: 0.65 },
-  savePermissionButtonText: { ...typography.button, color: colors.surface },
+  savePermissionButtonText: { ...uiPatterns.actionText, color: colors.surface },
 });
