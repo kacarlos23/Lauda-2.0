@@ -253,6 +253,31 @@ test("Windows process holding its working directory reproduces EPERM and publish
   } finally { child.kill(); await exited; }
 });
 
+test("Windows open HTML handle is released before production activation", { skip: process.platform !== "win32" }, async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  const index = path.join(env.web, "index.html");
+  const native = 'using System; using System.Runtime.InteropServices; public static class LaudaHtmlLock { [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] public static extern IntPtr CreateFile(string path,uint access,uint share,IntPtr security,uint mode,uint flags,IntPtr template); }';
+  const script = `$ErrorActionPreference='Stop'; Add-Type -TypeDefinition '${native}'; $handle=[LaudaHtmlLock]::CreateFile('${index.replace(/'/g, "''")}',[uint32]2147483648,3,[IntPtr]::Zero,3,128,[IntPtr]::Zero); if($handle -eq [IntPtr]::new(-1)){throw 'Cannot open test HTML'}; [Console]::WriteLine('LOCKED'); Start-Sleep -Seconds 30`;
+  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  const exited = new Promise(resolve => child.once("exit", resolve));
+  try {
+    await new Promise((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => reject(new Error("HTML lock helper timed out")), 10000);
+      child.stdout.on("data", bytes => { output += bytes; if (output.includes("LOCKED")) { clearTimeout(timer); resolve(); } });
+      child.once("exit", code => { clearTimeout(timer); if (!output.includes("LOCKED")) reject(new Error(`HTML lock helper exited ${code}`)); });
+      child.once("error", reject);
+    });
+    const probe = path.join(root, "replacement.html");
+    fs.writeFileSync(probe, "replacement");
+    assert.throws(() => fs.renameSync(probe, index), error => ["EPERM", "EACCES", "EBUSY"].includes(error.code));
+    runtime.pauseWeb = async () => { child.kill(); await exited; };
+    runtime.resumeWeb = async () => { assert.equal(fs.readFileSync(index, "utf8"), "new web"); };
+    await core.publish(root, env, runtime);
+    assert.equal(fs.readFileSync(index, "utf8"), "new web");
+  } finally { child.kill(); await exited; }
+});
+
 test("rollback restart failure is explicitly reported", async t => {
   const { root, env, runtime } = fixture(t);
   runtime.restart = async () => { throw new Error("access denied"); };
