@@ -1,9 +1,50 @@
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('Inspect', 'Restart')][string]$Operation,
+  [Parameter(Mandatory = $true)][ValidateSet('Inspect', 'Restart', 'PauseWeb', 'ResumeWeb')][string]$Operation,
   [Parameter(Mandatory = $true)][ValidateSet('staging', 'production')][string]$Environment,
   [Parameter(Mandatory = $true)][string]$ProjectRoot
 )
 $ErrorActionPreference = 'Stop'
+function Test-ProductionWebCommand {
+  param([string]$CommandLine, [string]$Project)
+  $normalized = $CommandLine.Replace('\', '/') -replace '/+', '/'
+  $moduleRoot = [regex]::Escape(($Project.TrimEnd('\', '/').Replace('\', '/') + '/mobile/node_modules/'))
+  $entry = $moduleRoot + '(?:\.bin/\.\./)?serve/build/main\.js'
+  $executable = '(?:"[^"]*node(?:\.exe)?"|node(?:\.exe)?)'
+  return $normalized -match ('^' + $executable + '\s+"?' + $entry + '"?\s+"?dist"?\s+--config\s+"?\.\./serve\.json"?\s+--listen\s+8081(?:\s+--no-clipboard)?\s*$')
+}
+if ($Operation -in @('PauseWeb', 'ResumeWeb')) {
+  if ($Environment -ne 'production') { throw 'Web pause is restricted to production.' }
+  $webListeners = @(Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+  if ($webListeners.Count -gt 1 -or ($Operation -eq 'PauseWeb' -and $webListeners.Count -ne 1)) { throw 'Expected exactly one production web listener.' }
+  if ($webListeners.Count -eq 1) {
+    $web = Get-CimInstance Win32_Process -Filter "ProcessId = $($webListeners[0])" -ErrorAction Stop
+    $webOwner = Invoke-CimMethod -InputObject $web -MethodName GetOwnerSid -ErrorAction Stop
+    $ownerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if ($webOwner.ReturnValue -ne 0 -or $webOwner.Sid -ne $ownerSid -or $web.Name -ne 'node.exe' -or -not (Test-ProductionWebCommand -CommandLine $web.CommandLine -Project $ProjectRoot)) { throw 'Unknown production web process or owner.' }
+    if ($Operation -eq 'ResumeWeb') { Write-Output 'Recognized production web server already running.'; exit 0 }
+    $confirmedWeb = Get-CimInstance Win32_Process -Filter "ProcessId = $($web.ProcessId)" -ErrorAction Stop
+    if (-not $confirmedWeb -or $confirmedWeb.CreationDate -ne $web.CreationDate -or $confirmedWeb.CommandLine -ne $web.CommandLine) { throw 'Production web process changed during validation.' }
+    Stop-Process -Id $web.ProcessId -ErrorAction Stop
+    Wait-Process -Id $web.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
+    Write-Output 'Production web server paused for artifact activation.'
+    exit 0
+  }
+  $mobile = Join-Path $ProjectRoot 'mobile'
+  $serve = Join-Path $mobile 'node_modules\serve\build\main.js'
+  if (-not (Test-Path -LiteralPath $serve -PathType Leaf)) { throw 'Production static server entry is missing.' }
+  $stamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
+  $queue = Join-Path $ProjectRoot '.lauda-publisher'
+  Start-Process -FilePath (Get-Command node.exe -ErrorAction Stop).Source -ArgumentList @(('"{0}"' -f $serve), 'dist', '--config', '../serve.json', '--listen', '8081', '--no-clipboard') -WorkingDirectory $mobile -WindowStyle Hidden -RedirectStandardOutput (Join-Path $queue "production-web-$stamp.out.log") -RedirectStandardError (Join-Path $queue "production-web-$stamp.err.log") | Out-Null
+  $webDeadline = (Get-Date).AddSeconds(15)
+  do {
+    Start-Sleep -Milliseconds 250
+    try {
+      $response = Invoke-WebRequest 'http://127.0.0.1:8081/' -UseBasicParsing -TimeoutSec 2
+      if ($response.StatusCode -eq 200) { Write-Output 'Production web server resumed and healthy.'; exit 0 }
+    } catch { }
+  } while ((Get-Date) -lt $webDeadline)
+  throw 'Production web server did not recover. Inspect production-web logs.'
+}
 $port = if ($Environment -eq 'staging') { 3020 } else { 3000 }
 $healthPort = if ($Environment -eq 'staging') { 8095 } else { 3000 }
 $listeners = @(netstat -ano -p tcp | ForEach-Object {

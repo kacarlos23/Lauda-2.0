@@ -130,7 +130,12 @@ async function publish(root, env, runtime) {
   await runtime.inspect(env); // Refuse unknown processes before changing any live files.
   const suffix = `-before-${Date.now()}`;
   const moved = [];
+  let webPaused = false;
   try {
+    if (env.name === "production" && runtime.pauseWeb) {
+      webPaused = true;
+      await runtime.pauseWeb(env);
+    }
     for (const [live, next] of [[env.api, env.nextApi], [env.web, env.nextWeb]]) {
       plainPath(root, live); plainPath(root, `${live}${suffix}`, true);
       try { fs.renameSync(live, `${live}${suffix}`); }
@@ -150,11 +155,19 @@ async function publish(root, env, runtime) {
       fs.renameSync(next, live);
       moved[moved.length - 1].activated = true;
     }
+    if (webPaused) {
+      await runtime.resumeWeb(env);
+      webPaused = false;
+    }
     await runtime.restart(env);
     await runtime.verify(env, release);
     return { environment: env.name, sourceHash: release.sourceHash, backups: moved.map(item => item.backup), webActivation: moved.find(item => item.live === env.web)?.mode || "directory" };
   } catch (error) {
     const rollbackErrors = [];
+    if (env.name === "production" && runtime.pauseWeb && !webPaused && moved.some(item => item.live === env.web)) {
+      webPaused = true;
+      try { await runtime.pauseWeb(env); } catch (pauseError) { rollbackErrors.push(pauseError.message); }
+    }
     for (const item of moved.reverse()) {
       try {
         if (item.mode === "files") restoreWebFiles(root, item);
@@ -163,6 +176,9 @@ async function publish(root, env, runtime) {
           fs.renameSync(item.backup, item.live);
         }
       } catch (rollbackError) { rollbackErrors.push(rollbackError.message); }
+    }
+    if (webPaused) {
+      try { await runtime.resumeWeb(env); } catch (resumeError) { rollbackErrors.push(resumeError.message); }
     }
     if (moved.length && !rollbackErrors.length) {
       try { await runtime.restart(env); } catch (restartError) { rollbackErrors.push(restartError.message); }

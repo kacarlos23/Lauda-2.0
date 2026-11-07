@@ -38,6 +38,8 @@ function runtimeFor(root, powershell) {
   return {
     inspect: env => helper("Inspect", env),
     restart: env => helper("Restart", env),
+    pauseWeb: env => helper("PauseWeb", env),
+    resumeWeb: env => helper("ResumeWeb", env),
     validate: env => core.exec(process.execPath, [path.join(root, "scripts/validate-frontend-api.cjs"), "--dist", env.nextWeb, "--expected-api-url", env.apiUrl], { cwd: root }),
     verify: core.verifyServed,
     async status() {

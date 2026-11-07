@@ -112,6 +112,43 @@ test("failure halfway through directory swap restores already moved API", async 
   assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
 });
 
+test("production releases web locks before activation and resumes before API verification", async t => {
+  const { root, env, runtime, calls } = fixture(t, "production");
+  let paused = false;
+  const rename = fs.renameSync;
+  t.mock.method(fs, "renameSync", (from, to) => {
+    if (from === env.web && !paused) throw Object.assign(new Error("Web file held open"), { code: "EPERM" });
+    return rename(from, to);
+  });
+  runtime.pauseWeb = async () => { paused = true; calls.push("pauseWeb"); };
+  runtime.resumeWeb = async () => {
+    assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "new web");
+    paused = false;
+    calls.push("resumeWeb");
+  };
+  await core.publish(root, env, runtime);
+  assert.deepEqual(calls, ["validate", "inspect", "pauseWeb", "resumeWeb", "restart", "verify"]);
+});
+
+test("production rollback pauses the resumed web server and restores it after failure", async t => {
+  const { root, env, runtime, calls } = fixture(t, "production");
+  runtime.pauseWeb = async () => { calls.push("pauseWeb"); };
+  runtime.resumeWeb = async () => { calls.push("resumeWeb"); };
+  runtime.verify = async () => { throw new Error("Verification failed"); };
+  await assert.rejects(core.publish(root, env, runtime), /Verification failed; rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+  assert.deepEqual(calls, ["validate", "inspect", "pauseWeb", "resumeWeb", "restart", "pauseWeb", "resumeWeb", "restart"]);
+});
+
+test("a rejected production web identity leaves both releases intact", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  runtime.pauseWeb = async () => { throw new Error("Unknown web process"); };
+  runtime.resumeWeb = async () => {};
+  await assert.rejects(core.publish(root, env, runtime), /Unknown web process; rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+});
+
 function denyWebRename(t, env, onRename = () => {}) {
   const original = fs.renameSync;
   t.mock.method(fs, "renameSync", (from, to) => {

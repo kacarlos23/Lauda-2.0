@@ -64,6 +64,8 @@ Ambos os candidatos devem conter `release.json` com o mesmo `sourceHash` SHA-256
 
 O worker valida os caminhos e recusa junctions/symlinks; valida ambiente, API e correspondencia dos manifestos; valida o bundle; identifica a API pela porta, comando e conta do Windows antes de trocar arquivos. Guarda as pastas anteriores com sufixo `-before-TIMESTAMP`, reinicia apenas a API correspondente e aguarda o gateway de testes ou supervisor existente recupera-la. Nao reinicia Cloudflare, Docker ou o outro ambiente.
 
+Em producao, a acao de publicacao tambem identifica o servidor web pela porta 8081, conta e comando fixo do projeto, pausa esse servidor para liberar os arquivos abertos e o retoma apos a ativacao. Se houver rollback, a pausa e a retomada acompanham a restauracao. A pausa breve evita bloqueios do Windows sobre o `index.html`. Essas operacoes sao internas ao publicador e continuam vinculadas a acao fixa `publish-production`.
+
 Se o Windows recusar renomear a pasta web aberta (`EPERM`, `EBUSY` ou `EACCES`), o publicador preserva essa pasta, copia o frontend anterior inteiro para o backup e ativa os arquivos individualmente: assets primeiro, HTML depois e `release.json` por ultimo, com troca atomica por arquivo. Assets antigos sao mantidos para sessoes abertas. Uma falha restaura os arquivos do backup, remove somente os arquivos novos e reverte a API. Esse tratamento continua dentro da mesma acao fixa da fila; o chat nao copia arquivos sobre o release ativo.
 
 Uma falha restaura as pastas anteriores e tenta reiniciar a API antiga. Se a recuperacao falhar, o resultado explica que e necessaria intervencao; os artefatos ficam preservados. O mecanismo nao reverte banco de dados. Mudancas de schema exigem planejamento e backup separados.
