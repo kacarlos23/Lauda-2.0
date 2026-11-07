@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawn } = require("node:child_process");
 const http = require("node:http");
 const core = require("../scripts/publisher/core.cjs");
 const { processNext, recoverInterrupted } = require("../scripts/publisher/worker.cjs");
@@ -112,6 +112,110 @@ test("failure halfway through directory swap restores already moved API", async 
   assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
 });
 
+function denyWebRename(t, env, onRename = () => {}) {
+  const original = fs.renameSync;
+  t.mock.method(fs, "renameSync", (from, to) => {
+    if (from === env.web) throw Object.assign(new Error("Windows web directory is open"), { code: "EPERM" });
+    onRename(from, to);
+    return original(from, to);
+  });
+}
+
+test("an open web directory uses a complete backup and activates assets before HTML and manifest", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  fs.writeFileSync(path.join(env.web, "old-bundle.js"), "cached old asset");
+  fs.writeFileSync(path.join(env.nextWeb, "new-bundle.js"), "new asset");
+  const order = [];
+  denyWebRename(t, env, (_, to) => { if (path.dirname(to) === env.web) order.push(path.basename(to)); });
+  const result = await core.publish(root, env, runtime);
+  assert.equal(result.webActivation, "files");
+  assert.deepEqual(order, ["new-bundle.js", "index.html", "release.json"]);
+  assert.equal(fs.readFileSync(path.join(result.backups[1], "index.html"), "utf8"), "old web");
+  assert.equal(fs.readFileSync(path.join(env.web, "old-bundle.js"), "utf8"), "cached old asset");
+  assert.equal(fs.readFileSync(path.join(env.web, "new-bundle.js"), "utf8"), "new asset");
+  assert.equal(core.readJson(path.join(env.web, "release.json")).sourceHash, result.sourceHash);
+});
+
+test("file activation verification failure restores old files and API and removes new entrypoints", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  fs.writeFileSync(path.join(env.nextWeb, "new-bundle.js"), "new asset");
+  fs.writeFileSync(path.join(env.nextWeb, "new-route.html"), "new route");
+  denyWebRename(t, env);
+  runtime.verify = async () => { throw new Error("public release mismatch"); };
+  await assert.rejects(core.publish(root, env, runtime), /public release mismatch; rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+  for (const name of ["new-bundle.js", "new-route.html", "release.json"]) assert.equal(fs.existsSync(path.join(env.web, name)), false);
+});
+
+test("failure partway through web file activation restores already replaced HTML", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  fs.writeFileSync(path.join(env.nextWeb, "new-bundle.js"), "new asset");
+  fs.writeFileSync(path.join(env.nextWeb, "login.html"), "new login");
+  let injected = false;
+  denyWebRename(t, env, (_, to) => {
+    if (!injected && to === path.join(env.web, "login.html")) { injected = true; throw new Error("web file locked"); }
+  });
+  await assert.rejects(core.publish(root, env, runtime), /web file locked; rollback completed/);
+  assert.equal(injected, true);
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+  assert.equal(fs.existsSync(path.join(env.web, "new-bundle.js")), false);
+  assert.equal(fs.readdirSync(env.web).some(name => name.endsWith(".publish.tmp")), false);
+});
+
+test("web file fallback refuses reparse points in the active tree", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  const external = fs.mkdtempSync(path.join(os.tmpdir(), "lauda-publisher-external-"));
+  t.after(() => cleanup(external));
+  fs.symlinkSync(external, path.join(env.web, "redirect"), process.platform === "win32" ? "junction" : "dir");
+  denyWebRename(t, env);
+  await assert.rejects(core.publish(root, env, runtime), /Reparse points.*rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+});
+
+test("failed web backup leaves the frontend untouched and restores the API", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  denyWebRename(t, env);
+  t.mock.method(fs, "cpSync", () => { throw new Error("backup copy failed"); });
+  await assert.rejects(core.publish(root, env, runtime), /backup copy failed; rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+});
+
+test("file fallback never masks an API directory permission error", async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  const original = fs.renameSync;
+  t.mock.method(fs, "renameSync", (from, to) => {
+    if (from === env.api) throw Object.assign(new Error("API rename denied"), { code: "EPERM" });
+    return original(from, to);
+  });
+  await assert.rejects(core.publish(root, env, runtime), /API rename denied; rollback completed/);
+  assert.equal(fs.readFileSync(path.join(env.api, "server.js"), "utf8"), "old api");
+  assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "old web");
+});
+
+test("Windows process holding its working directory reproduces EPERM and publishes through files", { skip: process.platform !== "win32" }, async t => {
+  const { root, env, runtime } = fixture(t, "production");
+  const script = "[Console]::WriteLine('LOCKED'); Start-Sleep -Seconds 30";
+  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { cwd: env.web, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  const exited = new Promise(resolve => child.once("exit", resolve));
+  try {
+    await new Promise((resolve, reject) => {
+    let text = "";
+    const timer = setTimeout(() => reject(new Error("Directory lock helper timeout")), 10000);
+    child.stdout.on("data", bytes => { text += bytes; if (text.includes("LOCKED")) { clearTimeout(timer); resolve(); } });
+    child.once("exit", code => { clearTimeout(timer); if (!text.includes("LOCKED")) reject(new Error(`Directory lock helper exited ${code}`)); });
+    child.once("error", reject);
+    });
+    assert.throws(() => fs.renameSync(env.web, `${env.web}-locked-check`), error => ["EPERM", "EACCES", "EBUSY"].includes(error.code));
+    const result = await core.publish(root, env, runtime);
+    assert.equal(result.webActivation, "files");
+    assert.equal(fs.readFileSync(path.join(env.web, "index.html"), "utf8"), "new web");
+    assert.equal(fs.readFileSync(path.join(result.backups[1], "index.html"), "utf8"), "old web");
+  } finally { child.kill(); await exited; }
+});
+
 test("rollback restart failure is explicitly reported", async t => {
   const { root, env, runtime } = fixture(t);
   runtime.restart = async () => { throw new Error("access denied"); };
@@ -180,10 +284,24 @@ test("a worker interruption is reported without replay, preserving completed res
 });
 
 test("installation scripts parse in Windows PowerShell 5.1", { skip: process.platform !== "win32" }, () => {
-  for (const file of ["scripts/install-publisher.ps1", "scripts/publisher/processes.ps1", "scripts/publisher/install-common.ps1", "scripts/publisher/launch.ps1", "scripts/repair-staging-runtime.ps1", "scripts/start-staging-standard.ps1", "scripts/publisher/staging-runtime-common.ps1"]) {
+  for (const file of ["scripts/install-publisher.ps1", "scripts/update-publisher.ps1", "scripts/publisher/processes.ps1", "scripts/publisher/install-common.ps1", "scripts/publisher/launch.ps1", "scripts/repair-staging-runtime.ps1", "scripts/start-staging-standard.ps1", "scripts/publisher/staging-runtime-common.ps1"]) {
     const full = path.resolve(__dirname, "..", file).replace(/'/g, "''");
     execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile('${full}',[ref]$tokens,[ref]$errors) > $null; if ($errors.Count) { $errors | Out-String | Write-Error; exit 1 }`]);
   }
+});
+
+test("publisher maintenance refuses pending and processing requests", { skip: process.platform !== "win32" }, t => {
+  const { root } = fixture(t);
+  const queue = path.join(root, ".lauda-publisher");
+  const inspect = () => installerScript(`try { Assert-PublisherQueueIdle -Queue '${queue.replace(/'/g, "''")}'; 'idle' } catch { 'refused' }`);
+  assert.equal(inspect(), "idle");
+  for (const folder of ["inbox", "processing"]) {
+    const file = path.join(queue, folder, `${randomUUID()}.json`);
+    fs.writeFileSync(file, "{}");
+    assert.equal(inspect(), "refused");
+    fs.unlinkSync(file);
+  }
+  assert.equal(inspect(), "idle");
 });
 
 test("installed file and directory DACLs grant only administrator/system full access and owner read/execute", { skip: process.platform !== "win32" }, () => {

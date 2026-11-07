@@ -73,6 +73,16 @@ function Get-PublisherHeartbeat {
   return $null
 }
 
+function Assert-PublisherQueueIdle {
+  param([string]$Queue)
+  Assert-NoReparsePoint $Queue
+  foreach ($folder in @('inbox', 'processing')) {
+    $directory = Join-Path $Queue $folder
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Publisher queue is incomplete. No installed files were replaced.' }
+    if (@(Get-ChildItem -LiteralPath $directory -Filter '*.json' -File).Count) { throw 'A publisher request is pending or processing. Wait for its result before updating.' }
+  }
+}
+
 function Write-PublisherDiagnostics {
   param([string]$TaskName, [string]$Queue, [string]$Phase, [string]$Failure)
   $report = [ordered]@{ createdAt = (Get-Date).ToUniversalTime().ToString('o'); phase = $Phase }

@@ -83,7 +83,47 @@ async function verifyServed(env, expected) {
   if (actual.sourceHash !== expected.sourceHash || actual.environment !== env.name || actual.apiUrl !== env.apiUrl) throw new Error("Gateway is serving a different release");
 }
 
-// Only prebuilt artifacts are swapped. No builds, migrations, shell input or network listener.
+function treeFiles(root, directory) {
+  checkTree(root, directory);
+  const files = [];
+  function visit(current) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const file = path.join(current, entry.name);
+      if (entry.isDirectory()) visit(file);
+      else files.push(path.relative(directory, file));
+    }
+  }
+  visit(directory);
+  return files;
+}
+function copyWebFiles(root, source, destination) {
+  const priority = file => file === "release.json" ? 2 : file.endsWith(".html") ? 1 : 0;
+  const files = treeFiles(root, source).sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
+  for (const relative of files) {
+    const from = plainPath(root, path.join(source, relative));
+    const to = plainPath(root, path.join(destination, relative), true);
+    if (fs.existsSync(to) && fs.readFileSync(from).equals(fs.readFileSync(to))) continue;
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    const temporary = plainPath(root, `${to}.${process.pid}.${Date.now()}.publish.tmp`, true);
+    try {
+      fs.copyFileSync(from, temporary, fs.constants.COPYFILE_EXCL);
+      fs.renameSync(temporary, to);
+    } finally {
+      if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    }
+  }
+}
+function restoreWebFiles(root, item) {
+  copyWebFiles(root, item.backup, item.live);
+  // Remove only the candidate files absent from the saved release. Cached old
+  // assets already in the live tree are never deleted during activation.
+  for (const relative of item.addedFiles) {
+    const file = plainPath(root, path.join(item.live, relative), true);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
+}
+
+// Only prebuilt artifacts are activated. No builds, migrations, shell input or network listener.
 async function publish(root, env, runtime) {
   const release = checkRelease(root, env);
   await runtime.validate(env);
@@ -93,20 +133,35 @@ async function publish(root, env, runtime) {
   try {
     for (const [live, next] of [[env.api, env.nextApi], [env.web, env.nextWeb]]) {
       plainPath(root, live); plainPath(root, `${live}${suffix}`, true);
-      fs.renameSync(live, `${live}${suffix}`);
+      try { fs.renameSync(live, `${live}${suffix}`); }
+      catch (error) {
+        // Windows can refuse renaming an open web directory even though its
+        // individual files remain writable. Keep that directory and its handles.
+        if (live !== env.web || !["EPERM", "EBUSY", "EACCES"].includes(error.code) || !fs.existsSync(live) || fs.existsSync(`${live}${suffix}`)) throw error;
+        const oldFiles = new Set(treeFiles(root, live));
+        const addedFiles = treeFiles(root, next).filter(file => !oldFiles.has(file));
+        fs.cpSync(live, `${live}${suffix}`, { recursive: true, force: false, errorOnExist: true });
+        const item = { live, next, backup: `${live}${suffix}`, mode: "files", addedFiles };
+        moved.push(item);
+        copyWebFiles(root, next, live); // Assets first, HTML next, release manifest last.
+        continue;
+      }
       moved.push({ live, next, backup: `${live}${suffix}`, activated: false });
       fs.renameSync(next, live);
       moved[moved.length - 1].activated = true;
     }
     await runtime.restart(env);
     await runtime.verify(env, release);
-    return { environment: env.name, sourceHash: release.sourceHash, backups: moved.map(item => item.backup) };
+    return { environment: env.name, sourceHash: release.sourceHash, backups: moved.map(item => item.backup), webActivation: moved.find(item => item.live === env.web)?.mode || "directory" };
   } catch (error) {
     const rollbackErrors = [];
     for (const item of moved.reverse()) {
       try {
-        if (item.activated) fs.renameSync(item.live, item.next);
-        fs.renameSync(item.backup, item.live);
+        if (item.mode === "files") restoreWebFiles(root, item);
+        else {
+          if (item.activated) fs.renameSync(item.live, item.next);
+          fs.renameSync(item.backup, item.live);
+        }
       } catch (rollbackError) { rollbackErrors.push(rollbackError.message); }
     }
     if (moved.length && !rollbackErrors.length) {
