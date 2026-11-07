@@ -20,6 +20,8 @@ try {
   Assert-NoReparsePoint -Path $installed
   $config = Get-Content -LiteralPath (Join-Path $installed 'config.json') -Raw | ConvertFrom-Json
   if ($config.projectRoot -ne $project -or $config.node -ne $node -or $config.powershell -ne $powershell) { throw 'Installed publisher configuration does not match this project. No installed files were replaced.' }
+  $worker = Get-VerifiedPublisherWorker -ProcessId $before.pid -OwnerSid $identity.User.Value -Node $node -Installed $installed
+  if (-not $worker) { throw 'The publisher worker exited before maintenance. Inspect its status.' }
   $files = @('core.cjs','worker.cjs','processes.ps1','launch.ps1')
   $hashes = @{}
   foreach ($name in $files) {
@@ -36,11 +38,28 @@ try {
   Export-ScheduledTask -TaskName $taskName | Set-Content -LiteralPath (Join-Path $backup 'task.xml')
   $before | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'state.json')
   Assert-PublisherQueueIdle -Queue $queue
-  Stop-ScheduledTask -TaskName $taskName
+  if ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running') {
+    Stop-ScheduledTask -TaskName $taskName
+  }
   $stopDeadline = (Get-Date).AddSeconds(12)
-  while ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running' -or (Get-Process -Id $before.pid -ErrorAction SilentlyContinue)) {
+  while ((Get-ScheduledTask -TaskName $taskName).State -eq 'Running') {
     if ((Get-Date) -gt $stopDeadline) { throw 'Publisher did not stop completely. No installed files were replaced. Inspect the saved worker PID and task diagnostics.' }
     Start-Sleep -Milliseconds 250
+  }
+  # Task Scheduler can stop the PowerShell launcher and leave its Node child alive.
+  $remaining = Get-Process -Id $worker.ProcessId -ErrorAction SilentlyContinue
+  if ($remaining) {
+    try {
+      $null = $remaining.Handle
+      $verified = Get-VerifiedPublisherWorker -ProcessId $worker.ProcessId -OwnerSid $identity.User.Value -Node $node -Installed $installed
+      # CIM reports microseconds, while Process.StartTime retains 100 ns ticks.
+      if (-not $verified -or $verified.CreationDate -ne $worker.CreationDate -or [Math]::Abs(($remaining.StartTime - $verified.CreationDate).Ticks) -ge 10) {
+        throw 'The publisher worker identity changed during maintenance.'
+      }
+      Assert-PublisherQueueIdle -Queue $queue
+      $remaining.Kill()
+      if (-not $remaining.WaitForExit(5000)) { throw 'The verified publisher worker did not exit.' }
+    } finally { $remaining.Dispose() }
   }
   Assert-PublisherQueueIdle -Queue $queue
   foreach ($name in $files) {

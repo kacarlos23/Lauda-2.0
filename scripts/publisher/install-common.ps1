@@ -73,6 +73,19 @@ function Get-PublisherHeartbeat {
   return $null
 }
 
+function Get-VerifiedPublisherWorker {
+  param([int]$ProcessId, [string]$OwnerSid, [string]$Node, [string]$Installed)
+  $worker = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+  if (-not $worker) { return $null }
+  $expected = '"{0}" "{1}" "{2}"' -f $Node, (Join-Path $Installed 'worker.cjs'), (Join-Path $Installed 'config.json')
+  if ($worker.ExecutablePath -ne $Node -or -not $worker.CommandLine -or $worker.CommandLine.Trim() -ne $expected) {
+    throw 'The publisher PID does not identify the installed worker.'
+  }
+  $owner = Invoke-CimMethod -InputObject $worker -MethodName GetOwnerSid -ErrorAction Stop
+  if ($owner.ReturnValue -ne 0 -or $owner.Sid -ne $OwnerSid) { throw 'The publisher PID belongs to a different account.' }
+  return $worker
+}
+
 function Assert-PublisherQueueIdle {
   param([string]$Queue)
   Assert-NoReparsePoint $Queue
