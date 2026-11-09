@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { CheckCircle2, Download, Upload } from "lucide-react-native";
+import { SONG_TRANSFER_FIELDS, SongTransferExistingMode, SongTransferField } from "../../../../src/constants/songTransferFields";
 import { BottomSheet } from "../BottomSheet";
-import { Button, ConfirmDialog, ErrorBanner, LoadingState } from "../ui";
+import { Button, Chip, ConfirmDialog, ErrorBanner, LoadingState } from "../ui";
 import { musicService, SongTransferDocument, SongTransferPreview } from "../../services/musicService";
 import { Ministry } from "../../types";
 import { parseSongTransferDocument } from "../../utils/songTransfer";
@@ -17,9 +18,19 @@ type Props = {
   onImported: (message: string) => void;
 };
 
-const statusLabels = { CREATE: "Nova música", LINK: "Vincular", RESTORE: "Restaurar", ALREADY_LINKED: "Já vinculada", CONFLICT: "Conflito", INVALID: "Inválida" };
+const statusLabels = { CREATE: "Nova música", UPDATE: "Atualizar", LINK: "Vincular", RESTORE: "Restaurar", ALREADY_LINKED: "Já vinculada", SKIPPED: "Pular", CONFLICT: "Conflito", INVALID: "Inválida" };
+const fieldLabels: Record<SongTransferField, string> = {
+  tags: "Temas", originalKey: "Tom", bpm: "BPM", content: "Cifra",
+  cifraUrl: "Link da cifra", letraUrl: "Link da letra", audioUrl: "Áudio", videoUrl: "Vídeo", comments: "Comentários",
+};
+const existingModes: Array<{ id: SongTransferExistingMode; label: string }> = [
+  { id: "create", label: "Criar novas" },
+  { id: "update", label: "Atualizar" },
+  { id: "skip", label: "Pular existentes" },
+];
 type ReviewFilter = "all" | "ready" | "issues";
-const isReady = (status: string) => ["CREATE", "LINK", "RESTORE"].includes(status);
+const isReady = (status: string) => ["CREATE", "UPDATE", "LINK", "RESTORE"].includes(status);
+const defaultFields = () => [...SONG_TRANSFER_FIELDS];
 
 export function SongDataTransferPanel({ visible, canImport, canExport, onClose, onImported }: Props) {
   const [ministries, setMinistries] = useState<Ministry[]>([]);
@@ -27,6 +38,8 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
   const [ministryId, setMinistryId] = useState<string | null>(null);
   const [document, setDocument] = useState<SongTransferDocument | null>(null);
   const [preview, setPreview] = useState<SongTransferPreview | null>(null);
+  const [fields, setFields] = useState<SongTransferField[]>(defaultFields);
+  const [existingMode, setExistingMode] = useState<SongTransferExistingMode>("create");
   const [busy, setBusy] = useState(false);
   const [activity, setActivity] = useState<"review" | "export" | "import" | null>(null);
   const [filename, setFilename] = useState("");
@@ -38,7 +51,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
   const operation = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const selectedMinistry = useMemo(() => ministries.find((item) => item.id === ministryId) ?? null, [ministries, ministryId]);
-  const readyCount = preview ? preview.counts.CREATE + preview.counts.LINK + preview.counts.RESTORE : 0;
+  const readyCount = preview ? preview.counts.CREATE + (preview.counts.UPDATE ?? 0) + preview.counts.LINK + preview.counts.RESTORE : 0;
   const issueCount = preview ? preview.counts.CONFLICT + preview.counts.INVALID : 0;
   const reviewItems = preview?.items.filter((item) => filter === "all" || (filter === "ready" ? isReady(item.status) : ["CONFLICT", "INVALID"].includes(item.status))) ?? [];
   const close = () => { if (!locked.current) onClose(); };
@@ -47,6 +60,8 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
     operation.current += 1;
     setDocument(null);
     setPreview(null);
+    setFields(defaultFields());
+    setExistingMode("create");
     setConfirmVisible(false);
     setBusy(false);
     locked.current = false;
@@ -89,7 +104,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
       if (asset.size && asset.size > 32 * 1024 * 1024) throw new Error("O arquivo excede 32 MB. Exporte um catálogo menor para importar.");
       const raw = asset.file ? await asset.file.text() : await new (await import("expo-file-system")).File(asset.uri).text();
       const parsed = parseSongTransferDocument(raw);
-      const nextPreview = await musicService.previewSongData(ministryId, parsed);
+      const nextPreview = await musicService.previewSongData(ministryId, parsed, { fields, existing: existingMode });
       if (currentOperation !== operation.current) return;
       setDocument(parsed);
       setPreview(nextPreview);
@@ -111,10 +126,10 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
     setError(null);
     const currentOperation = ++operation.current;
     try {
-      const result = await musicService.commitSongData(ministryId, document, preview.documentHash);
+      const result = await musicService.commitSongData(ministryId, document, preview.documentHash, { fields, existing: existingMode });
       if (currentOperation !== operation.current) return;
-      const skipped = result.conflicts + result.invalid;
-      onImported(`${result.created} músicas criadas; ${result.linked} vínculos adicionados; ${result.restored} restauradas. ${result.alreadyLinked} já vinculadas${skipped ? `; ${skipped} não importadas por pendências` : ""}.`);
+      const pending = result.conflicts + result.invalid;
+      onImported(`${result.created} músicas criadas; ${result.updated ?? 0} atualizadas; ${result.linked} vínculos adicionados; ${result.restored} restauradas. ${result.alreadyLinked} já vinculadas; ${result.skipped ?? 0} ignoradas${pending ? `; ${pending} não importadas por pendências` : ""}.`);
       setDocument(null);
       setPreview(null);
       setConfirmVisible(false);
@@ -128,6 +143,41 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
     }
   };
 
+  const reviewCurrent = async (nextFields: SongTransferField[], nextExisting: SongTransferExistingMode) => {
+    if (locked.current || !document || !ministryId) return;
+    setBusy(true);
+    locked.current = true;
+    setActivity("review");
+    setError(null);
+    const currentOperation = ++operation.current;
+    try {
+      const nextPreview = await musicService.previewSongData(ministryId, document, { fields: nextFields, existing: nextExisting });
+      if (currentOperation !== operation.current) return;
+      setPreview(nextPreview);
+    } catch (reason) {
+      if (currentOperation !== operation.current) return;
+      setError(reason instanceof Error ? reason.message : "Não foi possível revisar o arquivo.");
+    } finally {
+      if (currentOperation === operation.current) { setBusy(false); locked.current = false; setActivity(null); }
+    }
+  };
+
+  const toggleField = (field: SongTransferField) => {
+    if (locked.current) return;
+    const next = fields.includes(field)
+      ? fields.filter((item) => item !== field)
+      : SONG_TRANSFER_FIELDS.filter((item) => item === field || fields.includes(item));
+    if (!next.length) return;
+    setFields(next);
+    void reviewCurrent(next, existingMode);
+  };
+
+  const chooseExisting = (mode: SongTransferExistingMode) => {
+    if (locked.current || mode === existingMode) return;
+    setExistingMode(mode);
+    void reviewCurrent(fields, mode);
+  };
+
   const exportData = async () => {
     if (locked.current || !canExport) return;
     if (!selectedMinistry) {
@@ -139,7 +189,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
     setError(null);
     const currentOperation = ++operation.current;
     try {
-      await musicService.exportSongData(selectedMinistry.id, selectedMinistry.name);
+      await musicService.exportSongData(selectedMinistry.id, selectedMinistry.name, { fields });
       if (currentOperation === operation.current) setNotice(Platform.OS === "web" ? "Arquivo exportado. Confira os downloads do navegador." : "Arquivo preparado para compartilhar.");
     } catch (reason) {
       if (currentOperation !== operation.current) return;
@@ -183,6 +233,48 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
 
       <ErrorBanner message={error} style={styles.error} />
 
+      <Text style={styles.choiceLabel}>Campos</Text>
+      <Text style={styles.meta}>Nome e artista sempre entram. Sem desmarcar, exporta e aplica todos.</Text>
+      <View style={styles.chips}>
+        {SONG_TRANSFER_FIELDS.map((field) => {
+          const active = fields.includes(field);
+          return (
+            <Chip
+              key={field}
+              label={fieldLabels[field]}
+              active={active}
+              disabled={busy}
+              onPress={() => toggleField(field)}
+              style={styles.chip}
+              textStyle={styles.chipText}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: active, disabled: busy }}
+              accessibilityLabel={`${active ? "Remover" : "Incluir"} ${fieldLabels[field]}`}
+            />
+          );
+        })}
+      </View>
+      <Text style={styles.choiceLabel}>Se a música já existe</Text>
+      <View style={styles.chips}>
+        {existingModes.map((mode) => {
+          const selected = existingMode === mode.id;
+          return (
+            <Chip
+              key={mode.id}
+              label={mode.label}
+              active={selected}
+              disabled={busy}
+              onPress={() => chooseExisting(mode.id)}
+              style={styles.chip}
+              textStyle={styles.chipText}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled: busy }}
+            />
+          );
+        })}
+      </View>
+      <Text style={styles.meta}>Criar novas preserva a cifra e só vincula. Atualizar grava os campos marcados. Pular não altera as que já existem.</Text>
+
       <View style={styles.actions}>
         {canImport ? (
           <View style={styles.actionCard}>
@@ -196,7 +288,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
           <View style={styles.actionCard}>
             <Download color={colors.primary} size={iconSizes.s19} />
             <Text style={styles.cardTitle}>Exportar repertório</Text>
-            <Text style={styles.meta}>Salve nome, artista, tom, cifra e link da cifra em JSON.</Text>
+            <Text style={styles.meta}>Salve o JSON com os campos marcados. Sem opções na API, o arquivo antigo continua igual.</Text>
             <Button title="Exportar JSON" accessibilityLabel="Exportar músicas do ministério" size="sm" style={styles.compactButton} variant="secondary" disabled={!selectedMinistry || ministriesLoading || busy} loading={activity === "export"} onPress={() => void exportData()} />
           </View>
         ) : null}
@@ -213,7 +305,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
               <View key={stat.label} style={[styles.stat, { backgroundColor: stat.background }]}><Text style={[styles.statNumber, { color: stat.color }]}>{stat.value}</Text><Text style={[styles.statLabel, { color: stat.color }]}>{stat.label}</Text></View>
             ))}
           </View>
-          <Text style={styles.meta}>{preview.counts.CREATE} novas · {preview.counts.LINK} para vincular · {preview.counts.RESTORE} para restaurar</Text>
+          <Text style={styles.meta}>{preview.counts.CREATE} novas · {preview.counts.UPDATE ?? 0} para atualizar · {preview.counts.LINK} para vincular · {preview.counts.RESTORE} para restaurar · {preview.counts.SKIPPED ?? 0} para pular</Text>
           {issueCount ? <Text style={styles.issue}>Conflitos e itens inválidos serão ignorados. As cifras já cadastradas serão preservadas.</Text> : null}
           <View style={styles.filters}>
             {([{ id: "all", label: "Todas" }, { id: "ready", label: "Prontas" }, { id: "issues", label: "Pendências" }] as const).map((tab) => (
@@ -236,7 +328,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
     {confirmVisible ? <ConfirmDialog
       visible={visible}
       title="Confirmar importação"
-      message={`Importar ${readyCount} músicas para ${selectedMinistry?.name}? ${issueCount ? `${issueCount} com pendências serão ignoradas. ` : ""}As músicas já vinculadas serão mantidas.`}
+      message={`Importar ${readyCount} músicas para ${selectedMinistry?.name}? ${issueCount ? `${issueCount} com pendências serão ignoradas. ` : ""}${existingMode === "update" ? "As que já existem recebem só os campos marcados." : existingMode === "skip" ? "As que já existem serão ignoradas." : "As que já existem são preservadas e só vinculadas se ainda não estiverem no ministério."}`}
       confirmLabel="Importar"
       loading={busy}
       onCancel={() => { if (!busy) setConfirmVisible(false); }}
@@ -250,6 +342,10 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.md },
   help: { color: colors.muted, fontSize: fontSizes.s14, lineHeight: lineHeights.h21, marginBottom: spacing.lg },
   label: { color: colors.ink, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold, marginBottom: spacing.sm },
+  choiceLabel: { color: colors.ink, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.md, marginBottom: spacing.xs },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  chip: { minHeight: 26, borderRadius: radii.sm, paddingHorizontal: spacing.sm, paddingVertical: 0 },
+  chipText: { fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
   ministries: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   ministry: { maxWidth: "100%", flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md },
   ministrySelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
