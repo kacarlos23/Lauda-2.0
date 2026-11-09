@@ -33,14 +33,20 @@ const songTagFilterSchema = z.preprocess((value) => {
     return String(item).split(",");
   }).map((item) => item.trim()).filter(Boolean);
   return parts.length ? parts : undefined;
-}, songTagsSchema.optional());
+}, z.array(songTagNameSchema)
+  .transform((tags) => prepareSongTags(tags).map((tag) => tag.name))
+  .optional());
 
-export const songListSchema = z.object({
+export const songScopeSchema = z.object({
   search: z.string().trim().max(100).default(""),
   artistId: z.string().uuid("ID do artista inválido").optional(),
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido").optional(),
   ministryId: z.string().uuid("ID do ministério inválido").optional(),
+});
+
+export const songListSchema = songScopeSchema.extend({
   tags: songTagFilterSchema,
+  untagged: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -122,6 +128,7 @@ export const cifraClubImportSchema = z.object({
     }, "Informe uma URL do Cifra Club"),
 });
 
+export type SongScopeInput = z.infer<typeof songScopeSchema>;
 export type SongListInput = z.infer<typeof songListSchema>;
 export type CreateSongInput = z.infer<typeof createSongSchema>;
 export type UpdateSongInput = z.infer<typeof updateSongSchema>;

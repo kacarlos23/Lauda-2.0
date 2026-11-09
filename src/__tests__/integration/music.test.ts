@@ -665,7 +665,13 @@ describe("Artists and songs API", () => {
     expect(otherList.body.data.items.map((song: { title: string }) => song.title)).toEqual(["Natal de outra igreja"]);
 
     const catalog = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${memberToken}`).expect(200);
-    expect(catalog.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Batismo", "Gratidão", "Natal"]);
+    expect(catalog.body.data.untaggedCount).toBe(1);
+    expect(catalog.body.data.items).toEqual([
+      { id: expect.any(String), name: "Adoração", count: 0 },
+      { id: expect.any(String), name: "Batismo", count: 1 },
+      { id: expect.any(String), name: "Gratidão", count: 1 },
+      { id: expect.any(String), name: "Natal", count: 1 },
+    ]);
     const otherCatalog = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${other.token}`).expect(200);
     expect(otherCatalog.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Natal"]);
     expect(otherCatalog.body.data.items[0].id).not.toBe(catalog.body.data.items.find((tag: { name: string }) => tag.name === "Natal").id);
@@ -674,12 +680,53 @@ describe("Artists and songs API", () => {
       .send({ tags: [] }).expect(200);
     expect(cleared.body.data.tags).toEqual([]);
     const afterClear = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${tenant.token}`).expect(200);
-    expect(afterClear.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Batismo", "Natal"]);
+    expect(afterClear.body.data.untaggedCount).toBe(2);
+    expect(afterClear.body.data.items.find((tag: { name: string }) => tag.name === "Gratidão").count).toBe(0);
 
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ...songPayload(artist.id), title: "Tema inválido", tags: [" "] }).expect(400);
     await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ...songPayload(artist.id), title: "Tema longo", tags: ["a".repeat(41)] }).expect(400);
+  });
+
+  it("combina busca, temas e músicas sem tema, com contagens por artista e tom", async () => {
+    const { token } = await register("song-theme-facets");
+    const auth = `Bearer ${token}`;
+    const artist = await createArtist(token);
+    const otherArtist = await createArtist(token, "Outro artista");
+    const create = (fields: Record<string, unknown>) => request(app).post("/api/songs").set("Authorization", auth)
+      .send({ ...songPayload(artist.id), ...fields }).expect(201);
+    await create({ title: "Em memória de ti", tags: ["Comunhão/Santa Ceia", "Adoração"] });
+    await create({ title: "Eis os anjos", tags: ["Natal"] });
+    await create({ title: "Ceia instrumental" });
+    await create({ title: "Natal no título" });
+    await create({ title: "Ceia em outro tom", originalKey: "A", tags: ["Comunhão/Santa Ceia"] });
+    await create({ title: "Ceia de outro artista", artistId: otherArtist.id, tags: ["Comunhão/Santa Ceia"] });
+    const inactive = await create({ title: "Ceia removida", tags: ["Comunhão/Santa Ceia"] });
+    await request(app).delete(`/api/songs/${inactive.body.data.id}`).set("Authorization", auth).expect(200);
+    const scope = { artistId: artist.id, originalKey: "G" };
+    const titles = (body: { data: { items: { title: string }[] } }) => body.data.items.map((song) => song.title);
+    const list = (query: Record<string, unknown>) => request(app).get("/api/songs").query(query).set("Authorization", auth).expect(200);
+
+    const byTheme = await list({ ...scope, search: "#natal" });
+    expect(titles(byTheme.body)).toEqual(["Eis os anjos"]);
+    expect(byTheme.body.data.items[0].tags).toEqual(["Natal"]);
+    expect(titles((await list({ ...scope, search: "#adoracao" })).body)).toEqual(["Em memória de ti"]);
+    expect(titles((await list({ ...scope, search: "ceia" })).body)).toEqual(["Ceia instrumental", "Em memória de ti"]);
+    expect(titles((await list({ ...scope, search: "ceia", tags: "Natal,Adoração", untagged: "true" })).body))
+      .toEqual(["Ceia instrumental", "Em memória de ti"]);
+    expect(titles((await list({ ...scope, search: "ceia", tags: "Natal" })).body)).toEqual([]);
+    expect(titles((await list({ ...scope, untagged: "true" })).body)).toEqual(["Ceia instrumental", "Natal no título"]);
+    const counts = await request(app).get("/api/songs/tags").set("Authorization", auth)
+      .query({ ...scope, search: "ceia", tags: "Natal" }).expect(200);
+    expect(counts.body.data).toEqual({
+      items: [
+        { id: expect.any(String), name: "Adoração", count: 1 },
+        { id: expect.any(String), name: "Comunhão/Santa Ceia", count: 1 },
+        { id: expect.any(String), name: "Natal", count: 0 },
+      ],
+      untaggedCount: 1,
+    });
   });
 
   it("importa e exporta temas opcionais e preserva catálogos sem o campo", async () => {

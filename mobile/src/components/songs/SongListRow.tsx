@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Check, Square, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
 import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
-import { SongTagList } from "./SongTagPicker";
+import { SongThemeLabels } from "./SongThemeLabels";
 import {
   colors,
   controlSizes,
@@ -48,6 +48,7 @@ export function SongListRow({
       accessibilityRole={selectionMode ? "checkbox" : "button"}
       accessibilityLabel={selectionMode ? selectionLabel : `Abrir cifra ${song.title}`}
       accessibilityState={selectionMode ? { checked: selected } : undefined}
+      aria-checked={selectionMode ? selected : undefined}
     >
       {selected ? <View style={styles.selectedRail} /> : null}
       {song.artist.imageUrl ? (
@@ -55,30 +56,37 @@ export function SongListRow({
       ) : (
         <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
       )}
-      <View style={styles.info} testID={`song-info-${song.id}`}>
-        <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
-        </Text>
-        <SongTagList tags={song.tags} limit={3} />
-      </View>
-      {!selectionMode && hasSongLinks(song) ? (
-        <View style={styles.linkActions} testID={`song-actions-${song.id}`}>
-          <SongLinkButtons
-            links={song}
-            compact
-            collapseMultiple={compactLinkActions}
-            onOpenMultiple={onOpenLinks}
-          />
+      <View style={styles.body}>
+        <View style={styles.headline}>
+          <View style={styles.info} testID={`song-info-${song.id}`}>
+            <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
+            </Text>
+          </View>
+          {!compactLinkActions ? (
+            <View style={styles.desktopThemes}><SongThemeLabels tags={song.tags} /></View>
+          ) : null}
+          {!selectionMode && hasSongLinks(song) ? (
+            <View style={styles.linkActions} testID={`song-actions-${song.id}`}>
+              <SongLinkButtons
+                links={song}
+                compact
+                collapseMultiple={compactLinkActions}
+                onOpenMultiple={onOpenLinks}
+              />
+            </View>
+          ) : null}
+          {selectionMode ? (
+            selected ? (
+              <View style={styles.check}><Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /></View>
+            ) : (
+              <Square color={colors.muted} size={iconSizes.s21} />
+            )
+          ) : null}
         </View>
-      ) : null}
-      {selectionMode ? (
-        selected ? (
-          <View style={styles.check}><Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /></View>
-        ) : (
-          <Square color={colors.muted} size={iconSizes.s21} />
-        )
-      ) : null}
+        {compactLinkActions ? <SongThemeLabels tags={song.tags} /> : null}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -98,8 +106,9 @@ const styles = StyleSheet.create({
   rowCompact: {
     minHeight: 76,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     gap: spacing.sm,
+    alignItems: "flex-start",
   },
   rowSelected: { backgroundColor: colors.primarySoft },
   selectedRail: {
@@ -119,7 +128,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  body: { flex: 1, minWidth: 0, gap: spacing.xs },
+  headline: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   info: { flex: 1, minWidth: 0 },
+  desktopThemes: { flexShrink: 1, maxWidth: "50%" },
   linkActions: { flexShrink: 0, alignItems: "flex-end", justifyContent: "center" },
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },

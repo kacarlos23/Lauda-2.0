@@ -31,9 +31,11 @@ export type SongListParams = {
   originalKey?: MusicalKey;
   ministryId?: string;
   tags?: string[];
+  untagged?: boolean;
 };
 
 export type SongTagOption = { id: string; name: string };
+export type SongTagCounts = { items: Array<SongTagOption & { count: number }>; untaggedCount: number };
 
 export type PortableSong = {
   title: string;
@@ -205,9 +207,21 @@ export const musicService = {
   },
 
   async listSongTags(): Promise<SongTagOption[]> {
+    return (await musicService.listSongTagCounts()).items;
+  },
+
+  async listSongTagCounts(
+    search = "",
+    { artistId, originalKey, ministryId }: SongListParams = {},
+    signal?: AbortSignal,
+  ): Promise<SongTagCounts> {
     try {
-      const response = await api.get<ApiResponse<{ items: SongTagOption[] }>>("/songs/tags");
-      return response.data.data.items;
+      const response = await api.get<ApiResponse<SongTagCounts>>("/songs/tags", {
+        params: { search, artistId, originalKey, ministryId },
+        signal,
+      });
+      const { items = [], untaggedCount = 0 } = response.data.data ?? {};
+      return { items: items.map(({ count = 0, ...tag }) => ({ ...tag, count })), untaggedCount };
     } catch (error) { apiError(error, "Não foi possível carregar os temas."); }
   },
 

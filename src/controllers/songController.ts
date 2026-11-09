@@ -6,7 +6,7 @@ import { SongPdfService } from "../services/songPdfService";
 import { logger } from "../observability/logger";
 import { SongService } from "../services/songService";
 import { CifraClubImportService } from "../services/cifraClubImportService";
-import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
+import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, songScopeSchema, updateSongSchema } from "../validators/song.schema";
 import { SongTransferService } from "../services/songTransferService";
 import { songTransferCommitSchema, songTransferExportSchema, songTransferPreviewSchema } from "../validators/songTransfer.schema";
 
@@ -28,7 +28,7 @@ export class SongController extends BaseController {
   }
 
   async listTags(req: Request, res: Response) {
-    this.handleSuccess(res, await this.service(req).listTags());
+    this.handleSuccess(res, await this.service(req).listTags(songScopeSchema.parse(req.query)));
   }
 
   async get(req: Request, res: Response) {

@@ -93,6 +93,7 @@ jest.mock("../services/musicService", () => ({
   },
   musicService: {
     listSongs: jest.fn(),
+    listSongTagCounts: jest.fn().mockResolvedValue({ items: [], untaggedCount: 40 }),
     exportSongs: jest.fn(),
   },
 }));

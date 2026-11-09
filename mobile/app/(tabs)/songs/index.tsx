@@ -24,7 +24,7 @@ import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
 import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
-import { SongTagList, SongTagPicker } from "../../../src/components/songs/SongTagPicker";
+import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
 import {
   AppInput,
@@ -44,7 +44,7 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongTagCounts, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
@@ -62,6 +62,7 @@ import {
   iconSizes,
   motion,
   radii,
+  radiusValues,
   screen,
   spacing,
 } from "../../../src/theme";
@@ -69,7 +70,7 @@ import {
 const WIDE_SELECTION_MIN_WIDTH = 1000;
 
 const TEXT = {
-  songOrArtist: "Música ou artista",
+  songSearch: "Música, artista ou #tema",
   searchSongs: "Buscar músicas",
   songs: "Músicas",
   newSong: "Nova música",
@@ -85,26 +86,24 @@ type SongFilterState = {
   artist: Artist | null;
   originalKey?: MusicalKey;
   tags: string[];
+  untagged: boolean;
 };
 
 type Feedback = { message: string; tone: FeedbackTone };
 
-const emptyFilters = (): SongFilterState => ({ artist: null, originalKey: undefined, tags: [] });
+const emptyFilters = (): SongFilterState => ({ artist: null, tags: [], untagged: false });
 
 function toQueryFilters(filters: SongFilterState): SongListParams {
   return {
     ...(filters.artist ? { artistId: filters.artist.id } : {}),
     ...(filters.originalKey ? { originalKey: filters.originalKey } : {}),
     ...(filters.tags.length ? { tags: filters.tags } : {}),
+    ...(filters.untagged ? { untagged: true } : {}),
   };
 }
 
-function sameTags(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((tag, index) => tag === right[index]);
-}
-
-function filtersEqual(left: SongFilterState, right: SongFilterState): boolean {
-  return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey && sameTags(left.tags, right.tags);
+function sameScope(left: SongFilterState, right: SongFilterState): boolean {
+  return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey;
 }
 
 function totalLabel(total: number): string {
@@ -114,7 +113,7 @@ function totalLabel(total: number): string {
 export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { screenHeight } = useResponsiveLayout();
+  const { screenHeight, screenWidth } = useResponsiveLayout();
   const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -161,7 +160,8 @@ export default function SongsScreen() {
   const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
   const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
-  const [knownTags, setKnownTags] = useState<string[]>([]);
+  const [themeCounts, setThemeCounts] = useState<SongTagCounts | null>(null);
+  const [themeError, setThemeError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const searchRef = useRef(search);
   const pageRef = useRef(page);
@@ -169,11 +169,10 @@ export default function SongsScreen() {
   const exportingRef = useRef(false);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didMountSearchRef = useRef(false);
-  const didMountPageRef = useRef(false);
+  const countsRequest = useRef<AbortController | null>(null);
   const handledInvalidationRef = useRef(listInvalidationVersion);
 
   useEffect(() => { searchRef.current = search; }, [search]);
-  useEffect(() => { pageRef.current = page; }, [page]);
 
   useEffect(() => () => {
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
@@ -194,16 +193,29 @@ export default function SongsScreen() {
     });
   }, [loadSongs]);
 
-  const loadKnownTags = useCallback(() => {
-    void musicService.listSongTags()
-      .then((items) => setKnownTags(items.map((item) => item.name)))
-      .catch(() => undefined);
+  const loadThemeCounts = useCallback(() => {
+    countsRequest.current?.abort();
+    const request = new AbortController();
+    countsRequest.current = request;
+    setThemeError(null);
+    void musicService.listSongTagCounts(searchRef.current, filtersRef.current, request.signal)
+      .then((result) => {
+        if (!request.signal.aborted) setThemeCounts(result);
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setThemeError("Não foi possível carregar os temas.");
+      });
   }, []);
 
+  const refreshCatalogue = useCallback((forceRefresh = false) => {
+    loadVisibleSongs(forceRefresh);
+    loadThemeCounts();
+  }, [loadVisibleSongs, loadThemeCounts]);
+
   useFocusEffect(useCallback(() => {
-    loadVisibleSongs();
-    loadKnownTags();
-  }, [loadVisibleSongs, loadKnownTags]));
+    refreshCatalogue();
+    return () => countsRequest.current?.abort();
+  }, [refreshCatalogue]));
 
   useEffect(() => {
     if (!didMountSearchRef.current) {
@@ -215,29 +227,22 @@ export default function SongsScreen() {
       searchRef.current = search;
       pageRef.current = 1;
       setPage(1);
-      const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-      void loadSongs(search, 1, { refresh: hasCachedSongs, filters: filtersRef.current });
+      refreshCatalogue();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, loadSongs]);
+  }, [search, refreshCatalogue]);
 
   useEffect(() => {
-    if (!didMountPageRef.current) {
-      didMountPageRef.current = true;
-      return;
-    }
-
+    if (pageRef.current === page) return;
     pageRef.current = page;
-    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, page, { refresh: hasCachedSongs, filters: filtersRef.current });
-  }, [page, loadSongs]);
+    loadVisibleSongs();
+  }, [page, loadVisibleSongs]);
 
   useEffect(() => {
     if (handledInvalidationRef.current === listInvalidationVersion) return;
     handledInvalidationRef.current = listInvalidationVersion;
-    loadVisibleSongs(true);
-    loadKnownTags();
-  }, [listInvalidationVersion, loadVisibleSongs, loadKnownTags]);
+    refreshCatalogue(true);
+  }, [listInvalidationVersion, refreshCatalogue]);
 
   useEffect(() => {
     if (!selectedSongs.size || !songs.length) return;
@@ -246,11 +251,11 @@ export default function SongsScreen() {
 
   const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
   const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
-  const activeFilters = Boolean(filters.artist || filters.originalKey || filters.tags.length);
-  const canApplyFilters = !filtersEqual(filters, draftFilters);
-  const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey || draftFilters.tags.length);
+  const activeFilters = Boolean(filters.artist || filters.originalKey);
+  const canApplyFilters = !sameScope(filters, draftFilters);
+  const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
   const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
-  const compactLinkActions = contentWidth > 0 && contentWidth < 600;
+  const compactLinkActions = (contentWidth || screenWidth) < 600;
 
   const toggleSong = useCallback((song: Song) => {
     setSelectedSongs((current) => {
@@ -320,6 +325,7 @@ export default function SongsScreen() {
   }, [filters]);
 
   const commitFilters = useCallback((next: SongFilterState) => {
+    const previous = filtersRef.current;
     const queryFilters = toQueryFilters(next);
     filtersRef.current = queryFilters;
     setFilters(next);
@@ -327,12 +333,24 @@ export default function SongsScreen() {
     setShowFilters(false);
     pageRef.current = 1;
     setPage(1);
-    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, 1, { refresh: hasCachedSongs, filters: queryFilters });
-  }, [loadSongs]);
+    loadVisibleSongs();
+    if (previous.artistId !== queryFilters.artistId || previous.originalKey !== queryFilters.originalKey) {
+      loadThemeCounts();
+    }
+  }, [loadVisibleSongs, loadThemeCounts]);
 
   const applyFilters = useCallback(() => commitFilters(draftFilters), [commitFilters, draftFilters]);
-  const clearFilters = useCallback(() => commitFilters(emptyFilters()), [commitFilters]);
+  const clearFilters = useCallback(() => commitFilters({ ...filters, artist: null, originalKey: undefined }), [commitFilters, filters]);
+  const toggleTheme = (name: string | null) => {
+    if (name === null) {
+      commitFilters({ ...filters, untagged: !filters.untagged });
+      return;
+    }
+    const tags = filters.tags.includes(name)
+      ? filters.tags.filter((tag) => tag !== name)
+      : [...filters.tags, name];
+    commitFilters({ ...filters, tags });
+  };
 
   const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
@@ -384,15 +402,6 @@ export default function SongsScreen() {
           placeholder="Buscar artista"
           testID="song-filter-artist-input"
         />
-        <FilterSection title="Temas">
-          <SongTagPicker
-            selected={draftFilters.tags}
-            extraOptions={knownTags}
-            onChange={(tags) => setDraftFilters((current) => ({ ...current, tags }))}
-            label={null}
-            hint="Mostra músicas com qualquer tema marcado."
-          />
-        </FilterSection>
         <FilterSection title="Tom original">
           {MUSICAL_KEYS.map((key) => (
             <Chip
@@ -417,7 +426,7 @@ export default function SongsScreen() {
         onClose={() => setShowDataTransfer(false)}
         onImported={(message) => {
           showFeedback(message);
-          loadVisibleSongs(true);
+          refreshCatalogue(true);
         }}
       />
 
@@ -428,7 +437,7 @@ export default function SongsScreen() {
         refreshControl={(
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadSongs(searchRef.current, pageRef.current, { refresh: true, filters: filtersRef.current })}
+            onRefresh={() => refreshCatalogue(true)}
             colors={[colors.primary]}
           />
         )}
@@ -472,11 +481,11 @@ export default function SongsScreen() {
               </View>
             </View>
 
-            <View style={styles.searchRow}>
+            <View style={[styles.searchRow, compactLinkActions && styles.searchRowCompact]}>
               <AppInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder={TEXT.songOrArtist}
+                placeholder={TEXT.songSearch}
                 accessibilityLabel={TEXT.searchSongs}
                 testID="song-search-input"
                 autoCapitalize="none"
@@ -494,7 +503,7 @@ export default function SongsScreen() {
                     <X color={colors.muted} size={iconSizes.s18} strokeWidth={2.4} />
                   </TouchableOpacity>
                 ) : null}
-                containerStyle={styles.searchInput}
+                containerStyle={compactLinkActions ? styles.searchInputCompact : styles.searchInput}
               />
               <FilterButton
                 label="Filtros"
@@ -505,36 +514,38 @@ export default function SongsScreen() {
               />
             </View>
 
-            {filters.tags.length ? (
-              <SongTagList tags={filters.tags} />
-            ) : null}
-
             <ErrorBanner
-              message={error}
+              message={error ?? themeError}
               style={styles.error}
-              action={error ? (
+              action={error || themeError ? (
                 <Button
                   title="Tentar novamente"
                   variant="secondary"
                   size="sm"
                   style={styles.retryButton}
-                  onPress={() => loadVisibleSongs(true)}
+                  onPress={() => refreshCatalogue(true)}
                   accessibilityLabel={TEXT.retryLoadSongs}
                 />
               ) : null}
             />
 
-            {!isSelectionMode ? (
-              <View style={styles.selectionEntry}>
+            <SongThemeBar
+              counts={themeCounts}
+              selected={filters.tags}
+              untagged={filters.untagged}
+              compact={compactLinkActions}
+              onToggle={toggleTheme}
+              action={!isSelectionMode ? (
                 <TouchableOpacity
                   onPress={() => { setIsSelectionMode(true); setExportPanelExpanded(true); }}
                   accessibilityRole="button"
                   accessibilityLabel="Selecionar músicas para PDF"
+                  hitSlop={6}
                 >
                   <Text style={styles.selectionEntryText}>Selecionar para PDF</Text>
                 </TouchableOpacity>
-              </View>
-            ) : null}
+              ) : null}
+            />
 
             <View
               style={isWideSelectionLayout ? wideLayoutStyle : styles.singleColumn}
@@ -562,7 +573,7 @@ export default function SongsScreen() {
                   ) : !songs.length ? (
                     <EmptyState
                       title={TEXT.noSongsFound}
-                      description={search.trim() || activeFilters ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
+                      description={search.trim() || activeFilters || filters.tags.length || filters.untagged ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
                       style={styles.emptyState}
                     />
                   ) : (
@@ -684,12 +695,13 @@ const styles = StyleSheet.create({
   newSongButton: { minWidth: 150 },
   transferButton: { minWidth: 170 },
   searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
+  searchRowCompact: { flexDirection: "column", alignItems: "flex-end", gap: spacing.xs },
   searchInput: { flex: 1 },
+  searchInputCompact: { width: "100%" },
   filterButton: { height: controlSizes.default },
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   error: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
-  selectionEntry: { minHeight: controlSizes.default, alignItems: "flex-start", justifyContent: "center", marginBottom: spacing.sm },
   selectionEntryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   singleColumn: { width: "100%" },
   wideLayoutFallback: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: spacing.xl },
@@ -699,7 +711,7 @@ const styles = StyleSheet.create({
     width: "100%",
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderRadius: radiusValues.r4,
     backgroundColor: colors.surface,
     overflow: "hidden",
   },

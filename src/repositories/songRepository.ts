@@ -3,7 +3,8 @@ import { PreparedSongTag, sortSongTagNames } from "../constants/songTags";
 import { normalizeCatalogText } from "../utils/catalogNormalization";
 import { prisma } from "./prismaClient";
 import { replaceSongTags } from "./songTagRepository";
-import { SongListInput } from "../validators/song.schema";
+import { SongListInput, SongScopeInput } from "../validators/song.schema";
+import { foldThemeSearch, parseSongSearch } from "../utils/songSearch";
 
 export const songSelect = {
   id: true,
@@ -36,7 +37,7 @@ function presentSong<T extends { tags: Array<{ tag: { name: string } }> }>(song:
 export class SongRepository {
   constructor(private readonly tenantId: string) {}
 
-  async list(input: SongListInput, normalizedSearch: string) {
+  private async scope(input: SongScopeInput, db: Pick<typeof prisma, "songTag">): Promise<Prisma.SongWhereInput> {
     const where: Prisma.SongWhereInput = {
       tenantId: this.tenantId,
       isActive: true,
@@ -46,30 +47,48 @@ export class SongRepository {
       ...(input.ministryId ? {
         ministries: { some: { ministryId: input.ministryId, isActive: true, deletedAt: null } },
       } : {}),
-      // A song matches when it has any of the selected themes.
-      ...(input.tags?.length ? {
-        tags: {
-          some: {
-            tenantId: this.tenantId,
-            tag: {
-              tenantId: this.tenantId,
-              normalizedName: { in: [...new Set(input.tags.map((tag) => normalizeCatalogText(tag)))] },
-            },
-          },
-        },
-      } : {}),
-      ...(normalizedSearch ? {
-        OR: [
-          { normalizedTitle: { contains: normalizedSearch } },
-          { artist: { normalizedName: { contains: normalizedSearch } } },
-        ],
-      } : {}),
     };
+    const { term, themeOnly, themeTerm } = parseSongSearch(input.search);
+    if (!term) return where;
+
+    // Resolve accent-insensitive matches once for the whole catalogue.
+    const tags = await db.songTag.findMany({
+      where: { tenantId: this.tenantId },
+      select: { normalizedName: true },
+    });
+    const names = tags.map((tag) => tag.normalizedName).filter((name) => foldThemeSearch(name).includes(themeTerm));
+    const matchesTheme = this.matchesThemes(names);
+    return {
+      ...where,
+      OR: themeOnly ? [matchesTheme] : [
+        { normalizedTitle: { contains: term } },
+        { artist: { normalizedName: { contains: term } } },
+        matchesTheme,
+      ],
+    };
+  }
+
+  private matchesThemes(names: string[]): Prisma.SongWhereInput {
+    return {
+      tags: { some: { tenantId: this.tenantId, tag: { tenantId: this.tenantId, normalizedName: { in: names } } } },
+    };
+  }
+
+  private withoutThemes(): Prisma.SongWhereInput {
+    return { tags: { none: { tenantId: this.tenantId } } };
+  }
+
+  async list(input: SongListInput) {
+    const scope = await this.scope(input, prisma);
+    const themes: Prisma.SongWhereInput[] = [];
+    if (input.tags?.length) themes.push(this.matchesThemes(input.tags.map(normalizeCatalogText)));
+    if (input.untagged) themes.push(this.withoutThemes());
+    const where = themes.length ? { ...scope, AND: { OR: themes } } : scope;
     const [items, total] = await Promise.all([
       prisma.song.findMany({
         where,
         select: songWithTagsSelect,
-        orderBy: [{ title: "asc" }],
+        orderBy: [{ title: "asc" }, { id: "asc" }],
         skip: (input.page - 1) * input.limit,
         take: input.limit,
       }),
@@ -78,15 +97,24 @@ export class SongRepository {
     return { items: items.map(presentSong), total };
   }
 
-  listTags() {
-    return prisma.songTag.findMany({
-      where: {
-        tenantId: this.tenantId,
-        songs: { some: { tenantId: this.tenantId, song: { isActive: true, deletedAt: null } } },
-      },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    });
+  listTags(input: SongScopeInput) {
+    return prisma.$transaction(async (db) => {
+      const scope = await this.scope(input, db);
+      const [tags, untaggedCount] = await Promise.all([
+        db.songTag.findMany({
+          where: { tenantId: this.tenantId },
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { songs: { where: { tenantId: this.tenantId, song: scope } } } },
+          },
+          orderBy: { name: "asc" },
+        }),
+        db.song.count({ where: { ...scope, ...this.withoutThemes() } }),
+      ]);
+      const items = tags.map(({ _count, ...tag }) => ({ ...tag, count: _count.songs }));
+      return { items, untaggedCount };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   findById(id: string) {

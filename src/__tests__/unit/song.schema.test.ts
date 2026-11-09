@@ -1,4 +1,4 @@
-import { songListSchema } from "../../validators/song.schema";
+import { songListSchema, songTagsSchema } from "../../validators/song.schema";
 
 describe("song list tag filters", () => {
   it("aceita um tema, parâmetros repetidos ou lista separada por vírgula", () => {
@@ -10,8 +10,11 @@ describe("song list tag filters", () => {
     expect(songListSchema.parse({ tags: " , " }).tags).toBeUndefined();
   });
 
-  it("rejeita tema longo demais ou além do limite", () => {
+  it("aceita mais filtros de tema do que uma única música pode receber", () => {
+    const tags = Array.from({ length: 13 }, (_, index) => `Tema ${index}`);
+    expect(songListSchema.parse({ tags, untagged: "true" })).toMatchObject({ tags, untagged: true });
+    expect(songTagsSchema.safeParse(tags).success).toBe(false);
     expect(() => songListSchema.parse({ tags: "a".repeat(41) })).toThrow();
-    expect(() => songListSchema.parse({ tags: Array.from({ length: 13 }, (_, index) => `Tema ${index}`) })).toThrow();
+    expect(() => songListSchema.parse({ untagged: "1" })).toThrow();
   });
 });
