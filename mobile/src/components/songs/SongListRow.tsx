@@ -48,6 +48,7 @@ export function SongListRow({
       accessibilityRole={selectionMode ? "checkbox" : "button"}
       accessibilityLabel={selectionMode ? selectionLabel : `Abrir cifra ${song.title}`}
       accessibilityState={selectionMode ? { checked: selected } : undefined}
+      aria-checked={selectionMode ? selected : undefined}
     >
       {selected ? <View style={styles.selectedRail} /> : null}
       {song.artist.imageUrl ? (
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
   rowCompact: {
     minHeight: 76,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     gap: spacing.sm,
     alignItems: "flex-start",
   },

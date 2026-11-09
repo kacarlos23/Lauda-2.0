@@ -1,9 +1,9 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SongTagCounts } from "../../services/musicService";
 import { useThemeStore } from "../../store/themeStore";
 import { colors, fontSizes, fontWeights, radiusValues, spacing } from "../../theme";
-import { songThemeColors, songThemeOrder } from "./SongThemeLabels";
+import { songThemeColors, songThemeOrder, songThemeSelectedDivider, songThemeSelectedText } from "../../tokens/songThemes";
 
 type Props = {
   counts: SongTagCounts | null;
@@ -23,7 +23,7 @@ export function SongThemeBar({ counts, selected, untagged, compact, onToggle, ac
   const chips = options.map(({ id, name, count }) => {
     const active = name === null ? untagged : selected.includes(name);
     const tone = songThemeColors(name, dark);
-    const ink = active ? "#FFFFFF" : tone.ink;
+    const ink = active ? songThemeSelectedText : tone.ink;
     const label = name ?? "Sem tema";
     return (
       <TouchableOpacity
@@ -32,10 +32,11 @@ export function SongThemeBar({ counts, selected, untagged, compact, onToggle, ac
         style={[styles.chip, { backgroundColor: active ? tone.solid : tone.fill, borderColor: active ? tone.solid : tone.border }]}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
+        {...(Platform.OS === "web" ? { "aria-pressed": active } : {})}
         accessibilityLabel={`${label}, ${count} ${count === 1 ? "música" : "músicas"}`}
       >
         <Text style={[styles.label, { color: ink }]}>{label}</Text>
-        <Text style={[styles.count, { color: ink, borderLeftColor: active ? "#FFFFFF60" : tone.border }]}>{count}</Text>
+        <Text style={[styles.count, { color: ink, borderLeftColor: active ? songThemeSelectedDivider : tone.border }]}>{count}</Text>
       </TouchableOpacity>
     );
   });
