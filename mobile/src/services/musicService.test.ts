@@ -108,6 +108,13 @@ describe("musicService", () => {
     });
   });
 
+  it("altera apenas um tema por requisição de edição rápida", async () => {
+    const change = { id: "song-1", tags: ["Natal"] };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: change } });
+    await expect(musicService.changeSongTheme("song-1", "add", "Natal")).resolves.toEqual(change);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/songs/song-1/tags", { operation: "add", name: "Natal" });
+  });
+
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
     mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
 

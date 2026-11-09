@@ -1,6 +1,6 @@
 import { normalizeChordText } from "../utils/chordText";
 import { createHash } from "node:crypto";
-import { Prisma, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
 import { prisma } from "../repositories/prismaClient";
 import { prepareSongTags, sortSongTagNames } from "../constants/songTags";
@@ -246,7 +246,7 @@ export class SongTransferService {
           }) as ExistingSong;
           counts.created += 1;
           const tags = prepareSongTags(incoming.tags ?? []);
-          if (tags.length) await replaceSongTags(tx as unknown as Prisma.TransactionClient, tenantId, song.id, tags);
+          if (tags.length) await replaceSongTags(tx, tenantId, song.id, tags);
         } else if (!song.isActive || song.deletedAt) {
           song = await tx.song.update({
             where: { id: song.id },

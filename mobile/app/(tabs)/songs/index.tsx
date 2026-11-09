@@ -25,6 +25,8 @@ import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
 import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
+import { SongQuickThemeEditor } from "../../../src/components/songs/SongQuickThemeEditor";
+import type { SongThemeAnchor } from "../../../src/components/songs/SongThemeMenu";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
 import {
   AppInput,
@@ -44,7 +46,7 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongTagCounts, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongTagCounts, SongThemeChange, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
@@ -114,7 +116,7 @@ export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const { screenHeight, screenWidth } = useResponsiveLayout();
-  const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong } = useMusicStore();
+  const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const pageNumbers = Array.from(new Set([
@@ -156,6 +158,8 @@ export default function SongsScreen() {
   const [exporting, setExporting] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
   const [songForLinks, setSongForLinks] = useState<Song | null>(null);
+  const [themeEditor, setThemeEditor] = useState<{ song: Song; anchor: SongThemeAnchor | null } | null>(null);
+  const [themePreview, setThemePreview] = useState<SongThemeChange | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
@@ -249,8 +253,14 @@ export default function SongsScreen() {
     setSelectedSongs((current) => reconcileSongSelection(current, songs));
   }, [songs, selectedSongs.size]);
 
+  useEffect(() => {
+    const last = Math.max(1, pagination.totalPages);
+    if (!loading && !refreshing && !error && page === pagination.page && page > last) setPage(last);
+  }, [loading, refreshing, error, page, pagination.page, pagination.totalPages]);
+
   const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
   const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
+  const canEditThemes = canManageMusic(user, "song:edit");
   const activeFilters = Boolean(filters.artist || filters.originalKey);
   const canApplyFilters = !sameScope(filters, draftFilters);
   const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
@@ -580,11 +590,15 @@ export default function SongsScreen() {
                     songs.map((song, index) => (
                       <SongListRow
                         key={song.id}
-                        song={song}
+                        song={themePreview?.id === song.id ? { ...song, tags: themePreview.tags } : song}
                         selectionMode={isSelectionMode}
                         selected={selectedSongs.has(song.id)}
                         isLast={index === songs.length - 1}
                         compactLinkActions={compactLinkActions}
+                        editingThemes={themeEditor?.song.id === song.id}
+                        onEditThemes={canEditThemes && !isSelectionMode ? (anchor) => {
+                          if (!themePreview) setThemeEditor({ song, anchor });
+                        } : undefined}
                         onOpenLinks={() => setSongForLinks(song)}
                         onPress={() => {
                           if (isSelectionMode) {
@@ -640,6 +654,19 @@ export default function SongsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {canEditThemes && themeEditor ? (
+        <SongQuickThemeEditor
+          key={themeEditor.song.id}
+          song={themeEditor.song}
+          anchor={themeEditor.anchor}
+          knownNames={themeCounts?.items.map(({ name }) => name) ?? []}
+          onClose={() => setThemeEditor(null)}
+          onPreview={setThemePreview}
+          onSaved={(change) => applySongThemes([change])}
+          onError={(message) => showFeedback(message, "error")}
+        />
+      ) : null}
 
       <BottomSheet
         isOpen={Boolean(songForLinks)}

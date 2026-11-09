@@ -1,9 +1,9 @@
 import { Prisma } from "@prisma/client";
-import { PreparedSongTag, sortSongTagNames } from "../constants/songTags";
+import { PreparedSongTag, prepareSongTags, sortSongTagNames } from "../constants/songTags";
 import { normalizeCatalogText } from "../utils/catalogNormalization";
 import { prisma } from "./prismaClient";
-import { replaceSongTags } from "./songTagRepository";
-import { SongListInput, SongScopeInput } from "../validators/song.schema";
+import { applySongTagChanges, lockActiveSongs, replaceSongTags, resolveSongTags } from "./songTagRepository";
+import { SongListInput, SongScopeInput, SongTagChangeInput } from "../validators/song.schema";
 import { foldThemeSearch, parseSongSearch } from "../utils/songSearch";
 
 export const songSelect = {
@@ -117,6 +117,15 @@ export class SongRepository {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
+  changeTag(id: string, userId: string, { name, operation }: SongTagChangeInput) {
+    return prisma.$transaction(async (db) => {
+      await lockActiveSongs(db, this.tenantId, [id]);
+      const tags = await resolveSongTags(db, this.tenantId, prepareSongTags([name]), operation === "add");
+      const result = await applySongTagChanges(db, this.tenantId, userId, [id], tags, operation);
+      return result.items[0];
+    });
+  }
+
   findById(id: string) {
     return prisma.song.findFirst({
       where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null },
@@ -168,7 +177,7 @@ export class SongRepository {
         },
         select: { id: true },
       });
-      if (tags.length) await replaceSongTags(tx as unknown as Prisma.TransactionClient, this.tenantId, created.id, tags);
+      if (tags.length) await replaceSongTags(tx, this.tenantId, created.id, tags);
       const song = await tx.song.findFirstOrThrow({ where: { id: created.id }, select: songWithTagsSelect });
       return presentSong(song);
     });
@@ -176,9 +185,11 @@ export class SongRepository {
 
   async update(id: string, data: Prisma.SongUncheckedUpdateManyInput, tags?: PreparedSongTag[]) {
     return prisma.$transaction(async (tx) => {
-      const result = await tx.song.updateMany({ where: { id, tenantId: this.tenantId }, data });
+      const result = await tx.song.updateMany({
+        where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null }, data,
+      });
       if (!result.count) return null;
-      if (tags) await replaceSongTags(tx as unknown as Prisma.TransactionClient, this.tenantId, id, tags);
+      if (tags) await replaceSongTags(tx, this.tenantId, id, tags);
       const song = await tx.song.findFirst({
         where: { id, tenantId: this.tenantId, isActive: true, deletedAt: null },
         select: songWithTagsSelect,
