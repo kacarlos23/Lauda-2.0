@@ -69,14 +69,26 @@ const SongRequestSchema = registry.register(
   })
 );
 
+const songTransferFields = z.array(z.enum(["originalKey", "content", "bpm", "cifraUrl", "letraUrl", "audioUrl", "videoUrl", "comments", "tags"])).optional().meta({
+  description: "Campos a exportar ou aplicar. Sem esta lista, vale o catálogo antigo: tom, cifra, link da cifra e temas.",
+});
+const songTransferExisting = z.enum(["create", "update", "skip"]).optional().meta({
+  description: "Músicas que já existem (mesmo título e artista). create preserva o conteúdo e só vincula; update grava os campos selecionados; skip não altera. O padrão é create.",
+});
+
 const PortableSongSchema = registry.register(
   "PortableSong",
   z.object({
     title: z.string().min(1).max(200),
     artist: z.string().min(1).max(200),
-    originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]),
-    content: z.string().min(1).max(100000),
+    originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]).optional(),
+    content: z.string().min(1).max(100000).optional(),
+    bpm: z.number().int().nullable().optional(),
     cifraUrl: z.string().url().nullable().optional(),
+    letraUrl: z.string().url().nullable().optional(),
+    audioUrl: z.string().url().nullable().optional(),
+    videoUrl: z.string().url().nullable().optional(),
+    comments: z.string().nullable().optional(),
     tags: z.array(z.string().min(1).max(40)).max(12).optional().meta({
       description: "Temas opcionais. Arquivos antigos sem este campo continuam válidos. Na exportação, a lista é omitida quando a música não tem temas.",
       example: ["Adoração", "Natal"],
@@ -497,17 +509,17 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "post", path: "/api/songs/data-export", summary: "Exporta o catálogo portátil de um ministério", security: [{ bearerAuth: [] }],
-  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), songIds: z.array(z.string().uuid()).max(2000).optional() }) } } } },
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), songIds: z.array(z.string().uuid()).max(2000).optional(), fields: songTransferFields }) } } } },
   responses: { 200: { description: "Catálogo JSON gerado.", content: { "application/json": { schema: SongTransferDocumentSchema } } }, 403: { description: "Sem acesso ao ministério." }, 404: { description: "Ministério ou músicas não encontrados." } },
 });
 registry.registerPath({
   method: "post", path: "/api/songs/data-import/preview", summary: "Revisa um catálogo sem gravar músicas", security: [{ bearerAuth: [] }],
-  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema }) } } } },
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema, fields: songTransferFields, existing: songTransferExisting }) } } } },
   responses: { 200: { description: "Prévia com criações, vínculos, conflitos e itens inválidos." }, 400: { description: "Arquivo inválido." }, 403: { description: "Sem acesso ao ministério." } },
 });
 registry.registerPath({
   method: "post", path: "/api/songs/data-import/commit", summary: "Confirma a importação de um catálogo revisado", security: [{ bearerAuth: [] }],
-  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema, documentHash: z.string().length(64) }) } } } },
+  request: { body: { content: { "application/json": { schema: z.object({ ministryId: z.string().uuid(), document: SongTransferDocumentSchema, documentHash: z.string().length(64), fields: songTransferFields, existing: songTransferExisting }) } } } },
   responses: { 201: { description: "Músicas válidas importadas e vinculadas ao ministério." }, 409: { description: "Arquivo alterado depois da revisão." } },
 });
 
