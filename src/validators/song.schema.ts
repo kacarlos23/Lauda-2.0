@@ -3,6 +3,7 @@ import { prepareSongTags, SONG_TAG_NAME_MAX, SONG_TAGS_MAX } from "../constants/
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 import { richTextCommentsSchema } from "./richText.schema";
 import { normalizeChordText } from "../utils/chordText";
+import { cleanCatalogText } from "../utils/catalogNormalization";
 
 export const chordContentSchema = z.string().min(1, "A cifra é obrigatória")
   .max(100_000, "A cifra deve ter no máximo 100 mil caracteres")
@@ -16,11 +17,19 @@ export const MUSICAL_KEYS = [
 
 export const songIdSchema = z.object({ id: z.string().uuid("ID da música inválido") });
 
-export const songTagNameSchema = z.string()
-  .trim()
-  .min(1, "Informe o nome do tema")
-  .max(SONG_TAG_NAME_MAX, "O tema deve ter no máximo 40 caracteres")
-  .refine((value) => !value.includes(","), "O tema não pode conter vírgula");
+export const songTagNameSchema = z.string().transform(cleanCatalogText).pipe(
+  z.string()
+    .max(SONG_TAG_NAME_MAX, "O tema deve ter no máximo 40 caracteres")
+    .refine((value) => /[^\p{Cc}\p{Cf}\s]/u.test(value), "Informe o nome do tema")
+    .refine((value) => !value.includes(","), "O tema não pode conter vírgula")
+);
+
+export const songTagOperationSchema = z.enum(["add", "remove"]);
+
+export const songTagChangeSchema = z.object({
+  operation: songTagOperationSchema,
+  name: songTagNameSchema,
+});
 
 export const songTagsSchema = z.array(songTagNameSchema)
   .max(SONG_TAGS_MAX, "Uma música pode ter no máximo 12 temas")
@@ -128,6 +137,8 @@ export const cifraClubImportSchema = z.object({
     }, "Informe uma URL do Cifra Club"),
 });
 
+export type SongTagOperation = z.infer<typeof songTagOperationSchema>;
+export type SongTagChangeInput = z.infer<typeof songTagChangeSchema>;
 export type SongScopeInput = z.infer<typeof songScopeSchema>;
 export type SongListInput = z.infer<typeof songListSchema>;
 export type CreateSongInput = z.infer<typeof createSongSchema>;

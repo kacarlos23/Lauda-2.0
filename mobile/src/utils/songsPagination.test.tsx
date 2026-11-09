@@ -83,7 +83,7 @@ jest.mock("expo-router", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { Check: Icon, ChevronDown: Icon, ChevronUp: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, UserRound: Icon, X: Icon };
+  return { Check: Icon, ChevronDown: Icon, ChevronUp: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, Tag: Icon, UserRound: Icon, X: Icon };
 });
 
 jest.mock("../services/musicService", () => ({
@@ -313,7 +313,7 @@ describe("SongsScreen pagination", () => {
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
     act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
-    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
     expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 música selecionada"))).toBe(true);
 
     act(() => byLabel("Limpar seleção de músicas")!.props.onPress());
@@ -337,7 +337,7 @@ describe("SongsScreen pagination", () => {
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
     act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
-    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
     const exportButton = renderer!.root.findAllByProps({ testID: "songs-export-button" }).at(-1)!;
 
     act(() => {
@@ -362,7 +362,7 @@ describe("SongsScreen pagination", () => {
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
     act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
-    act(() => renderer!.root.findByProps({ testID: "song-row-song-1" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
 
     jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new Error("Falha temporária"));
     await act(async () => {

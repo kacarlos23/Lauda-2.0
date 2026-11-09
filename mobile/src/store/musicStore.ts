@@ -2,7 +2,7 @@
 import { normalizeCatalogText } from "../../../src/utils/catalogNormalization";
 import { foldThemeSearch, parseSongSearch } from "../../../src/utils/songSearch";
 import { Pagination, Song } from "../types";
-import { musicService, SongListParams, SongPayload } from "../services/musicService";
+import { musicService, SongListParams, SongPayload, SongThemeChange } from "../services/musicService";
 
 interface MusicState {
   songs: Song[];
@@ -29,6 +29,7 @@ interface MusicState {
   createSong: (payload: SongPayload) => Promise<Song>;
   updateSong: (id: string, payload: Partial<SongPayload>) => Promise<Song>;
   deleteSong: (id: string) => Promise<void>;
+  applySongThemes: (changes: SongThemeChange[]) => void;
   clearError: () => void;
 }
 
@@ -117,6 +118,24 @@ export const useMusicStore = create<MusicState>((set) => ({
   listInvalidationVersion: 0,
   localMutations: {},
   clearError: () => set({ error: null }),
+
+  applySongThemes: (changes) => set((state) => {
+    const tagsById = new Map(changes.map(({ id, tags }) => [id, tags]));
+    const withTags = (song: Song) => {
+      const tags = tagsById.get(song.id);
+      return tags ? { ...song, tags } : song;
+    };
+    const localMutations = { ...state.localMutations };
+    for (const id of tagsById.keys()) delete localMutations[id];
+    return {
+      songs: state.songs.map(withTags),
+      currentSong: state.currentSong ? withTags(state.currentSong) : null,
+      localMutations,
+      requestedListKey: null,
+      listMutationVersion: state.listMutationVersion + 1,
+      listInvalidationVersion: state.listInvalidationVersion + 1,
+    };
+  }),
 
   primeSong: (song) => set({
     currentSong: song,

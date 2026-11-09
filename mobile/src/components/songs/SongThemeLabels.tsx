@@ -1,11 +1,12 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { songThemeColors } from "../../tokens/songThemes";
 import { useThemeStore } from "../../store/themeStore";
 import { colors, fontSizes, fontWeights, lineHeights, radiusValues, spacing } from "../../theme";
 
-export function SongThemeLabels({ tags = [] }: { tags?: string[] }) {
+export function SongThemeLabels({ tags = [], onAdd }: { tags?: string[]; onAdd?: () => void }) {
   const dark = useThemeStore((state) => state.mode === "dark");
+  const emptyLabel = <Text style={[styles.label, styles.noTheme]}>+ tema</Text>;
   return (
     <View style={styles.labels}>
       {tags.slice(0, 3).map((name) => {
@@ -15,7 +16,9 @@ export function SongThemeLabels({ tags = [] }: { tags?: string[] }) {
       {tags.length > 3 ? (
         <Text style={styles.label} accessibilityLabel={`Mais ${tags.length - 3} temas`}>+{tags.length - 3}</Text>
       ) : null}
-      {!tags.length ? <Text style={[styles.label, styles.noTheme]}>+ tema</Text> : null}
+      {!tags.length && (onAdd ? (
+        <TouchableOpacity accessibilityRole="button" onPress={onAdd} hitSlop={5}>{emptyLabel}</TouchableOpacity>
+      ) : emptyLabel)}
     </View>
   );
 }

@@ -729,6 +729,46 @@ describe("Artists and songs API", () => {
     });
   });
 
+  it("adiciona e remove temas individualmente com concorrência e isolamento por igreja", async () => {
+    const tenant = await register("song-theme-edit");
+    const other = await register("song-theme-edit-other");
+    const viewer = await member(tenant.token, "song-theme-edit-viewer", "MEMBER");
+    const artist = await createArtist(tenant.token);
+    const auth = `Bearer ${tenant.token}`;
+    const initialTags = Array.from({ length: 11 }, (_, index) => `Tema ${index + 1}`);
+    const song = await request(app).post("/api/songs").set("Authorization", auth)
+      .send({ ...songPayload(artist.id), tags: initialTags }).expect(201);
+    const url = `/api/songs/${song.body.data.id}/tags`;
+    const change = (operation: string, name: string, token = tenant.token) =>
+      request(app).patch(url).set("Authorization", `Bearer ${token}`).send({ operation, name });
+
+    await request(app).patch(url).send({ operation: "add", name: "Natal" }).expect(401);
+    await change("add", "Natal", viewer).expect(403);
+    await change("remove", initialTags[0], viewer).expect(403);
+    await change("add", "Natal", other.token).expect(404);
+    await change("add", " ").expect(400);
+    const concurrent = await Promise.all([change("add", "Natal"), change("add", "Páscoa")]);
+    expect(concurrent.map((response) => response.status).sort()).toEqual([200, 409]);
+    const accepted = concurrent[0].status === 200 ? "Natal" : "Páscoa";
+    const rejected = accepted === "Natal" ? "Páscoa" : "Natal";
+    const applied = concurrent.find((response) => response.status === 200)!.body.data;
+    expect(applied.id).toBe(song.body.data.id);
+    expect(applied.tags).toHaveLength(12);
+    expect(applied.tags).toEqual(expect.arrayContaining([...initialTags, accepted]));
+    expect((await change("add", `  ${accepted.toUpperCase()}  `).expect(200)).body.data).toEqual(applied);
+
+    const catalog = await request(app).get("/api/songs/tags").set("Authorization", auth).expect(200);
+    expect(catalog.body.data.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: rejected })]));
+    const removed = await change("remove", accepted).expect(200);
+    expect(removed.body.data.tags).toHaveLength(11);
+    expect(removed.body.data.tags).not.toContain(accepted);
+    expect((await change("remove", accepted).expect(200)).body.data).toEqual(removed.body.data);
+    const restored = await change("add", "Culto de jovens").expect(200);
+    expect(restored.body.data.tags).toContain("Culto de jovens");
+    const detail = await request(app).get(`/api/songs/${applied.id}`).set("Authorization", auth).expect(200);
+    expect(detail.body.data).toMatchObject({ title: songPayload(artist.id).title, tags: restored.body.data.tags });
+  });
+
   it("importa e exporta temas opcionais e preserva catálogos sem o campo", async () => {
     const tenant = await register("song-tag-transfer");
     const ministry = await createMinistry(tenant.token, "Louvor");
@@ -846,6 +886,31 @@ describe("Artists and songs API", () => {
     expect(untouched.body.data.items[0]).toMatchObject({ content: "[G]Original", tags: ["Natal"] });
     const fresh = await request(app).get("/api/songs?search=Canção nova").set("Authorization", `Bearer ${tenant.token}`).expect(200);
     expect(fresh.body.data.items[0]).toMatchObject({ content: "[C]Nova", tags: ["Missões"] });
+  });
+
+  it("preserva os temas existentes ao vincular e restaurar pelo catálogo JSON", async () => {
+    const tenant = await register("song-transfer-link-tags");
+    const auth = `Bearer ${tenant.token}`;
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const artist = await createArtist(tenant.token);
+    const songIds: string[] = [];
+    const songs = [];
+    for (const [title, tags] of [["Vincular música", ["Natal"]], ["Restaurar música", []]] as const) {
+      const existing = await request(app).post("/api/songs").set("Authorization", auth)
+        .send({ ...songPayload(artist.id), title, tags: ["Adoração"] }).expect(201);
+      songIds.push(existing.body.data.id);
+      songs.push({ title, artist: artist.name, originalKey: "G", content: songPayload(artist.id).content, tags });
+    }
+    await request(app).delete(`/api/songs/${songIds[1]}`).set("Authorization", auth).expect(200);
+    const input = { ministryId: ministry.id, document: { format: "lauda.music-catalog", version: 1, songs } };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", auth).send(input).expect(200);
+    expect(preview.body.data.counts).toMatchObject({ LINK: 1, RESTORE: 1 });
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", auth)
+      .send({ ...input, documentHash: preview.body.data.documentHash }).expect(201);
+    for (const id of songIds) {
+      const song = await request(app).get(`/api/songs/${id}`).set("Authorization", auth).expect(200);
+      expect(song.body.data.tags).toEqual(["Adoração"]);
+    }
   });
 
 

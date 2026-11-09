@@ -108,6 +108,13 @@ describe("musicService", () => {
     });
   });
 
+  it("altera apenas um tema por requisição de edição rápida", async () => {
+    const change = { id: "song-1", tags: ["Natal"] };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: change } });
+    await expect(musicService.changeSongTheme("song-1", "add", "Natal")).resolves.toEqual(change);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/songs/song-1/tags", { operation: "add", name: "Natal" });
+  });
+
   it("mantém a listagem compatível com respostas de temas sem contagens", async () => {
     const items = [{ id: "tag-1", name: "Natal" }];
     mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { items } } });

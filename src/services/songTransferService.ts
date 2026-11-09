@@ -1,6 +1,6 @@
 import { normalizeChordText } from "../utils/chordText";
 import { createHash } from "node:crypto";
-import { Prisma, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
 import { prisma } from "../repositories/prismaClient";
 import { prepareSongTags, sortSongTagNames } from "../constants/songTags";
@@ -335,8 +335,11 @@ export class SongTransferService {
           counts.restored += 1;
         }
 
-        if (options.fields.has("tags") && (decision.status === "CREATE" ? Boolean(incoming.tags?.length) : provided(incoming, "tags"))) {
-          await replaceSongTags(tx as unknown as Prisma.TransactionClient, tenantId, song.id, prepareSongTags(incoming.tags ?? []));
+        const shouldImportTags = decision.status === "CREATE"
+          ? Boolean(incoming.tags?.length)
+          : decision.status === "UPDATE" && provided(incoming, "tags");
+        if (options.fields.has("tags") && shouldImportTags) {
+          await replaceSongTags(tx, tenantId, song.id, prepareSongTags(incoming.tags ?? []));
         }
 
         const currentLink = song.ministries[0];

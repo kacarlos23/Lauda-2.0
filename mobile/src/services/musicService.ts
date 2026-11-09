@@ -36,6 +36,8 @@ export type SongListParams = {
 
 export type SongTagOption = { id: string; name: string };
 export type SongTagCounts = { items: Array<SongTagOption & { count: number }>; untaggedCount: number };
+export type SongThemeOperation = "add" | "remove";
+export type SongThemeChange = { id: string; tags: string[] };
 
 export type PortableSong = {
   title: string;
@@ -223,6 +225,13 @@ export const musicService = {
       const { items = [], untaggedCount = 0 } = response.data.data ?? {};
       return { items: items.map(({ count = 0, ...tag }) => ({ ...tag, count })), untaggedCount };
     } catch (error) { apiError(error, "Não foi possível carregar os temas."); }
+  },
+
+  async changeSongTheme(songId: string, operation: SongThemeOperation, name: string): Promise<SongThemeChange> {
+    try {
+      const response = await api.patch<ApiResponse<SongThemeChange>>(`/songs/${songId}/tags`, { operation, name });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível salvar o tema."); }
   },
 
   async getSong(id: string): Promise<Song> {

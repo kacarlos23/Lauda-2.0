@@ -486,6 +486,22 @@ registry.registerPath({
   request: { params: z.object({ id: z.string().uuid() }), body: { content: { "application/json": { schema: SongRequestSchema.partial() } } } },
   responses: { 200: { description: "Música atualizada." }, 404: { description: "Música não encontrada no tenant." } },
 });
+const SongTagOperation = z.enum(["add", "remove"]);
+const SongTagChangeResult = z.object({ id: z.string().uuid(), tags: z.array(z.string()) });
+
+registry.registerPath({
+  method: "patch", path: "/api/songs/{id}/tags", summary: "Adiciona ou remove um tema da música", security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ id: z.string().uuid() }),
+    body: { content: { "application/json": { schema: z.object({ operation: SongTagOperation, name: z.string().min(1).max(40) }) } } },
+  },
+  responses: {
+    200: { description: "Temas atuais da música.", content: { "application/json": { schema: z.object({ success: z.boolean(), data: SongTagChangeResult }) } } },
+    403: { description: "Sem permissão para editar músicas." },
+    404: { description: "Música indisponível nesta igreja." },
+    409: { description: "A música já atingiu o limite de temas." },
+  },
+});
 registry.registerPath({
   method: "post", path: "/api/songs/export", summary: "Exporta até 50 cifras em PDF", security: [{ bearerAuth: [] }],
   request: { body: { content: { "application/json": { schema: z.object({ songIds: z.array(z.string().uuid()).min(1).max(50) }) } } } },
