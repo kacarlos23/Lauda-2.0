@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { TouchableOpacity } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { SONG_TRANSFER_FIELDS } from "../../../../src/constants/songTransferFields";
 import { SongDataTransferPanel } from "./SongDataTransferPanel";
 import { musicService, SongTransferDocument, SongTransferPreview } from "../../services/musicService";
 import { ministryApi } from "../../services/ministryApi";
@@ -26,6 +27,7 @@ jest.mock("lucide-react-native", () => ({ CheckCircle2: () => null, Download: ()
 jest.mock("../BottomSheet", () => ({ BottomSheet: ({ isOpen, children, footer }: any) => isOpen ? <>{children}{footer}</> : null }));
 jest.mock("../ui", () => ({
   Button: jest.requireActual("../ui/Button").Button,
+  Chip: jest.requireActual("../ui/Chip").Chip,
   ConfirmDialog: jest.requireActual("../ui/ConfirmDialog").ConfirmDialog,
   ErrorBanner: () => null,
   LoadingState: () => null,
@@ -43,7 +45,7 @@ const document: SongTransferDocument = {
 };
 const preview: SongTransferPreview = {
   documentHash: "a".repeat(64), total: 1, unique: 1,
-  counts: { CREATE: 1, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, CONFLICT: 0, INVALID: 0 },
+  counts: { CREATE: 1, UPDATE: 0, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, SKIPPED: 0, CONFLICT: 0, INVALID: 0 },
   items: [{ index: 0, title: document.songs[0].title, artist: "JMM", status: "CREATE" }],
 };
 
@@ -88,7 +90,10 @@ describe("SongDataTransferPanel", () => {
     expect(musicService.commitSongData).not.toHaveBeenCalled();
     expect(renderer.root.findByType(ConfirmDialog).props.visible).toBe(true);
     await act(async () => renderer.root.findByType(ConfirmDialog).props.onConfirm());
-    expect(musicService.commitSongData).toHaveBeenCalledWith("ministry-a", document, preview.documentHash);
+    expect(musicService.commitSongData).toHaveBeenCalledWith("ministry-a", document, preview.documentHash, {
+      fields: [...SONG_TRANSFER_FIELDS],
+      existing: "create",
+    });
     expect(onImported).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -99,7 +104,10 @@ describe("SongDataTransferPanel", () => {
     } as any);
     await render();
     await selectFile();
-    expect(musicService.previewSongData).toHaveBeenCalledWith("ministry-a", document);
+    expect(musicService.previewSongData).toHaveBeenCalledWith("ministry-a", document, {
+      fields: [...SONG_TRANSFER_FIELDS],
+      existing: "create",
+    });
     expect(DocumentPicker.getDocumentAsync).toHaveBeenCalledWith(expect.objectContaining({ type: expect.arrayContaining([".json", "text/plain"]) }));
   });
 
