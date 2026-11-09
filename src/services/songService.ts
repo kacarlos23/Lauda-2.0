@@ -4,7 +4,7 @@ import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { prepareSongTags } from "../constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
-import { CreateSongInput, SongListInput, UpdateSongInput } from "../validators/song.schema";
+import { CreateSongInput, SongListInput, SongScopeInput, UpdateSongInput } from "../validators/song.schema";
 import { normalizeChordText, normalizeSongContent } from "../utils/chordText";
 
 export class SongService {
@@ -15,7 +15,7 @@ export class SongService {
   ) {}
 
   async list(input: SongListInput) {
-    const result = await this.repository.list(input, normalizeCatalogText(input.search));
+    const result = await this.repository.list(input);
     return {
       items: result.items.map(normalizeSongContent),
       pagination: {
@@ -27,8 +27,8 @@ export class SongService {
     };
   }
 
-  listTags() {
-    return this.repository.listTags().then((items) => ({ items }));
+  listTags(input: SongScopeInput) {
+    return this.repository.listTags(input);
   }
 
   async get(id: string) {

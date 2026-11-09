@@ -427,23 +427,42 @@ registry.registerPath({
   request: { params: z.object({ id: z.string().uuid() }), body: { content: { "application/json": { schema: ArtistRequestSchema.partial() } } } },
   responses: { 200: { description: "Artista atualizado." }, 404: { description: "Artista não encontrado no tenant." } },
 });
+const SongScopeQuery = z.object({
+  search: z.string().optional().meta({ description: "Título, artista ou tema. O prefixo # busca apenas por tema." }),
+  artistId: z.string().uuid().optional(),
+  originalKey: SongRequestSchema.shape.originalKey.optional(),
+  ministryId: z.string().uuid().optional(),
+});
+
 registry.registerPath({
   method: "get", path: "/api/songs", summary: "Busca músicas e cifras do tenant", security: [{ bearerAuth: [] }],
-  request: { query: z.object({
-    search: z.string().optional(),
-    artistId: z.string().uuid().optional(),
-    ministryId: z.string().uuid().optional(),
+  request: { query: SongScopeQuery.extend({
     tags: z.union([z.string(), z.array(z.string())]).optional().meta({
       description: "Um ou mais temas. A música entra se tiver qualquer um deles. Aceita o parâmetro repetido ou uma lista separada por vírgula.",
     }),
+    untagged: z.enum(["true", "false"]).optional().meta({ description: "Quando true, também inclui músicas sem temas." }),
     page: z.coerce.number().optional(),
     limit: z.coerce.number().optional(),
   }) },
-  responses: { 200: { description: "Lista paginada de músicas." } },
+  responses: { 200: { description: "Lista paginada de músicas. Cada música inclui seus temas em tags." } },
 });
 registry.registerPath({
-  method: "get", path: "/api/songs/tags", summary: "Lista os temas já usados nas músicas do tenant", security: [{ bearerAuth: [] }],
-  responses: { 200: { description: "Temas da igreja, sem incluir sugestões ainda não usadas." }, 401: { description: "Não autenticado." }, 403: { description: "Sem permissão para ver músicas." } },
+  method: "get", path: "/api/songs/tags", summary: "Lista temas da igreja e suas contagens de músicas", security: [{ bearerAuth: [] }],
+  request: { query: SongScopeQuery },
+  responses: {
+    200: {
+      description: "As contagens consideram a busca e os filtros de artista, tom e ministério.",
+      content: { "application/json": { schema: z.object({
+        success: z.boolean(),
+        data: z.object({
+          items: z.array(z.object({ id: z.string().uuid(), name: z.string(), count: z.number().int() })),
+          untaggedCount: z.number().int(),
+        }),
+      }) } },
+    },
+    401: { description: "Não autenticado." },
+    403: { description: "Sem permissão para ver músicas." },
+  },
 });
 registry.registerPath({
   method: "post", path: "/api/songs", summary: "Cria música e cifra", security: [{ bearerAuth: [] }],

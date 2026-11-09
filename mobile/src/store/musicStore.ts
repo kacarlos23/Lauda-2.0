@@ -1,5 +1,6 @@
 ﻿import { create } from "zustand";
 import { normalizeCatalogText } from "../../../src/utils/catalogNormalization";
+import { foldThemeSearch, parseSongSearch } from "../../../src/utils/songSearch";
 import { Pagination, Song } from "../types";
 import { musicService, SongListParams, SongPayload } from "../services/musicService";
 
@@ -59,15 +60,20 @@ function adjustPaginationTotal(pagination: Pagination, delta: number): Paginatio
 }
 
 function songMatchesList(song: Song, search: string, filters: SongListParams): boolean {
-  const term = search.trim().toLowerCase();
-  const matchesSearch = !term || [song.title, song.artist.name, song.composer ?? ""]
-    .some((value) => value.toLowerCase().includes(term));
-  if (!matchesSearch) return false;
+  const { term, themeOnly, themeTerm } = parseSongSearch(search);
+  const tags = song.tags ?? [];
+  if (term) {
+    const matchesTheme = tags.some((tag) => foldThemeSearch(tag).includes(themeTerm));
+    const matchesMetadata = !themeOnly && [song.title, song.artist.name]
+      .some((value) => normalizeCatalogText(value).includes(term));
+    if (!matchesTheme && !matchesMetadata) return false;
+  }
   if (filters.artistId && song.artistId !== filters.artistId) return false;
   if (filters.originalKey && song.originalKey !== filters.originalKey) return false;
-  if (filters.tags?.length) {
-    const names = new Set((song.tags ?? []).map((tag) => normalizeCatalogText(tag)));
-    if (!filters.tags.some((tag) => names.has(normalizeCatalogText(tag)))) return false;
+  if (filters.tags?.length || filters.untagged) {
+    const names = new Set(tags.map(normalizeCatalogText));
+    const selected = filters.tags?.some((tag) => names.has(normalizeCatalogText(tag)));
+    if (!selected && !(filters.untagged && !names.size)) return false;
   }
   return true;
 }
@@ -126,7 +132,9 @@ export const useMusicStore = create<MusicState>((set) => ({
       page,
       filters.artistId ?? "",
       filters.originalKey ?? "",
-      ...(filters.tags ?? []).map((tag) => normalizeCatalogText(tag)),
+      filters.ministryId ?? "",
+      Boolean(filters.untagged),
+      (filters.tags ?? []).map(normalizeCatalogText),
       mutationVersion,
     ]);
     const shouldRefresh = Boolean(options?.refresh) || useMusicStore.getState().songs.length > 0;
@@ -146,7 +154,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     try {
       const result = await musicService.listSongs(search, page, 20, filters, requestController.signal);
       set((state) => {
-        if (state.requestedListKey !== requestKey) return state;
+        if (requestController.signal.aborted || state.requestedListKey !== requestKey) return state;
         const merged = page === 1
           ? mergeLocalMutations(result.items, state.localMutations, search, filters)
           : { songs: result.items, inserted: 0 };
@@ -161,7 +169,7 @@ export const useMusicStore = create<MusicState>((set) => ({
         };
       });
     } catch (error) {
-      if ((error as { code?: string })?.code === "ERR_CANCELED") return;
+      if (requestController.signal.aborted || (error as { code?: string })?.code === "ERR_CANCELED") return;
       set((state) => state.requestedListKey === requestKey
         ? { loading: false, refreshing: false, error: message(error, "Não foi possível carregar as músicas.") }
         : state);

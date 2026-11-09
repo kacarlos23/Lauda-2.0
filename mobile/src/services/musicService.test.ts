@@ -99,9 +99,13 @@ describe("musicService", () => {
       signal: undefined,
     });
 
-    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { items: [{ id: "tag-1", name: "Natal" }] } } });
-    await expect(musicService.listSongTags()).resolves.toEqual([{ id: "tag-1", name: "Natal" }]);
-    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/tags");
+    const counts = { items: [{ id: "tag-1", name: "Natal", count: 2 }], untaggedCount: 4 };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: counts } });
+    await expect(musicService.listSongTagCounts("#natal", { artistId: "artist-1", tags: ["Natal"], untagged: true })).resolves.toEqual(counts);
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/tags", {
+      params: { search: "#natal", artistId: "artist-1", originalKey: undefined, ministryId: undefined },
+      signal: undefined,
+    });
   });
 
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {

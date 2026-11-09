@@ -4,7 +4,7 @@ import { SUGGESTED_SONG_TAGS, SONG_TAG_NAME_MAX, SONG_TAGS_MAX } from "../../../
 import { cleanCatalogText, normalizeCatalogText } from "../../../../src/utils/catalogNormalization";
 import { Chip } from "../ui/Chip";
 import { InputControl as TextInput } from "../ui/InputControl";
-import { colors, fontSizes, fontWeights, radii, spacing } from "../../theme";
+import { colors, fontSizes, fontWeights, radii, spacing, typography } from "../../theme";
 
 type Props = {
   selected: string[];
@@ -160,7 +160,7 @@ export function SongTagList({ tags, limit }: { tags?: string[]; limit?: number }
 const styles = StyleSheet.create({
   wrap: { width: "100%", alignSelf: "stretch", gap: spacing.xs },
   label: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.sm },
-  hint: { color: colors.muted, fontSize: fontSizes.s12, lineHeight: 16 },
+  hint: { color: colors.muted, fontSize: fontSizes.s12, lineHeight: typography.metadata.lineHeight },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   chip: {
     minHeight: 26,
