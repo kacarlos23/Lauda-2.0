@@ -4,9 +4,11 @@ import { Prisma, Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
 import { prisma } from "../repositories/prismaClient";
 import { prepareSongTags, sortSongTagNames } from "../constants/songTags";
+import { SongTransferExistingMode, SongTransferField } from "../constants/songTransferFields";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
 import { replaceSongTags } from "../repositories/songTagRepository";
 import {
+  legacySongTransferFields,
   PortableSong,
   SongTransferCommitInput,
   SongTransferDocument,
@@ -15,7 +17,10 @@ import {
 } from "../validators/songTransfer.schema";
 
 type RequestUser = { id: string; role: Role; tenantId?: string };
-type PreviewStatus = "CREATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "CONFLICT" | "INVALID";
+type PreviewStatus = "CREATE" | "UPDATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "SKIPPED" | "CONFLICT" | "INVALID";
+type TransferOptions = { fields: Set<SongTransferField>; fieldList: SongTransferField[]; existing: SongTransferExistingMode; explicitFields: boolean };
+const actionable = new Set<PreviewStatus>(["CREATE", "UPDATE", "LINK", "RESTORE"]);
+const urlFields = ["cifraUrl", "letraUrl", "audioUrl", "videoUrl"] as const;
 
 type ExistingSong = {
   id: string;
@@ -41,16 +46,74 @@ function identity(song: Pick<PortableSong, "title" | "artist">): string {
   return `${normalizeCatalogText(song.artist)}\u0000${normalizeCatalogText(song.title)}`;
 }
 
-function documentHash(document: SongTransferDocument, ministryId: string, items: unknown): string {
-  return createHash("sha256").update(JSON.stringify({ document, ministryId, items }), "utf8").digest("hex");
+function documentHash(document: SongTransferDocument, ministryId: string, items: unknown, options: TransferOptions): string {
+  return createHash("sha256").update(JSON.stringify({
+    document,
+    ministryId,
+    items,
+    options: { fields: options.fieldList, existing: options.existing },
+  }), "utf8").digest("hex");
 }
 
-function songDifferences(existing: ExistingSong, incoming: PortableSong): string[] {
+function resolveOptions(input: { fields?: SongTransferField[]; existing?: SongTransferExistingMode }): TransferOptions {
+  const fieldList = [...(input.fields ?? legacySongTransferFields)].sort() as SongTransferField[];
+  return {
+    fields: new Set(fieldList),
+    fieldList,
+    existing: input.existing ?? "create",
+    explicitFields: input.fields != null,
+  };
+}
+
+function provided(song: PortableSong, field: string): boolean {
+  return Object.prototype.hasOwnProperty.call(song, field);
+}
+
+function canCreate(song: PortableSong, fields: Set<SongTransferField>): boolean {
+  return fields.has("originalKey") && Boolean(song.originalKey) && fields.has("content") && Boolean(song.content);
+}
+
+function songDifferences(existing: ExistingSong, incoming: PortableSong, fields: Set<SongTransferField>): string[] {
   const differences: string[] = [];
-  if (existing.originalKey !== incoming.originalKey) differences.push("tom");
-  if (normalizedContent(existing.content) !== normalizedContent(incoming.content)) differences.push("cifra");
-  if (normalizedUrl(existing.cifraUrl) !== normalizedUrl(incoming.cifraUrl)) differences.push("link");
+  if (fields.has("originalKey") && incoming.originalKey && existing.originalKey !== incoming.originalKey) differences.push("tom");
+  if (fields.has("content") && incoming.content && normalizedContent(existing.content) !== normalizedContent(incoming.content)) differences.push("cifra");
+  if (fields.has("cifraUrl") && provided(incoming, "cifraUrl") && normalizedUrl(existing.cifraUrl) !== normalizedUrl(incoming.cifraUrl)) differences.push("link");
   return differences;
+}
+
+function classify(existing: ExistingSong | undefined, incoming: PortableSong, options: TransferOptions): { status: PreviewStatus; reason?: string; differences?: string[] } {
+  if (!existing) {
+    return canCreate(incoming, options.fields)
+      ? { status: "CREATE" }
+      : { status: "INVALID", reason: "Tom e cifra são obrigatórios para criar a música" };
+  }
+  if (options.existing === "skip") return { status: "SKIPPED" };
+  if (options.existing === "update") return { status: "UPDATE" };
+  const differences = songDifferences(existing, incoming, options.fields);
+  if (differences.length) {
+    return { status: "CONFLICT", reason: `Já existe uma música com conteúdo diferente: ${differences.join(", ")}`, differences };
+  }
+  if (!existing.isActive || existing.deletedAt) return { status: "RESTORE" };
+  const link = existing.ministries[0];
+  if (link?.isActive && !link.deletedAt) return { status: "ALREADY_LINKED" };
+  return { status: "LINK" };
+}
+
+function selectedScalars(incoming: PortableSong, fields: Set<SongTransferField>, creating: boolean): Record<string, string | number | null> {
+  const data: Record<string, string | number | null> = {};
+  if (fields.has("originalKey") && incoming.originalKey) data.originalKey = incoming.originalKey;
+  if (fields.has("content") && incoming.content) data.content = incoming.content;
+  for (const key of urlFields) {
+    if (!fields.has(key)) continue;
+    if (creating && key === "cifraUrl") {
+      data.cifraUrl = normalizedUrl(incoming.cifraUrl);
+      continue;
+    }
+    if (provided(incoming, key)) data[key] = normalizedUrl(incoming[key]);
+  }
+  if (fields.has("bpm") && provided(incoming, "bpm")) data.bpm = incoming.bpm ?? null;
+  if (fields.has("comments") && provided(incoming, "comments")) data.comments = incoming.comments ?? null;
+  return data;
 }
 
 export class SongTransferService {
@@ -58,6 +121,7 @@ export class SongTransferService {
 
   async export(input: SongTransferExportInput): Promise<SongTransferDocument> {
     const tenantId = await this.ensureMinistryAccess(input.ministryId);
+    const options = resolveOptions(input);
     const links = await prisma.ministrySong.findMany({
       where: {
         tenantId,
@@ -74,7 +138,12 @@ export class SongTransferService {
             title: true,
             originalKey: true,
             content: true,
+            bpm: true,
             cifraUrl: true,
+            letraUrl: true,
+            audioUrl: true,
+            videoUrl: true,
+            comments: true,
             artist: { select: { name: true } },
             tags: { select: { tag: { select: { name: true } } } },
           },
@@ -93,20 +162,24 @@ export class SongTransferService {
       version: 1,
       songs: links.map(({ song }) => {
         const tags = sortSongTagNames(song.tags.map((link) => link.tag.name));
-        return {
-          title: song.title,
-          artist: song.artist.name,
-          originalKey: song.originalKey as PortableSong["originalKey"],
-          content: normalizeChordText(song.content),
-          cifraUrl: song.cifraUrl,
-          ...(tags.length ? { tags } : {}),
-        };
+        const exported: PortableSong = { title: song.title, artist: song.artist.name };
+        if (options.fields.has("originalKey")) exported.originalKey = song.originalKey as PortableSong["originalKey"];
+        if (options.fields.has("content")) exported.content = normalizeChordText(song.content);
+        if (options.fields.has("bpm")) exported.bpm = song.bpm;
+        if (options.fields.has("cifraUrl")) exported.cifraUrl = song.cifraUrl;
+        if (options.fields.has("letraUrl")) exported.letraUrl = song.letraUrl;
+        if (options.fields.has("audioUrl")) exported.audioUrl = song.audioUrl;
+        if (options.fields.has("videoUrl")) exported.videoUrl = song.videoUrl;
+        if (options.fields.has("comments")) exported.comments = song.comments;
+        if (options.fields.has("tags") && (options.explicitFields || tags.length)) exported.tags = tags;
+        return exported;
       }),
     };
   }
 
   async preview(input: SongTransferPreviewInput) {
     const tenantId = await this.ensureMinistryAccess(input.ministryId);
+    const options = resolveOptions(input);
     const incomingIdentities = new Set(input.document.songs.map(identity));
     const normalizedArtists = [...new Set(input.document.songs.map((song) => normalizeCatalogText(song.artist)))];
     const existingSongs = await prisma.song.findMany({
@@ -144,36 +217,17 @@ export class SongTransferService {
       }
 
       const existing = existingByIdentity.get(key) as ExistingSong | undefined;
-      if (!existing) return { index, title: song.title, artist: song.artist, status: "CREATE" as PreviewStatus };
-
-      const differences = songDifferences(existing, song);
-      if (differences.length) {
-        return {
-          index,
-          title: song.title,
-          artist: song.artist,
-          status: "CONFLICT" as PreviewStatus,
-          reason: `Já existe uma música com conteúdo diferente: ${differences.join(", ")}`,
-          differences,
-        };
-      }
-      if (!existing.isActive || existing.deletedAt) {
-        return { index, title: song.title, artist: song.artist, status: "RESTORE" as PreviewStatus };
-      }
-      const link = existing.ministries[0];
-      if (link?.isActive && !link.deletedAt) {
-        return { index, title: song.title, artist: song.artist, status: "ALREADY_LINKED" as PreviewStatus };
-      }
-      return { index, title: song.title, artist: song.artist, status: "LINK" as PreviewStatus };
+      const decision = classify(existing, song, options);
+      return { index, title: song.title, artist: song.artist, ...decision };
     });
 
     const counts = items.reduce<Record<PreviewStatus, number>>((result, item) => {
       result[item.status] += 1;
       return result;
-    }, { CREATE: 0, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, CONFLICT: 0, INVALID: 0 });
+    }, { CREATE: 0, UPDATE: 0, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, SKIPPED: 0, CONFLICT: 0, INVALID: 0 });
 
     return {
-      documentHash: documentHash(input.document, input.ministryId, items),
+      documentHash: documentHash(input.document, input.ministryId, items, options),
       total: input.document.songs.length,
       unique: incomingIdentities.size,
       counts,
@@ -182,19 +236,26 @@ export class SongTransferService {
   }
 
   async commit(input: SongTransferCommitInput) {
+    const options = resolveOptions(input);
     const preview = await this.preview(input);
     if (preview.documentHash !== input.documentHash) {
       throw new ConflictError("O arquivo, ministério ou catálogo mudou depois da revisão. Selecione o arquivo e revise novamente antes de importar");
     }
     const tenantId = this.requireTenantId();
-    const allowedIndexes = new Set(preview.items
-      .filter((item) => item.status === "CREATE" || item.status === "LINK" || item.status === "RESTORE")
-      .map((item) => item.index));
+    const songSelect = {
+      id: true, title: true, originalKey: true, content: true, cifraUrl: true, isActive: true, deletedAt: true,
+      artist: { select: { name: true, normalizedName: true } },
+      ministries: { where: { ministryId: input.ministryId }, select: { isActive: true, deletedAt: true } },
+    } as const;
 
     const result = await prisma.$transaction(async (tx) => {
-      const counts = { created: 0, linked: 0, restored: 0, alreadyLinked: preview.counts.ALREADY_LINKED, conflicts: preview.counts.CONFLICT, invalid: preview.counts.INVALID };
+      const counts = {
+        created: 0, updated: 0, linked: 0, restored: 0, skipped: preview.counts.SKIPPED,
+        alreadyLinked: preview.counts.ALREADY_LINKED, conflicts: preview.counts.CONFLICT, invalid: preview.counts.INVALID,
+      };
       for (const [index, incoming] of input.document.songs.entries()) {
-        if (!allowedIndexes.has(index)) continue;
+        const previewItem = preview.items[index];
+        if (!previewItem || !actionable.has(previewItem.status)) continue;
 
         const artistName = cleanCatalogText(incoming.artist);
         const normalizedArtist = normalizeCatalogText(artistName);
@@ -219,16 +280,19 @@ export class SongTransferService {
         const normalizedTitle = normalizeCatalogText(title);
         let song = await tx.song.findUnique({
           where: { tenantId_artistId_normalizedTitle: { tenantId, artistId: artist.id, normalizedTitle } },
-          select: { id: true, title: true, originalKey: true, content: true, cifraUrl: true, isActive: true, deletedAt: true, artist: { select: { name: true, normalizedName: true } }, ministries: { where: { ministryId: input.ministryId }, select: { isActive: true, deletedAt: true } } },
+          select: songSelect,
         }) as ExistingSong | null;
-
-        if (song && songDifferences(song, incoming).length) {
+        const decision = classify(song ?? undefined, incoming, options);
+        if (decision.status !== previewItem.status) {
+          if (decision.status === "ALREADY_LINKED" && previewItem.status === "LINK") {
+            counts.alreadyLinked += 1;
+            continue;
+          }
           throw new ConflictError("Uma música mudou durante a importação. Nenhuma alteração foi aplicada. Revise o arquivo novamente");
         }
-        if (song?.isActive && !song.deletedAt && song.ministries[0]?.isActive && !song.ministries[0].deletedAt) {
-          counts.alreadyLinked += 1;
-          continue;
-        }
+        if (!actionable.has(decision.status) || !song && decision.status !== "CREATE") continue;
+
+        const scalars = selectedScalars(incoming, options.fields, decision.status === "CREATE");
         if (!song) {
           song = await tx.song.create({
             data: {
@@ -236,24 +300,43 @@ export class SongTransferService {
               title,
               normalizedTitle,
               artistId: artist.id,
-              originalKey: incoming.originalKey,
-              content: incoming.content,
-              cifraUrl: normalizedUrl(incoming.cifraUrl),
+              originalKey: String(scalars.originalKey),
+              content: String(scalars.content),
+              cifraUrl: typeof scalars.cifraUrl === "string" ? scalars.cifraUrl : null,
+              ...(typeof scalars.letraUrl === "string" || scalars.letraUrl === null ? { letraUrl: scalars.letraUrl } : {}),
+              ...(typeof scalars.audioUrl === "string" || scalars.audioUrl === null ? { audioUrl: scalars.audioUrl } : {}),
+              ...(typeof scalars.videoUrl === "string" || scalars.videoUrl === null ? { videoUrl: scalars.videoUrl } : {}),
+              ...(typeof scalars.bpm === "number" || scalars.bpm === null ? { bpm: scalars.bpm } : {}),
+              ...(typeof scalars.comments === "string" || scalars.comments === null ? { comments: scalars.comments } : {}),
               createdById: this.user.id,
               updatedById: this.user.id,
             },
-            select: { id: true, title: true, originalKey: true, content: true, cifraUrl: true, isActive: true, deletedAt: true, artist: { select: { name: true, normalizedName: true } }, ministries: { where: { ministryId: input.ministryId }, select: { isActive: true, deletedAt: true } } },
+            select: songSelect,
           }) as ExistingSong;
           counts.created += 1;
-          const tags = prepareSongTags(incoming.tags ?? []);
-          if (tags.length) await replaceSongTags(tx as unknown as Prisma.TransactionClient, tenantId, song.id, tags);
+        } else if (decision.status === "UPDATE") {
+          const inactive = !song.isActive || Boolean(song.deletedAt);
+          await tx.song.update({
+            where: { id: song.id },
+            data: {
+              ...scalars,
+              ...(inactive ? { isActive: true, deletedAt: null } : {}),
+              updatedById: this.user.id,
+            },
+          });
+          counts.updated += 1;
+          if (inactive) counts.restored += 1;
         } else if (!song.isActive || song.deletedAt) {
           song = await tx.song.update({
             where: { id: song.id },
             data: { isActive: true, deletedAt: null, updatedById: this.user.id },
-            select: { id: true, title: true, originalKey: true, content: true, cifraUrl: true, isActive: true, deletedAt: true, artist: { select: { name: true, normalizedName: true } }, ministries: { where: { ministryId: input.ministryId }, select: { isActive: true, deletedAt: true } } },
+            select: songSelect,
           }) as ExistingSong;
           counts.restored += 1;
+        }
+
+        if (options.fields.has("tags") && (decision.status === "CREATE" ? Boolean(incoming.tags?.length) : provided(incoming, "tags"))) {
+          await replaceSongTags(tx as unknown as Prisma.TransactionClient, tenantId, song.id, prepareSongTags(incoming.tags ?? []));
         }
 
         const currentLink = song.ministries[0];

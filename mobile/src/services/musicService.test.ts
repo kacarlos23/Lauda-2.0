@@ -108,6 +108,16 @@ describe("musicService", () => {
     });
   });
 
+  it("mantém a listagem compatível com respostas de temas sem contagens", async () => {
+    const items = [{ id: "tag-1", name: "Natal" }];
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { items } } });
+    await expect(musicService.listSongTagCounts()).resolves.toEqual({
+      items: [{ ...items[0], count: 0 }], untaggedCount: 0,
+    });
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: [] } });
+    await expect(musicService.listSongTagCounts()).resolves.toEqual({ items: [], untaggedCount: 0 });
+  });
+
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
     mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
 

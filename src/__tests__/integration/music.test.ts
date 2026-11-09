@@ -784,6 +784,70 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministry.id, document: { ...legacy, songs: [{ ...legacy.songs[0], tags: [""] }] } }).expect(400);
   });
 
+  it("escolhe os campos do catálogo e pula ou atualiza músicas que já existem", async () => {
+    const tenant = await register("transfer-choice");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const source = {
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{
+        title: "Já existe", artist: "JMM", originalKey: "G", content: "[G]Original",
+        bpm: 80, cifraUrl: null, comments: "Olá", tags: ["Adoração"],
+      }],
+    };
+    const initialFields = ["originalKey", "content", "bpm", "cifraUrl", "comments", "tags"];
+    const created = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: source, fields: initialFields }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: source, fields: initialFields, documentHash: created.body.data.documentHash }).expect(201);
+
+    const tagsOnly = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, fields: ["tags"] }).expect(200);
+    expect(tagsOnly.body.songs).toEqual([{ title: "Já existe", artist: "JMM", tags: ["Adoração"] }]);
+
+    const everything = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, fields: ["originalKey", "content", "bpm", "cifraUrl", "letraUrl", "audioUrl", "videoUrl", "comments", "tags"] }).expect(200);
+    expect(everything.body.songs[0]).toMatchObject({
+      originalKey: "G", content: "[G]Original", bpm: 80, cifraUrl: null, comments: "Olá", tags: ["Adoração"],
+    });
+
+    const changed = {
+      format: "lauda.music-catalog", version: 1,
+      songs: [{ title: "Já existe", artist: "JMM", originalKey: "A", content: "[A]Outra cifra", tags: ["Natal"] }],
+    };
+    const withNewSong = {
+      ...changed,
+      songs: [...changed.songs, { title: "Canção nova", artist: "JMM", originalKey: "C", content: "[C]Nova", tags: ["Missões"] }],
+    };
+    const conflict = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: changed }).expect(200);
+    expect(conflict.body.data.counts).toMatchObject({ CONFLICT: 1, CREATE: 0 });
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: changed, documentHash: conflict.body.data.documentHash }).expect(201);
+    const preserved = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(preserved.body.data.items[0]).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Adoração"] });
+
+    const tagsUpdate = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withNewSong, fields: ["tags"], existing: "update" }).expect(200);
+    expect(tagsUpdate.body.data.counts).toMatchObject({ UPDATE: 1, INVALID: 1 });
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withNewSong, fields: ["tags"], existing: "update", documentHash: tagsUpdate.body.data.documentHash }).expect(201);
+    const retagged = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(retagged.body.data.items[0]).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Natal"] });
+    expect(await prisma.song.count({ where: { title: "Canção nova" } })).toBe(0);
+
+    const skipped = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withNewSong, fields: ["originalKey", "content", "tags"], existing: "skip" }).expect(200);
+    expect(skipped.body.data.counts).toMatchObject({ SKIPPED: 1, CREATE: 1 });
+    const skipResult = await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withNewSong, fields: ["originalKey", "content", "tags"], existing: "skip", documentHash: skipped.body.data.documentHash }).expect(201);
+    expect(skipResult.body.data).toMatchObject({ created: 1, skipped: 1, updated: 0 });
+    const untouched = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(untouched.body.data.items[0]).toMatchObject({ content: "[G]Original", tags: ["Natal"] });
+    const fresh = await request(app).get("/api/songs?search=Canção nova").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(fresh.body.data.items[0]).toMatchObject({ content: "[C]Nova", tags: ["Missões"] });
+  });
+
 
 });
 
