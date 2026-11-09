@@ -165,10 +165,10 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
 
   await page.getByTestId("app-back-button-compact").click();
   await expect(page).toHaveURL(/\/songs$/);
-  await page.getByTestId(`song-row-${song.id}`).click();
+  await page.getByTestId(`song-row-control-${song.id}`).click();
   await expect(page.getByTestId("current-key")).toContainText("G");
   await page.getByTestId("app-back-button-compact").click();
-  await page.getByTestId(`song-row-${createdSongId}`).click();
+  await page.getByTestId(`song-row-control-${createdSongId}`).click();
   await expect(page.getByTestId("current-key")).toContainText("C");
 
   await page.getByLabel("Editar música").click();
@@ -184,7 +184,7 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
   await expect(page.getByText("Depois da Guerra", { exact: true }).last()).toBeVisible();
   await expect(page.getByText("Nova canção editada", { exact: true }).last()).toBeVisible();
 
-  await page.getByTestId(`song-row-${song.id}`).click();
+  await page.getByTestId(`song-row-control-${song.id}`).click();
   await expect(page).toHaveURL(new RegExp(`/songs/${song.id}$`));
   await expect(page.getByText("Depois da Guerra", { exact: true }).last()).toBeVisible();
   await expect(page.getByTestId("current-key")).toContainText("G");
@@ -198,13 +198,13 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
 
   await page.goto("/");
   await openSongs(page);
-  await page.getByText("Selecionar para PDF").click();
+  await page.getByRole("button", { name: "Selecionar músicas", exact: true }).click();
   await page.getByText("Depois da Guerra", { exact: true }).click();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByText(/Exportar 1 cifra/).click();
+  await page.getByRole("button", { name: "Exportar PDF" }).click();
   expect((await downloadPromise).suggestedFilename()).toMatch(/Cifras.*\.pdf/);
 
-  await page.getByText("Cancelar seleção").click();
+  await page.getByRole("button", { name: "Cancelar seleção" }).click();
   await page.getByLabel("Gerenciar artistas").last().click();
   await page.getByLabel("Editar Oficina G3").click();
   await page.locator('input[value="Oficina G3"]').fill("Oficina G3 Atualizada");

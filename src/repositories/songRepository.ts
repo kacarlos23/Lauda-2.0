@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
+import { NotFoundError } from "../errors/AppError";
 import { PreparedSongTag, prepareSongTags, sortSongTagNames } from "../constants/songTags";
 import { normalizeCatalogText } from "../utils/catalogNormalization";
 import { prisma } from "./prismaClient";
 import { applySongTagChanges, lockActiveSongs, replaceSongTags, resolveSongTags } from "./songTagRepository";
-import { SongListInput, SongScopeInput, SongTagChangeInput } from "../validators/song.schema";
+import { SongListInput, SongScopeInput, SongTagBatchInput, SongTagChangeInput } from "../validators/song.schema";
 import { foldThemeSearch, parseSongSearch } from "../utils/songSearch";
 
 export const songSelect = {
@@ -123,6 +124,19 @@ export class SongRepository {
       const tags = await resolveSongTags(db, this.tenantId, prepareSongTags([name]), operation === "add");
       const result = await applySongTagChanges(db, this.tenantId, userId, [id], tags, operation);
       return result.items[0];
+    });
+  }
+
+  changeTags(userId: string, { songIds, tagIds, newTags, operation }: SongTagBatchInput) {
+    return prisma.$transaction(async (db) => {
+      await lockActiveSongs(db, this.tenantId, songIds);
+      const existing = await db.songTag.findMany({
+        where: { tenantId: this.tenantId, id: { in: tagIds } },
+        select: { id: true, name: true },
+      });
+      if (existing.length !== tagIds.length) throw new NotFoundError("Um ou mais temas não foram encontrados");
+      const added = await resolveSongTags(db, this.tenantId, prepareSongTags(newTags), operation === "add");
+      return applySongTagChanges(db, this.tenantId, userId, songIds, [...existing, ...added], operation);
     });
   }
 

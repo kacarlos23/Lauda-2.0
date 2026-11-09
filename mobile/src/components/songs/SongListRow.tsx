@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Check, Square, Tag, UserRound } from "lucide-react-native";
+import { Check, Tag, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
 import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
 import { SongThemeLabels } from "./SongThemeLabels";
@@ -40,7 +40,7 @@ export function SongListRow({
 }: Props) {
   const themeButton = useRef<View>(null);
   const selectionLabel = `${selected ? "Desmarcar" : "Selecionar"} ${song.title}`;
-  const showLinks = !selectionMode && hasSongLinks(song);
+  const showLinks = hasSongLinks(song);
   const openThemes = () => {
     if (Platform.OS !== "web" || compactLinkActions || !themeButton.current) {
       onEditThemes?.(null);
@@ -68,6 +68,11 @@ export function SongListRow({
           accessibilityState={selectionMode ? { checked: selected } : undefined}
           aria-checked={selectionMode ? selected : undefined}
         >
+          {selectionMode ? (
+            <View style={[styles.check, selected && styles.checkSelected]}>
+              {selected ? <Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /> : null}
+            </View>
+          ) : null}
           {song.artist.imageUrl ? (
             <Image source={{ uri: song.artist.imageUrl }} style={styles.avatar} />
           ) : (
@@ -79,13 +84,6 @@ export function SongListRow({
               {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
             </Text>
           </View>
-          {selectionMode ? (
-            selected ? (
-              <View style={styles.check}><Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /></View>
-            ) : (
-              <Square color={colors.muted} size={iconSizes.s21} />
-            )
-          ) : null}
         </TouchableOpacity>
         {!compactLinkActions ? <View style={styles.desktopThemes}>{themes}</View> : null}
         {showLinks || onEditThemes ? (
@@ -111,7 +109,7 @@ export function SongListRow({
           </View>
         ) : null}
       </View>
-      {compactLinkActions ? <View style={styles.mobileThemes}>{themes}</View> : null}
+      {compactLinkActions ? <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View> : null}
     </View>
   );
 }
@@ -156,6 +154,7 @@ const styles = StyleSheet.create({
   info: { flex: 1, minWidth: 0 },
   desktopThemes: { flexShrink: 1, maxWidth: "48%" },
   mobileThemes: { marginLeft: controlSizes.medium + spacing.sm },
+  mobileThemesSelected: { marginLeft: controlSizes.medium + 20 + 2 * spacing.sm },
   actions: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   themeButton: {
     width: 32, height: 32, borderRadius: radiusValues.r4, borderWidth: 1,
@@ -165,11 +164,13 @@ const styles = StyleSheet.create({
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
   check: {
-    width: 21,
-    height: 21,
-    borderRadius: radiusValues.r4,
-    backgroundColor: colors.primary,
+    width: 20,
+    height: 20,
+    borderRadius: radiusValues.r2,
+    borderWidth: 1,
+    borderColor: colors.muted,
     alignItems: "center",
     justifyContent: "center",
   },
+  checkSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
 });

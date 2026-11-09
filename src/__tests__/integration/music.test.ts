@@ -769,6 +769,76 @@ describe("Artists and songs API", () => {
     expect(detail.body.data).toMatchObject({ title: songPayload(artist.id).title, tags: restored.body.data.tags });
   });
 
+  it("aplica e remove temas em lote e exporta os temas alterados no catálogo JSON", async () => {
+    const tenant = await register("song-theme-batch");
+    const auth = `Bearer ${tenant.token}`;
+    const artist = await createArtist(tenant.token);
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const document = {
+      format: "lauda.music-catalog", version: 1,
+      songs: [
+        { title: "Primeira", artist: artist.name, originalKey: "G", content: "[G]Primeira", tags: ["Natal"] },
+        { title: "Segunda", artist: artist.name, originalKey: "G", content: "[G]Segunda" },
+      ],
+    };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", auth)
+      .send({ ministryId: ministry.id, document }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", auth)
+      .send({ ministryId: ministry.id, document, documentHash: preview.body.data.documentHash }).expect(201);
+    const list = await request(app).get("/api/songs").set("Authorization", auth).expect(200);
+    const songIds = list.body.data.items.map(({ id }: { id: string }) => id);
+    const catalog = await request(app).get("/api/songs/tags").set("Authorization", auth).expect(200);
+    const tagIds = [catalog.body.data.items[0].id];
+    const batch = (payload: object) => request(app).patch("/api/songs/tags/batch").set("Authorization", auth).send({ songIds, tagIds, ...payload });
+
+    const added = await batch({ operation: "add", newTags: ["Gratidão"] }).expect(200);
+    expect(added.body.data).toEqual({
+      updated: 2, items: songIds.map((id: string) => ({ id, tags: ["Gratidão", "Natal"] })),
+    });
+    const exported = await request(app).post("/api/songs/data-export").set("Authorization", auth)
+      .send({ ministryId: ministry.id }).expect(200);
+    expect(exported.body).toMatchObject({
+      format: "lauda.music-catalog", version: 1,
+      songs: [{ title: "Primeira", tags: ["Gratidão", "Natal"] }, { title: "Segunda", tags: ["Gratidão", "Natal"] }],
+    });
+
+    expect((await batch({ operation: "remove" }).expect(200)).body.data).toEqual({
+      updated: 2, items: songIds.map((id: string) => ({ id, tags: ["Gratidão"] })),
+    });
+    expect((await batch({ operation: "remove" }).expect(200)).body.data.updated).toBe(0);
+  });
+
+  it("rejeita lote inteiro para música ou tema de outra igreja, sem permissão ou acima do limite", async () => {
+    const tenant = await register("song-theme-batch-guard");
+    const other = await register("song-theme-batch-guard-other");
+    const viewer = await member(tenant.token, "song-theme-batch-viewer", "MEMBER");
+    const artist = await createArtist(tenant.token);
+    const foreignArtist = await createArtist(other.token);
+    const create = async (token: string, artistId: string, title: string, tags: string[]) => (
+      await request(app).post("/api/songs").set("Authorization", `Bearer ${token}`)
+        .send({ ...songPayload(artistId), title, tags }).expect(201)
+    ).body.data.id as string;
+    const first = await create(tenant.token, artist.id, "Livre", []);
+    const full = await create(tenant.token, artist.id, "Limite", Array.from({ length: 12 }, (_, index) => `Tema ${index + 1}`));
+    const foreign = await create(other.token, foreignArtist.id, "Outra igreja", ["Tema externo"]);
+    const foreignTags = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${other.token}`).expect(200);
+    const foreignTagId = foreignTags.body.data.items[0].id;
+    const payload = { songIds: [first, full], tagIds: [], newTags: ["Natal"], operation: "add" };
+    const batch = (fields: object, token = tenant.token) => request(app).patch("/api/songs/tags/batch")
+      .set("Authorization", `Bearer ${token}`).send({ ...payload, ...fields });
+
+    await request(app).patch("/api/songs/tags/batch").send(payload).expect(401);
+    await batch({}, viewer).expect(403);
+    await batch({ songIds: [first, foreign] }).expect(404);
+    await batch({ songIds: [first], tagIds: [foreignTagId] }).expect(404);
+    await batch({ songIds: [first, first] }).expect(400);
+    await batch({}).expect(409);
+    const result = await request(app).get(`/api/songs/${first}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(result.body.data.tags).toEqual([]);
+    const catalog = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(catalog.body.data.items.map(({ name }: { name: string }) => name)).not.toContain("Natal");
+  });
+
   it("importa e exporta temas opcionais e preserva catálogos sem o campo", async () => {
     const tenant = await register("song-tag-transfer");
     const ministry = await createMinistry(tenant.token, "Louvor");

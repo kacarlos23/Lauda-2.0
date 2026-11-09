@@ -101,11 +101,24 @@ export const updateSongSchema = createSongSchema.partial().refine(
   "Informe ao menos um campo para atualizar"
 );
 
+const songIdsSchema = z.array(z.string().uuid("ID de música inválido")).min(1).max(50).refine(
+  (ids) => new Set(ids).size === ids.length,
+  "A seleção não pode conter músicas repetidas"
+);
+
+export const songTagBatchSchema = z.object({
+  songIds: songIdsSchema,
+  tagIds: z.array(z.string().uuid("ID de tema inválido")).max(SONG_TAGS_MAX)
+    .refine((ids) => new Set(ids).size === ids.length, "A seleção não pode conter temas repetidos"),
+  // Suggested themes without a saved ID are created in the same transaction.
+  newTags: songTagsSchema.default([]),
+  operation: songTagOperationSchema,
+}).refine(({ tagIds, newTags }) => tagIds.length + newTags.length > 0, "Selecione ao menos um tema")
+  .refine(({ tagIds, newTags }) => tagIds.length + newTags.length <= SONG_TAGS_MAX, "Selecione no máximo 12 temas")
+  .refine(({ operation, newTags }) => operation === "add" || !newTags.length, "Informe os IDs dos temas a remover");
+
 export const exportSongsSchema = z.object({
-  songIds: z.array(z.string().uuid("ID de música inválido")).min(1).max(50).refine(
-    (ids) => new Set(ids).size === ids.length,
-    "A seleção não pode conter músicas repetidas"
-  ),
+  songIds: songIdsSchema,
   transpositions: z.record(z.string().uuid("ID de música inválido"), z.number().int().min(-11).max(11)).optional(),
 });
 
@@ -137,6 +150,7 @@ export const cifraClubImportSchema = z.object({
     }, "Informe uma URL do Cifra Club"),
 });
 
+export type SongTagBatchInput = z.infer<typeof songTagBatchSchema>;
 export type SongTagOperation = z.infer<typeof songTagOperationSchema>;
 export type SongTagChangeInput = z.infer<typeof songTagChangeSchema>;
 export type SongScopeInput = z.infer<typeof songScopeSchema>;

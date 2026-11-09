@@ -6,7 +6,7 @@ import { SongPdfService } from "../services/songPdfService";
 import { logger } from "../observability/logger";
 import { SongService } from "../services/songService";
 import { CifraClubImportService } from "../services/cifraClubImportService";
-import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, songScopeSchema, songTagChangeSchema, updateSongSchema } from "../validators/song.schema";
+import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, songScopeSchema, songTagBatchSchema, songTagChangeSchema, updateSongSchema } from "../validators/song.schema";
 import { SongTransferService } from "../services/songTransferService";
 import { songTransferCommitSchema, songTransferExportSchema, songTransferPreviewSchema } from "../validators/songTransfer.schema";
 
@@ -34,6 +34,10 @@ export class SongController extends BaseController {
   async changeTag(req: Request, res: Response) {
     const { id } = songIdSchema.parse(req.params);
     this.handleSuccess(res, await this.service(req).changeTag(id, songTagChangeSchema.parse(req.body)));
+  }
+
+  async changeTags(req: Request, res: Response) {
+    this.handleSuccess(res, await this.service(req).changeTags(songTagBatchSchema.parse(req.body)));
   }
 
   async get(req: Request, res: Response) {

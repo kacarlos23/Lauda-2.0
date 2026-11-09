@@ -4,7 +4,7 @@ import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
 import { prepareSongTags } from "../constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
-import { CreateSongInput, SongListInput, SongScopeInput, SongTagChangeInput, UpdateSongInput } from "../validators/song.schema";
+import { CreateSongInput, SongListInput, SongScopeInput, SongTagBatchInput, SongTagChangeInput, UpdateSongInput } from "../validators/song.schema";
 import { normalizeChordText, normalizeSongContent } from "../utils/chordText";
 
 export class SongService {
@@ -33,6 +33,10 @@ export class SongService {
 
   changeTag(id: string, input: SongTagChangeInput) {
     return this.repository.changeTag(id, this.userId, input);
+  }
+
+  changeTags(input: SongTagBatchInput) {
+    return this.repository.changeTags(this.userId, input);
   }
 
   async get(id: string) {
