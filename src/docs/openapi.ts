@@ -503,6 +503,24 @@ registry.registerPath({
   },
 });
 registry.registerPath({
+  method: "patch", path: "/api/songs/tags/batch", summary: "Aplica temas a uma seleção de músicas", security: [{ bearerAuth: [] }],
+  request: { body: { content: { "application/json": { schema: z.object({
+    operation: SongTagOperation,
+    songIds: z.array(z.string().uuid()).min(1).max(50),
+    tagIds: z.array(z.string().uuid()).max(12),
+    newTags: z.array(z.string().min(1).max(40)).max(12).optional().meta({ description: "Temas ainda sem ID, aceitos somente em add." }),
+  }) } } } },
+  responses: {
+    200: { description: "Temas atuais das músicas e número de músicas alteradas.", content: { "application/json": { schema: z.object({
+      success: z.boolean(),
+      data: z.object({ items: z.array(SongTagChangeResult), updated: z.number().int() }),
+    }) } } },
+    403: { description: "Sem permissão para editar músicas." },
+    404: { description: "Uma música ou tema não foi encontrado na igreja." },
+    409: { description: "Uma música já atingiu o limite de temas. O lote inteiro é revertido." },
+  },
+});
+registry.registerPath({
   method: "post", path: "/api/songs/export", summary: "Exporta até 50 cifras em PDF", security: [{ bearerAuth: [] }],
   request: { body: { content: { "application/json": { schema: z.object({ songIds: z.array(z.string().uuid()).min(1).max(50) }) } } } },
   responses: { 200: { description: "PDF gerado.", content: { "application/pdf": { schema: z.string() } } }, 404: { description: "Uma ou mais músicas não pertencem ao tenant." } },

@@ -1,19 +1,17 @@
 import { uiPatterns } from "../../../src/components/ui/patterns";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   Alert,
   Animated,
   Easing,
   LayoutChangeEvent,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  type ViewStyle,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
@@ -21,7 +19,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
-import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
+import { SongSelectionBar } from "../../../src/components/songs/SongSelectionBar";
+import { SongBulkThemeEditor } from "../../../src/components/songs/SongBulkThemeEditor";
 import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
@@ -46,7 +45,7 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongTagCounts, SongThemeChange, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongTagCounts, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
@@ -68,8 +67,6 @@ import {
   screen,
   spacing,
 } from "../../../src/theme";
-
-const WIDE_SELECTION_MIN_WIDTH = 1000;
 
 const TEXT = {
   songSearch: "Música, artista ou #tema",
@@ -115,7 +112,7 @@ function totalLabel(total: number): string {
 export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { screenHeight, screenWidth } = useResponsiveLayout();
+  const { screenWidth } = useResponsiveLayout();
   const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -154,12 +151,16 @@ export default function SongsScreen() {
   }, [activePageSlot, pageSlotCount, pageTrackWidth, pageIndicatorX, reducedMotion]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState<Map<string, SongSelectionSnapshot>>(() => new Map());
-  const [exportPanelExpanded, setExportPanelExpanded] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
   const [songForLinks, setSongForLinks] = useState<Song | null>(null);
   const [themeEditor, setThemeEditor] = useState<{ song: Song; anchor: SongThemeAnchor | null } | null>(null);
   const [themePreview, setThemePreview] = useState<SongThemeChange | null>(null);
+  const [bulkEditor, setBulkEditor] = useState<{
+    songIds: string[];
+    operation: SongThemeOperation;
+    anchor: SongThemeAnchor | null;
+  } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
@@ -258,20 +259,18 @@ export default function SongsScreen() {
     if (!loading && !refreshing && !error && page === pagination.page && page > last) setPage(last);
   }, [loading, refreshing, error, page, pagination.page, pagination.totalPages]);
 
-  const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
   const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
   const canEditThemes = canManageMusic(user, "song:edit");
   const activeFilters = Boolean(filters.artist || filters.originalKey);
   const canApplyFilters = !sameScope(filters, draftFilters);
   const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
-  const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
   const compactLinkActions = (contentWidth || screenWidth) < 600;
 
   const toggleSong = useCallback((song: Song) => {
     setSelectedSongs((current) => {
       const result = toggleSongSelection(current, song);
       if (result.limitReached) {
-        showFeedback("O limite é de 50 cifras.", "warning");
+        showFeedback(`Você pode selecionar até ${MAX_SONG_SELECTION} músicas.`, "warning");
       }
       return result.selection;
     });
@@ -283,7 +282,7 @@ export default function SongsScreen() {
       const result = toggleSongPageSelection(current, songs, MAX_SONG_SELECTION);
       if (result.added < result.candidates) {
         showFeedback(
-          `${result.added} de ${result.candidates} músicas adicionadas. O limite é de 50 cifras.`,
+          `${result.added} de ${result.candidates} músicas adicionadas. O limite é de ${MAX_SONG_SELECTION} músicas.`,
           "warning"
         );
       }
@@ -294,7 +293,7 @@ export default function SongsScreen() {
   const cancelSelection = useCallback(() => {
     setSelectedSongs(new Map());
     setIsSelectionMode(false);
-    setExportPanelExpanded(true);
+    setBulkEditor(null);
   }, []);
 
   const exportSelected = useCallback(async () => {
@@ -367,30 +366,17 @@ export default function SongsScreen() {
     setContentWidth((current) => current === nextWidth ? current : nextWidth);
   }, []);
 
-  const selectionPanel = isSelectionMode ? (
-    <SongExportPanel
-      songs={selectedList}
-      compact={!isWideSelectionLayout}
-      expanded={exportPanelExpanded}
-      screenHeight={screenHeight}
-      exporting={exporting}
-      onToggleExpanded={() => setExportPanelExpanded((current) => !current)}
-      onRemove={(songId) => setSelectedSongs((current) => {
-        const next = new Map(current);
-        next.delete(songId);
-        return next;
-      })}
-      onExport={() => void exportSelected()}
-      onCancel={cancelSelection}
-    />
-  ) : null;
+  const openBulkEditor = (operation: SongThemeOperation, anchor: SongThemeAnchor | null) => {
+    setBulkEditor({ songIds: Array.from(selectedSongs.keys()), operation, anchor });
+  };
 
-  const wideLayoutStyle = Platform.OS === "web"
-    ? ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", columnGap: spacing.xl, alignItems: "start" } as unknown as ViewStyle)
-    : styles.wideLayoutFallback;
-  const stickyPanelStyle = Platform.OS === "web"
-    ? ({ position: "sticky", top: spacing.xl, width: 320, alignSelf: "start" } as unknown as ViewStyle)
-    : styles.stickyPanelFallback;
+  const saveBulkThemes = ({ items, updated }: SongThemeBatchResult) => {
+    applySongThemes(items);
+    setBulkEditor(null);
+    showFeedback(updated
+      ? `Temas atualizados em ${updated} ${updated === 1 ? "música" : "músicas"}.`
+      : "A seleção já estava atualizada.");
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
@@ -442,6 +428,7 @@ export default function SongsScreen() {
 
       <ScrollView
         style={styles.scroller}
+        testID="song-catalog-scroll"
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
@@ -547,35 +534,30 @@ export default function SongsScreen() {
               onToggle={toggleTheme}
               action={!isSelectionMode ? (
                 <TouchableOpacity
-                  onPress={() => { setIsSelectionMode(true); setExportPanelExpanded(true); }}
+                  onPress={() => setIsSelectionMode(true)}
                   accessibilityRole="button"
-                  accessibilityLabel="Selecionar músicas para PDF"
+                  accessibilityLabel="Selecionar músicas"
                   hitSlop={6}
                 >
-                  <Text style={styles.selectionEntryText}>Selecionar para PDF</Text>
+                  <Text style={styles.selectionEntryText}>Selecionar músicas</Text>
                 </TouchableOpacity>
               ) : null}
             />
 
-            <View
-              style={isWideSelectionLayout ? wideLayoutStyle : styles.singleColumn}
-              testID={isWideSelectionLayout ? "songs-selection-layout-wide" : "songs-selection-layout-compact"}
-            >
+            <View style={styles.singleColumn}>
               <View style={styles.mainColumn}>
-                {isSelectionMode && !isWideSelectionLayout ? selectionPanel : null}
-                {isSelectionMode ? (
-                  <SongSelectionSummary
-                    selectedCount={selectedSongs.size}
-                    pageEmpty={!songs.length}
-                    allPageSelected={allPageSelected}
-                    onTogglePage={togglePageSelection}
-                    onClear={() => setSelectedSongs(new Map())}
-                  />
-                ) : null}
-
                 <View style={styles.listCard}>
                   <View style={styles.listHeader}>
                     <Text style={styles.listCount} accessibilityLiveRegion="polite">{totalLabel(pagination.total)}</Text>
+                    {isSelectionMode ? (
+                      <SongSelectionSummary
+                        selectedCount={selectedSongs.size}
+                        pageEmpty={!songs.length}
+                        allPageSelected={allPageSelected}
+                        onTogglePage={togglePageSelection}
+                        onClear={() => setSelectedSongs(new Map())}
+                      />
+                    ) : null}
                   </View>
 
                   {(loading || refreshing) && !songs.length ? (
@@ -596,7 +578,7 @@ export default function SongsScreen() {
                         isLast={index === songs.length - 1}
                         compactLinkActions={compactLinkActions}
                         editingThemes={themeEditor?.song.id === song.id}
-                        onEditThemes={canEditThemes && !isSelectionMode ? (anchor) => {
+                        onEditThemes={canEditThemes ? (anchor) => {
                           if (!themePreview) setThemeEditor({ song, anchor });
                         } : undefined}
                         onOpenLinks={() => setSongForLinks(song)}
@@ -647,13 +629,32 @@ export default function SongsScreen() {
                 ) : null}
               </View>
 
-              {isWideSelectionLayout ? (
-                <View style={stickyPanelStyle} testID="songs-export-panel-sticky">{selectionPanel}</View>
-              ) : null}
             </View>
           </View>
         </View>
       </ScrollView>
+
+      {isSelectionMode ? (
+        <SongSelectionBar
+          count={selectedSongs.size}
+          compact={compactLinkActions}
+          canEditThemes={canEditThemes}
+          savingTheme={Boolean(themePreview)}
+          exporting={exporting}
+          onThemeAction={openBulkEditor}
+          onExport={() => void exportSelected()}
+          onCancel={cancelSelection}
+        />
+      ) : null}
+
+      {canEditThemes && bulkEditor ? (
+        <SongBulkThemeEditor
+          {...bulkEditor}
+          knownTags={themeCounts?.items ?? []}
+          onSaved={saveBulkThemes}
+          onClose={() => setBulkEditor(null)}
+        />
+      ) : null}
 
       {canEditThemes && themeEditor ? (
         <SongQuickThemeEditor
@@ -731,8 +732,6 @@ const styles = StyleSheet.create({
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
   selectionEntryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   singleColumn: { width: "100%" },
-  wideLayoutFallback: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: spacing.xl },
-  stickyPanelFallback: { width: 320, alignSelf: "flex-start" },
   mainColumn: { flex: 1, minWidth: 0, gap: spacing.lg },
   listCard: {
     width: "100%",
@@ -742,7 +741,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     overflow: "hidden",
   },
-  listHeader: { minHeight: 50, justifyContent: "center", paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  listHeader: {
+    minHeight: 50, flexDirection: "row", flexWrap: "wrap", alignItems: "center",
+    justifyContent: "space-between", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.line,
+  },
   listCount: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   inlineLoading: { alignItems: "center", padding: spacing.xl },
   emptyState: { borderWidth: 0, borderRadius: 0 },

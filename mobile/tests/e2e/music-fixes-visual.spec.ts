@@ -262,9 +262,9 @@ test("links de músicas são consolidados no conteúdo estreito", async ({ page 
   expect((await allLinksRow.boundingBox())!.height).toBeLessThanOrEqual(80);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  await page.getByText("Selecionar para PDF", { exact: true }).click();
-  await expect(page.getByTestId("song-link-buttons")).toHaveCount(0);
-  await expect(page.getByTestId("song-links-trigger")).toHaveCount(0);
+  await page.getByRole("button", { name: "Selecionar músicas", exact: true }).click();
+  await expect(allLinksRow.getByTestId("song-links-trigger")).toBeVisible();
+  await expect(allLinksRow.getByRole("button", { name: "Editar temas de Ajuda-me a Vencer" })).toBeVisible();
   await page.getByRole("checkbox", { name: "Selecionar Ajuda-me a Vencer" }).click();
   await expect(page.getByRole("checkbox", { name: "Desmarcar Ajuda-me a Vencer" })).toBeVisible();
 });

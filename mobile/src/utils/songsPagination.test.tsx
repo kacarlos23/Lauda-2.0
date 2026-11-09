@@ -284,23 +284,18 @@ describe("SongsScreen pagination", () => {
     expect(metadata).not.toContain("\\u00b7");
   });
 
-  it("alterna o painel exatamente em 1000px de largura útil", async () => {
+  it("mantém os temas selecionados junto com o filtro Sem tema", async () => {
+    jest.mocked(musicService.listSongTagCounts).mockResolvedValueOnce({
+      items: [{ id: "natal", name: "Natal", count: 2 }], untaggedCount: 3,
+    });
     await act(async () => {
       renderer = TestRenderer.create(<SongsScreen />);
-      await Promise.resolve();
-      await Promise.resolve();
     });
-
-    const selectionButton = renderer!.root.findAllByType(TouchableOpacity)
-      .find((node: TestNode) => node.props.accessibilityLabel === "Selecionar músicas para PDF");
-    act(() => selectionButton!.props.onPress());
-
-    const measured = renderer!.root.findByProps({ testID: "songs-content-width" });
-    act(() => measured.props.onLayout({ nativeEvent: { layout: { width: 999 } } }));
-    expect(renderer!.root.findAllByProps({ testID: "songs-selection-layout-compact" }).length).toBeGreaterThan(0);
-
-    act(() => measured.props.onLayout({ nativeEvent: { layout: { width: 1000 } } }));
-    expect(renderer!.root.findAllByProps({ testID: "songs-selection-layout-wide" }).length).toBeGreaterThan(0);
+    const press = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === label)!.props.onPress();
+    await act(async () => press("Natal, 2 músicas"));
+    await act(async () => press("Sem tema, 3 músicas"));
+    expect(musicService.listSongs).toHaveBeenLastCalledWith("", 1, 20, { tags: ["Natal"], untagged: true }, expect.any(Object));
   });
 
   it("separa limpar seleção de cancelar o modo", async () => {
@@ -312,17 +307,17 @@ describe("SongsScreen pagination", () => {
 
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
-    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => byLabel("Selecionar músicas")!.props.onPress());
     act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
-    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 música selecionada"))).toBe(true);
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 selecionada"))).toBe(true);
 
     act(() => byLabel("Limpar seleção de músicas")!.props.onPress());
-    expect(renderer!.root.findAllByProps({ testID: "songs-export-panel" }).length).toBeGreaterThan(0);
-    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 músicas selecionadas"))).toBe(true);
+    expect(renderer!.root.findAllByProps({ testID: "song-selection-bar" }).length).toBeGreaterThan(0);
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 selecionadas"))).toBe(true);
 
-    act(() => byLabel("Cancelar seleção de cifras")!.props.onPress());
-    expect(renderer!.root.findAllByProps({ testID: "songs-export-panel" })).toHaveLength(0);
-    expect(byLabel("Selecionar músicas para PDF")).toBeTruthy();
+    act(() => byLabel("Cancelar seleção")!.props.onPress());
+    expect(renderer!.root.findAllByProps({ testID: "song-selection-bar" })).toHaveLength(0);
+    expect(byLabel("Selecionar músicas")).toBeTruthy();
   });
 
   it("bloqueia cliques duplicados durante a exportação", async () => {
@@ -336,7 +331,7 @@ describe("SongsScreen pagination", () => {
 
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
-    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => byLabel("Selecionar músicas")!.props.onPress());
     act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
     const exportButton = renderer!.root.findAllByProps({ testID: "songs-export-button" }).at(-1)!;
 
@@ -361,7 +356,7 @@ describe("SongsScreen pagination", () => {
     });
     const byLabel = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label);
-    act(() => byLabel("Selecionar músicas para PDF")!.props.onPress());
+    act(() => byLabel("Selecionar músicas")!.props.onPress());
     act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
 
     jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new Error("Falha temporária"));
@@ -371,7 +366,7 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
     });
     expect(Alert.alert).toHaveBeenCalledWith("Erro", "Falha temporária");
-    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 música selecionada"))).toBe(true);
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 selecionada"))).toBe(true);
 
     jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new SongsUnavailableClientError(["song-1"]));
     await act(async () => {
@@ -379,7 +374,7 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 músicas selecionadas"))).toBe(true);
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 selecionadas"))).toBe(true);
     expect(renderer!.root.findAllByProps({ testID: "feedback-toast" }).length).toBeGreaterThan(0);
   });
 });
