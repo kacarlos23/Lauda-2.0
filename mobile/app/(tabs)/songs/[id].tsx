@@ -8,6 +8,7 @@ import { AppBackButton } from "../../../src/components/AppBackButton";
 import { ChordSheetView } from "../../../src/components/ChordSheetView";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { YouTubePlayerCard } from "../../../src/components/YouTubePlayerCard";
+import { SongTagList } from "../../../src/components/songs/SongTagPicker";
 import { Button, ErrorBanner, LoadingState } from "../../../src/components/ui";
 import { RichCommentView } from "../../../src/components/ui/RichCommentView";
 import { musicService } from "../../../src/services/musicService";
@@ -142,6 +143,7 @@ export default function SongDetailScreen() {
     >
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom padrão: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>
+      <SongTagList tags={song.tags} />
       <View style={styles.mediaSection}>
         <SongLinkButtons links={externalLinks} centered />
       </View>

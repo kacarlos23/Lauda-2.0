@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { chordContentSchema, MUSICAL_KEYS } from "./song.schema";
+import { chordContentSchema, MUSICAL_KEYS, songTagsSchema } from "./song.schema";
 
 const optionalHttpUrl = z.preprocess(
   (value) => typeof value === "string" ? value.trim() || null : value,
@@ -16,6 +16,7 @@ export const portableSongSchema = z.object({
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido"),
   content: chordContentSchema,
   cifraUrl: optionalHttpUrl,
+  tags: songTagsSchema.optional(),
 }).strict();
 
 export const songTransferDocumentSchema = z.object({

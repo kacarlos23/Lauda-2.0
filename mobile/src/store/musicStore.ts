@@ -1,4 +1,5 @@
 ﻿import { create } from "zustand";
+import { normalizeCatalogText } from "../../../src/utils/catalogNormalization";
 import { Pagination, Song } from "../types";
 import { musicService, SongListParams, SongPayload } from "../services/musicService";
 
@@ -64,6 +65,10 @@ function songMatchesList(song: Song, search: string, filters: SongListParams): b
   if (!matchesSearch) return false;
   if (filters.artistId && song.artistId !== filters.artistId) return false;
   if (filters.originalKey && song.originalKey !== filters.originalKey) return false;
+  if (filters.tags?.length) {
+    const names = new Set((song.tags ?? []).map((tag) => normalizeCatalogText(tag)));
+    if (!filters.tags.some((tag) => names.has(normalizeCatalogText(tag)))) return false;
+  }
   return true;
 }
 
@@ -121,6 +126,7 @@ export const useMusicStore = create<MusicState>((set) => ({
       page,
       filters.artistId ?? "",
       filters.originalKey ?? "",
+      ...(filters.tags ?? []).map((tag) => normalizeCatalogText(tag)),
       mutationVersion,
     ]);
     const shouldRefresh = Boolean(options?.refresh) || useMusicStore.getState().songs.length > 0;

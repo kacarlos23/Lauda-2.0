@@ -70,6 +70,8 @@ model Tenant {
   schedules           Schedule[]
   worshipOrders       WorshipOrder[]
   songs               Song[]
+  songTags            SongTag[]
+  songTagAssignments  SongTagAssignment[]
   artists             Artist[]
   memberInvites       MemberInvite[]
   instruments         Instrument[]
@@ -590,6 +592,7 @@ model Song {
 
   ministries MinistrySong[]
   schedules  ScheduleSong[]
+  tags       SongTagAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -597,6 +600,38 @@ model Song {
   @@unique([tenantId, artistId, normalizedTitle])
   @@index([tenantId, normalizedTitle])
   @@index([tenantId, artistId])
+}
+
+model SongTag {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  songs SongTagAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, normalizedName])
+  @@index([tenantId, name])
+}
+
+model SongTagAssignment {
+  songId String
+  song   Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  tagId String
+  tag   SongTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([songId, tagId])
+  @@index([tenantId, tagId])
+  @@index([tenantId, songId])
 }
 
 model Artist {

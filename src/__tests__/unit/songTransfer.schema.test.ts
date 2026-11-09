@@ -22,11 +22,28 @@ describe("songTransfer schemas", () => {
     expect(parsed.songs[0].content).toBe("G       C\nTexto editado");
     expect(() => songTransferDocumentSchema.parse({ ...document, songs: [{ ...document.songs[0], content: "\uFEFF\u200B" }] })).toThrow("texto visível");
   });
-  it("aceita somente os cinco campos portáteis da música", () => {
+  it("rejeita campos que não fazem parte do catálogo portátil", () => {
     expect(songTransferDocumentSchema.parse(document)).toEqual(document);
     expect(() => songTransferDocumentSchema.parse({
       ...document,
       songs: [{ ...document.songs[0], comments: "não deve atravessar ministérios" }],
+    })).toThrow();
+  });
+
+  it("aceita temas opcionais e mantém arquivos sem o campo", () => {
+    expect(songTransferDocumentSchema.parse(document).songs[0].tags).toBeUndefined();
+    const parsed = songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: [" Adoração ", "adoração", "Natal"] }],
+    });
+    expect(parsed.songs[0].tags).toEqual(["Adoração", "Natal"]);
+    expect(() => songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: [""] }],
+    })).toThrow();
+    expect(() => songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: ["tema, com vírgula"] }],
     })).toThrow();
   });
 

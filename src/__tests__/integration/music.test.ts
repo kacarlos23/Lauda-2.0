@@ -25,7 +25,9 @@ async function cleanDatabase() {
   await prisma.schedule.deleteMany();
   await prisma.ministryMember.deleteMany();
   await prisma.ministrySong.deleteMany();
+  await prisma.songTagAssignment.deleteMany();
   await prisma.song.deleteMany();
+  await prisma.songTag.deleteMany();
   await prisma.artist.deleteMany();
   await prisma.instrument.deleteMany();
   await prisma.ministry.deleteMany();
@@ -613,6 +615,126 @@ describe("Artists and songs API", () => {
     const normalRoute = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
       .send({ data: "x".repeat(4 * 1024 * 1024) }).expect(413);
     expect(normalRoute.body.code).toBe("PAYLOAD_TOO_LARGE");
+  });
+
+  it("cria, edita e filtra temas da música sem vazar entre igrejas", async () => {
+    const tenant = await register("song-tags");
+    const other = await register("song-tags-other");
+    const memberToken = await member(tenant.token, "song-tags-member", "MEMBER");
+    const artist = await createArtist(tenant.token);
+    const otherArtist = await createArtist(other.token, "Outra voz");
+
+    const created = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), tags: ["  Adoração  ", "adoração", "Natal"] }).expect(201);
+    expect(created.body.data.tags).toEqual(["Adoração", "Natal"]);
+    const id = created.body.data.id as string;
+
+    const second = await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Batismo nas águas", tags: [" natal ", "Batismo"] }).expect(201);
+    expect(second.body.data.tags).toEqual(["Batismo", "Natal"]);
+    expect(await prisma.songTag.count({ where: { tenantId: (await prisma.song.findUniqueOrThrow({ where: { id } })).tenantId, normalizedName: "natal" } })).toBe(1);
+
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Sem tema" }).expect(201);
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${other.token}`)
+      .send({ ...songPayload(otherArtist.id), title: "Natal de outra igreja", tags: ["Natal"] }).expect(201);
+
+    await request(app).patch(`/api/songs/${id}`).send({ tags: ["Gratidão"] }).expect(401);
+    await request(app).patch(`/api/songs/${id}`).set("Authorization", `Bearer ${memberToken}`).send({ tags: ["Gratidão"] }).expect(403);
+    await request(app).patch(`/api/songs/${id}`).set("Authorization", `Bearer ${other.token}`).send({ tags: ["Gratidão"] }).expect(404);
+    await request(app).get("/api/songs/tags").expect(401);
+    await request(app).get("/api/songs?tags=Natal").expect(401);
+
+    const kept = await request(app).patch(`/api/songs/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ bpm: 110 }).expect(200);
+    expect(kept.body.data).toMatchObject({ bpm: 110, tags: ["Adoração", "Natal"] });
+
+    const replaced = await request(app).patch(`/api/songs/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ tags: ["Gratidão"] }).expect(200);
+    expect(replaced.body.data.tags).toEqual(["Gratidão"]);
+
+    const anyTheme = await request(app).get("/api/songs").query({ tags: ["Gratidão", "Batismo"] })
+      .set("Authorization", `Bearer ${memberToken}`).expect(200);
+    expect(anyTheme.body.data.items.map((song: { title: string }) => song.title).sort()).toEqual(["Batismo nas águas", "Pra sempre"]);
+
+    const comma = await request(app).get("/api/songs?tags=Batismo,Inexistente")
+      .set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(comma.body.data.items.map((song: { id: string }) => song.id)).toEqual([second.body.data.id]);
+
+    const otherList = await request(app).get("/api/songs?tags=Natal").set("Authorization", `Bearer ${other.token}`).expect(200);
+    expect(otherList.body.data.items.map((song: { title: string }) => song.title)).toEqual(["Natal de outra igreja"]);
+
+    const catalog = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${memberToken}`).expect(200);
+    expect(catalog.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Batismo", "Gratidão", "Natal"]);
+    const otherCatalog = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${other.token}`).expect(200);
+    expect(otherCatalog.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Natal"]);
+    expect(otherCatalog.body.data.items[0].id).not.toBe(catalog.body.data.items.find((tag: { name: string }) => tag.name === "Natal").id);
+
+    const cleared = await request(app).patch(`/api/songs/${id}`).set("Authorization", `Bearer ${tenant.token}`)
+      .send({ tags: [] }).expect(200);
+    expect(cleared.body.data.tags).toEqual([]);
+    const afterClear = await request(app).get("/api/songs/tags").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(afterClear.body.data.items.map((tag: { name: string }) => tag.name)).toEqual(["Batismo", "Natal"]);
+
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Tema inválido", tags: [" "] }).expect(400);
+    await request(app).post("/api/songs").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...songPayload(artist.id), title: "Tema longo", tags: ["a".repeat(41)] }).expect(400);
+  });
+
+  it("importa e exporta temas opcionais e preserva catálogos sem o campo", async () => {
+    const tenant = await register("song-tag-transfer");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const legacy = {
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{ title: "Sem tema", artist: "JMM", originalKey: "G", content: "[G]Sem tema", cifraUrl: null }],
+    };
+    const legacyPreview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: legacy }).expect(200);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: legacy, documentHash: legacyPreview.body.data.documentHash }).expect(201);
+    const legacyExport = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id }).expect(200);
+    expect(legacyExport.body).toEqual(legacy);
+
+    const tagged = {
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{ title: "Com tema", artist: "JMM", originalKey: "A", content: "[A]Com tema", cifraUrl: null, tags: ["  Natal  ", "Adoração", "adoração"] }],
+    };
+    const preview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: tagged }).expect(200);
+    expect(preview.body.data.counts.CREATE).toBe(1);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: tagged, documentHash: preview.body.data.documentHash }).expect(201);
+
+    const listed = await request(app).get("/api/songs?tags=Natal").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(listed.body.data.items.map((song: { title: string; tags: string[] }) => ({ title: song.title, tags: song.tags })))
+      .toEqual([{ title: "Com tema", tags: ["Adoração", "Natal"] }]);
+
+    const exported = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id }).expect(200);
+    expect(exported.body.songs).toEqual([
+      { title: "Com tema", artist: "JMM", originalKey: "A", content: "[A]Com tema", cifraUrl: null, tags: ["Adoração", "Natal"] },
+      legacy.songs[0],
+    ]);
+
+    const withoutTags = {
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{ title: "Com tema", artist: "JMM", originalKey: "A", content: "[A]Com tema", cifraUrl: null }],
+    };
+    const again = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withoutTags }).expect(200);
+    expect(again.body.data.counts.ALREADY_LINKED).toBe(1);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: withoutTags, documentHash: again.body.data.documentHash }).expect(201);
+    const still = await request(app).get("/api/songs?tags=Adoração").set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(still.body.data.items[0].tags).toEqual(["Adoração", "Natal"]);
+
+    await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ministryId: ministry.id, document: { ...legacy, songs: [{ ...legacy.songs[0], tags: [""] }] } }).expect(400);
   });
 
 

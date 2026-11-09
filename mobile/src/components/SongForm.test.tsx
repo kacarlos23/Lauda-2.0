@@ -66,6 +66,7 @@ jest.mock("../services/musicService", () => ({
     importCifraClub: jest.fn(),
     listArtists: jest.fn(),
     createArtist: jest.fn(),
+    listSongTags: jest.fn().mockResolvedValue([]),
   },
 }));
 
@@ -87,6 +88,31 @@ describe("SongForm Cifra Club import", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it("envia os temas marcados e um tema próprio da igreja", async () => {
+    mockedMusicService.listSongTags.mockResolvedValueOnce([{ id: "tag-1", name: "Culto de jovens" }]);
+    const onSave = jest.fn().mockResolvedValue("song-1");
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<SongForm saving={false} onSave={onSave} backHref="/songs" />);
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "artist-picker" }).props.onPress();
+      renderer!.root.findByProps({ testID: "song-title-input" }).props.onChangeText("Noite de Natal");
+      renderer!.root.findByProps({ testID: "song-tag-Natal" }).props.onPress();
+      renderer!.root.findByProps({ testID: "song-tag-Culto de jovens" }).props.onPress();
+    });
+    act(() => renderer!.root.findByProps({ testID: "song-next-button" }).props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-chord-input" }).props.onChangeText("[G]Noite"));
+    await act(async () => renderer!.root.findByProps({ testID: "song-save-button" }).props.onPress());
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Noite de Natal",
+      tags: ["Natal", "Culto de jovens"],
+    }));
   });
 
   it("exige ao menos artista ou título antes de buscar", async () => {

@@ -90,6 +90,20 @@ describe("musicService", () => {
     });
   });
 
+  it("envia temas da listagem em um único parâmetro e carrega o catálogo da igreja", async () => {
+    const data = { items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data } });
+    await musicService.listSongs("", 1, 20, { tags: ["Natal", "Adoração"] });
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs", {
+      params: { tags: "Natal,Adoração", search: "", page: 1, limit: 20 },
+      signal: undefined,
+    });
+
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { items: [{ id: "tag-1", name: "Natal" }] } } });
+    await expect(musicService.listSongTags()).resolves.toEqual([{ id: "tag-1", name: "Natal" }]);
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/tags");
+  });
+
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
     mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
 

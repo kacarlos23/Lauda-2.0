@@ -22,13 +22,17 @@ export type SongPayload = {
   letraUrl?: string | null;
   audioUrl?: string | null;
   videoUrl?: string | null;
+  tags?: string[];
 };
 
 export type SongListParams = {
   artistId?: string;
   originalKey?: MusicalKey;
   ministryId?: string;
+  tags?: string[];
 };
+
+export type SongTagOption = { id: string; name: string };
 
 export type PortableSong = {
   title: string;
@@ -36,6 +40,7 @@ export type PortableSong = {
   originalKey: MusicalKey;
   content: string;
   cifraUrl?: string | null;
+  tags?: string[];
 };
 
 export type SongTransferDocument = {
@@ -171,12 +176,26 @@ export const musicService = {
 
   async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams, signal?: AbortSignal): Promise<Paginated<Song>> {
     try {
+      const { tags, ...rest } = filters ?? {};
       const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", {
-        params: { ...filters, search, page, limit },
+        params: {
+          ...rest,
+          ...(tags?.length ? { tags: tags.join(",") } : {}),
+          search,
+          page,
+          limit,
+        },
         signal,
       });
       return { ...response.data.data, items: response.data.data.items.map(normalizeSongContent) };
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
+  },
+
+  async listSongTags(): Promise<SongTagOption[]> {
+    try {
+      const response = await api.get<ApiResponse<{ items: SongTagOption[] }>>("/songs/tags");
+      return response.data.data.items;
+    } catch (error) { apiError(error, "Não foi possível carregar os temas."); }
   },
 
   async getSong(id: string): Promise<Song> {

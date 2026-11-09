@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prepareSongTags, SONG_TAG_NAME_MAX, SONG_TAGS_MAX } from "../constants/songTags";
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 import { richTextCommentsSchema } from "./richText.schema";
 import { normalizeChordText } from "../utils/chordText";
@@ -15,11 +16,31 @@ export const MUSICAL_KEYS = [
 
 export const songIdSchema = z.object({ id: z.string().uuid("ID da música inválido") });
 
+export const songTagNameSchema = z.string()
+  .trim()
+  .min(1, "Informe o nome do tema")
+  .max(SONG_TAG_NAME_MAX, "O tema deve ter no máximo 40 caracteres")
+  .refine((value) => !value.includes(","), "O tema não pode conter vírgula");
+
+export const songTagsSchema = z.array(songTagNameSchema)
+  .max(SONG_TAGS_MAX, "Uma música pode ter no máximo 12 temas")
+  .transform((tags) => prepareSongTags(tags).map((tag) => tag.name));
+
+const songTagFilterSchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parts = (Array.isArray(value) ? value : [value]).flatMap((item) => {
+    if (Array.isArray(item)) return item.flatMap((part) => String(part).split(","));
+    return String(item).split(",");
+  }).map((item) => item.trim()).filter(Boolean);
+  return parts.length ? parts : undefined;
+}, songTagsSchema.optional());
+
 export const songListSchema = z.object({
   search: z.string().trim().max(100).default(""),
   artistId: z.string().uuid("ID do artista inválido").optional(),
   originalKey: z.enum(MUSICAL_KEYS, "Tom inválido").optional(),
   ministryId: z.string().uuid("ID do ministério inválido").optional(),
+  tags: songTagFilterSchema,
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -57,6 +78,7 @@ export const createSongSchema = z.object({
   letraUrl: externalLinkSchema,
   audioUrl: externalLinkSchema,
   videoUrl: youtubeVideoUrlSchema,
+  tags: songTagsSchema.optional(),
 });
 
 export const updateSongSchema = createSongSchema.partial().refine(

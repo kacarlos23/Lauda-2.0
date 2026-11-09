@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { ConflictError, NotFoundError, SongsUnavailableError } from "../errors/AppError";
 import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
+import { prepareSongTags } from "../constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
 import { CreateSongInput, SongListInput, UpdateSongInput } from "../validators/song.schema";
 import { normalizeChordText, normalizeSongContent } from "../utils/chordText";
@@ -24,6 +25,10 @@ export class SongService {
         totalPages: Math.ceil(result.total / input.limit),
       },
     };
+  }
+
+  listTags() {
+    return this.repository.listTags().then((items) => ({ items }));
   }
 
   async get(id: string) {
@@ -50,7 +55,7 @@ export class SongService {
         audioUrl: input.audioUrl ?? null,
         videoUrl: input.videoUrl ?? null,
         userId: this.userId,
-      });
+      }, prepareSongTags(input.tags ?? []));
     } catch (error) {
       this.handleConflict(error);
     }
@@ -74,7 +79,7 @@ export class SongService {
         ...(input.audioUrl !== undefined ? { audioUrl: input.audioUrl } : {}),
         ...(input.videoUrl !== undefined ? { videoUrl: input.videoUrl } : {}),
         updatedById: this.userId,
-      });
+      }, input.tags === undefined ? undefined : prepareSongTags(input.tags));
       if (!song) throw new NotFoundError("Música não encontrada");
       return normalizeSongContent(song);
     } catch (error) {

@@ -24,6 +24,7 @@ import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
 import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
+import { SongTagList, SongTagPicker } from "../../../src/components/songs/SongTagPicker";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
 import {
   AppInput,
@@ -83,21 +84,27 @@ const TEXT = {
 type SongFilterState = {
   artist: Artist | null;
   originalKey?: MusicalKey;
+  tags: string[];
 };
 
 type Feedback = { message: string; tone: FeedbackTone };
 
-const emptyFilters = (): SongFilterState => ({ artist: null, originalKey: undefined });
+const emptyFilters = (): SongFilterState => ({ artist: null, originalKey: undefined, tags: [] });
 
 function toQueryFilters(filters: SongFilterState): SongListParams {
   return {
     ...(filters.artist ? { artistId: filters.artist.id } : {}),
     ...(filters.originalKey ? { originalKey: filters.originalKey } : {}),
+    ...(filters.tags.length ? { tags: filters.tags } : {}),
   };
 }
 
+function sameTags(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((tag, index) => tag === right[index]);
+}
+
 function filtersEqual(left: SongFilterState, right: SongFilterState): boolean {
-  return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey;
+  return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey && sameTags(left.tags, right.tags);
 }
 
 function totalLabel(total: number): string {
@@ -154,6 +161,7 @@ export default function SongsScreen() {
   const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
   const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
+  const [knownTags, setKnownTags] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const searchRef = useRef(search);
   const pageRef = useRef(page);
@@ -186,9 +194,16 @@ export default function SongsScreen() {
     });
   }, [loadSongs]);
 
+  const loadKnownTags = useCallback(() => {
+    void musicService.listSongTags()
+      .then((items) => setKnownTags(items.map((item) => item.name)))
+      .catch(() => undefined);
+  }, []);
+
   useFocusEffect(useCallback(() => {
     loadVisibleSongs();
-  }, [loadVisibleSongs]));
+    loadKnownTags();
+  }, [loadVisibleSongs, loadKnownTags]));
 
   useEffect(() => {
     if (!didMountSearchRef.current) {
@@ -221,7 +236,8 @@ export default function SongsScreen() {
     if (handledInvalidationRef.current === listInvalidationVersion) return;
     handledInvalidationRef.current = listInvalidationVersion;
     loadVisibleSongs(true);
-  }, [listInvalidationVersion, loadVisibleSongs]);
+    loadKnownTags();
+  }, [listInvalidationVersion, loadVisibleSongs, loadKnownTags]);
 
   useEffect(() => {
     if (!selectedSongs.size || !songs.length) return;
@@ -230,9 +246,9 @@ export default function SongsScreen() {
 
   const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
   const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
-  const activeFilters = Boolean(filters.artist || filters.originalKey);
+  const activeFilters = Boolean(filters.artist || filters.originalKey || filters.tags.length);
   const canApplyFilters = !filtersEqual(filters, draftFilters);
-  const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
+  const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey || draftFilters.tags.length);
   const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
   const compactLinkActions = contentWidth > 0 && contentWidth < 600;
 
@@ -368,6 +384,15 @@ export default function SongsScreen() {
           placeholder="Buscar artista"
           testID="song-filter-artist-input"
         />
+        <FilterSection title="Temas">
+          <SongTagPicker
+            selected={draftFilters.tags}
+            extraOptions={knownTags}
+            onChange={(tags) => setDraftFilters((current) => ({ ...current, tags }))}
+            label={null}
+            hint="Mostra músicas com qualquer tema marcado."
+          />
+        </FilterSection>
         <FilterSection title="Tom original">
           {MUSICAL_KEYS.map((key) => (
             <Chip
@@ -479,6 +504,10 @@ export default function SongsScreen() {
                 style={styles.filterButton}
               />
             </View>
+
+            {filters.tags.length ? (
+              <SongTagList tags={filters.tags} />
+            ) : null}
 
             <ErrorBanner
               message={error}

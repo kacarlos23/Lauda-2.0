@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Check, Square, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
 import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
+import { SongTagList } from "./SongTagPicker";
 import {
   colors,
   controlSizes,
@@ -59,6 +60,7 @@ export function SongListRow({
         <Text style={styles.meta} numberOfLines={1}>
           {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
         </Text>
+        <SongTagList tags={song.tags} limit={3} />
       </View>
       {!selectionMode && hasSongLinks(song) ? (
         <View style={styles.linkActions} testID={`song-actions-${song.id}`}>

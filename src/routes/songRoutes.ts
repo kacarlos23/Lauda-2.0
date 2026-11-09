@@ -7,6 +7,7 @@ const controller = new SongController();
 
 router.use(authMiddleware);
 router.get("/", requirePermission("song:view"), (req, res) => controller.list(req, res));
+router.get("/tags", requirePermission("song:view"), (req, res) => controller.listTags(req, res));
 router.get("/cifra-club/search", requirePermission("song:create"), (req, res) => controller.searchCifraClub(req, res));
 router.post("/cifra-club/import", requirePermission("song:create"), (req, res) => controller.importCifraClub(req, res));
 router.post("/export", requirePermission("song:view"), (req, res) => controller.export(req, res));

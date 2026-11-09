@@ -1,6 +1,6 @@
 import { uiPatterns } from "./ui/patterns";
 import { InputControl as TextInput } from "./ui/InputControl";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
@@ -27,6 +27,7 @@ import { nav } from "../navigation/routes";
 import { canonicalizeYouTubeUrl, extractYouTubeVideoId } from "../utils/youtube";
 import { normalizeChordText } from "../../../src/utils/chordText";
 import { reviewChordText } from "../utils/chordText";
+import { SongTagPicker } from "./songs/SongTagPicker";
 import { VisualChordEditor } from "./songs/VisualChordEditor";
 
 type Props = {
@@ -77,6 +78,8 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [audioUrl, setAudioUrl] = useState(initial?.audioUrl ?? "");
   const [videoUrl, setVideoUrl] = useState(initial?.videoUrl ?? "");
   const [comments, setComments] = useState(initial?.comments ?? "");
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [knownTags, setKnownTags] = useState<string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [cifraClubModalVisible, setCifraClubModalVisible] = useState(false);
   const [cifraClubLoading, setCifraClubLoading] = useState(false);
@@ -85,14 +88,15 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   const [cifraClubResults, setCifraClubResults] = useState<CifraClubSearchResult[]>([]);
   const [cifraClubPreview, setCifraClubPreview] = useState<CifraClubImportResult | null>(null);
 
-  const formValue = { artist, artistQuery, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments, step };
+  const formValue = { artist, artistQuery, title, composer, originalKey, content, bpm, cifraUrl, letraUrl, audioUrl, videoUrl, comments, tags, step };
   const formExit = useFormExit({
     id: `song:${initial?.id ?? "new"}`,
     value: formValue,
     restore: (value) => {
       setArtist(value.artist); setArtistQuery(value.artistQuery); setTitle(value.title); setComposer(value.composer);
       setOriginalKey(value.originalKey); changeContent(normalizeChordText(value.content)); setBpm(value.bpm); setCifraUrl(value.cifraUrl);
-      setLetraUrl(value.letraUrl); setAudioUrl(value.audioUrl); setVideoUrl(value.videoUrl); setComments(value.comments); setStep(value.step);
+      setLetraUrl(value.letraUrl); setAudioUrl(value.audioUrl); setVideoUrl(value.videoUrl); setComments(value.comments);
+      setTags(value.tags ?? []); setStep(value.step);
       setFormError(null);
     },
     save: () => save(),
@@ -102,6 +106,14 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
     && !extractYouTubeVideoId(initial.videoUrl)
     && videoUrl.trim() === initial.videoUrl.trim()
   );
+  useEffect(() => {
+    let active = true;
+    musicService.listSongTags()
+      .then((items) => { if (active) setKnownTags(items.map((item) => item.name)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const videoUrlInvalid = Boolean(
     videoUrl.trim()
     && !extractYouTubeVideoId(videoUrl)
@@ -257,6 +269,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           ? {}
           : { videoUrl: normalizedVideoUrl ? canonicalizeYouTubeUrl(normalizedVideoUrl) : null }),
         comments: comments || null,
+        tags,
       });
       const left = await formExit.complete(initial ? formValue : undefined);
       if (!left) setTimeout(() => router.replace(nav.songDetail(songId)), 0);
@@ -357,6 +370,13 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
           </View>
           <Text style={styles.label}>BPM</Text>
           <TextInput accessibilityLabel="BPM" style={styles.input} value={bpm} onChangeText={setBpm} placeholder="Opcional (30 a 300)" placeholderTextColor={colors.muted} keyboardType="number-pad" testID="song-bpm-input" />
+          <SongTagPicker
+            selected={tags}
+            extraOptions={knownTags}
+            onChange={setTags}
+            allowCustom
+            hint="Opcional. As sugestões não são obrigatórias; a igreja guarda só os temas que usar."
+          />
           <Text style={styles.sectionTitle}>Links externos</Text>
           <Text style={styles.helperText}>Adicione links opcionais de cifra, letra, áudio e um vídeo do YouTube.</Text>
           <Text style={styles.label}>Cifra</Text>

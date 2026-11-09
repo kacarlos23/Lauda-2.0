@@ -27,6 +27,10 @@ export class SongController extends BaseController {
     this.handleSuccess(res, await this.service(req).list(songListSchema.parse(req.query)));
   }
 
+  async listTags(req: Request, res: Response) {
+    this.handleSuccess(res, await this.service(req).listTags());
+  }
+
   async get(req: Request, res: Response) {
     const { id } = songIdSchema.parse(req.params);
     this.handleSuccess(res, await this.service(req).get(id));

@@ -62,6 +62,10 @@ const SongRequestSchema = registry.register(
       description: "URL opcional de um vídeo individual do YouTube. Formas watch, youtu.be, shorts, embed e live são aceitas e armazenadas no formato canônico.",
       example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     }),
+    tags: z.array(z.string().min(1).max(40)).max(12).optional().meta({
+      description: "Temas da música neste tenant. A omissão preserva os temas atuais na edição.",
+      example: ["Adoração", "Natal"],
+    }),
   })
 );
 
@@ -73,6 +77,10 @@ const PortableSongSchema = registry.register(
     originalKey: z.enum(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm"]),
     content: z.string().min(1).max(100000),
     cifraUrl: z.string().url().nullable().optional(),
+    tags: z.array(z.string().min(1).max(40)).max(12).optional().meta({
+      description: "Temas opcionais. Arquivos antigos sem este campo continuam válidos. Na exportação, a lista é omitida quando a música não tem temas.",
+      example: ["Adoração", "Natal"],
+    }),
   }),
 );
 
@@ -421,8 +429,21 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get", path: "/api/songs", summary: "Busca músicas e cifras do tenant", security: [{ bearerAuth: [] }],
-  request: { query: z.object({ search: z.string().optional(), artistId: z.string().uuid().optional(), ministryId: z.string().uuid().optional(), page: z.coerce.number().optional(), limit: z.coerce.number().optional() }) },
+  request: { query: z.object({
+    search: z.string().optional(),
+    artistId: z.string().uuid().optional(),
+    ministryId: z.string().uuid().optional(),
+    tags: z.union([z.string(), z.array(z.string())]).optional().meta({
+      description: "Um ou mais temas. A música entra se tiver qualquer um deles. Aceita o parâmetro repetido ou uma lista separada por vírgula.",
+    }),
+    page: z.coerce.number().optional(),
+    limit: z.coerce.number().optional(),
+  }) },
   responses: { 200: { description: "Lista paginada de músicas." } },
+});
+registry.registerPath({
+  method: "get", path: "/api/songs/tags", summary: "Lista os temas já usados nas músicas do tenant", security: [{ bearerAuth: [] }],
+  responses: { 200: { description: "Temas da igreja, sem incluir sugestões ainda não usadas." }, 401: { description: "Não autenticado." }, 403: { description: "Sem permissão para ver músicas." } },
 });
 registry.registerPath({
   method: "post", path: "/api/songs", summary: "Cria música e cifra", security: [{ bearerAuth: [] }],

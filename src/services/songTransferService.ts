@@ -1,9 +1,11 @@
 import { normalizeChordText } from "../utils/chordText";
 import { createHash } from "node:crypto";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError";
 import { prisma } from "../repositories/prismaClient";
+import { prepareSongTags, sortSongTagNames } from "../constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
+import { replaceSongTags } from "../repositories/songTagRepository";
 import {
   PortableSong,
   SongTransferCommitInput,
@@ -74,6 +76,7 @@ export class SongTransferService {
             content: true,
             cifraUrl: true,
             artist: { select: { name: true } },
+            tags: { select: { tag: { select: { name: true } } } },
           },
         },
       },
@@ -88,13 +91,17 @@ export class SongTransferService {
     return {
       format: "lauda.music-catalog",
       version: 1,
-      songs: links.map(({ song }) => ({
-        title: song.title,
-        artist: song.artist.name,
-        originalKey: song.originalKey as PortableSong["originalKey"],
-        content: normalizeChordText(song.content),
-        cifraUrl: song.cifraUrl,
-      })),
+      songs: links.map(({ song }) => {
+        const tags = sortSongTagNames(song.tags.map((link) => link.tag.name));
+        return {
+          title: song.title,
+          artist: song.artist.name,
+          originalKey: song.originalKey as PortableSong["originalKey"],
+          content: normalizeChordText(song.content),
+          cifraUrl: song.cifraUrl,
+          ...(tags.length ? { tags } : {}),
+        };
+      }),
     };
   }
 
@@ -238,6 +245,8 @@ export class SongTransferService {
             select: { id: true, title: true, originalKey: true, content: true, cifraUrl: true, isActive: true, deletedAt: true, artist: { select: { name: true, normalizedName: true } }, ministries: { where: { ministryId: input.ministryId }, select: { isActive: true, deletedAt: true } } },
           }) as ExistingSong;
           counts.created += 1;
+          const tags = prepareSongTags(incoming.tags ?? []);
+          if (tags.length) await replaceSongTags(tx as unknown as Prisma.TransactionClient, tenantId, song.id, tags);
         } else if (!song.isActive || song.deletedAt) {
           song = await tx.song.update({
             where: { id: song.id },
