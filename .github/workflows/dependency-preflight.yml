@@ -1,0 +1,64 @@
+name: Dependency preflight
+
+on:
+  push:
+    branches:
+      - security/dependency-preflight-20261110
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Refresh compatible dependency versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEP_PREFLIGHT_DIR="$RUNNER_TEMP/lauda-dependency-preflight"
+          mkdir -p "$DEP_PREFLIGHT_DIR"
+          npm view fast-uri@3.1.9 version --json
+          npm view brace-expansion@5.0.12 version --json
+          npm pkg set 'overrides.fast-uri=3.1.9'
+          npm --prefix mobile pkg set 'overrides.fast-uri=3.1.9' 'overrides.brace-expansion=5.0.12'
+          for component in backend mobile; do
+            project=.
+            if [ "$component" = mobile ]; then project=mobile; fi
+            (
+              cd "$project"
+              npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+              status=0
+              npm audit fix --package-lock-only --ignore-scripts --no-fund --json > "$DEP_PREFLIGHT_DIR/$component-fix.json" || status=$?
+              echo "$component audit fix exited $status"
+              node -e 'const f = require(process.argv[1]); if (f.error) { console.error(f.error.summary || f.error.code); process.exit(1); }' "$DEP_PREFLIGHT_DIR/$component-fix.json"
+            )
+          done
+      - name: Audit the resolved versions
+        env:
+          SECURITY_ARTIFACT_DIR: ${{ runner.temp }}/lauda-dependency-preflight/reports
+        run: npm run security:dependencies -- --gate
+      - name: Collect generated manifests and lockfiles
+        if: always()
+        shell: bash
+        run: |
+          DEP_PREFLIGHT_DIR="$RUNNER_TEMP/lauda-dependency-preflight"
+          mkdir -p "$DEP_PREFLIGHT_DIR/candidate/mobile"
+          cp package.json package-lock.json "$DEP_PREFLIGHT_DIR/candidate/"
+          cp mobile/package.json mobile/package-lock.json "$DEP_PREFLIGHT_DIR/candidate/mobile/"
+          git diff --stat
+      - name: Upload the preflight evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-preflight
+          path: ${{ runner.temp }}/lauda-dependency-preflight
+          if-no-files-found: error
+          retention-days: 3
