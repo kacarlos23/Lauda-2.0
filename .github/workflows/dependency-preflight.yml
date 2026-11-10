@@ -27,8 +27,12 @@ jobs:
           mkdir -p "$DEP_PREFLIGHT_DIR"
           npm view fast-uri@3.1.9 version --json
           npm view brace-expansion@5.0.12 version --json
-          npm pkg set 'overrides.fast-uri=3.1.9'
-          npm --prefix mobile pkg set 'overrides.fast-uri=3.1.9' 'overrides.brace-expansion=5.0.12'
+          npm pkg set 'overrides.fast-uri=3.1.9' 'dependencies.nodemailer=^10.1.4' \
+            'dependencies.@prisma/client=^7.10.1' 'dependencies.@prisma/adapter-pg=^7.10.1' 'devDependencies.prisma=^7.10.1'
+          npm --prefix mobile pkg set 'overrides.fast-uri=3.1.9' 'overrides.brace-expansion=5.0.12' \
+            'overrides.compression=1.8.2' 'overrides.expo-router.query-string=9.4.2' 'overrides.metro.image-size=2.0.3'
+          npm view query-string@9.4.2 dependencies --json
+          npm view image-size@2.0.3 exports --json
           for component in backend mobile; do
             project=.
             if [ "$component" = mobile ]; then project=mobile; fi
@@ -45,6 +49,25 @@ jobs:
         env:
           SECURITY_ARTIFACT_DIR: ${{ runner.temp }}/lauda-dependency-preflight/reports
         run: npm run security:dependencies -- --gate
+      - name: Check installed mobile versions and Expo SDK
+        working-directory: mobile
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          npm ci
+          npm ls expo expo-router react-native query-string decode-uri-component image-size
+          npx expo install --check
+      - name: Build the staging web bundle
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
+          EXPO_PUBLIC_APP_ENV: staging
+          EXPO_NO_DOTENV: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-staging-web"
+          node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-staging-web"
       - name: Collect generated manifests and lockfiles
         if: always()
         shell: bash
@@ -53,6 +76,7 @@ jobs:
           mkdir -p "$DEP_PREFLIGHT_DIR/candidate/mobile"
           cp package.json package-lock.json "$DEP_PREFLIGHT_DIR/candidate/"
           cp mobile/package.json mobile/package-lock.json "$DEP_PREFLIGHT_DIR/candidate/mobile/"
+          git diff --no-color --no-ext-diff -- package.json package-lock.json mobile/package.json mobile/package-lock.json > "$DEP_PREFLIGHT_DIR/candidate.patch"
           git diff --stat
       - name: Upload the preflight evidence
         if: always()
@@ -60,5 +84,12 @@ jobs:
         with:
           name: dependency-preflight
           path: ${{ runner.temp }}/lauda-dependency-preflight
+          if-no-files-found: error
+          retention-days: 3
+      - name: Retain the validated staging web bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-staging-web
+          path: ${{ runner.temp }}/lauda-staging-web
           if-no-files-found: error
           retention-days: 3
