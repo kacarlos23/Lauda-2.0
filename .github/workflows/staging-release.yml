@@ -17,9 +17,6 @@ jobs:
     timeout-minutes: 35
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/lauda_ci
-      EXPO_NO_DOTENV: "1"
-      EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
-      EXPO_PUBLIC_APP_ENV: staging
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -49,8 +46,16 @@ jobs:
           npm ci
           npm test -- --runInBand
           npx tsc --noEmit
-          EXPO_OVERRIDE_METRO_CONFIG="$PWD/metro.transfer-staging.config.cjs" npx expo export --platform web --output-dir dist
+      - name: Export staging web
+        working-directory: mobile
+        env:
+          EXPO_NO_DOTENV: "1"
+          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
+          EXPO_PUBLIC_APP_ENV: staging
+        run: EXPO_OVERRIDE_METRO_CONFIG="$PWD/metro.transfer-staging.config.cjs" npx expo export --platform web --output-dir dist
       - name: Prepare release manifests
+        env:
+          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
         run: |
           node scripts/validate-frontend-api.cjs --dist mobile/dist --expected-api-url "$EXPO_PUBLIC_API_URL"
           node scripts/staging-deploy/package.cjs

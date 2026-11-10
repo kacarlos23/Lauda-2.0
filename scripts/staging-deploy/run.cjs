@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
 const { spawn } = require("node:child_process");
 const { once } = require("node:events");
 const { randomBytes, createHash } = require("node:crypto");
@@ -15,7 +16,7 @@ const STAGING = publisher.environment(ROOT, "staging");
 const REPO = "kacarlos23/Lauda-2.0";
 const PUBLIC = "https://testes.laudaapp.com";
 const RELEASE_WORKFLOW = ".github/workflows/staging-release.yml";
-const STAGING_CONFIG = path.join(process.env.USERPROFILE, ".codex", "worktrees",
+const STAGING_CONFIG = path.join(os.homedir(), ".codex", "worktrees",
   "public-test-environment", "Lauda 2.0", "scripts", "public-test-config.cjs");
 const SECRET = path.join(WORK, "admin.dpapi");
 const STATE = path.join(WORK, "state.json");
@@ -252,7 +253,7 @@ function stageArtifacts(directory, id) {
 }
 
 async function restoreCode(previous, outcome, id) {
-  if ((await publicManifest()).sourceHash === previous.sourceHash) return;
+  if (publisher.readJson(path.join(STAGING.web, "release.json")).sourceHash === previous.sourceHash) return;
   if (outcome.status !== "completed" || !Array.isArray(outcome.data?.backups)) {
     throw new Error("Verify the publisher result and retained release directories before recovery");
   }
