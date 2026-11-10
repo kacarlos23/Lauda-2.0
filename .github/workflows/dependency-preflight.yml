@@ -1,4 +1,4 @@
-name: Package staging backend
+name: Validate the staging navigation bundle
 
 on:
   push:
@@ -9,13 +9,15 @@ permissions:
   contents: read
 
 jobs:
-  package:
-    runs-on: windows-latest
-    timeout-minutes: 18
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
     env:
-      DATABASE_URL: postgresql://lauda_stage_check@127.0.0.1:5432/lauda_compile
-      LAUDA_STAGE_COMMIT: 93e1c52d652d7ff60d97ca5935e2eebd61f7b726
-      LAUDA_STAGE_API: https://testes.laudaapp.com/api
+      LAUDA_STAGE_COMMIT: 16ad9faa9facedd08e257fe443f03d67682b48a3
+      EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
+      EXPO_PUBLIC_APP_ENV: staging
+      EXPO_NO_DOTENV: '1'
+      EXPO_NO_TELEMETRY: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -24,23 +26,20 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Compile the audited backend
+      - name: Install and check the Expo SDK
+        working-directory: mobile
         run: |
           npm ci
-          npx prisma generate
-          npm run build
-      - name: Install the locked runtime for Windows
-        shell: pwsh
+          npx expo install --check
+      - name: Export the staging web bundle
+        working-directory: mobile
         run: |
-          $candidateDir = Join-Path $env:RUNNER_TEMP 'lauda-stage-backend'
-          New-Item -ItemType Directory -Path $candidateDir | Out-Null
-          Copy-Item -LiteralPath 'package.json','package-lock.json' -Destination $candidateDir
-          npm --prefix "$candidateDir" ci --omit=dev --ignore-scripts --no-audit --no-fund
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Assemble and validate the candidate
-        shell: pwsh
+          node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-staging-web"
+          node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-staging-web"
+      - name: Write the staging manifest
+        shell: bash
         run: |
-          @'
+          node <<'NODE'
           const assert = require("node:assert/strict");
           const fs = require("node:fs");
           const path = require("node:path");
@@ -50,46 +49,28 @@ jobs:
           const commit = git("rev-parse", "HEAD").toString().trim();
           assert.equal(commit, process.env.LAUDA_STAGE_COMMIT);
           const environment = "staging";
-          const apiUrl = process.env.LAUDA_STAGE_API;
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+          const sourceTree = git("rev-parse", "HEAD^{tree}").toString().trim();
           const sourceHash = crypto.createHash("sha256").update(git("ls-tree", "-rz", "HEAD"))
             .update(JSON.stringify({ environment, apiUrl })).digest("hex");
-          const sourceTree = git("rev-parse", "HEAD^{tree}").toString().trim();
-          const target = path.join(process.env.RUNNER_TEMP, "lauda-stage-backend");
-          const modules = path.join(target, "node_modules");
-          fs.cpSync("dist", target, { recursive: true });
-          const client = path.join(modules, ".prisma", "client");
-          fs.mkdirSync(path.dirname(client), { recursive: true });
-          fs.cpSync(path.resolve("node_modules/.prisma/client"), client, { recursive: true });
-          const prisma = require(path.join(modules, "@prisma/client"));
-          assert.equal(prisma.Prisma.ModelName.SongTagAssignment, "SongTagAssignment");
-          assert.ok(fs.existsSync(path.join(target, "server.js")));
-          const lock = JSON.parse(fs.readFileSync(path.join(target, "package-lock.json"), "utf8")).packages;
-          const versions = {};
-          for (const name of ["@prisma/client", "@prisma/adapter-pg", "nodemailer", "proxy-addr", "zod"]) {
-            const actual = JSON.parse(fs.readFileSync(path.join(modules, name, "package.json"), "utf8")).version;
-            assert.equal(actual, lock["node_modules/" + name].version);
-            versions[name] = actual;
-          }
-          const mailer = require(path.join(modules, "nodemailer"));
-          const transport = mailer.createTransport({ streamTransport: true, buffer: true });
-          (async () => {
-            const message = await transport.sendMail({ from: "fixture@example.com", to: "recipient@example.com", subject: "Lauda staging fixture", text: "Dependency verification" });
-            assert.match(message.message.toString(), /Dependency verification/);
-            const manifest = {
-              environment, apiUrl, commit, backendCommit: commit, sourceTree, sourceHash,
-              builtAt: new Date().toISOString(), runtimeVersions: versions,
-              validation: { windowsBackend: true, prismaClient: true, mailStream: true, dependencyPreflight: 42878762777 },
-            };
-            fs.writeFileSync(path.join(target, "release.json"), JSON.stringify(manifest, null, 2) + "\n");
-            console.log(JSON.stringify({ commit, sourceHash, versions }));
-          })().catch(error => { console.error(error); process.exitCode = 1; });
-          '@ | node -
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Retain the Windows backend candidate
+          const manifest = {
+            environment, apiUrl, commit, backendCommit: commit, sourceTree, sourceHash,
+            backendBuiltFrom: "93e1c52d652d7ff60d97ca5935e2eebd61f7b726", builtAt: new Date().toISOString(),
+            validation: { webBuild: true, expoSdkCheck: true, dependencyPR: 26 },
+          };
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "lauda-staging-web", "release.json"), JSON.stringify(manifest, null, 2) + "\n");
+          console.log(JSON.stringify({ commit, sourceHash }));
+          NODE
+      - name: Retain the staging web candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: dependency-staging-backend
-          path: ${{ runner.temp }}/lauda-stage-backend
-          include-hidden-files: true
+          name: dependency-staging-web-compatible
+          path: ${{ runner.temp }}/lauda-staging-web
           if-no-files-found: error
           retention-days: 3
+      - name: Export the Android and iOS bundles
+        working-directory: mobile
+        run: |
+          for platform in android ios; do
+            node node_modules/expo/bin/cli export --platform "$platform" --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-native/$platform"
+          done
