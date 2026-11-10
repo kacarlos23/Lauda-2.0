@@ -29,9 +29,23 @@ jobs:
           npm view brace-expansion@5.0.12 version --json
           npm pkg set 'overrides.fast-uri=3.1.9' 'dependencies.nodemailer=^10.1.4' \
             'dependencies.@prisma/client=^7.10.1' 'dependencies.@prisma/adapter-pg=^7.10.1' 'devDependencies.prisma=^7.10.1'
-          npm --prefix mobile pkg set 'overrides.fast-uri=3.1.9' 'overrides.brace-expansion=5.0.12' \
-            'overrides.compression=1.8.2' 'overrides.expo-router.query-string=9.4.2' 'overrides.metro.image-size=2.0.3'
-          npm view query-string@9.4.2 dependencies --json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const manifest = 'mobile/package.json';
+          const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+          Object.assign(pkg.overrides, {
+            'fast-uri': '3.1.9',
+            'brace-expansion': '5.0.12',
+            compression: '1.8.2',
+            'expo-router': {
+              'query-string': { '.': '9.4.1', 'decode-uri-component': '0.5.1' },
+            },
+            metro: { 'image-size': '2.0.3' },
+          });
+          fs.writeFileSync(manifest, JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+          npm view query-string@9.4.1 dependencies type exports --json
+          npm view decode-uri-component@0.5.1 type exports --json
           npm view image-size@2.0.3 exports --json
           for component in backend mobile; do
             project=.
@@ -58,6 +72,8 @@ jobs:
           npm ci
           npm ls expo expo-router react-native query-string decode-uri-component image-size
           npx expo install --check
+          node -e 'const a = require("node:assert/strict"); const qs = require("query-string").default; a.equal(qs.parse("tema=Ceia%20e%20Natal").tema, "Ceia e Natal"); console.log("Query string decoding verified");'
+          node -e 'const fs = require("node:fs"); const path = require("node:path"); const source = path.join(path.dirname(require.resolve("metro/package.json")), "src/Assets.js"); for (const line of fs.readFileSync(source, "utf8").split("\n")) if (/image-size|getImageSize/.test(line)) console.log(line);'
       - name: Build the staging web bundle
         working-directory: mobile
         env:
