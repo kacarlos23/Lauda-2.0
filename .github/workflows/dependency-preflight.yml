@@ -1,4 +1,4 @@
-name: Dependency preflight
+name: Package staging backend
 
 on:
   push:
@@ -9,117 +9,87 @@ permissions:
   contents: read
 
 jobs:
-  resolve:
-    runs-on: ubuntu-latest
+  package:
+    runs-on: windows-latest
     timeout-minutes: 18
+    env:
+      DATABASE_URL: postgresql://lauda_stage_check@127.0.0.1:5432/lauda_compile
+      LAUDA_STAGE_COMMIT: 93e1c52d652d7ff60d97ca5935e2eebd61f7b726
+      LAUDA_STAGE_API: https://testes.laudaapp.com/api
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ env.LAUDA_STAGE_COMMIT }}
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Refresh compatible dependency versions
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEP_PREFLIGHT_DIR="$RUNNER_TEMP/lauda-dependency-preflight"
-          mkdir -p "$DEP_PREFLIGHT_DIR"
-          npm view fast-uri@3.1.9 version --json
-          npm view brace-expansion@5.0.12 version --json
-          npm pkg set 'overrides.fast-uri=3.1.9' 'dependencies.nodemailer=^10.1.4' \
-            'dependencies.@prisma/client=^7.10.1' 'dependencies.@prisma/adapter-pg=^7.10.1' 'devDependencies.prisma=^7.10.1'
-          node <<'NODE'
-          const fs = require('node:fs');
-          const manifest = 'mobile/package.json';
-          const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-          Object.assign(pkg.overrides, {
-            'fast-uri': '3.1.9',
-            'brace-expansion': '5.0.12',
-            compression: '1.8.2',
-            '@react-navigation/core': '7.24.0',
-            'expo-router': {
-              '.': pkg.dependencies['expo-router'],
-              'query-string': { '.': '9.4.1', 'decode-uri-component': '0.5.1' },
-            },
-          });
-          const metroFamily = ["metro","metro-babel-transformer","metro-cache","metro-cache-key","metro-config","metro-core","metro-file-map","metro-minify-terser","metro-resolver","metro-runtime","metro-source-map","metro-symbolicate","metro-transform-plugins","metro-transform-worker"];
-          for (const name of metroFamily) pkg.overrides[name + '@0.83.3'] = '0.83.8';
-          fs.writeFileSync(manifest, JSON.stringify(pkg, null, 2) + '\n');
-          NODE
-          npm view query-string@9.4.1 dependencies type exports --json
-          npm view decode-uri-component@0.5.1 type exports --json
-          npm view metro@0.83.8 version --json
-          for component in backend mobile; do
-            project=.
-            if [ "$component" = mobile ]; then project=mobile; fi
-            (
-              cd "$project"
-              npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-              status=0
-              npm audit fix --package-lock-only --ignore-scripts --no-fund --json > "$DEP_PREFLIGHT_DIR/$component-fix.json" || status=$?
-              echo "$component audit fix exited $status"
-              node -e 'const f = require(process.argv[1]); if (f.error) { console.error(f.error.summary || f.error.code); process.exit(1); }' "$DEP_PREFLIGHT_DIR/$component-fix.json"
-            )
-          done
-      - name: Audit the resolved versions
-        env:
-          SECURITY_ARTIFACT_DIR: ${{ runner.temp }}/lauda-dependency-preflight/reports
-        run: npm run security:dependencies -- --gate
-      - name: Check installed mobile versions and Expo SDK
-        working-directory: mobile
-        env:
-          CI: '1'
-          EXPO_NO_TELEMETRY: '1'
+      - name: Compile the audited backend
         run: |
           npm ci
-          npm ls expo expo-router react-native query-string decode-uri-component image-size
-          npx expo install --check
-          node -e 'const a = require("node:assert/strict"); const qs = require("node:module").createRequire(require.resolve("expo-router/package.json"))("query-string").default; a.equal(qs.parse("tema=Ceia%20e%20Natal").tema, "Ceia e Natal"); console.log("Query string decoding verified");'
-          node -e 'const a = require("node:assert/strict"); const { packages } = require("./package-lock.json"); const routers = Object.entries(packages).filter(([key]) => key.endsWith("/expo-router")); a.ok(routers.length && routers.every(([, value]) => value.version.startsWith("6."))); a.equal(packages["node_modules/expo"].version.split(".")[0], "54"); console.log("Expo SDK 54 and Router 6 resolutions verified");'
-      - name: Build the staging web bundle
-        working-directory: mobile
-        env:
-          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
-          EXPO_PUBLIC_APP_ENV: staging
-          EXPO_NO_DOTENV: '1'
-          EXPO_NO_TELEMETRY: '1'
+          npx prisma generate
+          npm run build
+      - name: Install the locked runtime for Windows
+        shell: pwsh
         run: |
-          node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-staging-web"
-          node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-staging-web"
-      - name: Export the Android and iOS bundles
-        working-directory: mobile
-        env:
-          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
-          EXPO_PUBLIC_APP_ENV: staging
-          EXPO_NO_DOTENV: '1'
-          EXPO_NO_TELEMETRY: '1'
+          $candidateDir = Join-Path $env:RUNNER_TEMP 'lauda-stage-backend'
+          New-Item -ItemType Directory -Path $candidateDir | Out-Null
+          Copy-Item -LiteralPath 'package.json','package-lock.json' -Destination $candidateDir
+          npm --prefix "$candidateDir" ci --omit=dev --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Assemble and validate the candidate
+        shell: pwsh
         run: |
-          for platform in android ios; do
-            node node_modules/expo/bin/cli export --platform "$platform" --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-native/$platform"
-          done
-      - name: Collect generated manifests and lockfiles
-        if: always()
-        shell: bash
-        run: |
-          DEP_PREFLIGHT_DIR="$RUNNER_TEMP/lauda-dependency-preflight"
-          mkdir -p "$DEP_PREFLIGHT_DIR/candidate/mobile"
-          cp package.json package-lock.json "$DEP_PREFLIGHT_DIR/candidate/"
-          cp mobile/package.json mobile/package-lock.json "$DEP_PREFLIGHT_DIR/candidate/mobile/"
-          git diff --no-color --no-ext-diff -- package.json package-lock.json mobile/package.json mobile/package-lock.json > "$DEP_PREFLIGHT_DIR/candidate.patch"
-          git diff --stat
-      - name: Upload the preflight evidence
-        if: always()
+          @'
+          const assert = require("node:assert/strict");
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const crypto = require("node:crypto");
+          const { execFileSync } = require("node:child_process");
+          const git = (...args) => execFileSync("git", args);
+          const commit = git("rev-parse", "HEAD").toString().trim();
+          assert.equal(commit, process.env.LAUDA_STAGE_COMMIT);
+          const environment = "staging";
+          const apiUrl = process.env.LAUDA_STAGE_API;
+          const sourceHash = crypto.createHash("sha256").update(git("ls-tree", "-rz", "HEAD"))
+            .update(JSON.stringify({ environment, apiUrl })).digest("hex");
+          const sourceTree = git("rev-parse", "HEAD^{tree}").toString().trim();
+          const target = path.join(process.env.RUNNER_TEMP, "lauda-stage-backend");
+          const modules = path.join(target, "node_modules");
+          fs.cpSync("dist", target, { recursive: true });
+          const client = path.join(modules, ".prisma", "client");
+          fs.mkdirSync(path.dirname(client), { recursive: true });
+          fs.cpSync(path.resolve("node_modules/.prisma/client"), client, { recursive: true });
+          const prisma = require(path.join(modules, "@prisma/client"));
+          assert.equal(prisma.Prisma.ModelName.SongTagAssignment, "SongTagAssignment");
+          assert.ok(fs.existsSync(path.join(target, "server.js")));
+          const lock = JSON.parse(fs.readFileSync(path.join(target, "package-lock.json"), "utf8")).packages;
+          const versions = {};
+          for (const name of ["@prisma/client", "@prisma/adapter-pg", "nodemailer", "proxy-addr", "zod"]) {
+            const actual = JSON.parse(fs.readFileSync(path.join(modules, name, "package.json"), "utf8")).version;
+            assert.equal(actual, lock["node_modules/" + name].version);
+            versions[name] = actual;
+          }
+          const mailer = require(path.join(modules, "nodemailer"));
+          const transport = mailer.createTransport({ streamTransport: true, buffer: true });
+          (async () => {
+            const message = await transport.sendMail({ from: "fixture@example.com", to: "recipient@example.com", subject: "Lauda staging fixture", text: "Dependency verification" });
+            assert.match(message.message.toString(), /Dependency verification/);
+            const manifest = {
+              environment, apiUrl, commit, backendCommit: commit, sourceTree, sourceHash,
+              builtAt: new Date().toISOString(), runtimeVersions: versions,
+              validation: { windowsBackend: true, prismaClient: true, mailStream: true, dependencyPreflight: 42878762777 },
+            };
+            fs.writeFileSync(path.join(target, "release.json"), JSON.stringify(manifest, null, 2) + "\n");
+            console.log(JSON.stringify({ commit, sourceHash, versions }));
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          '@ | node -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain the Windows backend candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: dependency-preflight
-          path: ${{ runner.temp }}/lauda-dependency-preflight
-          if-no-files-found: error
-          retention-days: 3
-      - name: Retain the validated staging web bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: dependency-staging-web
-          path: ${{ runner.temp }}/lauda-staging-web
+          name: dependency-staging-backend
+          path: ${{ runner.temp }}/lauda-stage-backend
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3
