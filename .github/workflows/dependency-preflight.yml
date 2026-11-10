@@ -1,4 +1,4 @@
-name: Validate the staging navigation bundle
+name: Verify the public staging release
 
 on:
   push:
@@ -9,68 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  export:
+  smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 16
-    env:
-      LAUDA_STAGE_COMMIT: 16ad9faa9facedd08e257fe443f03d67682b48a3
-      EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
-      EXPO_PUBLIC_APP_ENV: staging
-      EXPO_NO_DOTENV: '1'
-      EXPO_NO_TELEMETRY: '1'
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: ${{ env.LAUDA_STAGE_COMMIT }}
-          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Install and check the Expo SDK
-        working-directory: mobile
-        run: |
-          npm ci
-          npx expo install --check
-      - name: Export the staging web bundle
-        working-directory: mobile
-        run: |
-          node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-staging-web"
-          node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-staging-web"
-      - name: Write the staging manifest
+      - name: Verify the public release and API
         shell: bash
         run: |
           node <<'NODE'
           const assert = require("node:assert/strict");
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const crypto = require("node:crypto");
-          const { execFileSync } = require("node:child_process");
-          const git = (...args) => execFileSync("git", args);
-          const commit = git("rev-parse", "HEAD").toString().trim();
-          assert.equal(commit, process.env.LAUDA_STAGE_COMMIT);
-          const environment = "staging";
-          const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-          const sourceTree = git("rev-parse", "HEAD^{tree}").toString().trim();
-          const sourceHash = crypto.createHash("sha256").update(git("ls-tree", "-rz", "HEAD"))
-            .update(JSON.stringify({ environment, apiUrl })).digest("hex");
-          const manifest = {
-            environment, apiUrl, commit, backendCommit: commit, sourceTree, sourceHash,
-            backendBuiltFrom: "93e1c52d652d7ff60d97ca5935e2eebd61f7b726", builtAt: new Date().toISOString(),
-            validation: { webBuild: true, expoSdkCheck: true, dependencyPR: 26 },
-          };
-          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "lauda-staging-web", "release.json"), JSON.stringify(manifest, null, 2) + "\n");
-          console.log(JSON.stringify({ commit, sourceHash }));
+          const { createHash } = require("node:crypto");
+          const root = "https://testes.laudaapp.com";
+          const expected = {"asset":"/_expo/static/js/web/index-3800975d5da413646c555df641b847c3.js","assetSha256":"b5fc986c44b2f83875ff9eb4387ea1edb0132dd2322963700ebad672343cbf19","commit":"16ad9faa9facedd08e257fe443f03d67682b48a3","sourceHash":"324927187ce4868d5fccf168339ec1877314fb697820f09506e044dd53b6d261","apiUrl":"https://testes.laudaapp.com/api"};
+          async function get(path, status) {
+            const response = await fetch(root + path, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(15000) });
+            assert.equal(response.status, status, path + " HTTP " + response.status);
+            return response;
+          }
+          (async () => {
+            const [release, health, login] = await Promise.all([
+              get("/release.json?verification=" + expected.commit, 200),
+              get("/health", 200),
+              get("/login", 200),
+              get("/api/songs/tags", 401),
+            ]);
+            const manifest = await release.json();
+            assert.equal(manifest.environment, "staging");
+            assert.equal(manifest.commit, expected.commit);
+            assert.equal(manifest.sourceHash, expected.sourceHash);
+            assert.equal(manifest.apiUrl, expected.apiUrl);
+            assert.equal((await health.json()).status, "ok");
+            assert.ok((await login.text()).includes(expected.asset));
+            const bundle = await get(expected.asset, 200);
+            assert.equal(createHash("sha256").update(Buffer.from(await bundle.arrayBuffer())).digest("hex"), expected.assetSha256);
+            console.log(JSON.stringify({ environment: "staging", commit: manifest.commit, sourceHash: manifest.sourceHash, health: 200, login: 200, protectedCatalog: 401, bundle: "verified" }));
+          })().catch(error => { console.error(error.message); process.exitCode = 1; });
           NODE
-      - name: Retain the staging web candidate
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: dependency-staging-web-compatible
-          path: ${{ runner.temp }}/lauda-staging-web
-          if-no-files-found: error
-          retention-days: 3
-      - name: Export the Android and iOS bundles
-        working-directory: mobile
-        run: |
-          for platform in android ios; do
-            node node_modules/expo/bin/cli export --platform "$platform" --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-native/$platform"
-          done
