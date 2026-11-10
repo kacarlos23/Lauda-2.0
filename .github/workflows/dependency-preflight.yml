@@ -39,7 +39,7 @@ jobs:
             compression: '1.8.2',
             '@react-navigation/core': '7.24.0',
             'expo-router': {
-              '.': '$expo-router',
+              '.': pkg.dependencies['expo-router'],
               'query-string': { '.': '9.4.1', 'decode-uri-component': '0.5.1' },
             },
           });
