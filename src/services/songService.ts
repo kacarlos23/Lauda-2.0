@@ -2,8 +2,9 @@ import { Prisma } from "@prisma/client";
 import { ConflictError, NotFoundError, SongsUnavailableError } from "../errors/AppError";
 import { ArtistRepository } from "../repositories/artistRepository";
 import { SongRepository } from "../repositories/songRepository";
+import { prepareSongTags } from "../constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../utils/catalogNormalization";
-import { CreateSongInput, SongListInput, UpdateSongInput } from "../validators/song.schema";
+import { CreateSongInput, SongListInput, SongScopeInput, SongTagBatchInput, SongTagChangeInput, UpdateSongInput } from "../validators/song.schema";
 import { normalizeChordText, normalizeSongContent } from "../utils/chordText";
 
 export class SongService {
@@ -14,7 +15,7 @@ export class SongService {
   ) {}
 
   async list(input: SongListInput) {
-    const result = await this.repository.list(input, normalizeCatalogText(input.search));
+    const result = await this.repository.list(input);
     return {
       items: result.items.map(normalizeSongContent),
       pagination: {
@@ -24,6 +25,18 @@ export class SongService {
         totalPages: Math.ceil(result.total / input.limit),
       },
     };
+  }
+
+  listTags(input: SongScopeInput) {
+    return this.repository.listTags(input);
+  }
+
+  changeTag(id: string, input: SongTagChangeInput) {
+    return this.repository.changeTag(id, this.userId, input);
+  }
+
+  changeTags(input: SongTagBatchInput) {
+    return this.repository.changeTags(this.userId, input);
   }
 
   async get(id: string) {
@@ -50,7 +63,7 @@ export class SongService {
         audioUrl: input.audioUrl ?? null,
         videoUrl: input.videoUrl ?? null,
         userId: this.userId,
-      });
+      }, prepareSongTags(input.tags ?? []));
     } catch (error) {
       this.handleConflict(error);
     }
@@ -74,7 +87,7 @@ export class SongService {
         ...(input.audioUrl !== undefined ? { audioUrl: input.audioUrl } : {}),
         ...(input.videoUrl !== undefined ? { videoUrl: input.videoUrl } : {}),
         updatedById: this.userId,
-      });
+      }, input.tags === undefined ? undefined : prepareSongTags(input.tags));
       if (!song) throw new NotFoundError("Música não encontrada");
       return normalizeSongContent(song);
     } catch (error) {

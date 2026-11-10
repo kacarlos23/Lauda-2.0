@@ -90,6 +90,41 @@ describe("musicService", () => {
     });
   });
 
+  it("envia temas da listagem em um único parâmetro e carrega o catálogo da igreja", async () => {
+    const data = { items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data } });
+    await musicService.listSongs("", 1, 20, { tags: ["Natal", "Adoração"] });
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs", {
+      params: { tags: "Natal,Adoração", search: "", page: 1, limit: 20 },
+      signal: undefined,
+    });
+
+    const counts = { items: [{ id: "tag-1", name: "Natal", count: 2 }], untaggedCount: 4 };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: counts } });
+    await expect(musicService.listSongTagCounts("#natal", { artistId: "artist-1", tags: ["Natal"], untagged: true })).resolves.toEqual(counts);
+    expect(mockedApi.get).toHaveBeenLastCalledWith("/songs/tags", {
+      params: { search: "#natal", artistId: "artist-1", originalKey: undefined, ministryId: undefined },
+      signal: undefined,
+    });
+  });
+
+  it("altera apenas um tema por requisição de edição rápida", async () => {
+    const change = { id: "song-1", tags: ["Natal"] };
+    mockedApi.patch.mockResolvedValueOnce({ data: { success: true, data: change } });
+    await expect(musicService.changeSongTheme("song-1", "add", "Natal")).resolves.toEqual(change);
+    expect(mockedApi.patch).toHaveBeenCalledWith("/songs/song-1/tags", { operation: "add", name: "Natal" });
+  });
+
+  it("mantém a listagem compatível com respostas de temas sem contagens", async () => {
+    const items = [{ id: "tag-1", name: "Natal" }];
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: { items } } });
+    await expect(musicService.listSongTagCounts()).resolves.toEqual({
+      items: [{ ...items[0], count: 0 }], untaggedCount: 0,
+    });
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data: [] } });
+    await expect(musicService.listSongTagCounts()).resolves.toEqual({ items: [], untaggedCount: 0 });
+  });
+
   it("envia somente os filtros preenchidos na busca do Cifra Club", async () => {
     mockedApi.get.mockResolvedValue({ data: { data: { items: [] } } });
 

@@ -7,6 +7,7 @@ const controller = new SongController();
 
 router.use(authMiddleware);
 router.get("/", requirePermission("song:view"), (req, res) => controller.list(req, res));
+router.get("/tags", requirePermission("song:view"), (req, res) => controller.listTags(req, res));
 router.get("/cifra-club/search", requirePermission("song:create"), (req, res) => controller.searchCifraClub(req, res));
 router.post("/cifra-club/import", requirePermission("song:create"), (req, res) => controller.importCifraClub(req, res));
 router.post("/export", requirePermission("song:view"), (req, res) => controller.export(req, res));
@@ -15,6 +16,8 @@ router.post("/data-import/preview", requirePermission("song:import"), (req, res)
 router.post("/data-import/commit", requirePermission("song:import"), (req, res) => controller.commitDataImport(req, res));
 router.get("/:id", requirePermission("song:view"), (req, res) => controller.get(req, res));
 router.post("/", requirePermission("song:create"), (req, res) => controller.create(req, res));
+router.patch("/tags/batch", requirePermission("song:edit"), (req, res) => controller.changeTags(req, res));
+router.patch("/:id/tags", requirePermission("song:edit"), (req, res) => controller.changeTag(req, res));
 router.patch("/:id", requirePermission("song:edit"), (req, res) => controller.update(req, res));
 router.delete("/:id", requirePermission("song:delete"), (req, res) => controller.delete(req, res));
 

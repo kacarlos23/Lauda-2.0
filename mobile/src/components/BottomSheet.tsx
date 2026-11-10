@@ -7,9 +7,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  type StyleProp,
   Text,
   View,
   useWindowDimensions,
+  type ViewStyle,
 } from "react-native";
 import {
   colors,
@@ -36,11 +38,12 @@ interface BottomSheetProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   presentation?: "sheet" | "modal";
+  sheetStyle?: StyleProp<ViewStyle>;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet" }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet", sheetStyle }: BottomSheetProps) {
   const dimensions = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 390 };
   const wide = dimensions.width >= breakpoints.mobile;
   const fixedModal = presentation === "modal";
@@ -127,7 +130,7 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
         </Animated.View>
         
         <Animated.View
-          style={[styles.sheet, (wide || fixedModal) && styles.sheetWide, !fixedModal && { transform: [{ translateY }] }]}
+          style={[styles.sheet, (wide || fixedModal) && styles.sheetWide, !fixedModal && { transform: [{ translateY }] }, sheetStyle]}
         >
           {!fixedModal && <View style={styles.dragHandleTouch} {...panResponder.panHandlers}>
             <View style={styles.dragHandle} />

@@ -271,6 +271,7 @@ export interface Song {
   videoUrl?: string | null;
   artistId: string;
   artist: Pick<Artist, "id" | "name" | "imageUrl">;
+  tags?: string[];
   isActive?: boolean;
   deletedAt?: string | null;
   createdAt: string;

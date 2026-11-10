@@ -1,6 +1,7 @@
 import {
   songTransferCommitSchema,
   songTransferDocumentSchema,
+  songTransferExportSchema,
   songTransferPreviewSchema,
 } from "../../validators/songTransfer.schema";
 
@@ -22,11 +23,43 @@ describe("songTransfer schemas", () => {
     expect(parsed.songs[0].content).toBe("G       C\nTexto editado");
     expect(() => songTransferDocumentSchema.parse({ ...document, songs: [{ ...document.songs[0], content: "\uFEFF\u200B" }] })).toThrow("texto visível");
   });
-  it("aceita somente os cinco campos portáteis da música", () => {
+  it("rejeita campos que não fazem parte do catálogo portátil", () => {
     expect(songTransferDocumentSchema.parse(document)).toEqual(document);
     expect(() => songTransferDocumentSchema.parse({
       ...document,
-      songs: [{ ...document.songs[0], comments: "não deve atravessar ministérios" }],
+      songs: [{ ...document.songs[0], privateNote: "não deve atravessar ministérios" }],
+    })).toThrow();
+  });
+
+  it("aceita catálogo parcial e valida a escolha de campos e de músicas existentes", () => {
+    const partial = songTransferDocumentSchema.parse({
+      format: "lauda.music-catalog",
+      version: 1,
+      songs: [{ title: "Já existe", artist: "JMM", tags: ["Natal"], bpm: 96, comments: "Olá" }],
+    });
+    expect(partial.songs[0]).toMatchObject({ tags: ["Natal"], bpm: 96, comments: "Olá" });
+    expect(partial.songs[0].originalKey).toBeUndefined();
+    const ministryId = "7d5748e1-3a21-4a3f-b9a6-812983343a77";
+    expect(songTransferExportSchema.parse({ ministryId, fields: ["tags"] }).fields).toEqual(["tags"]);
+    expect(songTransferPreviewSchema.parse({ ministryId, document, existing: "skip" }).existing).toBe("skip");
+    expect(() => songTransferExportSchema.parse({ ministryId, fields: [] })).toThrow();
+    expect(() => songTransferPreviewSchema.parse({ ministryId, document, existing: "merge" })).toThrow();
+  });
+
+  it("aceita temas opcionais e mantém arquivos sem o campo", () => {
+    expect(songTransferDocumentSchema.parse(document).songs[0].tags).toBeUndefined();
+    const parsed = songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: [" Adoração ", "adoração", "Natal"] }],
+    });
+    expect(parsed.songs[0].tags).toEqual(["Adoração", "Natal"]);
+    expect(() => songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: [""] }],
+    })).toThrow();
+    expect(() => songTransferDocumentSchema.parse({
+      ...document,
+      songs: [{ ...document.songs[0], tags: ["tema, com vírgula"] }],
     })).toThrow();
   });
 

@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { SONG_TRANSFER_FIELDS } from "../../../src/constants/songTransferFields";
 
 const ministryId = "11111111-1111-4111-8111-111111111111";
+const transferOptions = { fields: [...SONG_TRANSFER_FIELDS], existing: "create" };
 const catalog = {
   format: "lauda.music-catalog", version: 1,
-  songs: [{ title: "Canção de adoração", artist: "Louvor", originalKey: "Am", content: "Am Dm E\nAdoração e louvor", cifraUrl: null }],
+  songs: [{ title: "Canção de adoração", artist: "Louvor", originalKey: "Am", content: "Am Dm E\nAdoração e louvor", cifraUrl: null, tags: ["Adoração", "Natal"] }],
 };
 
 async function setup(page: Page) {
@@ -21,9 +23,10 @@ async function setup(page: Page) {
     if (path === "/api/ministries") {
       await route.fulfill({ json: { success: true, data: [{ id: ministryId, name: "Louvor da manhã" }] } });
     } else if (path === "/api/songs/data-export") {
+      expect(route.request().postDataJSON()).toEqual({ ministryId, fields: transferOptions.fields });
       await route.fulfill({ contentType: "application/json; charset=utf-8", body: JSON.stringify(catalog, null, 2) });
     } else if (path === "/api/songs/data-import/preview") {
-      expect(route.request().postDataJSON()).toEqual({ ministryId, document: catalog });
+      expect(route.request().postDataJSON()).toEqual({ ministryId, document: catalog, ...transferOptions });
       await route.fulfill({ json: { success: true, data: {
         documentHash: "a".repeat(64), total: 1, unique: 1,
         counts: { CREATE: 1, LINK: 0, RESTORE: 0, ALREADY_LINKED: 0, CONFLICT: 0, INVALID: 0 },
@@ -32,7 +35,7 @@ async function setup(page: Page) {
     } else if (path === "/api/songs/data-import/commit") {
       commits.push(route.request().postDataJSON());
       await route.fulfill({ status: 201, json: { success: true, data: {
-        created: 1, linked: 1, restored: 0, alreadyLinked: 0, conflicts: 0, invalid: 0, total: 1, documentHash: "a".repeat(64),
+        created: 1, updated: 0, skipped: 0, linked: 1, restored: 0, alreadyLinked: 0, conflicts: 0, invalid: 0, total: 1, documentHash: "a".repeat(64),
       } } });
     } else if (path === "/api/songs" || path === "/api/artists") {
       await route.fulfill({ json: { success: true, data: { items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } } } });
@@ -71,8 +74,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     expect(commits).toHaveLength(0);
     await page.getByRole("button", { name: "Importar 1 músicas", exact: true }).click();
     await page.getByRole("button", { name: "Importar", exact: true }).click();
-    await expect(page.getByText("1 músicas criadas; 1 vínculos adicionados; 0 restauradas. 0 já vinculadas.", { exact: true })).toBeVisible();
-    expect(commits).toEqual([{ ministryId, document: catalog, documentHash: "a".repeat(64) }]);
+    await expect(page.getByText("1 músicas criadas; 0 atualizadas; 1 vínculos adicionados; 0 restauradas. 0 já vinculadas; 0 ignoradas.", { exact: true })).toBeVisible();
+    expect(commits).toEqual([{ ministryId, document: catalog, documentHash: "a".repeat(64), ...transferOptions }]);
   });
 }
 

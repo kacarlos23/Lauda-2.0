@@ -4,6 +4,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { api } from "./api";
+import { SongTransferExistingMode, SongTransferField } from "../../../src/constants/songTransferFields";
 import { Artist, MusicalKey, Pagination, Song } from "../types";
 
 type ApiResponse<T> = { success: boolean; data: T };
@@ -22,20 +23,40 @@ export type SongPayload = {
   letraUrl?: string | null;
   audioUrl?: string | null;
   videoUrl?: string | null;
+  tags?: string[];
 };
 
 export type SongListParams = {
   artistId?: string;
   originalKey?: MusicalKey;
   ministryId?: string;
+  tags?: string[];
+  untagged?: boolean;
 };
+
+export type SongTagOption = { id: string; name: string };
+export type SongTagCounts = { items: Array<SongTagOption & { count: number }>; untaggedCount: number };
+export type SongThemeOperation = "add" | "remove";
+export type SongThemeChange = { id: string; tags: string[] };
+export type SongThemeBatchResult = { items: SongThemeChange[]; updated: number };
 
 export type PortableSong = {
   title: string;
   artist: string;
-  originalKey: MusicalKey;
-  content: string;
+  originalKey?: MusicalKey;
+  content?: string;
+  bpm?: number | null;
   cifraUrl?: string | null;
+  letraUrl?: string | null;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
+  comments?: string | null;
+  tags?: string[];
+};
+
+export type SongTransferOptions = {
+  fields?: SongTransferField[];
+  existing?: SongTransferExistingMode;
 };
 
 export type SongTransferDocument = {
@@ -44,7 +65,7 @@ export type SongTransferDocument = {
   songs: PortableSong[];
 };
 
-export type SongTransferPreviewStatus = "CREATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "CONFLICT" | "INVALID";
+export type SongTransferPreviewStatus = "CREATE" | "UPDATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "SKIPPED" | "CONFLICT" | "INVALID";
 export type SongTransferPreview = {
   documentHash: string;
   total: number;
@@ -55,8 +76,10 @@ export type SongTransferPreview = {
 
 export type SongTransferResult = {
   created: number;
+  updated?: number;
   linked: number;
   restored: number;
+  skipped?: number;
   alreadyLinked: number;
   conflicts: number;
   invalid: number;
@@ -171,12 +194,59 @@ export const musicService = {
 
   async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams, signal?: AbortSignal): Promise<Paginated<Song>> {
     try {
+      const { tags, ...rest } = filters ?? {};
       const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", {
-        params: { ...filters, search, page, limit },
+        params: {
+          ...rest,
+          ...(tags?.length ? { tags: tags.join(",") } : {}),
+          search,
+          page,
+          limit,
+        },
         signal,
       });
       return { ...response.data.data, items: response.data.data.items.map(normalizeSongContent) };
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
+  },
+
+  async listSongTags(): Promise<SongTagOption[]> {
+    return (await musicService.listSongTagCounts()).items;
+  },
+
+  async listSongTagCounts(
+    search = "",
+    { artistId, originalKey, ministryId }: SongListParams = {},
+    signal?: AbortSignal,
+  ): Promise<SongTagCounts> {
+    try {
+      const response = await api.get<ApiResponse<SongTagCounts>>("/songs/tags", {
+        params: { search, artistId, originalKey, ministryId },
+        signal,
+      });
+      const { items = [], untaggedCount = 0 } = response.data.data ?? {};
+      return { items: items.map(({ count = 0, ...tag }) => ({ ...tag, count })), untaggedCount };
+    } catch (error) { apiError(error, "Não foi possível carregar os temas."); }
+  },
+
+  async changeSongTheme(songId: string, operation: SongThemeOperation, name: string): Promise<SongThemeChange> {
+    try {
+      const response = await api.patch<ApiResponse<SongThemeChange>>(`/songs/${songId}/tags`, { operation, name });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível salvar o tema."); }
+  },
+
+  async changeSongThemes(
+    songIds: string[],
+    operation: SongThemeOperation,
+    tagIds: string[],
+    newTags: string[] = [],
+  ): Promise<SongThemeBatchResult> {
+    try {
+      const response = await api.patch<ApiResponse<SongThemeBatchResult>>("/songs/tags/batch", {
+        songIds, operation, tagIds, ...(newTags.length ? { newTags } : {}),
+      });
+      return response.data.data;
+    } catch (error) { apiError(error, "Não foi possível aplicar os temas."); }
   },
 
   async getSong(id: string): Promise<Song> {
@@ -253,9 +323,12 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível exportar as cifras."); }
   },
 
-  async exportSongData(ministryId: string, ministryName: string): Promise<void> {
+  async exportSongData(ministryId: string, ministryName: string, options?: SongTransferOptions): Promise<void> {
     try {
-      const response = await api.post<SongTransferDocument>("/songs/data-export", { ministryId }, { timeout: 120_000 });
+      const response = await api.post<SongTransferDocument>("/songs/data-export", {
+        ministryId,
+        ...(options?.fields ? { fields: options.fields } : {}),
+      }, { timeout: 120_000 });
       const content = JSON.stringify(response.data, null, 2);
       const safeMinistry = ministryName.normalize("NFKD").replace(/[^a-zA-Z0-9 -]/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "ministerio";
       const filename = `lauda-musicas-${safeMinistry}-${new Date().toISOString().slice(0, 10)}.json`;
@@ -282,16 +355,16 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível exportar os dados das músicas."); }
   },
 
-  async previewSongData(ministryId: string, document: SongTransferDocument): Promise<SongTransferPreview> {
+  async previewSongData(ministryId: string, document: SongTransferDocument, options?: SongTransferOptions): Promise<SongTransferPreview> {
     try {
-      const response = await api.post<ApiResponse<SongTransferPreview>>("/songs/data-import/preview", { ministryId, document }, { timeout: 120_000 });
+      const response = await api.post<ApiResponse<SongTransferPreview>>("/songs/data-import/preview", { ministryId, document, ...options }, { timeout: 120_000 });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível revisar o arquivo de músicas."); }
   },
 
-  async commitSongData(ministryId: string, document: SongTransferDocument, documentHash: string): Promise<SongTransferResult> {
+  async commitSongData(ministryId: string, document: SongTransferDocument, documentHash: string, options?: SongTransferOptions): Promise<SongTransferResult> {
     try {
-      const response = await api.post<ApiResponse<SongTransferResult>>("/songs/data-import/commit", { ministryId, document, documentHash }, { timeout: 150_000 });
+      const response = await api.post<ApiResponse<SongTransferResult>>("/songs/data-import/commit", { ministryId, document, documentHash, ...options }, { timeout: 150_000 });
       return response.data.data;
     } catch (error) { apiError(error, "Não foi possível importar as músicas."); }
   },

@@ -6,7 +6,7 @@ import { SongPdfService } from "../services/songPdfService";
 import { logger } from "../observability/logger";
 import { SongService } from "../services/songService";
 import { CifraClubImportService } from "../services/cifraClubImportService";
-import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, updateSongSchema } from "../validators/song.schema";
+import { cifraClubImportSchema, cifraClubSearchSchema, createSongSchema, exportSongsSchema, songIdSchema, songListSchema, songScopeSchema, songTagBatchSchema, songTagChangeSchema, updateSongSchema } from "../validators/song.schema";
 import { SongTransferService } from "../services/songTransferService";
 import { songTransferCommitSchema, songTransferExportSchema, songTransferPreviewSchema } from "../validators/songTransfer.schema";
 
@@ -25,6 +25,19 @@ export class SongController extends BaseController {
 
   async list(req: Request, res: Response) {
     this.handleSuccess(res, await this.service(req).list(songListSchema.parse(req.query)));
+  }
+
+  async listTags(req: Request, res: Response) {
+    this.handleSuccess(res, await this.service(req).listTags(songScopeSchema.parse(req.query)));
+  }
+
+  async changeTag(req: Request, res: Response) {
+    const { id } = songIdSchema.parse(req.params);
+    this.handleSuccess(res, await this.service(req).changeTag(id, songTagChangeSchema.parse(req.body)));
+  }
+
+  async changeTags(req: Request, res: Response) {
+    this.handleSuccess(res, await this.service(req).changeTags(songTagBatchSchema.parse(req.body)));
   }
 
   async get(req: Request, res: Response) {
@@ -103,8 +116,10 @@ export class SongController extends BaseController {
       tenantId: req.user!.tenantId,
       ministryId: input.ministryId,
       created: result.created,
+      updated: result.updated,
       linked: result.linked,
       restored: result.restored,
+      skipped: result.skipped,
       conflicts: result.conflicts,
       invalid: result.invalid,
       outcome: "success",

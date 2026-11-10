@@ -26,22 +26,68 @@ async function authenticate(page: Page) {
 }
 
 async function mockSongsApi(page: Page) {
+  const tags = new Map([
+    ["song-1", ["Adoração", "Louvor/Celebração", "Natal", "Gratidão"]],
+    ["song-2", ["Comunhão/Santa Ceia"]],
+    ["song-4", ["Adoração"]],
+  ]);
+  const names = [...new Set([...tags.values()].flat())];
+  const themes = new Map(names.map((name, index) => [name, `theme-${index}`]));
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.pathname === "/api/songs" && request.method() === "GET") {
-      const search = (url.searchParams.get("search") ?? "").trim().toLocaleLowerCase("pt-BR");
+    if (url.pathname === "/api/songs" || url.pathname === "/api/songs/tags") {
+      const query = (url.searchParams.get("search") ?? "").trim().toLocaleLowerCase("pt-BR");
+      const themeOnly = query.startsWith("#");
+      const term = themeOnly ? query.slice(1) : query;
       const artistId = url.searchParams.get("artistId");
       const originalKey = url.searchParams.get("originalKey");
-      const searched = search
-        ? songs.filter((song) => `${song.title} ${song.artist.name}`.toLocaleLowerCase("pt-BR").includes(search))
-        : songs;
-      const items = searched.filter((song) => (!artistId || song.artistId === artistId) && (!originalKey || song.originalKey === originalKey));
-      await route.fulfill({
-        json: { success: true, data: { items, pagination: { page: 1, limit: 20, total: items.length, totalPages: items.length ? 1 : 0 } } },
-      });
+      const scope = songs.map((song) => ({ ...song, tags: tags.get(song.id) ?? [] })).filter((song) =>
+        (!artistId || song.artistId === artistId) && (!originalKey || song.originalKey === originalKey)
+        && (!term || song.tags.some((name) => name.toLocaleLowerCase("pt-BR").includes(term))
+          || (!themeOnly && `${song.title} ${song.artist.name}`.toLocaleLowerCase("pt-BR").includes(term)))
+      );
+      if (url.pathname.endsWith("/tags")) {
+        const items = [...themes].map(([name, id]) => ({ id, name, count: scope.filter((song) => song.tags.includes(name)).length }));
+        await route.fulfill({ json: { success: true, data: { items, untaggedCount: scope.filter((song) => !song.tags.length).length } } });
+        return;
+      }
+      const selected = url.searchParams.get("tags")?.split(",") ?? [];
+      const untagged = url.searchParams.get("untagged") === "true";
+      const items = scope.filter((song) => (!selected.length && !untagged)
+        || song.tags.some((name) => selected.includes(name)) || (untagged && !song.tags.length));
+      await route.fulfill({ json: {
+        success: true,
+        data: { items, pagination: { page: 1, limit: 20, total: items.length, totalPages: Number(Boolean(items.length)) } },
+      } });
       return;
     }
+
+    if (url.pathname === "/api/songs/tags/batch" && request.method() === "PATCH") {
+      const { songIds, tagIds, operation } = request.postDataJSON() as { songIds: string[]; tagIds: string[]; operation: "add" | "remove" };
+      const picked = [...themes].filter(([, id]) => tagIds.includes(id)).map(([name]) => name);
+      const items = songIds.map((id) => {
+        const current = tags.get(id) ?? [];
+        const next = operation === "add" ? [...new Set([...current, ...picked])] : current.filter((name) => !picked.includes(name));
+        tags.set(id, next);
+        return { id, tags: next };
+      });
+      await route.fulfill({ json: { success: true, data: { items, updated: items.length } } });
+      return;
+    }
+
+    const individual = /^\/api\/songs\/([^/]+)\/tags$/.exec(url.pathname);
+    if (individual && request.method() === "PATCH") {
+      const { operation, name } = request.postDataJSON() as { operation: "add" | "remove"; name: string };
+      const id = individual[1];
+      const current = tags.get(id) ?? [];
+      const next = operation === "add" ? [...new Set([...current, name])] : current.filter((tag) => tag !== name);
+      if (!themes.has(name)) themes.set(name, `theme-${themes.size}`);
+      tags.set(id, next);
+      await route.fulfill({ json: { success: true, data: { id, tags: next } } });
+      return;
+    }
+
     await route.fulfill({ json: { success: true, data: [] } });
   });
 }
@@ -128,67 +174,96 @@ test("aplica filtro real por tom e mostra o total filtrado", async ({ page }) =>
   await expect(page.getByText("Aclame ao Senhor", { exact: true })).toHaveCount(0);
 });
 
-test("alterna o painel pela largura útil e mantém sticky durante a rolagem", async ({ page }) => {
-  await page.setViewportSize({ width: 1199, height: 600 });
+test("mostra temas e aplica ações em lote com a barra fixa no desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 760 });
   await authenticate(page);
   await mockSongsApi(page);
-  await page.goto("/");
-  await page.getByRole("link", { name: "Músicas" }).click();
-  await page.getByText("Selecionar para PDF", { exact: true }).click();
+  await page.goto("/songs");
 
-  for (const width of [1199, 1200, 1280]) {
-    await page.setViewportSize({ width, height: 600 });
-    await expect(page.getByTestId("songs-selection-layout-compact")).toBeVisible();
-  }
-  for (const width of [1360, 1440]) {
-    await page.setViewportSize({ width, height: 600 });
-    await expect(page.getByTestId("songs-selection-layout-wide")).toBeVisible();
-  }
+  const search = page.getByRole("textbox", { name: "Buscar músicas" });
+  await expect(search).toHaveAttribute("placeholder", "Música, artista ou #tema");
+  await expect(page.getByTestId("song-row-song-1").getByText("+1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Adoração, 2 músicas" }).click();
+  await expect(page.getByText("2 músicas encontradas", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Sem tema, 4 músicas" }).click();
+  await expect(page.getByText("6 músicas encontradas", { exact: true })).toBeVisible();
+  await search.fill("#natal");
+  await expect(page.getByText("1 música encontrada", { exact: true })).toBeVisible();
+  await search.fill("");
+  await page.getByRole("button", { name: "Selecionar músicas", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Selecionar Aclame ao Senhor" }).click();
+  await page.getByRole("checkbox", { name: "Selecionar Autor da minha fé" }).click();
 
-  await page.getByLabel("Selecionar Aclame ao Senhor").click();
-  const panel = page.getByTestId("songs-export-panel-sticky");
-  await page.screenshot({ path: `${screenshotDirectory}/songs-selection-wide.png`, fullPage: true });
-  await page.mouse.wheel(0, 900);
-  await page.waitForTimeout(150);
-  const firstStickyBox = await panel.boundingBox();
-  const stickyStyles = await panel.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { position: style.position, top: style.top };
-  });
-  await page.mouse.wheel(0, 500);
-  await page.waitForTimeout(150);
-  const panelBox = await panel.boundingBox();
-  const rowBox = await page.getByTestId("song-row-song-7").boundingBox();
-  expect(stickyStyles).toEqual({ position: "sticky", top: "24px" });
-  expect(panelBox?.y).toBe(firstStickyBox?.y);
-  expect((panelBox?.x ?? 0)).toBeGreaterThan((rowBox?.x ?? 0) + (rowBox?.width ?? 0));
+  const bar = page.getByTestId("song-selection-bar");
+  await expect(bar).toContainText("2 selecionadas");
+  await page.screenshot({ path: `${screenshotDirectory}/songs-themes-selection.png` });
+  const initialY = (await bar.boundingBox())!.y;
+  await page.getByTestId("song-catalog-scroll").evaluate((node) => { node.scrollTop = 300; });
+  expect((await bar.boundingBox())!.y).toBe(initialY);
 
-  await page.setViewportSize({ width: 1200, height: 600 });
-  await expect(page.getByTestId("songs-selection-layout-compact")).toBeVisible();
-  await page.getByRole("button", { name: "Recolher menu" }).click();
-  await expect(page.getByTestId("songs-selection-layout-wide")).toBeVisible();
+  await bar.getByRole("button", { name: "Adicionar tema" }).click();
+  await page.getByRole("checkbox", { name: "Gratidão", exact: true }).click();
+  const batch = page.waitForRequest((request) => request.method() === "PATCH" && new URL(request.url()).pathname === "/api/songs/tags/batch");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  expect((await batch).postDataJSON()).toMatchObject({ songIds: ["song-1", "song-3"], operation: "add", tagIds: ["theme-3"] });
+  await expect(page.getByText("Temas atualizados em 2 músicas.")).toBeVisible();
+  await expect(bar).toContainText("2 selecionadas");
+  await bar.getByRole("button", { name: "Cancelar seleção" }).click();
+  await expect(bar).toHaveCount(0);
 });
 
-test("usa card recolhível em telas pequenas sem sobrepor a lista", async ({ page }) => {
+test("edita temas em um popover e reverte uma gravação rejeitada", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await authenticate(page);
+  await mockSongsApi(page);
+  await page.goto("/songs");
+  const row = page.getByTestId("song-row-song-1");
+  await row.getByRole("button", { name: "Editar temas de Aclame ao Senhor" }).click();
+  const menu = page.getByTestId("song-theme-popover");
+  await expect(menu.getByText("salva na hora")).toBeVisible();
+  await expect(menu.getByRole("checkbox", { name: "Adoração", exact: true })).toBeChecked();
+  await page.screenshot({ path: `${screenshotDirectory}/songs-themes-desktop.png` });
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => { finish = resolve; });
+  await page.route("**/api/songs/song-1/tags", async (route) => {
+    await gate;
+    await route.fulfill({ status: 409, json: { success: false, error: "Tema não salvo." } });
+  });
+  const option = menu.getByRole("checkbox", { name: "Missões", exact: true });
+  try {
+    await option.click();
+    await expect(option).toBeChecked();
+  } finally {
+    finish();
+  }
+  await expect(option).not.toBeChecked();
+  await expect(menu.getByRole("alert")).toHaveText("Tema não salvo.");
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
+test("rola os chips no mobile e mantém o menu e a seleção dentro da tela", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await authenticate(page);
   await mockSongsApi(page);
-  await page.goto("/");
-  await page.getByRole("tab", { name: "Músicas" }).click();
-  await page.getByText("Selecionar para PDF", { exact: true }).click();
+  await page.goto("/songs");
 
-  const toggle = page.getByTestId("songs-export-card-toggle");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByText("Nenhuma música selecionada", { exact: true })).toBeVisible();
-  await page.screenshot({ path: `${screenshotDirectory}/songs-selection-mobile.png`, fullPage: true });
-  await toggle.focus();
-  await expect(toggle).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByText("Nenhuma música selecionada", { exact: true })).toHaveCount(0);
-  await page.keyboard.press("Space");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(page.getByTestId("song-row-song-1")).toBeVisible();
+  const track = page.getByTestId("song-theme-scroll");
+  await expect(track).toBeVisible();
+  expect(await track.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole("button", { name: "Editar temas de Aclame ao Senhor" }).click();
+  await expect(page.getByRole("checkbox", { name: "Natal", exact: true })).toBeChecked();
+  await expect(page.getByRole("textbox", { name: "Criar tema" })).toBeInViewport();
+  await page.screenshot({ path: `${screenshotDirectory}/songs-themes-mobile.png` });
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+
+  await page.getByRole("button", { name: "Selecionar músicas", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Selecionar Aclame ao Senhor" }).click();
+  await page.setViewportSize({ width: 320, height: 680 });
+  const bar = page.getByTestId("song-selection-bar");
+  await expect(bar.getByRole("button", { name: "Cancelar seleção" })).toBeInViewport();
+  await expect(bar.getByRole("button", { name: "Exportar PDF" })).toBeInViewport();
+  const box = (await bar.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
 });

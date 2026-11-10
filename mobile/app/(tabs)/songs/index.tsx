@@ -1,19 +1,17 @@
 import { uiPatterns } from "../../../src/components/ui/patterns";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   Alert,
   Animated,
   Easing,
   LayoutChangeEvent,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  type ViewStyle,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
@@ -21,9 +19,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
-import { SongExportPanel } from "../../../src/components/songs/SongExportPanel";
+import { SongSelectionBar } from "../../../src/components/songs/SongSelectionBar";
+import { SongBulkThemeEditor } from "../../../src/components/songs/SongBulkThemeEditor";
 import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
+import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
+import { SongQuickThemeEditor } from "../../../src/components/songs/SongQuickThemeEditor";
+import type { SongThemeAnchor } from "../../../src/components/songs/SongThemeMenu";
 import { SongSelectionSummary } from "../../../src/components/songs/SongSelectionSummary";
 import {
   AppInput,
@@ -43,7 +45,7 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongTagCounts, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
@@ -61,14 +63,13 @@ import {
   iconSizes,
   motion,
   radii,
+  radiusValues,
   screen,
   spacing,
 } from "../../../src/theme";
 
-const WIDE_SELECTION_MIN_WIDTH = 1000;
-
 const TEXT = {
-  songOrArtist: "Música ou artista",
+  songSearch: "Música, artista ou #tema",
   searchSongs: "Buscar músicas",
   songs: "Músicas",
   newSong: "Nova música",
@@ -83,20 +84,24 @@ const TEXT = {
 type SongFilterState = {
   artist: Artist | null;
   originalKey?: MusicalKey;
+  tags: string[];
+  untagged: boolean;
 };
 
 type Feedback = { message: string; tone: FeedbackTone };
 
-const emptyFilters = (): SongFilterState => ({ artist: null, originalKey: undefined });
+const emptyFilters = (): SongFilterState => ({ artist: null, tags: [], untagged: false });
 
 function toQueryFilters(filters: SongFilterState): SongListParams {
   return {
     ...(filters.artist ? { artistId: filters.artist.id } : {}),
     ...(filters.originalKey ? { originalKey: filters.originalKey } : {}),
+    ...(filters.tags.length ? { tags: filters.tags } : {}),
+    ...(filters.untagged ? { untagged: true } : {}),
   };
 }
 
-function filtersEqual(left: SongFilterState, right: SongFilterState): boolean {
+function sameScope(left: SongFilterState, right: SongFilterState): boolean {
   return left.artist?.id === right.artist?.id && left.originalKey === right.originalKey;
 }
 
@@ -107,8 +112,8 @@ function totalLabel(total: number): string {
 export default function SongsScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { screenHeight } = useResponsiveLayout();
-  const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong } = useMusicStore();
+  const { screenWidth } = useResponsiveLayout();
+  const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const pageNumbers = Array.from(new Set([
@@ -146,14 +151,22 @@ export default function SongsScreen() {
   }, [activePageSlot, pageSlotCount, pageTrackWidth, pageIndicatorX, reducedMotion]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState<Map<string, SongSelectionSnapshot>>(() => new Map());
-  const [exportPanelExpanded, setExportPanelExpanded] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
   const [songForLinks, setSongForLinks] = useState<Song | null>(null);
+  const [themeEditor, setThemeEditor] = useState<{ song: Song; anchor: SongThemeAnchor | null } | null>(null);
+  const [themePreview, setThemePreview] = useState<SongThemeChange | null>(null);
+  const [bulkEditor, setBulkEditor] = useState<{
+    songIds: string[];
+    operation: SongThemeOperation;
+    anchor: SongThemeAnchor | null;
+  } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showDataTransfer, setShowDataTransfer] = useState(false);
   const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
   const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
+  const [themeCounts, setThemeCounts] = useState<SongTagCounts | null>(null);
+  const [themeError, setThemeError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const searchRef = useRef(search);
   const pageRef = useRef(page);
@@ -161,11 +174,10 @@ export default function SongsScreen() {
   const exportingRef = useRef(false);
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didMountSearchRef = useRef(false);
-  const didMountPageRef = useRef(false);
+  const countsRequest = useRef<AbortController | null>(null);
   const handledInvalidationRef = useRef(listInvalidationVersion);
 
   useEffect(() => { searchRef.current = search; }, [search]);
-  useEffect(() => { pageRef.current = page; }, [page]);
 
   useEffect(() => () => {
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
@@ -186,9 +198,29 @@ export default function SongsScreen() {
     });
   }, [loadSongs]);
 
+  const loadThemeCounts = useCallback(() => {
+    countsRequest.current?.abort();
+    const request = new AbortController();
+    countsRequest.current = request;
+    setThemeError(null);
+    void musicService.listSongTagCounts(searchRef.current, filtersRef.current, request.signal)
+      .then((result) => {
+        if (!request.signal.aborted) setThemeCounts(result);
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setThemeError("Não foi possível carregar os temas.");
+      });
+  }, []);
+
+  const refreshCatalogue = useCallback((forceRefresh = false) => {
+    loadVisibleSongs(forceRefresh);
+    loadThemeCounts();
+  }, [loadVisibleSongs, loadThemeCounts]);
+
   useFocusEffect(useCallback(() => {
-    loadVisibleSongs();
-  }, [loadVisibleSongs]));
+    refreshCatalogue();
+    return () => countsRequest.current?.abort();
+  }, [refreshCatalogue]));
 
   useEffect(() => {
     if (!didMountSearchRef.current) {
@@ -200,47 +232,45 @@ export default function SongsScreen() {
       searchRef.current = search;
       pageRef.current = 1;
       setPage(1);
-      const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-      void loadSongs(search, 1, { refresh: hasCachedSongs, filters: filtersRef.current });
+      refreshCatalogue();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, loadSongs]);
+  }, [search, refreshCatalogue]);
 
   useEffect(() => {
-    if (!didMountPageRef.current) {
-      didMountPageRef.current = true;
-      return;
-    }
-
+    if (pageRef.current === page) return;
     pageRef.current = page;
-    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, page, { refresh: hasCachedSongs, filters: filtersRef.current });
-  }, [page, loadSongs]);
+    loadVisibleSongs();
+  }, [page, loadVisibleSongs]);
 
   useEffect(() => {
     if (handledInvalidationRef.current === listInvalidationVersion) return;
     handledInvalidationRef.current = listInvalidationVersion;
-    loadVisibleSongs(true);
-  }, [listInvalidationVersion, loadVisibleSongs]);
+    refreshCatalogue(true);
+  }, [listInvalidationVersion, refreshCatalogue]);
 
   useEffect(() => {
     if (!selectedSongs.size || !songs.length) return;
     setSelectedSongs((current) => reconcileSongSelection(current, songs));
   }, [songs, selectedSongs.size]);
 
-  const selectedList = useMemo(() => Array.from(selectedSongs.values()), [selectedSongs]);
+  useEffect(() => {
+    const last = Math.max(1, pagination.totalPages);
+    if (!loading && !refreshing && !error && page === pagination.page && page > last) setPage(last);
+  }, [loading, refreshing, error, page, pagination.page, pagination.totalPages]);
+
   const allPageSelected = songs.length > 0 && songs.every((song) => selectedSongs.has(song.id));
+  const canEditThemes = canManageMusic(user, "song:edit");
   const activeFilters = Boolean(filters.artist || filters.originalKey);
-  const canApplyFilters = !filtersEqual(filters, draftFilters);
+  const canApplyFilters = !sameScope(filters, draftFilters);
   const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
-  const isWideSelectionLayout = isSelectionMode && contentWidth >= WIDE_SELECTION_MIN_WIDTH;
-  const compactLinkActions = contentWidth > 0 && contentWidth < 600;
+  const compactLinkActions = (contentWidth || screenWidth) < 600;
 
   const toggleSong = useCallback((song: Song) => {
     setSelectedSongs((current) => {
       const result = toggleSongSelection(current, song);
       if (result.limitReached) {
-        showFeedback("O limite é de 50 cifras.", "warning");
+        showFeedback(`Você pode selecionar até ${MAX_SONG_SELECTION} músicas.`, "warning");
       }
       return result.selection;
     });
@@ -252,7 +282,7 @@ export default function SongsScreen() {
       const result = toggleSongPageSelection(current, songs, MAX_SONG_SELECTION);
       if (result.added < result.candidates) {
         showFeedback(
-          `${result.added} de ${result.candidates} músicas adicionadas. O limite é de 50 cifras.`,
+          `${result.added} de ${result.candidates} músicas adicionadas. O limite é de ${MAX_SONG_SELECTION} músicas.`,
           "warning"
         );
       }
@@ -263,7 +293,7 @@ export default function SongsScreen() {
   const cancelSelection = useCallback(() => {
     setSelectedSongs(new Map());
     setIsSelectionMode(false);
-    setExportPanelExpanded(true);
+    setBulkEditor(null);
   }, []);
 
   const exportSelected = useCallback(async () => {
@@ -304,6 +334,7 @@ export default function SongsScreen() {
   }, [filters]);
 
   const commitFilters = useCallback((next: SongFilterState) => {
+    const previous = filtersRef.current;
     const queryFilters = toQueryFilters(next);
     filtersRef.current = queryFilters;
     setFilters(next);
@@ -311,42 +342,41 @@ export default function SongsScreen() {
     setShowFilters(false);
     pageRef.current = 1;
     setPage(1);
-    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, 1, { refresh: hasCachedSongs, filters: queryFilters });
-  }, [loadSongs]);
+    loadVisibleSongs();
+    if (previous.artistId !== queryFilters.artistId || previous.originalKey !== queryFilters.originalKey) {
+      loadThemeCounts();
+    }
+  }, [loadVisibleSongs, loadThemeCounts]);
 
   const applyFilters = useCallback(() => commitFilters(draftFilters), [commitFilters, draftFilters]);
-  const clearFilters = useCallback(() => commitFilters(emptyFilters()), [commitFilters]);
+  const clearFilters = useCallback(() => commitFilters({ ...filters, artist: null, originalKey: undefined }), [commitFilters, filters]);
+  const toggleTheme = (name: string | null) => {
+    if (name === null) {
+      commitFilters({ ...filters, untagged: !filters.untagged });
+      return;
+    }
+    const tags = filters.tags.includes(name)
+      ? filters.tags.filter((tag) => tag !== name)
+      : [...filters.tags, name];
+    commitFilters({ ...filters, tags });
+  };
 
   const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
     setContentWidth((current) => current === nextWidth ? current : nextWidth);
   }, []);
 
-  const selectionPanel = isSelectionMode ? (
-    <SongExportPanel
-      songs={selectedList}
-      compact={!isWideSelectionLayout}
-      expanded={exportPanelExpanded}
-      screenHeight={screenHeight}
-      exporting={exporting}
-      onToggleExpanded={() => setExportPanelExpanded((current) => !current)}
-      onRemove={(songId) => setSelectedSongs((current) => {
-        const next = new Map(current);
-        next.delete(songId);
-        return next;
-      })}
-      onExport={() => void exportSelected()}
-      onCancel={cancelSelection}
-    />
-  ) : null;
+  const openBulkEditor = (operation: SongThemeOperation, anchor: SongThemeAnchor | null) => {
+    setBulkEditor({ songIds: Array.from(selectedSongs.keys()), operation, anchor });
+  };
 
-  const wideLayoutStyle = Platform.OS === "web"
-    ? ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", columnGap: spacing.xl, alignItems: "start" } as unknown as ViewStyle)
-    : styles.wideLayoutFallback;
-  const stickyPanelStyle = Platform.OS === "web"
-    ? ({ position: "sticky", top: spacing.xl, width: 320, alignSelf: "start" } as unknown as ViewStyle)
-    : styles.stickyPanelFallback;
+  const saveBulkThemes = ({ items, updated }: SongThemeBatchResult) => {
+    applySongThemes(items);
+    setBulkEditor(null);
+    showFeedback(updated
+      ? `Temas atualizados em ${updated} ${updated === 1 ? "música" : "músicas"}.`
+      : "A seleção já estava atualizada.");
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
@@ -392,18 +422,19 @@ export default function SongsScreen() {
         onClose={() => setShowDataTransfer(false)}
         onImported={(message) => {
           showFeedback(message);
-          loadVisibleSongs(true);
+          refreshCatalogue(true);
         }}
       />
 
       <ScrollView
         style={styles.scroller}
+        testID="song-catalog-scroll"
         contentContainerStyle={styles.page}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadSongs(searchRef.current, pageRef.current, { refresh: true, filters: filtersRef.current })}
+            onRefresh={() => refreshCatalogue(true)}
             colors={[colors.primary]}
           />
         )}
@@ -447,11 +478,11 @@ export default function SongsScreen() {
               </View>
             </View>
 
-            <View style={styles.searchRow}>
+            <View style={[styles.searchRow, compactLinkActions && styles.searchRowCompact]}>
               <AppInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder={TEXT.songOrArtist}
+                placeholder={TEXT.songSearch}
                 accessibilityLabel={TEXT.searchSongs}
                 testID="song-search-input"
                 autoCapitalize="none"
@@ -469,7 +500,7 @@ export default function SongsScreen() {
                     <X color={colors.muted} size={iconSizes.s18} strokeWidth={2.4} />
                   </TouchableOpacity>
                 ) : null}
-                containerStyle={styles.searchInput}
+                containerStyle={compactLinkActions ? styles.searchInputCompact : styles.searchInput}
               />
               <FilterButton
                 label="Filtros"
@@ -481,51 +512,52 @@ export default function SongsScreen() {
             </View>
 
             <ErrorBanner
-              message={error}
+              message={error ?? themeError}
               style={styles.error}
-              action={error ? (
+              action={error || themeError ? (
                 <Button
                   title="Tentar novamente"
                   variant="secondary"
                   size="sm"
                   style={styles.retryButton}
-                  onPress={() => loadVisibleSongs(true)}
+                  onPress={() => refreshCatalogue(true)}
                   accessibilityLabel={TEXT.retryLoadSongs}
                 />
               ) : null}
             />
 
-            {!isSelectionMode ? (
-              <View style={styles.selectionEntry}>
+            <SongThemeBar
+              counts={themeCounts}
+              selected={filters.tags}
+              untagged={filters.untagged}
+              compact={compactLinkActions}
+              onToggle={toggleTheme}
+              action={!isSelectionMode ? (
                 <TouchableOpacity
-                  onPress={() => { setIsSelectionMode(true); setExportPanelExpanded(true); }}
+                  onPress={() => setIsSelectionMode(true)}
                   accessibilityRole="button"
-                  accessibilityLabel="Selecionar músicas para PDF"
+                  accessibilityLabel="Selecionar músicas"
+                  hitSlop={6}
                 >
-                  <Text style={styles.selectionEntryText}>Selecionar para PDF</Text>
+                  <Text style={styles.selectionEntryText}>Selecionar músicas</Text>
                 </TouchableOpacity>
-              </View>
-            ) : null}
+              ) : null}
+            />
 
-            <View
-              style={isWideSelectionLayout ? wideLayoutStyle : styles.singleColumn}
-              testID={isWideSelectionLayout ? "songs-selection-layout-wide" : "songs-selection-layout-compact"}
-            >
+            <View style={styles.singleColumn}>
               <View style={styles.mainColumn}>
-                {isSelectionMode && !isWideSelectionLayout ? selectionPanel : null}
-                {isSelectionMode ? (
-                  <SongSelectionSummary
-                    selectedCount={selectedSongs.size}
-                    pageEmpty={!songs.length}
-                    allPageSelected={allPageSelected}
-                    onTogglePage={togglePageSelection}
-                    onClear={() => setSelectedSongs(new Map())}
-                  />
-                ) : null}
-
                 <View style={styles.listCard}>
                   <View style={styles.listHeader}>
                     <Text style={styles.listCount} accessibilityLiveRegion="polite">{totalLabel(pagination.total)}</Text>
+                    {isSelectionMode ? (
+                      <SongSelectionSummary
+                        selectedCount={selectedSongs.size}
+                        pageEmpty={!songs.length}
+                        allPageSelected={allPageSelected}
+                        onTogglePage={togglePageSelection}
+                        onClear={() => setSelectedSongs(new Map())}
+                      />
+                    ) : null}
                   </View>
 
                   {(loading || refreshing) && !songs.length ? (
@@ -533,18 +565,22 @@ export default function SongsScreen() {
                   ) : !songs.length ? (
                     <EmptyState
                       title={TEXT.noSongsFound}
-                      description={search.trim() || activeFilters ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
+                      description={search.trim() || activeFilters || filters.tags.length || filters.untagged ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
                       style={styles.emptyState}
                     />
                   ) : (
                     songs.map((song, index) => (
                       <SongListRow
                         key={song.id}
-                        song={song}
+                        song={themePreview?.id === song.id ? { ...song, tags: themePreview.tags } : song}
                         selectionMode={isSelectionMode}
                         selected={selectedSongs.has(song.id)}
                         isLast={index === songs.length - 1}
                         compactLinkActions={compactLinkActions}
+                        editingThemes={themeEditor?.song.id === song.id}
+                        onEditThemes={canEditThemes ? (anchor) => {
+                          if (!themePreview) setThemeEditor({ song, anchor });
+                        } : undefined}
                         onOpenLinks={() => setSongForLinks(song)}
                         onPress={() => {
                           if (isSelectionMode) {
@@ -593,13 +629,45 @@ export default function SongsScreen() {
                 ) : null}
               </View>
 
-              {isWideSelectionLayout ? (
-                <View style={stickyPanelStyle} testID="songs-export-panel-sticky">{selectionPanel}</View>
-              ) : null}
             </View>
           </View>
         </View>
       </ScrollView>
+
+      {isSelectionMode ? (
+        <SongSelectionBar
+          count={selectedSongs.size}
+          compact={compactLinkActions}
+          canEditThemes={canEditThemes}
+          savingTheme={Boolean(themePreview)}
+          exporting={exporting}
+          onThemeAction={openBulkEditor}
+          onExport={() => void exportSelected()}
+          onCancel={cancelSelection}
+        />
+      ) : null}
+
+      {canEditThemes && bulkEditor ? (
+        <SongBulkThemeEditor
+          {...bulkEditor}
+          knownTags={themeCounts?.items ?? []}
+          onSaved={saveBulkThemes}
+          onClose={() => setBulkEditor(null)}
+        />
+      ) : null}
+
+      {canEditThemes && themeEditor ? (
+        <SongQuickThemeEditor
+          key={themeEditor.song.id}
+          song={themeEditor.song}
+          anchor={themeEditor.anchor}
+          knownNames={themeCounts?.items.map(({ name }) => name) ?? []}
+          onClose={() => setThemeEditor(null)}
+          onPreview={setThemePreview}
+          onSaved={(change) => applySongThemes([change])}
+          onError={(message) => showFeedback(message, "error")}
+        />
+      ) : null}
 
       <BottomSheet
         isOpen={Boolean(songForLinks)}
@@ -655,26 +723,29 @@ const styles = StyleSheet.create({
   newSongButton: { minWidth: 150 },
   transferButton: { minWidth: 170 },
   searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
+  searchRowCompact: { flexDirection: "column", alignItems: "flex-end", gap: spacing.xs },
   searchInput: { flex: 1 },
+  searchInputCompact: { width: "100%" },
   filterButton: { height: controlSizes.default },
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   error: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
-  selectionEntry: { minHeight: controlSizes.default, alignItems: "flex-start", justifyContent: "center", marginBottom: spacing.sm },
   selectionEntryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   singleColumn: { width: "100%" },
-  wideLayoutFallback: { width: "100%", flexDirection: "row", alignItems: "flex-start", gap: spacing.xl },
-  stickyPanelFallback: { width: 320, alignSelf: "flex-start" },
   mainColumn: { flex: 1, minWidth: 0, gap: spacing.lg },
   listCard: {
     width: "100%",
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radii.lg,
+    borderRadius: radiusValues.r4,
     backgroundColor: colors.surface,
     overflow: "hidden",
   },
-  listHeader: { minHeight: 50, justifyContent: "center", paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
+  listHeader: {
+    minHeight: 50, flexDirection: "row", flexWrap: "wrap", alignItems: "center",
+    justifyContent: "space-between", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.line,
+  },
   listCount: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
   inlineLoading: { alignItems: "center", padding: spacing.xl },
   emptyState: { borderWidth: 0, borderRadius: 0 },

@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { chordContentSchema, MUSICAL_KEYS } from "./song.schema";
+import { LEGACY_SONG_TRANSFER_FIELDS, SONG_TRANSFER_EXISTING_MODES, SONG_TRANSFER_FIELDS } from "../constants/songTransferFields";
+import { richTextCommentsSchema } from "./richText.schema";
+import { chordContentSchema, MUSICAL_KEYS, songTagsSchema } from "./song.schema";
 
 const optionalHttpUrl = z.preprocess(
   (value) => typeof value === "string" ? value.trim() || null : value,
   z.string()
-    .url("Link da cifra inválido")
+    .url("Link inválido")
     .refine((value) => value.startsWith("http://") || value.startsWith("https://"), "O link deve começar com http:// ou https://")
     .nullable()
     .optional(),
@@ -13,10 +15,30 @@ const optionalHttpUrl = z.preprocess(
 export const portableSongSchema = z.object({
   title: z.string().trim().min(1, "O nome da música é obrigatório").max(200),
   artist: z.string().trim().min(1, "O artista é obrigatório").max(200),
-  originalKey: z.enum(MUSICAL_KEYS, "Tom inválido"),
-  content: chordContentSchema,
+  originalKey: z.enum(MUSICAL_KEYS, "Tom inválido").optional(),
+  content: chordContentSchema.optional(),
+  bpm: z.number().int().min(30, "O BPM mínimo é 30").max(300, "O BPM máximo é 300").nullable().optional(),
   cifraUrl: optionalHttpUrl,
+  letraUrl: optionalHttpUrl,
+  audioUrl: optionalHttpUrl,
+  videoUrl: optionalHttpUrl,
+  comments: richTextCommentsSchema,
+  tags: songTagsSchema.optional(),
 }).strict();
+
+export const songTransferFieldsSchema = z.array(z.enum(SONG_TRANSFER_FIELDS))
+  .min(1, "Selecione ao menos um campo")
+  .max(SONG_TRANSFER_FIELDS.length)
+  .refine((fields) => new Set(fields).size === fields.length, "A seleção não pode repetir campos");
+
+export const songTransferExistingSchema = z.enum(SONG_TRANSFER_EXISTING_MODES);
+
+const transferOptions = {
+  fields: songTransferFieldsSchema.optional(),
+  existing: songTransferExistingSchema.optional(),
+};
+
+export const legacySongTransferFields = LEGACY_SONG_TRANSFER_FIELDS;
 
 export const songTransferDocumentSchema = z.object({
   format: z.literal("lauda.music-catalog"),
@@ -30,11 +52,13 @@ export const songTransferExportSchema = z.object({
     (ids) => new Set(ids).size === ids.length,
     "A seleção não pode conter músicas repetidas",
   ).optional(),
+  fields: songTransferFieldsSchema.optional(),
 }).strict();
 
 export const songTransferPreviewSchema = z.object({
   ministryId: z.string().uuid("ID do ministério inválido"),
   document: songTransferDocumentSchema,
+  ...transferOptions,
 }).strict();
 
 export const songTransferCommitSchema = songTransferPreviewSchema.extend({

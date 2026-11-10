@@ -23,7 +23,7 @@ Os papeis abaixo sao funcoes decisoras necessarias, nao pessoas nomeadas. Onde o
 
 | ID | Decisao necessaria | Papel responsavel por decidir | Bloqueio provocado | Etapa em que deve ser resolvida | Artefato |
 |---|---|---|---|---|---|
-| PEND-01 | Nomear Data Owners, System Owners, Security Owner e substitutos. | Direcao, Produto, Operacao, Engenharia e Security; nomes/grupos TBD. | Impede aprovar finalidade, acesso, retencao e risco; bloqueia dados reais. | Etapa 0, antes de producao com dados reais. | `ownership-model.md` |
+| PEND-01 | Registrar substitutos e titulares por tenant ou cliente quando aplicável. | Titulares da plataforma `@kacarlos23` | A suplência das decisões de finalidade, acesso, retenção e risco permanece pendente. | Etapa 0, antes de producao com dados reais. | `ownership-model.md` |
 | PEND-02 | Validar classificacao juridica de dados de contexto religioso. | Juridico/Privacidade e Data Owners; nomes TBD. | Impede bases, salvaguardas, retencao e avaliacao de impacto; bloqueia dados reais. | Etapa 0, antes de producao com dados reais. | `data-map.md`, `ropa.md` |
 | PEND-03 | Aprovar controlador/operador por operacao. | Juridico e Negocio; nomes TBD. | Impede contratos, instrucoes, subprocessadores e matriz de comunicacao; bloqueia tenants reais. | Etapa 0, antes de contratos/onboarding. | `adr-controller-processor.md` |
 | PEND-04 | Nomear encarregado/DPO, canal e substituto. | Direcao e Juridico; nomes TBD. | Impede canal de titulares e governanca operacional; bloqueia onboarding real. | Etapa 0, antes de onboarding com dados reais. | `dpo-governance.md` |

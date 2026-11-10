@@ -61,12 +61,35 @@
     "typescript": "~5.9.2"
   },
   "overrides": {
-    "brace-expansion": "5.0.8",
-    "fast-uri": "3.1.4",
+    "brace-expansion": "5.0.12",
+    "fast-uri": "3.1.9",
     "postcss": "8.5.22",
     "serve-handler": {
       "brace-expansion": "1.1.16"
-    }
+    },
+    "compression": "1.8.2",
+    "@react-navigation/core": "7.24.0",
+    "expo-router": {
+      ".": "~6.0.23",
+      "query-string": {
+        ".": "9.4.1",
+        "decode-uri-component": "0.5.1"
+      }
+    },
+    "metro@0.83.3": "0.83.8",
+    "metro-babel-transformer@0.83.3": "0.83.8",
+    "metro-cache@0.83.3": "0.83.8",
+    "metro-cache-key@0.83.3": "0.83.8",
+    "metro-config@0.83.3": "0.83.8",
+    "metro-core@0.83.3": "0.83.8",
+    "metro-file-map@0.83.3": "0.83.8",
+    "metro-minify-terser@0.83.3": "0.83.8",
+    "metro-resolver@0.83.3": "0.83.8",
+    "metro-runtime@0.83.3": "0.83.8",
+    "metro-source-map@0.83.3": "0.83.8",
+    "metro-symbolicate@0.83.3": "0.83.8",
+    "metro-transform-plugins@0.83.3": "0.83.8",
+    "metro-transform-worker@0.83.3": "0.83.8"
   },
   "private": true
 }
