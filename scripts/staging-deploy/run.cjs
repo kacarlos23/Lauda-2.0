@@ -269,8 +269,17 @@ async function restoreCode(previous, outcome, id) {
   if (restored.status !== "completed") throw new Error("Previous code could not be republished");
 }
 
+async function verifyForwardRelease(token, commit, active) {
+  if (!/^[a-f0-9]{40}$/.test(active.commit)) throw new Error("Active staging release has no Git commit");
+  if (active.commit === commit) return;
+  const comparison = await github(token, "/compare/" + active.commit + "..." + commit)
+    .then(response => response.json());
+  if (comparison.status !== "ahead") throw new Error("Merge the active staging commit into the staging branch before deploying");
+}
+
 async function deploy(run, token, prepareOnly) {
   await publisherStatus();
+  if (!prepareOnly) await verifyForwardRelease(token, run.sha, await publicManifest());
   const id = randomBytes(8).toString("hex");
   const directory = path.join(WORK, id);
   fs.mkdirSync(directory);
@@ -289,6 +298,9 @@ async function deploy(run, token, prepareOnly) {
   if (head.object?.sha !== run.sha) throw new Error("The staging branch advanced while preparing this candidate");
   await publisherStatus();
   const oldRelease = await publicManifest();
+  await verifyForwardRelease(token, run.sha, oldRelease);
+  const confirmed = await publicManifest();
+  if (confirmed.sourceHash !== oldRelease.sourceHash) throw new Error("Staging changed during the activation check");
   stageArtifacts(directory, id);
   const journal = { id, commit: run.sha, candidate, previous, failed, oldRelease, phase: "switching" };
   const writeJournal = phase => { journal.phase = phase; publisher.writeJson(JOURNAL, journal); };
