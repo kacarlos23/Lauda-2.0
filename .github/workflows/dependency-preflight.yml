@@ -1,4 +1,4 @@
-name: Verify the public staging release
+name: Production promotion preflight
 
 on:
   push:
@@ -8,43 +8,180 @@ on:
 permissions:
   contents: read
 
+env:
+  LAUDA_CANDIDATE: 16ad9faa9facedd08e257fe443f03d67682b48a3
+  LAUDA_ACTIVE: 4f88b8d85d142df834d2febd3fe984936b7dd033
+
 jobs:
-  smoke:
+  production-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
+    env:
+      EXPO_PUBLIC_API_URL: https://api.laudaapp.com/api
+      EXPO_PUBLIC_APP_ENV: production
+      EXPO_NO_DOTENV: '1'
+      EXPO_NO_TELEMETRY: '1'
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.LAUDA_CANDIDATE }}
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Verify the public release and API
+      - name: Export and validate the production bundle
+        working-directory: mobile
+        env:
+          EXPO_OVERRIDE_METRO_CONFIG: ${{ github.workspace }}/mobile/metro.production-release.config.cjs
+        run: |
+          npm ci
+          node ../scripts/validate-frontend-api.cjs --environment
+          node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-production-web"
+          node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-production-web"
+      - name: Record the exact source and environment
         shell: bash
         run: |
           node <<'NODE'
           const assert = require("node:assert/strict");
-          const { createHash } = require("node:crypto");
-          const root = "https://testes.laudaapp.com";
-          const expected = {"asset":"/_expo/static/js/web/index-3800975d5da413646c555df641b847c3.js","assetSha256":"b5fc986c44b2f83875ff9eb4387ea1edb0132dd2322963700ebad672343cbf19","commit":"16ad9faa9facedd08e257fe443f03d67682b48a3","sourceHash":"324927187ce4868d5fccf168339ec1877314fb697820f09506e044dd53b6d261","apiUrl":"https://testes.laudaapp.com/api"};
-          async function get(path, status) {
-            const response = await fetch(root + path, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(15000) });
-            assert.equal(response.status, status, path + " HTTP " + response.status);
-            return response;
-          }
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const {createHash} = require("node:crypto");
+          const {execFileSync} = require("node:child_process");
+          const git = (...args) => execFileSync("git", args);
+          const commit = git("rev-parse", "HEAD").toString().trim();
+          assert.equal(commit, process.env.LAUDA_CANDIDATE);
+          const environment = "production";
+          const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+          const sourceTree = git("rev-parse", "HEAD^{tree}").toString().trim();
+          const sourceHash = createHash("sha256").update(git("ls-tree", "-rz", "HEAD"))
+            .update(JSON.stringify({environment, apiUrl})).digest("hex");
+          const manifest = {environment, apiUrl, commit, backendCommit: commit, sourceTree, sourceHash, builtAt: new Date().toISOString()};
+          const out = path.join(process.env.RUNNER_TEMP, "lauda-production-web", "release.json");
+          fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + "\n");
+          console.log(JSON.stringify({commit, sourceTree, sourceHash, apiUrl}));
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lauda-production-web-preflight
+          path: ${{ runner.temp }}/lauda-production-web
+          if-no-files-found: error
+          retention-days: 3
+
+  migration-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DATABASE_URL: postgresql://lauda_rehearsal@127.0.0.1:55432/lauda_promotion_rehearsal
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: lauda_rehearsal
+          POSTGRES_DB: lauda_promotion_rehearsal
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.LAUDA_CANDIDATE }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Reproduce the production migration baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          mkdir .lauda-release-baseline
+          git archive --format=tar "$LAUDA_ACTIVE" prisma | tar -xf - -C .lauda-release-baseline
+          test ! -e .lauda-release-baseline/prisma/migrations/20261109170000_add_song_tags
+          cat > .lauda-release-baseline/prisma.config.ts <<'TS'
+          import { defineConfig } from "prisma/config";
+          export default defineConfig({
+            schema: "prisma/schema.prisma",
+            migrations: { path: "prisma/migrations" },
+            datasource: { url: process.env.DATABASE_URL },
+          });
+          TS
+          node node_modules/prisma/build/index.js migrate deploy --config .lauda-release-baseline/prisma.config.ts
+      - name: Apply the candidate migration to the disposable database
+        run: |
+          node node_modules/prisma/build/index.js migrate deploy
+          node node_modules/prisma/build/index.js migrate status
+      - name: Verify the two tag tables and migration history
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require("node:assert/strict");
+          const {Pool} = require("pg");
+          const url = new URL(process.env.DATABASE_URL);
+          assert.equal(url.hostname, "127.0.0.1");
+          assert.equal(url.port, "55432");
+          assert.equal(url.pathname, "/lauda_promotion_rehearsal");
+          const pool = new Pool({connectionString: process.env.DATABASE_URL});
           (async () => {
-            const [release, health, login] = await Promise.all([
-              get("/release.json?verification=" + expected.commit, 200),
-              get("/health", 200),
-              get("/login", 200),
-              get("/api/songs/tags", 401),
+            try {
+              const s = (await pool.query("SELECT current_database() AS db, to_regclass('\"SongTag\"') IS NOT NULL AS tags, to_regclass('\"SongTagAssignment\"') IS NOT NULL AS assignments")).rows[0];
+              assert.equal(s.db, "lauda_promotion_rehearsal");
+              assert.ok(s.tags && s.assignments);
+              const h = (await pool.query("SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY started_at")).rows;
+              assert.equal(h.length, 30);
+              assert.equal(h.at(-1).migration_name, "20261109170000_add_song_tags");
+              console.log("Verified 29 baseline migrations and the additive song-tag migration.");
+            } finally {
+              await pool.end();
+            }
+          })().catch(error => { console.error(error.message); process.exitCode = 1; });
+          NODE
+
+  release-sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.LAUDA_CANDIDATE }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - run: npm run security:sbom:verify
+
+  public-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Read the public production and staging manifests
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require("node:assert/strict");
+          const request = async (url) => {
+            const r = await fetch(url, {cache:"no-store", signal:AbortSignal.timeout(15000)});
+            assert.equal(r.status, 200, new URL(url).host + new URL(url).pathname + " HTTP " + r.status);
+            return r;
+          };
+          (async () => {
+            const [production, staging, api, login] = await Promise.all([
+              request("https://laudaapp.com/release.json"),
+              request("https://testes.laudaapp.com/release.json"),
+              request("https://api.laudaapp.com/health"),
+              request("https://laudaapp.com/login"),
             ]);
-            const manifest = await release.json();
-            assert.equal(manifest.environment, "staging");
-            assert.equal(manifest.commit, expected.commit);
-            assert.equal(manifest.sourceHash, expected.sourceHash);
-            assert.equal(manifest.apiUrl, expected.apiUrl);
-            assert.equal((await health.json()).status, "ok");
-            assert.ok((await login.text()).includes(expected.asset));
-            const bundle = await get(expected.asset, 200);
-            assert.equal(createHash("sha256").update(Buffer.from(await bundle.arrayBuffer())).digest("hex"), expected.assetSha256);
-            console.log(JSON.stringify({ environment: "staging", commit: manifest.commit, sourceHash: manifest.sourceHash, health: 200, login: 200, protectedCatalog: 401, bundle: "verified" }));
+            const prod = await production.json(), test = await staging.json(), health = await api.json();
+            assert.equal(prod.environment, "production");
+            assert.equal(test.environment, "staging");
+            assert.equal(prod.commit, process.env.LAUDA_ACTIVE);
+            assert.equal(test.commit, process.env.LAUDA_CANDIDATE);
+            assert.equal(health.status, "ok");
+            assert.ok((await login.text()).includes("_expo/static/js/web"));
+            console.log(JSON.stringify({production:prod.commit,staging:test.commit,apiHealth:health.status,login:login.status}));
           })().catch(error => { console.error(error.message); process.exitCode = 1; });
           NODE
