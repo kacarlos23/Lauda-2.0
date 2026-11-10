@@ -37,16 +37,19 @@ jobs:
             'fast-uri': '3.1.9',
             'brace-expansion': '5.0.12',
             compression: '1.8.2',
+            '@react-navigation/core': '7.24.0',
             'expo-router': {
+              '.': '$expo-router',
               'query-string': { '.': '9.4.1', 'decode-uri-component': '0.5.1' },
             },
-            metro: { 'image-size': '2.0.3' },
           });
+          const metroFamily = ["metro","metro-babel-transformer","metro-cache","metro-cache-key","metro-config","metro-core","metro-file-map","metro-minify-terser","metro-resolver","metro-runtime","metro-source-map","metro-symbolicate","metro-transform-plugins","metro-transform-worker"];
+          for (const name of metroFamily) pkg.overrides[name + '@0.83.3'] = '0.83.8';
           fs.writeFileSync(manifest, JSON.stringify(pkg, null, 2) + '\n');
           NODE
           npm view query-string@9.4.1 dependencies type exports --json
           npm view decode-uri-component@0.5.1 type exports --json
-          npm view image-size@2.0.3 exports --json
+          npm view metro@0.83.8 version --json
           for component in backend mobile; do
             project=.
             if [ "$component" = mobile ]; then project=mobile; fi
@@ -72,8 +75,8 @@ jobs:
           npm ci
           npm ls expo expo-router react-native query-string decode-uri-component image-size
           npx expo install --check
-          node -e 'const a = require("node:assert/strict"); const qs = require("query-string").default; a.equal(qs.parse("tema=Ceia%20e%20Natal").tema, "Ceia e Natal"); console.log("Query string decoding verified");'
-          node -e 'const fs = require("node:fs"); const path = require("node:path"); const source = path.join(path.dirname(require.resolve("metro/package.json")), "src/Assets.js"); for (const line of fs.readFileSync(source, "utf8").split("\n")) if (/image-size|getImageSize/.test(line)) console.log(line);'
+          node -e 'const a = require("node:assert/strict"); const qs = require("node:module").createRequire(require.resolve("expo-router/package.json"))("query-string").default; a.equal(qs.parse("tema=Ceia%20e%20Natal").tema, "Ceia e Natal"); console.log("Query string decoding verified");'
+          node -e 'const a = require("node:assert/strict"); const { packages } = require("./package-lock.json"); const routers = Object.entries(packages).filter(([key]) => key.endsWith("/expo-router")); a.ok(routers.length && routers.every(([, value]) => value.version.startsWith("6."))); a.equal(packages["node_modules/expo"].version.split(".")[0], "54"); console.log("Expo SDK 54 and Router 6 resolutions verified");'
       - name: Build the staging web bundle
         working-directory: mobile
         env:
@@ -84,6 +87,17 @@ jobs:
         run: |
           node node_modules/expo/bin/cli export --platform web --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-staging-web"
           node ../scripts/validate-frontend-api.cjs --dist "$RUNNER_TEMP/lauda-staging-web"
+      - name: Export the Android and iOS bundles
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
+          EXPO_PUBLIC_APP_ENV: staging
+          EXPO_NO_DOTENV: '1'
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          for platform in android ios; do
+            node node_modules/expo/bin/cli export --platform "$platform" --max-workers 3 --output-dir "$RUNNER_TEMP/lauda-native/$platform"
+          done
       - name: Collect generated manifests and lockfiles
         if: always()
         shell: bash
