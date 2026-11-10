@@ -1,0 +1,62 @@
+name: Staging release
+
+on:
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lauda-staging-release
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/lauda_ci
+      EXPO_NO_DOTENV: "1"
+      EXPO_PUBLIC_API_URL: https://testes.laudaapp.com/api
+      EXPO_PUBLIC_APP_ENV: staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - name: Validate API
+        run: |
+          npm ci
+          npx prisma generate
+          npm run test:encoding
+          npm run build
+          npm test -- --runInBand
+        env:
+          JWT_SECRET: test_access_secret
+          REFRESH_JWT_SECRET: test_refresh_secret
+          JWT_EXPIRES_IN: 15m
+          REFRESH_JWT_EXPIRES_IN: 7d
+      - name: Validate and export web
+        working-directory: mobile
+        run: |
+          npm ci
+          npm test -- --runInBand
+          npx tsc --noEmit
+          EXPO_OVERRIDE_METRO_CONFIG="$PWD/metro.transfer-staging.config.cjs" npx expo export --platform web --output-dir dist
+      - name: Prepare release manifests
+        run: |
+          node scripts/validate-frontend-api.cjs --dist mobile/dist --expected-api-url "$EXPO_PUBLIC_API_URL"
+          node scripts/staging-deploy/package.cjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lauda-staging-${{ github.sha }}
+          path: staging-artifacts/
+          if-no-files-found: error
+          retention-days: 14
