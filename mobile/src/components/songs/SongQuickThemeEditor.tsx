@@ -79,7 +79,10 @@ export function SongQuickThemeEditor({ song, anchor, knownNames, onClose, onPrev
 
   const footer = (
     <View style={styles.footer}>
-      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      <Text style={styles.status} accessibilityLiveRegion="polite" aria-live="polite">
+        {saving ? "Salvando…" : ""}
+      </Text>
+      {error ? <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite" aria-live="polite">{error}</Text> : null}
       <View style={styles.createRow}>
         <InputControl
           accessibilityLabel="Criar tema"
@@ -120,6 +123,7 @@ const styles = StyleSheet.create({
     flex: 1, minWidth: 0, fontSize: fontSizes.s13,
     borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radiusValues.r4, paddingHorizontal: spacing.sm,
   },
-  button: { minHeight: 34, borderRadius: radiusValues.r4, paddingHorizontal: spacing.sm },
+  button: { minHeight: 44, minWidth: 44, borderRadius: radiusValues.r4, paddingHorizontal: spacing.sm },
+  status: { color: colors.muted, fontSize: fontSizes.s11 },
   error: { color: colors.danger, fontSize: fontSizes.s12 },
 });

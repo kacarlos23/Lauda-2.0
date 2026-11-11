@@ -1,10 +1,10 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Check, Tag, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
 import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
 import { SongThemeLabels } from "./SongThemeLabels";
-import type { SongThemeAnchor } from "./SongThemeMenu";
+import { focusSongThemeControl, type SongThemeAnchor } from "./SongThemeMenu";
 import {
   colors,
   controlSizes,
@@ -39,18 +39,38 @@ export function SongListRow({
   onPress,
 }: Props) {
   const themeButton = useRef<View>(null);
+  const addThemeButton = useRef<View>(null);
+  const opener = useRef<React.RefObject<View | null>>(themeButton);
+  const wasEditing = useRef(false);
+  const [focused, setFocused] = useState<"edit" | "add" | null>(null);
+  useEffect(() => {
+    const restore = wasEditing.current && !editingThemes;
+    wasEditing.current = editingThemes;
+    if (!restore) return;
+    const frame = requestAnimationFrame(() => focusSongThemeControl(opener.current.current ?? themeButton.current));
+    return () => cancelAnimationFrame(frame);
+  }, [editingThemes]);
   const selectionLabel = `${selected ? "Desmarcar" : "Selecionar"} ${song.title}`;
   const showLinks = hasSongLinks(song);
-  const openThemes = () => {
-    if (Platform.OS !== "web" || compactLinkActions || !themeButton.current) {
+  const openThemes = (trigger: React.RefObject<View | null>) => {
+    opener.current = trigger;
+    if (Platform.OS !== "web" || compactLinkActions || !trigger.current) {
       onEditThemes?.(null);
       return;
     }
-    themeButton.current.measureInWindow((x, y, width, height) => {
+    trigger.current.measureInWindow((x, y, width, height) => {
       onEditThemes?.({ x, y, width, height });
     });
   };
-  const themes = <SongThemeLabels tags={song.tags} onAdd={onEditThemes ? openThemes : undefined} />;
+  const themes = !song.tags?.length && onEditThemes ? (
+    <TouchableOpacity ref={addThemeButton} onPress={() => openThemes(addThemeButton)}
+      accessibilityRole="button" accessibilityLabel={`Adicionar tema a ${song.title}`}
+      accessibilityState={{ expanded: editingThemes }} aria-expanded={editingThemes}
+      onFocus={() => { if (Platform.OS === "web") setFocused("add"); }} onBlur={() => setFocused(null)}
+      style={[styles.addThemeButton, focused === "add" && styles.themeButtonFocused]}>
+      <SongThemeLabels tags={[]} />
+    </TouchableOpacity>
+  ) : <SongThemeLabels tags={song.tags} />;
 
   return (
     <View
@@ -89,19 +109,19 @@ export function SongListRow({
         {showLinks || onEditThemes ? (
           <View style={styles.actions} testID={`song-actions-${song.id}`}>
             {onEditThemes ? (
-              <View ref={themeButton} collapsable={false}>
-                <TouchableOpacity
-                  style={[styles.themeButton, editingThemes && styles.themeButtonActive]}
-                  onPress={openThemes}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Editar temas de ${song.title}`}
-                  accessibilityState={{ expanded: editingThemes }}
-                  aria-expanded={editingThemes}
-                  hitSlop={4}
-                >
-                  <Tag color={colors.primary} size={iconSizes.s16} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                ref={themeButton}
+                style={[styles.themeButton, editingThemes && styles.themeButtonActive, focused === "edit" && styles.themeButtonFocused]}
+                onPress={() => openThemes(themeButton)}
+                onFocus={() => { if (Platform.OS === "web") setFocused("edit"); }}
+                onBlur={() => setFocused(null)}
+                accessibilityRole="button"
+                accessibilityLabel={`Editar temas de ${song.title}`}
+                accessibilityState={{ expanded: editingThemes }}
+                aria-expanded={editingThemes}
+              >
+                <Tag color={colors.primary} size={iconSizes.s16} />
+              </TouchableOpacity>
             ) : null}
             {showLinks ? (
               <SongLinkButtons links={song} compact collapseMultiple={compactLinkActions} onOpenMultiple={onOpenLinks} />
@@ -157,10 +177,12 @@ const styles = StyleSheet.create({
   mobileThemesSelected: { marginLeft: controlSizes.medium + 20 + 2 * spacing.sm },
   actions: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   themeButton: {
-    width: 32, height: 32, borderRadius: radiusValues.r4, borderWidth: 1,
+    width: 44, height: 44, borderRadius: radiusValues.r4, borderWidth: 1,
     borderColor: colors.line, alignItems: "center", justifyContent: "center",
   },
   themeButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  themeButtonFocused: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  addThemeButton: { minWidth: 44, minHeight: 44, justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radiusValues.r4 },
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
   check: {
