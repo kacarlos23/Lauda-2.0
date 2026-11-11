@@ -293,8 +293,8 @@ describe("SongsScreen pagination", () => {
     });
     const press = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
       .find((node: TestNode) => node.props.accessibilityLabel === label)!.props.onPress();
-    await act(async () => press("Natal, 2 músicas"));
-    await act(async () => press("Sem tema, 3 músicas"));
+    await act(async () => press("Tema Natal, 2 músicas, não selecionado"));
+    await act(async () => press("Tema Sem tema, 3 músicas, não selecionado"));
     expect(musicService.listSongs).toHaveBeenLastCalledWith("", 1, 20, { tags: ["Natal"], untagged: true }, expect.any(Object));
   });
 
