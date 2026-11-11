@@ -39,30 +39,46 @@ interface BottomSheetProps {
   footer?: React.ReactNode;
   presentation?: "sheet" | "modal";
   sheetStyle?: StyleProp<ViewStyle>;
+  onShow?: () => void;
+  onClosed?: () => void;
+  reduceMotion?: boolean;
+  animationDuration?: number;
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet", sheetStyle }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet", sheetStyle,
+  onShow, onClosed, reduceMotion = false, animationDuration }: BottomSheetProps) {
   const dimensions = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 390 };
   const wide = dimensions.width >= breakpoints.mobile;
   const fixedModal = presentation === "modal";
   const [modalVisible, setModalVisible] = useState(isOpen);
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(animationDuration == null ? SCREEN_HEIGHT : 8)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
 
   useEffect(() => {
+    if (reduceMotion) {
+      translateY.setValue(0);
+      opacity.setValue(isOpen ? 1 : 0);
+      setModalVisible(isOpen);
+      if (!isOpen && modalVisible) onClosedRef.current?.();
+      return;
+    }
     if (isOpen) {
       setModalVisible(true);
       const animation = Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
-          duration: motion.sheetOpenMs,
+          duration: animationDuration ?? motion.sheetOpenMs,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: motion.sheetOpenMs,
+          duration: animationDuration ?? motion.sheetOpenMs,
           useNativeDriver: true,
         }),
       ]);
@@ -73,30 +89,33 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
     if (modalVisible) {
       const animation = Animated.parallel([
         Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
-          duration: motion.sheetCloseMs,
+          toValue: animationDuration == null ? SCREEN_HEIGHT : 8,
+          duration: animationDuration ?? motion.sheetCloseMs,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: motion.sheetCloseMs,
+          duration: animationDuration ?? motion.sheetCloseMs,
           useNativeDriver: true,
         }),
       ]);
       animation.start(({ finished }) => {
-        if (finished) setModalVisible(false);
+        if (finished) {
+          setModalVisible(false);
+          onClosedRef.current?.();
+        }
       });
       return () => animation.stop();
     }
 
     return undefined;
-  }, [isOpen, translateY, opacity]);
+  }, [isOpen, translateY, opacity, reduceMotion, animationDuration]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
+        if (!reduceMotionRef.current && gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
@@ -104,6 +123,10 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
         if (gestureState.dy > SCREEN_HEIGHT * 0.2 || gestureState.vy > 0.5) {
           onClose();
         } else {
+          if (reduceMotionRef.current) {
+            translateY.setValue(0);
+            return;
+          }
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
@@ -123,6 +146,7 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
       transparent
       animationType="none"
       onRequestClose={onClose}
+      onShow={onShow}
     >
       <View style={[styles.overlay, wide && styles.overlayWide, fixedModal && styles.overlayModal]}>
         <Animated.View style={[styles.backdrop, { opacity }]}>
@@ -130,7 +154,8 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
         </Animated.View>
         
         <Animated.View
-          style={[styles.sheet, (wide || fixedModal) && styles.sheetWide, !fixedModal && { transform: [{ translateY }] }, sheetStyle]}
+          style={[styles.sheet, (wide || fixedModal) && styles.sheetWide, !fixedModal && { transform: [{ translateY }] },
+            animationDuration != null && { opacity }, sheetStyle]}
         >
           {!fixedModal && <View style={styles.dragHandleTouch} {...panResponder.panHandlers}>
             <View style={styles.dragHandle} />
