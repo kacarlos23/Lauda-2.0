@@ -4,7 +4,7 @@ import { SUGGESTED_SONG_TAGS, SONG_TAG_NAME_MAX, SONG_TAGS_MAX } from "../../../
 import { cleanCatalogText, normalizeCatalogText } from "../../../../src/utils/catalogNormalization";
 import { Chip } from "../ui/Chip";
 import { InputControl as TextInput } from "../ui/InputControl";
-import { colors, fontSizes, fontWeights, radii, spacing, typography } from "../../theme";
+import { colors, fontSizes, fontWeights, lineHeights, radii, spacing, typography } from "../../theme";
 
 type Props = {
   selected: string[];
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
-  chipText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold, lineHeight: 24, minWidth: 44, textAlign: "center", borderWidth: 1, borderRadius: radii.sm, paddingHorizontal: spacing.sm, overflow: "hidden" },
+  chipText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold, lineHeight: lineHeights.h24, minWidth: 44, textAlign: "center", borderWidth: 1, borderRadius: radii.sm, paddingHorizontal: spacing.sm, overflow: "hidden" },
   addRow: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: spacing.xs },
   input: {
     flex: 1,
