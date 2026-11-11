@@ -1,10 +1,12 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { Alert, Text, TextInput, TouchableOpacity } from "react-native";
+import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import SongsScreen from "../../app/(tabs)/songs";
+import { SongBulkThemeEditor } from "../components/songs/SongBulkThemeEditor";
 import { musicService, SongsUnavailableClientError } from "../services/musicService";
 import { useMusicStore } from "../store/musicStore";
 import { Song } from "../types";
+import { colors, spacing } from "../theme";
 jest.mock("../components/songs/SongDataTransferPanel", () => ({ SongDataTransferPanel: () => null }));
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
@@ -12,6 +14,7 @@ jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 type TestNode = TestRenderer.ReactTestInstance;
 
 const pushMock = jest.fn();
+let mockBottomInset = 0;
 const baseSong: Song = {
   id: "song-1",
   title: "Musica 1",
@@ -64,10 +67,12 @@ jest.mock("react-native", () => {
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children, ...props }: any) => React.createElement("SafeAreaView", props, children),
+  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: mockBottomInset }),
 }));
 
 jest.mock("../components/BottomSheet", () => ({
-  BottomSheet: () => null,
+  BottomSheet: ({ isOpen, children, footer, ...props }: any) => isOpen
+    ? React.createElement("BottomSheet", props, children, footer) : null,
 }));
 
 jest.mock("../hooks/useReducedMotion", () => ({ useReducedMotion: () => false }));
@@ -95,6 +100,7 @@ jest.mock("../services/musicService", () => ({
     listSongs: jest.fn(),
     listSongTagCounts: jest.fn().mockResolvedValue({ items: [], untaggedCount: 40 }),
     exportSongs: jest.fn(),
+    changeSongThemes: jest.fn(),
   },
 }));
 
@@ -107,6 +113,10 @@ const originalConsoleError = console.error;
 
 function nodeText(node: TestNode): string {
   return node.findAllByType(Text).map((text: TestNode) => text.props.children).flat().join(" ");
+}
+
+function flattenStyle(style: any): Record<string, any> {
+  return Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 }
 
 describe("SongsScreen pagination", () => {
@@ -134,6 +144,7 @@ describe("SongsScreen pagination", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockBottomInset = 0;
     useMusicStore.setState({
       songs: [],
       currentSong: null,
@@ -315,7 +326,7 @@ describe("SongsScreen pagination", () => {
     expect(renderer!.root.findAllByProps({ testID: "song-selection-bar" }).length).toBeGreaterThan(0);
     expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 selecionadas"))).toBe(true);
 
-    act(() => byLabel("Cancelar seleção")!.props.onPress());
+    act(() => byLabel("Cancelar seleção de 0 músicas")!.props.onPress());
     expect(renderer!.root.findAllByProps({ testID: "song-selection-bar" })).toHaveLength(0);
     expect(byLabel("Selecionar músicas")).toBeTruthy();
   });
@@ -365,7 +376,10 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(Alert.alert).toHaveBeenCalledWith("Erro", "Falha temporária");
+    expect(Alert.alert).not.toHaveBeenCalled();
+    const toast = renderer!.root.findByProps({ testID: "feedback-toast" });
+    expect(nodeText(toast)).toContain("Falha temporária");
+    expect(toast.props.accessibilityLiveRegion).toBe("polite");
     expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 selecionada"))).toBe(true);
 
     jest.mocked(musicService.exportSongs).mockRejectedValueOnce(new SongsUnavailableClientError(["song-1"]));
@@ -376,5 +390,105 @@ describe("SongsScreen pagination", () => {
     });
     expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("0 selecionadas"))).toBe(true);
     expect(renderer!.root.findAllByProps({ testID: "feedback-toast" }).length).toBeGreaterThan(0);
+  });
+
+  it.each([0, 34, 48])("respeita inset inferior %i e mantém folga no fim da lista ao selecionar", async (bottom) => {
+    mockBottomInset = bottom;
+    await act(async () => { renderer = TestRenderer.create(<SongsScreen />); });
+    const scroll = () => renderer!.root.findByProps({ testID: "song-catalog-scroll" });
+    const initialPadding = flattenStyle(scroll().props.contentContainerStyle).paddingBottom;
+    act(() => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node) => node.props.accessibilityLabel === "Selecionar músicas")!.props.onPress());
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
+
+    const dock = renderer!.root.findByProps({ testID: "song-selection-dock" });
+    expect(flattenStyle(dock.props.style).paddingBottom).toBe(Math.max(spacing.sm, bottom));
+    expect(flattenStyle(scroll().props.contentContainerStyle).paddingBottom).toBe(initialPadding + Math.max(spacing.sm, bottom));
+    const actions = renderer!.root.findAllByType(TouchableOpacity)
+      .filter((node) => ["Adicionar tema a 1 música", "Remover tema de 1 música", "Exportar PDF de 1 música", "Cancelar seleção de 1 música"].includes(node.props.accessibilityLabel));
+    expect(actions).toHaveLength(4);
+    actions.forEach((node) => {
+      expect(node.props.accessibilityRole).toBe("button");
+      expect(flattenStyle(node.props.style).minHeight).toBeGreaterThanOrEqual(44);
+      expect(flattenStyle(node.props.style).minWidth).toBeGreaterThanOrEqual(44);
+    });
+    act(() => actions[0].props.onFocus());
+    expect(flattenStyle(actions[0].props.style).borderColor).toBe(colors.accent);
+    const count = renderer!.root.findAllByType(Text).find((node) => node.props.children === "1 selecionada")!;
+    expect(count.props.accessibilityLiveRegion).toBe("polite");
+    expect(count.props["aria-live"]).toBe("polite");
+    act(() => actions[3].props.onPress());
+    expect(flattenStyle(scroll().props.contentContainerStyle).paddingBottom).toBe(initialPadding);
+  });
+
+  it("conta temas entre páginas e oferece remover apenas temas da seleção, sem nova consulta", async () => {
+    jest.mocked(musicService.listSongs).mockImplementation(async (_search = "", page = 1) => ({
+      items: [{ ...baseSong, id: `song-${page}`, tags: page === 1 ? ["Adoração", "Comunhão"] : ["adoração"] }],
+      pagination: { page, limit: 20, total: 2, totalPages: 2 },
+    }));
+    jest.mocked(musicService.listSongTagCounts).mockResolvedValueOnce({
+      items: [
+        { id: "adoracao", name: "Adoração", count: 2 },
+        { id: "comunhao", name: "Comunhão", count: 1 },
+        { id: "natal", name: "Natal", count: 8 },
+      ], untaggedCount: 0,
+    });
+    await act(async () => { renderer = TestRenderer.create(<SongsScreen />); });
+    const press = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node) => node.props.accessibilityLabel === label)!.props.onPress();
+    act(() => press("Selecionar músicas"));
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
+    await act(async () => press("Próxima página"));
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-2" }).props.onPress());
+    const requests = jest.mocked(musicService.listSongTagCounts).mock.calls.length;
+    act(() => press("Adicionar tema a 2 músicas"));
+    const editor = () => renderer!.root.findByType(SongBulkThemeEditor);
+    expect(editor().findAllByType(TouchableOpacity).map((node) => node.props.accessibilityLabel))
+      .toEqual(expect.arrayContaining(["Adoração · 2 de 2", "Comunhão · 1 de 2", "Natal"]));
+    act(() => editor().props.onClose());
+    act(() => press("Remover tema de 2 músicas"));
+    const choices = () => editor().findAllByType(TouchableOpacity)
+      .filter((node) => node.props.accessibilityRole === "checkbox");
+    expect(choices().map((node) => node.props.accessibilityLabel)).toEqual(expect.arrayContaining(["Adoração · 2 de 2", "Comunhão · 1 de 2"]));
+    expect(choices()).toHaveLength(2);
+    choices().forEach((node) => expect(flattenStyle(node.props.style).minHeight).toBeGreaterThanOrEqual(44));
+    expect(musicService.listSongTagCounts).toHaveBeenCalledTimes(requests);
+
+    act(() => press("Comunhão · 1 de 2"));
+    jest.mocked(musicService.changeSongThemes).mockRejectedValueOnce(new Error("Falha ao remover tema"));
+    await act(async () => press("Aplicar temas a 2 músicas"));
+    expect(musicService.changeSongThemes).toHaveBeenCalledWith(["song-1", "song-2"], "remove", ["comunhao"], []);
+    const error = renderer!.root.findAllByType(Text).find((node) => node.props.testID === "song-bulk-theme-error")!;
+    expect(nodeText(error)).toContain("Falha ao remover tema");
+    expect(error.props.accessibilityRole).toBe("alert");
+    const liveNotice = editor().findAllByType(View).find((node) => node.props["aria-live"] === "polite")!;
+    expect(liveNotice.props.accessibilityLiveRegion).toBe("polite");
+    expect(nodeText(liveNotice)).toContain("Falha ao remover tema");
+    expect(Alert.alert).not.toHaveBeenCalled();
+
+    jest.mocked(musicService.changeSongThemes).mockResolvedValueOnce({
+      items: [{ id: "song-1", tags: ["Adoração"] }, { id: "song-2", tags: ["adoração"] }], updated: 1,
+    });
+    await act(async () => press("Aplicar temas a 2 músicas"));
+    expect(nodeText(renderer!.root.findByProps({ testID: "feedback-toast" }))).toContain("Temas atualizados em 1 música.");
+    act(() => press("Remover tema de 2 músicas"));
+    expect(choices().map((node) => node.props.accessibilityLabel)).toEqual(["Adoração · 2 de 2"]);
+  });
+
+  it("mostra remoção vazia quando as selecionadas não têm temas", async () => {
+    jest.mocked(musicService.listSongTagCounts).mockResolvedValueOnce({
+      items: [{ id: "natal", name: "Natal", count: 8 }], untaggedCount: 1,
+    });
+    await act(async () => { renderer = TestRenderer.create(<SongsScreen />); });
+    const press = (label: string) => renderer!.root.findAllByType(TouchableOpacity)
+      .find((node) => node.props.accessibilityLabel === label)!.props.onPress();
+    act(() => press("Selecionar músicas"));
+    act(() => renderer!.root.findByProps({ testID: "song-row-control-song-1" }).props.onPress());
+    act(() => press("Remover tema de 1 música"));
+    expect(renderer!.root.findAllByType(Text).some((node) => node.props.children === "Nenhum tema nas músicas selecionadas.")).toBe(true);
+    expect(renderer!.root.findByType(SongBulkThemeEditor).findAllByType(TouchableOpacity)
+      .filter((node) => node.props.accessibilityRole === "checkbox")).toHaveLength(0);
+    const apply = renderer!.root.findAllByType(TouchableOpacity).find((node) => node.props.accessibilityLabel === "Aplicar temas a 1 música")!;
+    expect(apply.props.accessibilityState.disabled).toBe(true);
   });
 });

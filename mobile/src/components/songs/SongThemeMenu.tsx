@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Check } from "lucide-react-native";
 import { SUGGESTED_SONG_TAGS } from "../../../../src/constants/songTags";
@@ -21,34 +21,39 @@ export function songThemeOptions(names: readonly string[]): string[] {
 
 type ChecklistProps = {
   options: string[];
+  optionLabels?: ReadonlyMap<string, string>;
   checked: ReadonlySet<string>;
   disabled?: boolean;
   onToggle: (name: string) => void;
 };
 
-export function SongThemeChecklist({ options, checked, disabled, onToggle }: ChecklistProps) {
+export function SongThemeChecklist({ options, optionLabels, checked, disabled, onToggle }: ChecklistProps) {
   const dark = useThemeStore((state) => state.mode === "dark");
+  const [focused, setFocused] = useState<string | null>(null);
   return (
     <View style={styles.checklist}>
       {options.map((name) => {
         const key = normalizeCatalogText(name);
         const active = checked.has(key);
+        const label = optionLabels?.get(key) ?? name;
         return (
           <TouchableOpacity
             key={key}
             onPress={() => onToggle(name)}
             disabled={disabled}
             accessibilityRole="checkbox"
-            accessibilityLabel={name}
+            accessibilityLabel={label}
             accessibilityState={{ checked: active, disabled }}
             aria-checked={active}
-            style={styles.option}
+            style={[styles.option, focused === key && styles.optionFocused]}
+            onFocus={() => setFocused(key)}
+            onBlur={() => setFocused(null)}
           >
             <View style={[styles.checkbox, active && styles.checkboxActive]}>
               {active ? <Check color={colors.surface} size={iconSizes.s13} strokeWidth={3} /> : null}
             </View>
             <View style={[styles.dot, { backgroundColor: songThemeColors(name, dark).ink }]} />
-            <Text style={styles.optionName}>{name}</Text>
+            <Text style={styles.optionName}>{label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -111,7 +116,8 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
 
 const styles = StyleSheet.create({
   checklist: { paddingHorizontal: spacing.md },
-  option: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxs },
+  option: { minHeight: 44, minWidth: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxs },
+  optionFocused: { backgroundColor: colors.primarySoft },
   optionName: { color: colors.text, fontSize: fontSizes.s13, flexShrink: 1 },
   checkbox: {
     width: 16, height: 16, borderRadius: radiusValues.r2,

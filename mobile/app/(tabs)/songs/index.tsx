@@ -2,7 +2,6 @@ import { uiPatterns } from "../../../src/components/ui/patterns";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Easing,
   LayoutChangeEvent,
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
@@ -45,7 +44,7 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongTagCounts, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { musicService, SongListParams, SongTagCounts, SongTagOption, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
 import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
@@ -111,6 +110,7 @@ function totalLabel(total: number): string {
 
 export default function SongsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
   const { screenWidth } = useResponsiveLayout();
   const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
@@ -175,6 +175,7 @@ export default function SongsScreen() {
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didMountSearchRef = useRef(false);
   const countsRequest = useRef<AbortController | null>(null);
+  const knownTags = useRef(new Map<string, SongTagOption>());
   const handledInvalidationRef = useRef(listInvalidationVersion);
 
   useEffect(() => { searchRef.current = search; }, [search]);
@@ -205,7 +206,10 @@ export default function SongsScreen() {
     setThemeError(null);
     void musicService.listSongTagCounts(searchRef.current, filtersRef.current, request.signal)
       .then((result) => {
-        if (!request.signal.aborted) setThemeCounts(result);
+        if (!request.signal.aborted) {
+          result.items.forEach((tag) => knownTags.current.set(tag.id, tag));
+          setThemeCounts(result);
+        }
       })
       .catch(() => {
         if (!request.signal.aborted) setThemeError("Não foi possível carregar os temas.");
@@ -320,7 +324,7 @@ export default function SongsScreen() {
           "warning"
         );
       } else {
-        Alert.alert("Erro", reason instanceof Error ? reason.message : TEXT.exportError);
+        showFeedback(reason instanceof Error ? reason.message : TEXT.exportError, "error");
       }
     } finally {
       exportingRef.current = false;
@@ -372,6 +376,14 @@ export default function SongsScreen() {
 
   const saveBulkThemes = ({ items, updated }: SongThemeBatchResult) => {
     applySongThemes(items);
+    setSelectedSongs((current) => {
+      const next = new Map(current);
+      items.forEach(({ id, tags }) => {
+        const song = next.get(id);
+        if (song) next.set(id, { ...song, tags: [...tags] });
+      });
+      return next;
+    });
     setBulkEditor(null);
     showFeedback(updated
       ? `Temas atualizados em ${updated} ${updated === 1 ? "música" : "músicas"}.`
@@ -429,7 +441,10 @@ export default function SongsScreen() {
       <ScrollView
         style={styles.scroller}
         testID="song-catalog-scroll"
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, isSelectionMode && {
+          // The dock occupies its own row; keep extra clearance when scrolling to the end.
+          paddingBottom: screen.contentBottomPadding + spacing.xl + Math.max(spacing.sm, insets.bottom),
+        }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
           <RefreshControl
@@ -650,7 +665,8 @@ export default function SongsScreen() {
       {canEditThemes && bulkEditor ? (
         <SongBulkThemeEditor
           {...bulkEditor}
-          knownTags={themeCounts?.items ?? []}
+          knownTags={Array.from(knownTags.current.values())}
+          selectedSongs={Array.from(selectedSongs.values()).filter((song) => bulkEditor.songIds.includes(song.id))}
           onSaved={saveBulkThemes}
           onClose={() => setBulkEditor(null)}
         />
