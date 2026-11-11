@@ -6,6 +6,7 @@ export type SongSelectionSnapshot = {
   id: string;
   title: string;
   originalKey: MusicalKey;
+  tags?: string[];
   artist: { id: string; name: string; imageUrl?: string | null };
 };
 
@@ -14,6 +15,7 @@ export function songSelectionSnapshot(song: Song): SongSelectionSnapshot {
     id: song.id,
     title: song.title,
     originalKey: song.originalKey,
+    tags: [...(song.tags ?? [])],
     artist: {
       id: song.artist.id,
       name: song.artist.name,
@@ -25,6 +27,7 @@ export function songSelectionSnapshot(song: Song): SongSelectionSnapshot {
 function snapshotChanged(left: SongSelectionSnapshot, right: SongSelectionSnapshot): boolean {
   return left.title !== right.title
     || left.originalKey !== right.originalKey
+    || JSON.stringify(left.tags ?? []) !== JSON.stringify(right.tags ?? [])
     || left.artist.id !== right.artist.id
     || left.artist.name !== right.artist.name
     || left.artist.imageUrl !== right.artist.imageUrl;
