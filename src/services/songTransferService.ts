@@ -18,7 +18,7 @@ import {
 
 type RequestUser = { id: string; role: Role; tenantId?: string };
 type PreviewStatus = "CREATE" | "UPDATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "SKIPPED" | "CONFLICT" | "INVALID";
-type TransferOptions = { fields: Set<SongTransferField>; fieldList: SongTransferField[]; existing: SongTransferExistingMode; explicitFields: boolean };
+type TransferOptions = { fields: Set<SongTransferField>; fieldList: SongTransferField[]; existing: SongTransferExistingMode };
 const actionable = new Set<PreviewStatus>(["CREATE", "UPDATE", "LINK", "RESTORE"]);
 const urlFields = ["cifraUrl", "letraUrl", "audioUrl", "videoUrl"] as const;
 
@@ -61,7 +61,6 @@ function resolveOptions(input: { fields?: SongTransferField[]; existing?: SongTr
     fields: new Set(fieldList),
     fieldList,
     existing: input.existing ?? "create",
-    explicitFields: input.fields != null,
   };
 }
 
@@ -171,7 +170,7 @@ export class SongTransferService {
         if (options.fields.has("audioUrl")) exported.audioUrl = song.audioUrl;
         if (options.fields.has("videoUrl")) exported.videoUrl = song.videoUrl;
         if (options.fields.has("comments")) exported.comments = song.comments;
-        if (options.fields.has("tags") && (options.explicitFields || tags.length)) exported.tags = tags;
+        if (options.fields.has("tags")) exported.tags = tags;
         return exported;
       }),
     };
@@ -335,6 +334,8 @@ export class SongTransferService {
           counts.restored += 1;
         }
 
+        // Empty tags create no themes; on UPDATE, an explicitly provided [] clears them.
+        // An omitted or unselected tags field preserves the existing themes.
         const shouldImportTags = decision.status === "CREATE"
           ? Boolean(incoming.tags?.length)
           : decision.status === "UPDATE" && provided(incoming, "tags");

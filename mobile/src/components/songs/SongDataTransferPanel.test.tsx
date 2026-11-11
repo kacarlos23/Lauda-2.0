@@ -6,7 +6,7 @@ import { SONG_TRANSFER_FIELDS } from "../../../../src/constants/songTransferFiel
 import { SongDataTransferPanel } from "./SongDataTransferPanel";
 import { musicService, SongTransferDocument, SongTransferPreview } from "../../services/musicService";
 import { ministryApi } from "../../services/ministryApi";
-import { Button, ConfirmDialog, ErrorBanner } from "../ui";
+import { Button, Chip, ConfirmDialog, ErrorBanner } from "../ui";
 
 jest.mock("react-native", () => {
   const React = require("react");
@@ -96,6 +96,31 @@ describe("SongDataTransferPanel", () => {
     });
     expect(onImported).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("mostra Temas marcado por padrão e o envia na exportação", async () => {
+    await render();
+    const themes = renderer.root.findAllByType(Chip).find((node) => node.props.label === "Temas")!;
+    expect(themes.props.active).toBe(true);
+    expect(themes.props.accessibilityState).toEqual({ checked: true, disabled: false });
+    await act(async () => button("Exportar JSON").props.onPress());
+    expect(musicService.exportSongData).toHaveBeenCalledWith("ministry-a", "Louvor", { fields: expect.arrayContaining(["tags"]) });
+  });
+
+  it.each([[1, 1], [3, 1], [2, 0]])("informa %i atualizadas incluindo %i reativadas sem duplicar o total", async (updated, restored) => {
+    jest.mocked(musicService.previewSongData).mockResolvedValue({
+      ...preview, total: updated, counts: { ...preview.counts, CREATE: 0, UPDATE: updated },
+    });
+    jest.mocked(musicService.commitSongData).mockResolvedValue({
+      created: 0, updated, restored, linked: 0, alreadyLinked: 0, conflicts: 0, invalid: 0,
+      total: updated, documentHash: preview.documentHash,
+    });
+    await render();
+    await act(async () => renderer.root.findAllByType(Chip).find((node) => node.props.label === "Atualizar")!.props.onPress());
+    await selectFile();
+    await act(async () => button(`Importar ${updated} músicas`).props.onPress());
+    await act(async () => renderer.root.findByType(ConfirmDialog).props.onConfirm());
+    expect(onImported).toHaveBeenCalledWith(`0 músicas criadas; ${updated} atualizadas (${restored} delas reativadas); 0 vínculos adicionados. 0 já vinculadas; 0 ignoradas.`);
   });
 
   it("aceita JSON com BOM e permite selecionar arquivos sem MIME JSON", async () => {
