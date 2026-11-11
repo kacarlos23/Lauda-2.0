@@ -1,10 +1,10 @@
 import React, { useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SUGGESTED_SONG_TAGS, SONG_TAG_NAME_MAX, SONG_TAGS_MAX } from "../../../../src/constants/songTags";
 import { cleanCatalogText, normalizeCatalogText } from "../../../../src/utils/catalogNormalization";
 import { Chip } from "../ui/Chip";
 import { InputControl as TextInput } from "../ui/InputControl";
-import { colors, fontSizes, fontWeights, radii, spacing, typography } from "../../theme";
+import { colors, fontSizes, fontWeights, lineHeights, radii, spacing, typography } from "../../theme";
 
 type Props = {
   selected: string[];
@@ -38,6 +38,8 @@ export function SongTagPicker({
 }: Props) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [focusedTag, setFocusedTag] = useState<string | null>(null);
+  const [addFocused, setAddFocused] = useState(false);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const choices = useMemo(
@@ -106,8 +108,13 @@ export function SongTagPicker({
               label={name}
               active={active}
               onPress={() => toggle(name)}
-              style={styles.chip}
-              textStyle={styles.chipText}
+              style={[styles.chip, focusedTag === name && styles.focused]}
+              textStyle={[styles.chipText, { backgroundColor: active ? colors.primarySoft : colors.surface, borderColor: active ? colors.primary : colors.line }]}
+              hitSlop={9}
+              activeOpacity={1}
+              onFocus={() => setFocusedTag(name)}
+              onBlur={() => setFocusedTag(null)}
+              accessibilityRole="button"
               accessibilityLabel={`${active ? "Remover tema" : "Marcar tema"} ${name}`}
               accessibilityState={{ selected: active }}
               testID={`song-tag-${name}`}
@@ -130,8 +137,12 @@ export function SongTagPicker({
             testID="song-tag-input"
           />
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, addFocused && styles.focused]}
             onPress={addCustom}
+            hitSlop={5}
+            activeOpacity={1}
+            onFocus={() => setAddFocused(true)}
+            onBlur={() => setAddFocused(false)}
             accessibilityRole="button"
             accessibilityLabel="Adicionar tema"
             testID="song-tag-add"
@@ -150,9 +161,9 @@ export function SongTagList({ tags, limit }: { tags?: string[]; limit?: number }
   const visible = typeof limit === "number" ? tags.slice(0, limit) : tags;
   const hidden = tags.length - visible.length;
   return (
-    <View style={styles.list} accessibilityLabel={`Temas: ${tags.join(", ")}`}>
-      {visible.map((tag) => <Text key={tag} style={styles.tag}>{tag}</Text>)}
-      {hidden > 0 ? <Text style={styles.tag}>+{hidden}</Text> : null}
+    <View role="group" style={styles.list} accessible accessibilityLabel={`Temas: ${[...visible, ...(hidden > 0 ? [`+${hidden}`] : [])].join(", ")}`}>
+      {visible.map((tag) => <Text aria-hidden accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" key={tag} style={styles.tag}>{tag}</Text>)}
+      {hidden > 0 ? <Text aria-hidden accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.tag}>+{hidden}</Text> : null}
     </View>
   );
 }
@@ -161,15 +172,20 @@ const styles = StyleSheet.create({
   wrap: { width: "100%", alignSelf: "stretch", gap: spacing.xs },
   label: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, marginTop: spacing.sm },
   hint: { color: colors.muted, fontSize: fontSizes.s12, lineHeight: typography.metadata.lineHeight },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  chips: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.xs, rowGap: Platform.OS === "web" ? spacing.xs : 18, paddingVertical: Platform.OS === "web" ? 0 : 9 },
+  focused: Platform.OS === "web" ? { outlineStyle: "solid", outlineWidth: 2, outlineColor: colors.primary, outlineOffset: 2 } : {},
   chip: {
-    minHeight: 26,
+    // Keep the painted label at 26px; the transparent web target must be 44px.
+    minHeight: Platform.OS === "web" ? 44 : 26,
+    minWidth: 44,
     borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: 0,
     paddingVertical: 0,
   },
-  chipText: { fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
-  addRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  chipText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold, lineHeight: lineHeights.h24, minWidth: 44, textAlign: "center", borderWidth: 1, borderRadius: radii.sm, paddingHorizontal: spacing.sm, overflow: "hidden" },
+  addRow: { flexDirection: "row", alignItems: "center", minHeight: 44, gap: spacing.xs },
   input: {
     flex: 1,
     minHeight: 34,
@@ -182,18 +198,17 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.s13,
   },
   addButton: {
-    minHeight: 34,
-    paddingHorizontal: spacing.sm,
+    minHeight: Platform.OS === "web" ? 44 : 34,
+    minWidth: 44,
     borderRadius: radii.sm,
-    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  addText: { color: colors.primary, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold },
+  addText: { color: colors.text, fontSize: fontSizes.s12, fontWeight: fontWeights.extrabold, backgroundColor: colors.primarySoft, borderRadius: radii.sm, overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
   error: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold },
   list: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.xxs },
   tag: {
-    color: colors.primaryDark,
+    color: colors.text,
     backgroundColor: colors.primarySoft,
     borderRadius: radii.sm,
     paddingHorizontal: 6,
