@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const { getDefaultConfig } = require("expo/metro-config");
 
@@ -18,13 +19,14 @@ const queryStringBase = path.join(
   path.dirname(require.resolve("query-string", { paths: [expoRouterRoot] })),
   "base.js",
 );
+const hasQueryStringBase = fs.existsSync(queryStringBase);
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const isRouterQueryString =
     moduleName === "query-string" && context.originModulePath.startsWith(expoRouterRoot + path.sep);
   return (defaultResolveRequest ?? context.resolveRequest)(
     context,
-    isRouterQueryString ? queryStringBase : moduleName,
+    isRouterQueryString && hasQueryStringBase ? queryStringBase : moduleName,
     platform,
   );
 };

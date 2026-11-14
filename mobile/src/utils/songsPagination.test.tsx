@@ -73,7 +73,8 @@ jest.mock("../components/BottomSheet", () => ({
 jest.mock("../hooks/useReducedMotion", () => ({ useReducedMotion: () => false }));
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, setParams: jest.fn() }),
+  useLocalSearchParams: () => ({}),
   useFocusEffect: (callback: () => void) => {
     const React = require("react");
     React.useEffect(callback, []);
@@ -152,6 +153,7 @@ describe("SongsScreen pagination", () => {
       lastFetchedAt: null,
       listMutationVersion: 0,
       listInvalidationVersion: 0,
+      tagCounts: null,
       localMutations: {},
     });
     jest.mocked(musicService.listSongs).mockImplementation(async (_search = "", page = 1) => ({
@@ -205,7 +207,7 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
     });
 
-    expect(musicService.listSongs).toHaveBeenCalledWith("", 1, 20, {}, expect.any(Object));
+    expect(musicService.listSongs).toHaveBeenCalledWith("", 1, 20, { includeTagCounts: true }, expect.any(Object));
     expect(musicService.listSongs).toHaveBeenCalledWith("", 2, 20, {}, expect.any(Object));
     expect(jest.mocked(musicService.listSongs).mock.calls.at(-1)?.slice(0, 4)).toEqual(["", 1, 20, {}]);
   });
@@ -226,7 +228,7 @@ describe("SongsScreen pagination", () => {
       act(() => {
         jest.advanceTimersByTime(299);
       });
-      expect(musicService.listSongs).not.toHaveBeenCalledWith("Artista", 1, 20, {}, expect.any(Object));
+      expect(musicService.listSongs).not.toHaveBeenCalledWith("Artista", 1, 20, { includeTagCounts: true }, expect.any(Object));
 
       await act(async () => {
         jest.advanceTimersByTime(1);
@@ -234,7 +236,7 @@ describe("SongsScreen pagination", () => {
         await Promise.resolve();
       });
 
-      expect(musicService.listSongs).toHaveBeenCalledWith("Artista", 1, 20, {}, expect.any(Object));
+      expect(musicService.listSongs).toHaveBeenCalledWith("Artista", 1, 20, { includeTagCounts: true }, expect.any(Object));
     } finally {
       jest.useRealTimers();
     }

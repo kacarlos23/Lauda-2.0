@@ -14,6 +14,7 @@ jest.mock("../services/ministryApi", () => ({
 
 jest.mock("./invalidation", () => ({
   invalidateRelatedData: jest.fn(() => Promise.resolve()),
+  resetAllDomainStores: jest.fn(),
 }));
 
 import { ministryApi } from "../services/ministryApi";

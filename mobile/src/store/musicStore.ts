@@ -2,11 +2,12 @@
 import { normalizeCatalogText } from "../../../src/utils/catalogNormalization";
 import { foldThemeSearch, parseSongSearch } from "../../../src/utils/songSearch";
 import { Pagination, Song } from "../types";
-import { musicService, SongListParams, SongPayload, SongThemeChange } from "../services/musicService";
+import { musicService, SongListParams, SongPayload, SongTagCounts, SongThemeChange } from "../services/musicService";
 
 interface MusicState {
   songs: Song[];
   currentSong: Song | null;
+  tagCounts: SongTagCounts | null;
   pagination: Pagination;
   loading: boolean;
   refreshing: boolean;
@@ -22,8 +23,13 @@ interface MusicState {
   lastFetchedAt: number | null;
   listMutationVersion: number;
   listInvalidationVersion: number;
+  themeVersion: number;
   localMutations: Record<string, Song>;
-  loadSongs: (search?: string, page?: number, options?: { refresh?: boolean; filters?: SongListParams }) => Promise<void>;
+  loadSongs: (
+    search?: string,
+    page?: number,
+    options?: { refresh?: boolean; filters?: SongListParams; includeTagCounts?: boolean }
+  ) => Promise<void>;
   loadSong: (id: string) => Promise<void>;
   primeSong: (song: Song) => void;
   createSong: (payload: SongPayload) => Promise<Song>;
@@ -31,6 +37,7 @@ interface MusicState {
   deleteSong: (id: string) => Promise<void>;
   applySongThemes: (changes: SongThemeChange[]) => void;
   clearError: () => void;
+  reset: () => void;
 }
 
 const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
@@ -101,6 +108,7 @@ function mergeLocalMutations(
 export const useMusicStore = create<MusicState>((set) => ({
   songs: [],
   currentSong: null,
+  tagCounts: null,
   pagination: { page: 1, limit: 20, totalPages: 0, total: 0 },
   loading: false,
   refreshing: false,
@@ -116,6 +124,7 @@ export const useMusicStore = create<MusicState>((set) => ({
   lastFetchedAt: null,
   listMutationVersion: 0,
   listInvalidationVersion: 0,
+  themeVersion: 0,
   localMutations: {},
   clearError: () => set({ error: null }),
 
@@ -134,6 +143,7 @@ export const useMusicStore = create<MusicState>((set) => ({
       requestedListKey: null,
       listMutationVersion: state.listMutationVersion + 1,
       listInvalidationVersion: state.listInvalidationVersion + 1,
+      themeVersion: state.themeVersion + 1,
     };
   }),
 
@@ -171,7 +181,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     });
 
     try {
-      const result = await musicService.listSongs(search, page, 20, filters, requestController.signal);
+      const requestFilters = options?.includeTagCounts ? { ...filters, includeTagCounts: true } : filters;
+      const result = await musicService.listSongs(search, page, 20, requestFilters, requestController.signal);
       set((state) => {
         if (requestController.signal.aborted || state.requestedListKey !== requestKey) return state;
         const merged = page === 1
@@ -181,6 +192,7 @@ export const useMusicStore = create<MusicState>((set) => ({
         const totalPages = page === 1 ? Math.max(result.pagination.totalPages, Math.ceil(total / result.pagination.limit)) : result.pagination.totalPages;
         return {
           songs: merged.songs,
+          tagCounts: result.tagCounts ?? (options?.includeTagCounts ? null : state.tagCounts),
           pagination: { ...result.pagination, total, totalPages },
           loading: false,
           refreshing: false,
@@ -244,6 +256,7 @@ export const useMusicStore = create<MusicState>((set) => ({
           pagination: matchesCurrentList ? incrementPaginationTotal(state.pagination) : state.pagination,
           listMutationVersion: state.listMutationVersion + 1,
           listInvalidationVersion: state.listInvalidationVersion + 1,
+          themeVersion: state.themeVersion + 1,
           localMutations: { ...state.localMutations, [song.id]: song },
         };
       });
@@ -282,6 +295,7 @@ export const useMusicStore = create<MusicState>((set) => ({
           pagination: adjustPaginationTotal(state.pagination, paginationDelta),
           listMutationVersion: state.listMutationVersion + 1,
           listInvalidationVersion: state.listInvalidationVersion + 1,
+          themeVersion: state.themeVersion + 1,
           localMutations: { ...state.localMutations, [song.id]: song },
         };
       });
@@ -313,6 +327,7 @@ export const useMusicStore = create<MusicState>((set) => ({
           pagination,
           listMutationVersion: state.listMutationVersion + 1,
           listInvalidationVersion: state.listInvalidationVersion + 1,
+          themeVersion: state.themeVersion + 1,
           localMutations,
         };
       });
@@ -321,5 +336,32 @@ export const useMusicStore = create<MusicState>((set) => ({
       set({ saving: false, error: reason });
       throw new Error(reason);
     }
+  },
+
+  reset: () => {
+    activeListRequest?.abort();
+    activeListRequest = null;
+    set({
+      songs: [],
+      currentSong: null,
+      tagCounts: null,
+      pagination: { page: 1, limit: 20, totalPages: 0, total: 0 },
+      loading: false,
+      refreshing: false,
+      detailLoading: false,
+      saving: false,
+      error: null,
+      detailError: null,
+      requestedSongId: null,
+      requestedListKey: null,
+      currentSearch: "",
+      currentPage: 1,
+      currentFilters: {},
+      lastFetchedAt: null,
+      listMutationVersion: 0,
+      listInvalidationVersion: 0,
+      themeVersion: 0,
+      localMutations: {},
+    });
   },
 }));

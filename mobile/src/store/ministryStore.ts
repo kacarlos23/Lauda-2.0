@@ -30,6 +30,7 @@ interface MinistryState {
     isLeader?: boolean;
   }) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 export const useMinistryStore = create<MinistryState>((set, get) => ({
@@ -150,7 +151,7 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
         await get().fetchMinistry(ministryId);
       }
       set({ loading: false, error: null });
-      await invalidateRelatedData({ reason: "member", ministryId, userId });
+      void invalidateRelatedData({ reason: "member", ministryId, userId, skipMinistryRefresh: true });
     } catch (error: any) {
       set({ error: error.message, loading: false });
       throw error;
@@ -165,7 +166,7 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
         await get().fetchMinistry(ministryId);
       }
       set({ loading: false, error: null });
-      await invalidateRelatedData({ reason: "member", ministryId, userId });
+      void invalidateRelatedData({ reason: "member", ministryId, userId, skipMinistryRefresh: true });
     } catch (error: any) {
       set({ error: error.message, loading: false });
       throw error;
@@ -179,7 +180,7 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
       if (get().currentMinistry?.id === ministryId) {
         await get().fetchMinistry(ministryId);
       }
-      await invalidateRelatedData({ reason: "member", ministryId, userId });
+      void invalidateRelatedData({ reason: "member", ministryId, userId, skipMinistryRefresh: true });
       return response.status;
     } catch (error: any) {
       set({ error: error.message });
@@ -195,10 +196,19 @@ export const useMinistryStore = create<MinistryState>((set, get) => ({
         await get().fetchMinistry(data.ministryId);
       }
       set({ loading: false, error: null });
-      await invalidateRelatedData({ reason: "member", ministryId: data.ministryId, userId: data.userId });
+      void invalidateRelatedData({ reason: "member", ministryId: data.ministryId, userId: data.userId, skipMinistryRefresh: true });
     } catch (error: any) {
       set({ error: error.message, loading: false });
       throw error;
     }
   },
+
+  reset: () => set({
+    ministries: [],
+    currentMinistry: null,
+    currentMembers: [],
+    loading: false,
+    refreshing: false,
+    error: null,
+  }),
 }));

@@ -128,7 +128,8 @@ describe("Artists and songs API", () => {
     const loaded = await request(app).get(`/api/songs/${id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
     const listed = await request(app).get("/api/songs").set("Authorization", `Bearer ${tenant.token}`).expect(200);
     expect(loaded.body.data.content).toBe(clean);
-    expect(listed.body.data.items[0].content).toBe(clean);
+    expect(listed.body.data.items[0].content).toBeUndefined();
+    expect(listed.body.data.items[0].comments).toBeUndefined();
     expect((await prisma.song.findUniqueOrThrow({ where: { id } })).content).toBe(raw);
   });
 
@@ -935,7 +936,10 @@ describe("Artists and songs API", () => {
     await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id, document: changed, documentHash: conflict.body.data.documentHash }).expect(201);
     const preserved = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
-    expect(preserved.body.data.items[0]).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Adoração"] });
+    expect(preserved.body.data.items[0]).toMatchObject({ originalKey: "G", tags: ["Adoração"] });
+    expect(preserved.body.data.items[0].content).toBeUndefined();
+    const preservedDetail = await request(app).get(`/api/songs/${preserved.body.data.items[0].id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(preservedDetail.body.data).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Adoração"] });
 
     const tagsUpdate = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id, document: withNewSong, fields: ["tags"], existing: "update" }).expect(200);
@@ -943,7 +947,9 @@ describe("Artists and songs API", () => {
     await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id, document: withNewSong, fields: ["tags"], existing: "update", documentHash: tagsUpdate.body.data.documentHash }).expect(201);
     const retagged = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
-    expect(retagged.body.data.items[0]).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Natal"] });
+    expect(retagged.body.data.items[0]).toMatchObject({ originalKey: "G", tags: ["Natal"] });
+    const retaggedDetail = await request(app).get(`/api/songs/${retagged.body.data.items[0].id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(retaggedDetail.body.data).toMatchObject({ content: "[G]Original", originalKey: "G", tags: ["Natal"] });
     expect(await prisma.song.count({ where: { title: "Canção nova" } })).toBe(0);
 
     const skipped = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
@@ -953,9 +959,13 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministry.id, document: withNewSong, fields: ["originalKey", "content", "tags"], existing: "skip", documentHash: skipped.body.data.documentHash }).expect(201);
     expect(skipResult.body.data).toMatchObject({ created: 1, skipped: 1, updated: 0 });
     const untouched = await request(app).get("/api/songs?search=Já existe").set("Authorization", `Bearer ${tenant.token}`).expect(200);
-    expect(untouched.body.data.items[0]).toMatchObject({ content: "[G]Original", tags: ["Natal"] });
+    expect(untouched.body.data.items[0]).toMatchObject({ tags: ["Natal"] });
+    const untouchedDetail = await request(app).get(`/api/songs/${untouched.body.data.items[0].id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(untouchedDetail.body.data).toMatchObject({ content: "[G]Original", tags: ["Natal"] });
     const fresh = await request(app).get("/api/songs?search=Canção nova").set("Authorization", `Bearer ${tenant.token}`).expect(200);
-    expect(fresh.body.data.items[0]).toMatchObject({ content: "[C]Nova", tags: ["Missões"] });
+    expect(fresh.body.data.items[0]).toMatchObject({ tags: ["Missões"] });
+    const freshDetail = await request(app).get(`/api/songs/${fresh.body.data.items[0].id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(freshDetail.body.data).toMatchObject({ content: "[C]Nova", tags: ["Missões"] });
   });
 
   it("preserva os temas existentes ao vincular e restaurar pelo catálogo JSON", async () => {

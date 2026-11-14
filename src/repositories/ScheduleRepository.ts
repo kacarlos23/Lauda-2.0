@@ -17,27 +17,33 @@ import {
   loadScheduleNotificationSnapshot,
 } from "../services/scheduleNotificationService";
 
-const scheduleInclude = {
+const scheduleBaseInclude = {
   morningOrders: { select: { date: true } },
   eveningOrders: { select: { date: true } },
   ministry: { select: { id: true, name: true } },
   assignments: { include: { user: { select: { id: true, name: true } } } },
-  songs: {
-    orderBy: { order: "asc" as const },
-    include: {
-      song: {
-        select: {
-          id: true,
-          title: true,
-          videoUrl: true,
-          originalKey: true,
-          bpm: true,
-          artistId: true,
-          artist: { select: { id: true, name: true, imageUrl: true } },
-        },
+};
+
+const scheduleSongsInclude = {
+  orderBy: { order: "asc" as const },
+  include: {
+    song: {
+      select: {
+        id: true,
+        title: true,
+        videoUrl: true,
+        originalKey: true,
+        bpm: true,
+        artistId: true,
+        artist: { select: { id: true, name: true, imageUrl: true } },
       },
     },
   },
+};
+
+const scheduleInclude = {
+  ...scheduleBaseInclude,
+  songs: scheduleSongsInclude,
 };
 
 export class ScheduleRepository {
@@ -74,15 +80,23 @@ export class ScheduleRepository {
    * @returns Schedules visible to the current tenant only.
    */
   findAll(filters: Partial<ListSchedulesInput> = {}) {
+    const effectiveFrom = filters.from ?? filters.dateFrom;
+    const effectiveTo = filters.to ?? filters.dateTo;
     return prisma.schedule.findMany({
       where: {
         tenantId: this.tenantId,
         isActive: true,
         deletedAt: null,
         ...(filters.ministryId ? { ministryId: filters.ministryId } : {}),
-        ...(filters.from || filters.to ? { date: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
+        ...(effectiveFrom || effectiveTo
+          ? { date: { ...(effectiveFrom ? { gte: effectiveFrom } : {}), ...(effectiveTo ? { lte: effectiveTo } : {}) } }
+          : {}),
       },
-      include: scheduleInclude,
+      include: {
+        ...scheduleBaseInclude,
+        ...(filters.summary ? {} : { songs: scheduleSongsInclude }),
+      },
+      ...(filters.limit ? { take: filters.limit } : {}),
       orderBy: { date: "asc" },
     });
   }
@@ -113,6 +127,20 @@ export class ScheduleRepository {
     return prisma.user.findFirst({
       where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
       select: { id: true, name: true, tenantId: true },
+    });
+  }
+
+  findTenantUsersByIds(userIds: string[]) {
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return Promise.resolve([]);
+    return prisma.user.findMany({
+      where: {
+        id: { in: uniqueIds },
+        tenantId: this.tenantId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
     });
   }
 
@@ -189,6 +217,23 @@ export class ScheduleRepository {
       where: { ministryId, userId, tenantId: this.tenantId, status: "ACTIVE", isActive: true, deletedAt: null },
       select: { id: true, status: true },
     });
+  }
+
+  async findMinistryMemberUserIds(ministryId: string, userIds: string[]): Promise<Set<string>> {
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return new Set();
+    const rows = await prisma.ministryMember.findMany({
+      where: {
+        ministryId,
+        userId: { in: uniqueIds },
+        tenantId: this.tenantId,
+        status: "ACTIVE",
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { userId: true },
+    });
+    return new Set(rows.map((row) => row.userId));
   }
 
   countTenantSongs(songIds: string[]) {
@@ -561,38 +606,34 @@ export class ScheduleRepository {
     });
   }
 
-  findSchedulesForUser(userId: string) {
+  findSchedulesForUser(userId: string, filters: Partial<ListSchedulesInput> = {}) {
+    const effectiveFrom = filters.from ?? filters.dateFrom;
+    const effectiveTo = filters.to ?? filters.dateTo;
     return prisma.scheduleAssignment.findMany({
       where: {
         userId,
         tenantId: this.tenantId,
         isActive: true,
         deletedAt: null,
-        schedule: { tenantId: this.tenantId, isActive: true, deletedAt: null },
+        schedule: {
+          tenantId: this.tenantId,
+          isActive: true,
+          deletedAt: null,
+          ...(filters.ministryId ? { ministryId: filters.ministryId } : {}),
+          ...(effectiveFrom || effectiveTo
+            ? { date: { ...(effectiveFrom ? { gte: effectiveFrom } : {}), ...(effectiveTo ? { lte: effectiveTo } : {}) } }
+            : {}),
+        },
       },
       include: {
         schedule: {
           include: {
             ministry: { select: { id: true, name: true } },
-            songs: {
-              orderBy: { order: "asc" },
-              include: {
-                song: {
-                  select: {
-                    id: true,
-                    title: true,
-                    videoUrl: true,
-                    originalKey: true,
-                    bpm: true,
-                    artistId: true,
-                    artist: { select: { id: true, name: true, imageUrl: true } },
-                  },
-                },
-              },
-            },
+            ...(filters.summary ? {} : { songs: scheduleSongsInclude }),
           },
         },
       },
+      ...(filters.limit ? { take: filters.limit } : {}),
       orderBy: { schedule: { date: "asc" } },
     });
   }

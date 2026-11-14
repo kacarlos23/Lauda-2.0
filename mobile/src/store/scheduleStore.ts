@@ -4,11 +4,27 @@ import { AssignmentStatus, Schedule, ScheduleAssignment } from "../types";
 import { ScheduleListParams, scheduleService } from "../services/scheduleService";
 import { invalidateRelatedData } from "./invalidation";
 
-type LoadOptions = { refresh?: boolean; params?: ScheduleListParams };
+type ScheduleDateRange = { dateFrom: string; dateTo: string };
+type LoadOptions = { refresh?: boolean; params?: ScheduleListParams; persistParams?: boolean };
+
+function mergeLoadedRange(
+  current: ScheduleDateRange | null,
+  params?: ScheduleListParams
+): ScheduleDateRange | null {
+  if (!params?.dateFrom || !params?.dateTo) return current;
+  if (!current) return { dateFrom: params.dateFrom, dateTo: params.dateTo };
+  return {
+    dateFrom: params.dateFrom < current.dateFrom ? params.dateFrom : current.dateFrom,
+    dateTo: params.dateTo > current.dateTo ? params.dateTo : current.dateTo,
+  };
+}
 
 interface ScheduleState {
   allSchedules: Schedule[];
   schedules: ScheduleAssignment[];
+  activeParams?: ScheduleListParams;
+  myActiveParams?: ScheduleListParams;
+  loadedRange: ScheduleDateRange | null;
   loading: boolean;
   schedulesLoading: boolean;
   mySchedulesLoading: boolean;
@@ -49,6 +65,7 @@ interface ScheduleState {
     options?: { declineReason?: string; requestSubstitute?: boolean }
   ) => Promise<void>;
   resolveSubstitution: (scheduleId: string, assignmentId: string, note?: string) => Promise<void>;
+  reset: () => void;
 }
 
 function sortSchedules(schedules: Schedule[]): Schedule[] {
@@ -69,9 +86,30 @@ function applyAssignmentToSchedules(schedules: Schedule[], assignment: ScheduleA
   });
 }
 
+type InFlightScheduleRequest = {
+  key: string;
+  promise: Promise<void>;
+};
+
+let inFlightLoadSchedules: InFlightScheduleRequest | null = null;
+let inFlightLoadMySchedules: InFlightScheduleRequest | null = null;
+
+function serializeScheduleParams(params?: ScheduleListParams): string {
+  if (!params) return "{}";
+  const normalized: Record<string, unknown> = {};
+  for (const key of Object.keys(params).sort()) {
+    const value = (params as Record<string, unknown>)[key];
+    if (value !== undefined) normalized[key] = value;
+  }
+  return JSON.stringify(normalized);
+}
+
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
   allSchedules: [],
   schedules: [],
+  activeParams: undefined,
+  myActiveParams: undefined,
+  loadedRange: null,
   loading: false,
   schedulesLoading: false,
   mySchedulesLoading: false,
@@ -84,93 +122,141 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   requestedMySchedulesKey: 0,
 
   loadSchedules: async (options) => {
+    const hasExplicitParams = options?.params !== undefined;
+    const effectiveParams = hasExplicitParams ? options?.params : get().activeParams;
+    const paramKey = serializeScheduleParams(effectiveParams);
+    if (!options?.refresh && inFlightLoadSchedules && inFlightLoadSchedules.key === paramKey) {
+      return inFlightLoadSchedules.promise;
+    }
+
     const requestKey = get().requestedSchedulesKey + 1;
     const shouldRefresh = Boolean(options?.refresh) || get().allSchedules.length > 0;
+    const shouldPersistParams = hasExplicitParams && options?.persistParams !== false;
     set((state) => ({
       requestedSchedulesKey: requestKey,
+      ...(shouldPersistParams
+        ? {
+            activeParams: options?.params,
+            loadedRange: mergeLoadedRange(state.loadedRange, options?.params),
+          }
+        : {}),
       schedulesLoading: !shouldRefresh,
       loading: !shouldRefresh || state.mySchedulesLoading,
       refreshingRequests: state.refreshingRequests + (shouldRefresh ? 1 : 0),
       refreshing: shouldRefresh ? true : state.refreshing,
       error: null,
     }));
-    try {
-      const schedules = await scheduleService.listSchedules(options?.params);
-      set((state) => {
-        const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
-        if (state.requestedSchedulesKey !== requestKey) {
-          return { refreshingRequests, refreshing: refreshingRequests > 0 };
+    let requestPromise: Promise<void> | null = null;
+    requestPromise = (async () => {
+      try {
+        const schedules = await scheduleService.listSchedules(effectiveParams);
+        set((state) => {
+          const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
+          if (state.requestedSchedulesKey !== requestKey) {
+            return { refreshingRequests, refreshing: refreshingRequests > 0 };
+          }
+          return {
+            allSchedules: sortSchedules(schedules),
+            schedulesLoading: false,
+            loading: state.mySchedulesLoading,
+            refreshingRequests,
+            refreshing: refreshingRequests > 0,
+            error: null,
+            lastFetchedAt: Date.now(),
+          };
+        });
+      } catch (error) {
+        set((state) => {
+          const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
+          if (state.requestedSchedulesKey !== requestKey) {
+            return { refreshingRequests, refreshing: refreshingRequests > 0 };
+          }
+          return {
+            schedulesLoading: false,
+            loading: state.mySchedulesLoading,
+            refreshingRequests,
+            refreshing: refreshingRequests > 0,
+            error: message(error, "Não foi possível carregar escalas."),
+          };
+        });
+      } finally {
+        if (inFlightLoadSchedules?.promise === requestPromise) {
+          inFlightLoadSchedules = null;
         }
-        return {
-          allSchedules: sortSchedules(schedules),
-          schedulesLoading: false,
-          loading: state.mySchedulesLoading,
-          refreshingRequests,
-          refreshing: refreshingRequests > 0,
-          error: null,
-          lastFetchedAt: Date.now(),
-        };
-      });
-    } catch (error) {
-      set((state) => {
-        const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
-        if (state.requestedSchedulesKey !== requestKey) {
-          return { refreshingRequests, refreshing: refreshingRequests > 0 };
-        }
-        return {
-          schedulesLoading: false,
-          loading: state.mySchedulesLoading,
-          refreshingRequests,
-          refreshing: refreshingRequests > 0,
-          error: message(error, "Não foi possível carregar escalas."),
-        };
-      });
-    }
+      }
+    })();
+
+    inFlightLoadSchedules = { key: paramKey, promise: requestPromise };
+    return requestPromise;
   },
 
   loadMySchedules: async (options) => {
+    const hasExplicitParams = options?.params !== undefined;
+    const effectiveParams = hasExplicitParams ? options?.params : get().myActiveParams;
+    const paramKey = serializeScheduleParams(effectiveParams);
+    if (!options?.refresh && inFlightLoadMySchedules && inFlightLoadMySchedules.key === paramKey) {
+      return inFlightLoadMySchedules.promise;
+    }
+
     const requestKey = get().requestedMySchedulesKey + 1;
     const shouldRefresh = Boolean(options?.refresh) || get().schedules.length > 0;
+    const shouldPersistParams = hasExplicitParams && options?.persistParams !== false;
     set((state) => ({
       requestedMySchedulesKey: requestKey,
+      ...(shouldPersistParams
+        ? {
+            myActiveParams: options?.params,
+            loadedRange: mergeLoadedRange(state.loadedRange, options?.params),
+          }
+        : {}),
       mySchedulesLoading: !shouldRefresh,
       loading: !shouldRefresh || state.schedulesLoading,
       refreshingRequests: state.refreshingRequests + (shouldRefresh ? 1 : 0),
       refreshing: shouldRefresh ? true : state.refreshing,
       error: null,
     }));
-    try {
-      const schedules = await scheduleService.getMySchedules(options?.params);
-      set((state) => {
-        const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
-        if (state.requestedMySchedulesKey !== requestKey) {
-          return { refreshingRequests, refreshing: refreshingRequests > 0 };
+    let requestPromise: Promise<void> | null = null;
+    requestPromise = (async () => {
+      try {
+        const schedules = await scheduleService.getMySchedules(effectiveParams);
+        set((state) => {
+          const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
+          if (state.requestedMySchedulesKey !== requestKey) {
+            return { refreshingRequests, refreshing: refreshingRequests > 0 };
+          }
+          return {
+            schedules,
+            mySchedulesLoading: false,
+            loading: state.schedulesLoading,
+            refreshingRequests,
+            refreshing: refreshingRequests > 0,
+            error: null,
+            lastFetchedAt: Date.now(),
+          };
+        });
+      } catch (error) {
+        set((state) => {
+          const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
+          if (state.requestedMySchedulesKey !== requestKey) {
+            return { refreshingRequests, refreshing: refreshingRequests > 0 };
+          }
+          return {
+            mySchedulesLoading: false,
+            loading: state.schedulesLoading,
+            refreshingRequests,
+            refreshing: refreshingRequests > 0,
+            error: message(error, "Não foi possível carregar escalas."),
+          };
+        });
+      } finally {
+        if (inFlightLoadMySchedules?.promise === requestPromise) {
+          inFlightLoadMySchedules = null;
         }
-        return {
-          schedules,
-          mySchedulesLoading: false,
-          loading: state.schedulesLoading,
-          refreshingRequests,
-          refreshing: refreshingRequests > 0,
-          error: null,
-          lastFetchedAt: Date.now(),
-        };
-      });
-    } catch (error) {
-      set((state) => {
-        const refreshingRequests = Math.max(0, state.refreshingRequests - (shouldRefresh ? 1 : 0));
-        if (state.requestedMySchedulesKey !== requestKey) {
-          return { refreshingRequests, refreshing: refreshingRequests > 0 };
-        }
-        return {
-          mySchedulesLoading: false,
-          loading: state.schedulesLoading,
-          refreshingRequests,
-          refreshing: refreshingRequests > 0,
-          error: message(error, "Não foi possível carregar escalas."),
-        };
-      });
-    }
+      }
+    })();
+
+    inFlightLoadMySchedules = { key: paramKey, promise: requestPromise };
+    return requestPromise;
   },
 
   createSchedule: async (payload) => {
@@ -283,5 +369,27 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       set({ schedules: previousAssignments, allSchedules: previousSchedules, error: reason });
       throw error;
     }
+  },
+
+  reset: () => {
+    inFlightLoadSchedules = null;
+    inFlightLoadMySchedules = null;
+    set((state) => ({
+      allSchedules: [],
+      schedules: [],
+      activeParams: undefined,
+      myActiveParams: undefined,
+      loadedRange: null,
+      loading: false,
+      schedulesLoading: false,
+      mySchedulesLoading: false,
+      refreshing: false,
+      refreshingRequests: 0,
+      saving: false,
+      error: null,
+      lastFetchedAt: null,
+      requestedSchedulesKey: state.requestedSchedulesKey + 1,
+      requestedMySchedulesKey: state.requestedMySchedulesKey + 1,
+    }));
   },
 }));

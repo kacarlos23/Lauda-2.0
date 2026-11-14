@@ -71,8 +71,9 @@ export class AdminController extends BaseController {
     this.handleSuccess(res, await this.service.deleteResource(req.user!, resource, id));
   }
 
-  async listTenants(_req: Request, res: Response): Promise<void> {
-    const tenants = await this.service.listTenants();
+  async listTenants(req: Request, res: Response): Promise<void> {
+    const query = adminTenantScopedQuerySchema.parse(req.query);
+    const tenants = await this.service.listTenants(query);
     this.handleSuccess(res, tenants);
   }
 
@@ -90,7 +91,7 @@ export class AdminController extends BaseController {
 
   async listUsers(req: Request, res: Response): Promise<void> {
     const query = adminUsersQuerySchema.parse(req.query);
-    const users = await this.service.listUsers(query.tenantId);
+    const users = await this.service.listUsers(query);
     this.handleSuccess(res, users);
   }
 
@@ -151,14 +152,15 @@ export class AdminController extends BaseController {
     this.handleSuccess(res, await this.service.updateUser(req.user!, userId, input));
   }
 
-  async listMinistries(_req: Request, res: Response): Promise<void> {
-    const ministries = await this.service.listMinistries();
+  async listMinistries(req: Request, res: Response): Promise<void> {
+    const query = adminTenantScopedQuerySchema.parse(req.query);
+    const ministries = await this.service.listMinistries(query);
     this.handleSuccess(res, ministries);
   }
 
   async listSongs(req: Request, res: Response): Promise<void> {
     const query = adminTenantScopedQuerySchema.parse(req.query);
-    this.handleSuccess(res, await this.service.listSongs(query.tenantId));
+    this.handleSuccess(res, await this.service.listSongs(query));
   }
 
   async updateSong(req: Request, res: Response): Promise<void> {
@@ -169,7 +171,7 @@ export class AdminController extends BaseController {
 
   async listSchedules(req: Request, res: Response): Promise<void> {
     const query = adminTenantScopedQuerySchema.parse(req.query);
-    this.handleSuccess(res, await this.service.listSchedules(query.tenantId));
+    this.handleSuccess(res, await this.service.listSchedules(query));
   }
 
   async updateSchedule(req: Request, res: Response): Promise<void> {

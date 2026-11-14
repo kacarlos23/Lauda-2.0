@@ -22,6 +22,11 @@ const activeMinistryMembershipWhere = {
   deletedAt: null,
 };
 
+const activeMinistryMemberWithActiveUserWhere = {
+  ...activeMinistryMembershipWhere,
+  user: { isActive: true, deletedAt: null },
+};
+
 export class MinistryRepository {
   constructor(private readonly tenantId: string) {}
 
@@ -34,7 +39,7 @@ export class MinistryRepository {
 
     return prisma.ministry.findMany({
       where,
-      include: { _count: { select: { members: true } } },
+      include: { _count: { select: { members: { where: activeMinistryMemberWithActiveUserWhere } } } },
       orderBy: { name: "asc" },
     });
   }
@@ -50,6 +55,7 @@ export class MinistryRepository {
       where,
       include: {
         members: {
+          where: activeMinistryMemberWithActiveUserWhere,
           orderBy: { user: { name: "asc" } },
           include: {
             user: { select: { id: true, name: true, email: true, phone: true } },

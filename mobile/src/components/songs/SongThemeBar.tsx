@@ -10,11 +10,12 @@ type Props = {
   selected: string[];
   untagged: boolean;
   compact: boolean;
+  refreshTrigger?: number;
   onToggle: (name: string | null) => void;
   action?: React.ReactNode;
 };
 
-export function SongThemeBar({ counts, selected, untagged, compact, onToggle, action }: Props) {
+export function SongThemeBar({ counts, selected, untagged, compact, refreshTrigger: _refreshTrigger, onToggle, action }: Props) {
   const dark = useThemeStore((state) => state.mode === "dark");
   const options = counts ? [
     ...[...counts.items].sort((a, b) => songThemeOrder(a.name) - songThemeOrder(b.name) || a.name.localeCompare(b.name, "pt-BR")),

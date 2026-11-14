@@ -40,6 +40,58 @@ import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "", iconKey: "" };
 
+const MAX_AVATAR_DIMENSION = 256;
+const MAX_AVATAR_DATA_URL_LENGTH = 70_000;
+
+async function compressAvatarOnWeb(sourceUri: string): Promise<string | null> {
+  if (Platform.OS !== "web" || typeof document === "undefined") {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const ImageConstructor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
+    if (!ImageConstructor) {
+      resolve(null);
+      return;
+    }
+
+    const image = new ImageConstructor();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      try {
+        const width = image.naturalWidth || image.width || MAX_AVATAR_DIMENSION;
+        const height = image.naturalHeight || image.height || MAX_AVATAR_DIMENSION;
+        const scale = Math.min(1, MAX_AVATAR_DIMENSION / Math.max(width, height));
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(null);
+          return;
+        }
+        context.drawImage(image, 0, 0, targetWidth, targetHeight);
+        for (const mime of ["image/webp", "image/jpeg"]) {
+          for (const quality of [0.75, 0.55, 0.35]) {
+            const candidate = canvas.toDataURL(mime, quality);
+            if (candidate.startsWith(`data:${mime};base64,`) && candidate.length <= MAX_AVATAR_DATA_URL_LENGTH) {
+              resolve(candidate);
+              return;
+            }
+          }
+        }
+        resolve(canvas.toDataURL("image/jpeg", 0.3));
+      } catch {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = sourceUri;
+  });
+}
+
 function getInstrumentIds(instruments?: Instrument[]): string[] {
   return instruments?.map((item) => item.id) ?? [];
 }
@@ -195,16 +247,18 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.45,
+      quality: 0.3,
       base64: true,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
-    if (!asset.base64) {
+    const rawDataUri = asset.base64 ? `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}` : null;
+    const compressedWeb = await compressAvatarOnWeb(asset.uri || rawDataUri || "");
+    const nextAvatar = compressedWeb ?? rawDataUri;
+    if (!nextAvatar) {
       setProfileError("Não foi possível processar a imagem selecionada.");
       return;
     }
-    const nextAvatar = `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`;
     if (nextAvatar.length > 3_000_000) {
       setProfileError("A imagem é muito grande. Escolha uma foto menor.");
       return;

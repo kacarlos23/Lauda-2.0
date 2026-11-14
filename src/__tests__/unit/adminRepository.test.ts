@@ -67,4 +67,37 @@ describe("AdminRepository", () => {
     expect(globalAdmin.tenantId).toBe("tenant-a");
     expect(JSON.stringify(findMany.mock.calls[0][0])).not.toContain(globalAdmin.tenantId);
   });
+
+  it("aceita paginação e busca opcionais em listTenants", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const repository = new AdminRepository({ tenant: { findMany } } as never);
+
+    await repository.listTenants({ page: 2, limit: 25, search: "Igreja" });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { AND: [{ name: { contains: "Igreja", mode: "insensitive" } }] },
+      skip: 25,
+      take: 25,
+    }));
+  });
+
+  it("limpa logs de auditoria antigos em lote limitado por cleanupAuditLogs", async () => {
+    const findMany = jest.fn().mockResolvedValue([{ id: "log-1" }, { id: "log-2" }]);
+    const deleteMany = jest.fn().mockResolvedValue({ count: 2 });
+    const repository = new AdminRepository({ adminAuditLog: { findMany, deleteMany } } as never);
+
+    const result = await repository.cleanupAuditLogs(90, 500);
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: expect.any(Date) } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: 500,
+    });
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["log-1", "log-2"] } },
+    });
+    expect(result.deletedCount).toBe(2);
+    expect(result.cutoff).toBeInstanceOf(Date);
+  });
 });

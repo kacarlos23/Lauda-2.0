@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { Prisma, Role } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
-import { UnauthorizedError, ValidationError } from "../errors/AppError";
+import { ServiceUnavailableError, UnauthorizedError, ValidationError } from "../errors/AppError";
 import { AuthRepository } from "../repositories/authRepository";
 import { effectivePermissionKeys } from "./permissionService";
 import { isEligibleForAuthentication } from "../security/authEligibility";
@@ -387,6 +387,12 @@ export class AuthService {
 
   /** Requests a single-use password reset challenge without logging its PIN. */
   async requestPasswordReset(input: ForgotPasswordInput) {
+    if (config.auth.passwordResetDelivery.mode === "disabled" && config.env !== "test") {
+      throw new ServiceUnavailableError(
+        "O envio de e-mails de recuperação de senha não está habilitado neste servidor. Solicite ajuda ao administrador."
+      );
+    }
+
     const user = await authRepository.findUserByEmail(input.email);
     if (!isEligibleForAuthentication(user)) {
       // Return generic success message to prevent email enumeration
