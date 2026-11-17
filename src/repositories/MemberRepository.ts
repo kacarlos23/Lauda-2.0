@@ -30,7 +30,6 @@ export class MemberRepository {
       select: {
         id: true,
         name: true,
-        avatarUrl: true,
         comments: true,
         role: true,
         tenantId: true,

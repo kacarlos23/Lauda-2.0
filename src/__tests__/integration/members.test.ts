@@ -253,6 +253,7 @@ describe("Members API", () => {
     });
     expect(member).not.toHaveProperty("email");
     expect(member).not.toHaveProperty("phone");
+    expect(member).not.toHaveProperty("avatarUrl");
     expect(member.ministries).toEqual([]);
     expect(member.userInstruments).toBeUndefined();
   });

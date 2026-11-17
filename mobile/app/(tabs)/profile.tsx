@@ -122,6 +122,7 @@ export default function ProfileScreen() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const hasLoadedProfileDataRef = useRef(false);
+  const inFlightProfileRefreshRef = useRef<Promise<void> | null>(null);
   const canManageInstruments = canManageInstrumentCatalog(user);
   const hasGlobalAccess = isGlobalAdmin(user);
 
@@ -140,46 +141,55 @@ export default function ProfileScreen() {
   }, [user?.id, user?.name, user?.phone, user?.avatarUrl]);
 
   const refreshProfileData = useCallback(async (options?: { initial?: boolean }) => {
-    try {
-      setInstrumentsError(null);
-      if (options?.initial && !hasLoadedProfileDataRef.current) {
-        setInstrumentsLoading(true);
-      } else {
-        setProfileRefreshing(true);
-      }
-      const [instruments, currentMember] = await Promise.all([
-        instrumentService.getInstruments(),
-        memberService.getCurrentMember(),
-      ]);
-      const currentInstruments = currentMember.instruments ?? [];
-      const currentIds = getInstrumentIds(currentInstruments);
-      setAvailableInstruments(sortInstruments(instruments));
-      setSelectedInstruments(currentInstruments);
-      setSelectedIds(currentIds);
-      await applyCurrentUser({
-        id: currentMember.id,
-        name: currentMember.name,
-        email: currentMember.email,
-        role: currentMember.role,
-        tenantId: currentMember.tenantId,
-        instruments: currentInstruments,
-        phone: currentMember.phone,
-        avatarUrl: currentMember.avatarUrl,
-      });
-    } catch (error) {
-      setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
-    } finally {
-      setInstrumentsLoading(false);
-      setProfileRefreshing(false);
+    if (inFlightProfileRefreshRef.current) {
+      return inFlightProfileRefreshRef.current;
     }
+
+    const request = (async () => {
+      try {
+        setInstrumentsError(null);
+        if (options?.initial && !hasLoadedProfileDataRef.current) {
+          setInstrumentsLoading(true);
+        } else {
+          setProfileRefreshing(true);
+        }
+        const [instruments, currentMember] = await Promise.all([
+          instrumentService.getInstruments(),
+          memberService.getCurrentMember(),
+        ]);
+        const currentInstruments = currentMember.instruments ?? [];
+        const currentIds = getInstrumentIds(currentInstruments);
+        setAvailableInstruments(sortInstruments(instruments));
+        setSelectedInstruments(currentInstruments);
+        setSelectedIds(currentIds);
+        hasLoadedProfileDataRef.current = true;
+        await applyCurrentUser({
+          id: currentMember.id,
+          name: currentMember.name,
+          email: currentMember.email,
+          role: currentMember.role,
+          tenantId: currentMember.tenantId,
+          instruments: currentInstruments,
+          phone: currentMember.phone,
+          avatarUrl: currentMember.avatarUrl,
+        });
+      } catch (error) {
+        setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
+      } finally {
+        setInstrumentsLoading(false);
+        setProfileRefreshing(false);
+        if (inFlightProfileRefreshRef.current === request) {
+          inFlightProfileRefreshRef.current = null;
+        }
+      }
+    })();
+
+    inFlightProfileRefreshRef.current = request;
+    return request;
   }, [applyCurrentUser]);
 
-  useEffect(() => {
-    void refreshProfileData({ initial: true });
-  }, [refreshProfileData]);
-
   useFocusEffect(useCallback(() => {
-    void refreshProfileData();
+    void refreshProfileData({ initial: !hasLoadedProfileDataRef.current });
   }, [refreshProfileData]));
 
   const performLogout = async () => {

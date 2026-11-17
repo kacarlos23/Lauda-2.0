@@ -148,8 +148,17 @@ export const useMemberStore = create<MemberState>((set, get) => ({
         saving: false,
         error: null,
       });
-      const firstMinistryId = payload.ministries[0]?.ministryId;
-      await invalidateRelatedData({ reason: "member", ministryId: firstMinistryId, userId: memberId });
+      const previousMinistryIds =
+        previousMembers.find((item) => item.id === memberId)?.ministries?.map((item) => item.ministry.id) ?? [];
+      const nextMinistryIds = payload.ministries.map((item) => item.ministryId);
+      const affectedMinistryIds = Array.from(new Set([...nextMinistryIds, ...previousMinistryIds].filter(Boolean)));
+      const firstMinistryId = affectedMinistryIds[0];
+      await invalidateRelatedData({
+        reason: "member",
+        ministryId: firstMinistryId,
+        ministryIds: affectedMinistryIds,
+        userId: memberId,
+      });
       return updated;
     } catch (error) {
       set({

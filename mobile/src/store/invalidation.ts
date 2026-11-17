@@ -3,6 +3,7 @@ type InvalidationReason = "ministry" | "member" | "schedule" | "user";
 type InvalidationOptions = {
   reason: InvalidationReason;
   ministryId?: string;
+  ministryIds?: string[];
   userId?: string;
   skipMinistryRefresh?: boolean;
 };
@@ -47,8 +48,20 @@ export async function invalidateRelatedData(options: InvalidationOptions): Promi
     if (useMinistryStore.getState().ministries.length > 0) {
       tasks.push(runInvalidation(() => useMinistryStore.getState().fetchMinistries()));
     }
-    if (options.ministryId && !options.skipMinistryRefresh) {
-      tasks.push(runInvalidation(() => useMinistryStore.getState().fetchMinistry(options.ministryId!)));
+    const ministryIds = Array.from(
+      new Set([options.ministryId, ...(options.ministryIds ?? [])].filter((id): id is string => Boolean(id)))
+    );
+    if (!options.skipMinistryRefresh) {
+      const currentMinistryId = useMinistryStore.getState().currentMinistry?.id;
+      const idsToRefresh =
+        ministryIds.length > 0
+          ? ministryIds
+          : currentMinistryId
+            ? [currentMinistryId]
+            : [];
+      for (const id of idsToRefresh) {
+        tasks.push(runInvalidation(() => useMinistryStore.getState().fetchMinistry(id)));
+      }
     }
     if (useScheduleStore.getState().lastFetchedAt !== null) {
       tasks.push(runInvalidation(() => useScheduleStore.getState().loadSchedules({ refresh: true })));

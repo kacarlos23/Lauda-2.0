@@ -23,9 +23,11 @@ jest.mock("./invalidation", () => ({
 
 import { memberService } from "../services/memberService";
 import { Member } from "../types";
+import { invalidateRelatedData } from "./invalidation";
 import { useMemberStore } from "./memberStore";
 
 const mockedMemberService = memberService as jest.Mocked<typeof memberService>;
+const mockedInvalidateRelatedData = invalidateRelatedData as jest.MockedFunction<typeof invalidateRelatedData>;
 const initialState = useMemberStore.getState();
 
 const member: Member = {
@@ -104,6 +106,40 @@ describe("memberStore", () => {
     ).rejects.toThrow("Falha");
 
     expect(useMemberStore.getState().members).toEqual([member]);
+  });
+
+  it("invalida todos os ministérios afetados (novos e anteriores) ao atualizar permissões", async () => {
+    const memberWithMinistries: Member = {
+      ...member,
+      ministries: [
+        { ministry: { id: "ministry-1", name: "Louvor" }, isLeader: false },
+        { ministry: { id: "ministry-2", name: "Mídia" }, isLeader: true },
+      ],
+    };
+    const updatedMember: Member = {
+      ...member,
+      ministries: [
+        { ministry: { id: "ministry-2", name: "Mídia" }, isLeader: false },
+        { ministry: { id: "ministry-3", name: "Som" }, isLeader: true },
+      ],
+    };
+    useMemberStore.setState({ members: [memberWithMinistries] });
+    mockedMemberService.updatePermissions.mockResolvedValueOnce(updatedMember);
+
+    await useMemberStore.getState().updatePermissions(member.id, {
+      role: "MEMBER",
+      ministries: [
+        { ministryId: "ministry-2", isLeader: false },
+        { ministryId: "ministry-3", isLeader: true },
+      ],
+    });
+
+    expect(mockedInvalidateRelatedData).toHaveBeenCalledWith({
+      reason: "member",
+      ministryId: "ministry-2",
+      ministryIds: ["ministry-2", "ministry-3", "ministry-1"],
+      userId: member.id,
+    });
   });
 
   it("atualiza dados do membro mantendo ordenação na store", async () => {
