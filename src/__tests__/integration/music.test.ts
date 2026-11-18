@@ -445,7 +445,7 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministryB.id })
       .expect(200)
       .expect("Content-Type", /application\/json/);
-    expect(exported.body).toEqual(document);
+    expect(exported.body).toEqual({ ...document, songs: document.songs.map((song) => ({ ...song, tags: [] })) });
 
     const filtered = await request(app)
       .get(`/api/songs?ministryId=${ministryA.id}`)
@@ -551,7 +551,7 @@ describe("Artists and songs API", () => {
     expect(result.body.data).toMatchObject({ created: 72, linked: 72, conflicts: 0, invalid: 0 });
     const exported = await request(app).post("/api/songs/data-export")
       .set("Authorization", `Bearer ${tenant.token}`).send({ ministryId: ministry.id }).expect(200);
-    expect(exported.body).toEqual(document);
+    expect(exported.body).toEqual({ ...document, songs: document.songs.map((song) => ({ ...song, tags: [] })) });
   });
 
 
@@ -580,7 +580,7 @@ describe("Artists and songs API", () => {
     expect(unchanged.body.data.content).toBe(songPayload(artist.id).content);
     const exported = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id }).expect(200);
-    expect(exported.body.songs).toEqual([incoming]);
+    expect(exported.body.songs).toEqual([{ ...incoming, tags: [] }]);
 
     await request(app).delete(`/api/songs/${existing.body.data.id}`).set("Authorization", `Bearer ${tenant.token}`).expect(200);
     const restoreDocument = { ...document, songs: [{
@@ -854,7 +854,7 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministry.id, document: legacy, documentHash: legacyPreview.body.data.documentHash }).expect(201);
     const legacyExport = await request(app).post("/api/songs/data-export").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id }).expect(200);
-    expect(legacyExport.body).toEqual(legacy);
+    expect(legacyExport.body).toEqual({ ...legacy, songs: [{ ...legacy.songs[0], tags: [] }] });
 
     const tagged = {
       format: "lauda.music-catalog",
@@ -875,7 +875,7 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministry.id }).expect(200);
     expect(exported.body.songs).toEqual([
       { title: "Com tema", artist: "JMM", originalKey: "A", content: "[A]Com tema", cifraUrl: null, tags: ["Adoração", "Natal"] },
-      legacy.songs[0],
+      { ...legacy.songs[0], tags: [] },
     ]);
 
     const withoutTags = {
@@ -890,6 +890,21 @@ describe("Artists and songs API", () => {
       .send({ ministryId: ministry.id, document: withoutTags, documentHash: again.body.data.documentHash }).expect(201);
     const still = await request(app).get("/api/songs?tags=Adoração").set("Authorization", `Bearer ${tenant.token}`).expect(200);
     expect(still.body.data.items[0].tags).toEqual(["Adoração", "Natal"]);
+
+    const clearedInput = {
+      ministryId: ministry.id,
+      existing: "update",
+      fields: ["tags"],
+      document: { ...withoutTags, songs: [{ ...withoutTags.songs[0], tags: [] }] },
+    };
+    const clearedPreview = await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
+      .send(clearedInput).expect(200);
+    expect(clearedPreview.body.data.counts.UPDATE).toBe(1);
+    await request(app).post("/api/songs/data-import/commit").set("Authorization", `Bearer ${tenant.token}`)
+      .send({ ...clearedInput, documentHash: clearedPreview.body.data.documentHash }).expect(201);
+    const cleared = await request(app).get(`/api/songs/${still.body.data.items[0].id}`)
+      .set("Authorization", `Bearer ${tenant.token}`).expect(200);
+    expect(cleared.body.data.tags).toEqual([]);
 
     await request(app).post("/api/songs/data-import/preview").set("Authorization", `Bearer ${tenant.token}`)
       .send({ ministryId: ministry.id, document: { ...legacy, songs: [{ ...legacy.songs[0], tags: [""] }] } }).expect(400);

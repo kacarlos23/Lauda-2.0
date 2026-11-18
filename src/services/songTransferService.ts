@@ -19,7 +19,7 @@ import {
 
 type RequestUser = { id: string; role: Role; tenantId?: string };
 type PreviewStatus = "CREATE" | "UPDATE" | "LINK" | "RESTORE" | "ALREADY_LINKED" | "SKIPPED" | "CONFLICT" | "INVALID";
-type TransferOptions = { fields: Set<SongTransferField>; fieldList: SongTransferField[]; existing: SongTransferExistingMode; explicitFields: boolean };
+type TransferOptions = { fields: Set<SongTransferField>; fieldList: SongTransferField[]; existing: SongTransferExistingMode };
 const actionable = new Set<PreviewStatus>(["CREATE", "UPDATE", "LINK", "RESTORE"]);
 const urlFields = ["cifraUrl", "letraUrl", "audioUrl", "videoUrl"] as const;
 const COMMIT_CHUNK_SIZE = 50;
@@ -63,7 +63,6 @@ function resolveOptions(input: { fields?: SongTransferField[]; existing?: SongTr
     fields: new Set(fieldList),
     fieldList,
     existing: input.existing ?? "create",
-    explicitFields: input.fields != null,
   };
 }
 
@@ -184,7 +183,7 @@ export class SongTransferService {
         if (options.fields.has("audioUrl")) exported.audioUrl = song.audioUrl;
         if (options.fields.has("videoUrl")) exported.videoUrl = song.videoUrl;
         if (options.fields.has("comments")) exported.comments = song.comments;
-        if (options.fields.has("tags") && (options.explicitFields || tags.length)) exported.tags = tags;
+        if (options.fields.has("tags")) exported.tags = tags;
         songs.push(exported);
       }
     }
@@ -403,6 +402,7 @@ export class SongTransferService {
       const preparedTagsByEntry = new Map<number, PreparedSongTag[]>();
       const uniquePreparedTags = new Map<string, PreparedSongTag>();
       for (const [index, entry] of plannedEntries.entries()) {
+        // An empty list clears tags in update mode. An omitted field preserves them.
         const shouldImportTags = entry.decisionStatus === "CREATE"
           ? Boolean(entry.incoming.tags?.length)
           : entry.decisionStatus === "UPDATE" && provided(entry.incoming, "tags");
