@@ -219,7 +219,7 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     port: parsePositiveInteger(environment.SMTP_PORT, 587, "SMTP_PORT"),
     secure: environment.SMTP_SECURE === "true",
     user: environment.SMTP_USER?.trim() || null,
-    password: environment.SMTP_PASSWORD?.trim() || null,
+    password: environment.SMTP_PASSWORD || null,
     from: environment.SMTP_FROM?.trim() || null,
   };
   if (smtp.port > 65535) {

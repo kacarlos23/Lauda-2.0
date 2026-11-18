@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 export { sanitizeUserForSessionStorage } from "../utils/sessionUser";
 
-const memoryStorage = new Map<string, string>();
+const memoryStorage = new Map<string, string | null>();
 
 function getWebStorage(): Storage | null {
   if (typeof window === "undefined") return null;
@@ -14,27 +14,22 @@ function getWebStorage(): Storage | null {
 }
 
 export async function getSessionItem(key: string): Promise<string | null> {
+  // A failed write or deletion takes precedence over an older persisted value.
+  if (memoryStorage.has(key)) return memoryStorage.get(key) ?? null;
+
   if (Platform.OS === "web") {
     try {
-      const persisted = getWebStorage()?.getItem(key);
-      if (persisted !== null && persisted !== undefined) {
-        return persisted;
-      }
+      return getWebStorage()?.getItem(key) ?? null;
     } catch {
-      // Fallback to in-memory storage when localStorage is unavailable or blocked.
+      return null;
     }
-    return memoryStorage.get(key) ?? null;
   }
 
   try {
-    const persisted = await SecureStore.getItemAsync(key);
-    if (persisted !== null && persisted !== undefined) {
-      return persisted;
-    }
+    return await SecureStore.getItemAsync(key);
   } catch {
-    // Fallback to in-memory storage when SecureStore fails.
+    return null;
   }
-  return memoryStorage.get(key) ?? null;
 }
 
 export async function setSessionItem(key: string, value: string): Promise<void> {
@@ -62,20 +57,23 @@ export async function setSessionItem(key: string, value: string): Promise<void> 
 }
 
 export async function deleteSessionItem(key: string): Promise<void> {
+  memoryStorage.set(key, null);
   if (Platform.OS === "web") {
+    const storage = getWebStorage();
+    if (!storage) return;
     try {
-      getWebStorage()?.removeItem(key);
+      storage.removeItem(key);
+      memoryStorage.delete(key);
     } catch {
-      // Ignore storage removal failures.
+      // Keep the deletion in memory while storage still contains the old item.
     }
-    memoryStorage.delete(key);
     return;
   }
 
-  memoryStorage.delete(key);
   try {
     await SecureStore.deleteItemAsync(key);
+    memoryStorage.delete(key);
   } catch {
-    // Ignore SecureStore removal failures.
+    // Keep the deletion in memory while storage still contains the old item.
   }
 }
