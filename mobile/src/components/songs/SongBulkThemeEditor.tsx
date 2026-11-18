@@ -4,7 +4,8 @@ import { SONG_TAGS_MAX } from "../../../../src/constants/songTags";
 import { normalizeCatalogText } from "../../../../src/utils/catalogNormalization";
 import { musicService, SongTagOption, SongThemeBatchResult, SongThemeOperation } from "../../services/musicService";
 import { colors, fontSizes, radiusValues, spacing } from "../../theme";
-import { Button } from "../ui";
+import type { SongSelectionSnapshot } from "../../utils/songSelection";
+import { Button, ErrorBanner } from "../ui";
 import { SongThemeAnchor, SongThemeChecklist, SongThemeMenu, songThemeOptions } from "./SongThemeMenu";
 
 type Props = {
@@ -12,20 +13,33 @@ type Props = {
   operation: SongThemeOperation;
   anchor: SongThemeAnchor | null;
   knownTags: SongTagOption[];
+  selectedSongs: Pick<SongSelectionSnapshot, "tags">[];
   onSaved: (result: SongThemeBatchResult) => void;
   onClose: () => void;
 };
 
-export function SongBulkThemeEditor({ songIds, operation, anchor, knownTags, onSaved, onClose }: Props) {
+export function SongBulkThemeEditor({ songIds, operation, anchor, knownTags, selectedSongs, onSaved, onClose }: Props) {
   const [checked, setChecked] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [applyFocused, setApplyFocused] = useState(false);
   const savingRef = useRef(false);
   const byName = new Map(knownTags.map((tag) => [normalizeCatalogText(tag.name), tag.id]));
-  const options = songThemeOptions(knownTags.map((tag) => tag.name))
-    .filter((name) => operation === "add" || byName.has(normalizeCatalogText(name)));
+  const counts = new Map<string, number>();
+  const selectedNames = selectedSongs.flatMap((song) => song.tags ?? []);
+  selectedSongs.forEach((song) => {
+    new Set((song.tags ?? []).map(normalizeCatalogText)).forEach((key) => {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+  });
+  const options = songThemeOptions([...knownTags.map((tag) => tag.name), ...selectedNames])
+    .filter((name) => operation === "add" || (byName.has(normalizeCatalogText(name)) && counts.has(normalizeCatalogText(name))));
   const title = operation === "add" ? "Adicionar tema" : "Remover tema";
   const count = songIds.length;
+  const optionLabels = new Map(options.map((name) => {
+    const key = normalizeCatalogText(name);
+    return [key, counts.has(key) ? `${name} · ${counts.get(key)} de ${count}` : name];
+  }));
   const note = `${count} ${count === 1 ? "música" : "músicas"}`;
 
   const toggle = (name: string) => {
@@ -76,15 +90,19 @@ export function SongBulkThemeEditor({ songIds, operation, anchor, knownTags, onS
       onClose={() => { if (!savingRef.current) onClose(); }}
       footer={(
         <View style={styles.footer}>
-          {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
-          <Button title="Aplicar" size="sm" loading={saving} disabled={!checked.size} onPress={() => void apply()} style={styles.button} />
+          <View accessibilityLiveRegion="polite" aria-live="polite">
+            <ErrorBanner message={error} testID="song-bulk-theme-error" />
+          </View>
+          <Button title="Aplicar" size="sm" loading={saving} disabled={!checked.size} onPress={() => void apply()}
+            accessibilityLabel={`Aplicar temas a ${note}`} onFocus={() => setApplyFocused(true)} onBlur={() => setApplyFocused(false)}
+            style={[styles.button, applyFocused && styles.focused]} />
         </View>
       )}
     >
       {options.length ? (
-        <SongThemeChecklist options={options} checked={checked} disabled={saving} onToggle={toggle} />
+        <SongThemeChecklist options={options} optionLabels={optionLabels} checked={checked} disabled={saving} onToggle={toggle} />
       ) : (
-        <Text style={styles.empty}>Nenhum tema cadastrado.</Text>
+        <Text style={styles.empty}>Nenhum tema nas músicas selecionadas.</Text>
       )}
     </SongThemeMenu>
   );
@@ -92,7 +110,7 @@ export function SongBulkThemeEditor({ songIds, operation, anchor, knownTags, onS
 
 const styles = StyleSheet.create({
   footer: { gap: spacing.xs },
-  button: { minHeight: 34, borderRadius: radiusValues.r4 },
-  error: { color: colors.danger, fontSize: fontSizes.s12 },
+  button: { minHeight: 44, minWidth: 44, borderRadius: radiusValues.r4 },
+  focused: { borderWidth: 2, borderColor: colors.accent },
   empty: { padding: spacing.md, color: colors.muted, fontSize: fontSizes.s13 },
 });

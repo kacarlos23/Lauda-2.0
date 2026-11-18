@@ -1,8 +1,7 @@
 import { uiPatterns } from "../../../src/components/ui/patterns";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
-  Alert,
   Animated,
   Easing,
   LayoutChangeEvent,
@@ -13,15 +12,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { MicVocal, Plus, Search, X } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongSelectionBar } from "../../../src/components/songs/SongSelectionBar";
 import { SongBulkThemeEditor } from "../../../src/components/songs/SongBulkThemeEditor";
-import { SongDataTransferPanel } from "../../../src/components/songs/SongDataTransferPanel";
+const LazySongDataTransferPanel = lazy(() =>
+  import("../../../src/components/songs/SongDataTransferPanel").then((mod) => ({
+    default: mod.SongDataTransferPanel,
+  }))
+);
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
 import { SongQuickThemeEditor } from "../../../src/components/songs/SongQuickThemeEditor";
@@ -45,8 +48,8 @@ import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
 import { nav } from "../../../src/navigation/routes";
 import { useMusicStore } from "../../../src/store/musicStore";
-import { musicService, SongListParams, SongTagCounts, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
-import { Artist, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
+import { musicService, SongListParams, SongTagCounts, SongTagOption, SongThemeBatchResult, SongThemeChange, SongThemeOperation, SongsUnavailableClientError } from "../../../src/services/musicService";
+import { Artist, MUSICAL_KEYS, MusicalKey, Song, User } from "../../../src/types";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import {
   MAX_SONG_SELECTION,
@@ -109,13 +112,43 @@ function totalLabel(total: number): string {
   return `${total} ${total === 1 ? "música encontrada" : "músicas encontradas"}`;
 }
 
+function singleQueryParam(value?: string | string[]): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function arrayQueryParam(value?: string | string[]): string[] {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw.flatMap((item) => item.split(",")).map((item) => item.trim()).filter(Boolean);
+}
+
+function positiveIntParam(value?: string | string[], fallback = 1): number {
+  const parsed = Number.parseInt(singleQueryParam(value), 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : fallback;
+}
+
+function booleanQueryParam(value?: string | string[]): boolean {
+  const raw = singleQueryParam(value).trim().toLowerCase();
+  return raw === "1" || raw === "true";
+}
+
 export default function SongsScreen() {
-  const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  return <SongsCatalogue key={JSON.stringify([user?.tenantId, user?.id])} user={user} />;
+}
+
+function SongsCatalogue({ user }: { user: User | null }) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const routeParams = useLocalSearchParams<{
+    q?: string | string[];
+    page?: string | string[];
+    theme?: string | string[];
+    withoutTheme?: string | string[];
+  }>();
   const { screenWidth } = useResponsiveLayout();
-  const { songs, pagination, loading, refreshing, error, listInvalidationVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const { songs, tagCounts, pagination, loading, refreshing, error, listInvalidationVersion, themeVersion, loadSongs, primeSong, applySongThemes } = useMusicStore();
+  const [search, setSearch] = useState(() => singleQueryParam(routeParams.q));
+  const [page, setPage] = useState(() => positiveIntParam(routeParams.page, 1));
   const pageNumbers = Array.from(new Set([
     1,
     ...Array.from({ length: Math.min(5, pagination.totalPages) }, (_, index) =>
@@ -163,11 +196,17 @@ export default function SongsScreen() {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showDataTransfer, setShowDataTransfer] = useState(false);
-  const [filters, setFilters] = useState<SongFilterState>(emptyFilters);
-  const [draftFilters, setDraftFilters] = useState<SongFilterState>(emptyFilters);
+  const [filters, setFilters] = useState<SongFilterState>(() => ({
+    artist: null,
+    tags: arrayQueryParam(routeParams.theme),
+    untagged: booleanQueryParam(routeParams.withoutTheme),
+  }));
+  const [draftFilters, setDraftFilters] = useState<SongFilterState>(filters);
   const [themeCounts, setThemeCounts] = useState<SongTagCounts | null>(null);
   const [themeError, setThemeError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const searchRef = useRef(search);
   const pageRef = useRef(page);
   const filtersRef = useRef<SongListParams>(toQueryFilters(filters));
@@ -175,7 +214,27 @@ export default function SongsScreen() {
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didMountSearchRef = useRef(false);
   const countsRequest = useRef<AbortController | null>(null);
+  const knownTags = useRef(new Map<string, SongTagOption>());
   const handledInvalidationRef = useRef(listInvalidationVersion);
+  const handledThemeVersionRef = useRef(themeVersion);
+
+  const syncUrlParams = useCallback((
+    nextSearch: string,
+    nextPage: number,
+    nextTags: string[],
+    nextUntagged: boolean
+  ) => {
+    try {
+      routerRef.current.setParams({
+        q: nextSearch.trim() ? nextSearch : undefined,
+        page: nextPage > 1 ? String(nextPage) : undefined,
+        theme: nextTags.length ? nextTags.join(",") : undefined,
+        withoutTheme: nextUntagged ? "1" : undefined,
+      } as Record<string, string | undefined>);
+    } catch {
+      // Ignore if router context is unavailable in unit tests.
+    }
+  }, []);
 
   useEffect(() => { searchRef.current = search; }, [search]);
 
@@ -190,14 +249,6 @@ export default function SongsScreen() {
     feedbackTimerRef.current = setTimeout(() => setFeedback(null), 4200);
   }, []);
 
-  const loadVisibleSongs = useCallback((forceRefresh = false) => {
-    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
-    void loadSongs(searchRef.current, pageRef.current, {
-      refresh: forceRefresh || hasCachedSongs,
-      filters: filtersRef.current,
-    });
-  }, [loadSongs]);
-
   const loadThemeCounts = useCallback(() => {
     countsRequest.current?.abort();
     const request = new AbortController();
@@ -205,17 +256,43 @@ export default function SongsScreen() {
     setThemeError(null);
     void musicService.listSongTagCounts(searchRef.current, filtersRef.current, request.signal)
       .then((result) => {
-        if (!request.signal.aborted) setThemeCounts(result);
+        if (!request.signal.aborted) {
+          setThemeCounts(result);
+        }
       })
       .catch(() => {
         if (!request.signal.aborted) setThemeError("Não foi possível carregar os temas.");
       });
   }, []);
 
+  useEffect(() => {
+    if (tagCounts) {
+      setThemeCounts(tagCounts);
+    }
+  }, [tagCounts]);
+
+  useEffect(() => {
+    themeCounts?.items.forEach((tag) => knownTags.current.set(tag.id, tag));
+  }, [themeCounts]);
+
+  const loadVisibleSongs = useCallback((forceRefresh = false, includeTagCounts = false) => {
+    const hasCachedSongs = useMusicStore.getState().songs.length > 0;
+    void loadSongs(searchRef.current, pageRef.current, {
+      refresh: forceRefresh || hasCachedSongs,
+      filters: filtersRef.current,
+      ...(includeTagCounts ? { includeTagCounts: true } : {}),
+    }).then(() => {
+      if (!includeTagCounts) return;
+      const latestState = useMusicStore.getState();
+      if (!latestState.tagCounts && !latestState.error) {
+        loadThemeCounts();
+      }
+    });
+  }, [loadSongs, loadThemeCounts]);
+
   const refreshCatalogue = useCallback((forceRefresh = false) => {
-    loadVisibleSongs(forceRefresh);
-    loadThemeCounts();
-  }, [loadVisibleSongs, loadThemeCounts]);
+    loadVisibleSongs(forceRefresh, true);
+  }, [loadVisibleSongs]);
 
   useFocusEffect(useCallback(() => {
     refreshCatalogue();
@@ -232,22 +309,30 @@ export default function SongsScreen() {
       searchRef.current = search;
       pageRef.current = 1;
       setPage(1);
+      syncUrlParams(search, 1, filtersRef.current.tags ?? [], Boolean(filtersRef.current.untagged));
       refreshCatalogue();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, refreshCatalogue]);
+  }, [search, refreshCatalogue, syncUrlParams]);
 
   useEffect(() => {
     if (pageRef.current === page) return;
     pageRef.current = page;
+    syncUrlParams(searchRef.current, page, filtersRef.current.tags ?? [], Boolean(filtersRef.current.untagged));
     loadVisibleSongs();
-  }, [page, loadVisibleSongs]);
+  }, [page, loadVisibleSongs, syncUrlParams]);
 
   useEffect(() => {
     if (handledInvalidationRef.current === listInvalidationVersion) return;
     handledInvalidationRef.current = listInvalidationVersion;
     refreshCatalogue(true);
   }, [listInvalidationVersion, refreshCatalogue]);
+
+  useEffect(() => {
+    if (handledThemeVersionRef.current === themeVersion) return;
+    handledThemeVersionRef.current = themeVersion;
+    loadThemeCounts();
+  }, [themeVersion, loadThemeCounts]);
 
   useEffect(() => {
     if (!selectedSongs.size || !songs.length) return;
@@ -320,7 +405,7 @@ export default function SongsScreen() {
           "warning"
         );
       } else {
-        Alert.alert("Erro", reason instanceof Error ? reason.message : TEXT.exportError);
+        showFeedback(reason instanceof Error ? reason.message : TEXT.exportError, "error");
       }
     } finally {
       exportingRef.current = false;
@@ -342,11 +427,10 @@ export default function SongsScreen() {
     setShowFilters(false);
     pageRef.current = 1;
     setPage(1);
-    loadVisibleSongs();
-    if (previous.artistId !== queryFilters.artistId || previous.originalKey !== queryFilters.originalKey) {
-      loadThemeCounts();
-    }
-  }, [loadVisibleSongs, loadThemeCounts]);
+    const includeTagCounts = previous.artistId !== queryFilters.artistId || previous.originalKey !== queryFilters.originalKey;
+    syncUrlParams(searchRef.current, 1, next.tags, next.untagged);
+    loadVisibleSongs(false, includeTagCounts);
+  }, [loadVisibleSongs, syncUrlParams]);
 
   const applyFilters = useCallback(() => commitFilters(draftFilters), [commitFilters, draftFilters]);
   const clearFilters = useCallback(() => commitFilters({ ...filters, artist: null, originalKey: undefined }), [commitFilters, filters]);
@@ -372,6 +456,14 @@ export default function SongsScreen() {
 
   const saveBulkThemes = ({ items, updated }: SongThemeBatchResult) => {
     applySongThemes(items);
+    setSelectedSongs((current) => {
+      const next = new Map(current);
+      items.forEach(({ id, tags }) => {
+        const song = next.get(id);
+        if (song) next.set(id, { ...song, tags: [...tags] });
+      });
+      return next;
+    });
     setBulkEditor(null);
     showFeedback(updated
       ? `Temas atualizados em ${updated} ${updated === 1 ? "música" : "músicas"}.`
@@ -415,21 +507,28 @@ export default function SongsScreen() {
         </FilterSection>
       </FilterPanel>
 
-      <SongDataTransferPanel
-        visible={showDataTransfer}
-        canImport={canManageMusic(user, "song:import")}
-        canExport={canManageMusic(user, "song:export")}
-        onClose={() => setShowDataTransfer(false)}
-        onImported={(message) => {
-          showFeedback(message);
-          refreshCatalogue(true);
-        }}
-      />
+      {showDataTransfer ? (
+        <Suspense fallback={null}>
+          <LazySongDataTransferPanel
+            visible={showDataTransfer}
+            canImport={canManageMusic(user, "song:import")}
+            canExport={canManageMusic(user, "song:export")}
+            onClose={() => setShowDataTransfer(false)}
+            onImported={(message) => {
+              showFeedback(message);
+              refreshCatalogue(true);
+            }}
+          />
+        </Suspense>
+      ) : null}
 
       <ScrollView
         style={styles.scroller}
         testID="song-catalog-scroll"
-        contentContainerStyle={styles.page}
+        contentContainerStyle={[styles.page, isSelectionMode && {
+          // The dock occupies its own row; keep extra clearance when scrolling to the end.
+          paddingBottom: screen.contentBottomPadding + spacing.xl + Math.max(spacing.sm, insets.bottom),
+        }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
           <RefreshControl
@@ -531,6 +630,7 @@ export default function SongsScreen() {
               selected={filters.tags}
               untagged={filters.untagged}
               compact={compactLinkActions}
+              refreshTrigger={themeVersion}
               onToggle={toggleTheme}
               action={!isSelectionMode ? (
                 <TouchableOpacity
@@ -650,7 +750,8 @@ export default function SongsScreen() {
       {canEditThemes && bulkEditor ? (
         <SongBulkThemeEditor
           {...bulkEditor}
-          knownTags={themeCounts?.items ?? []}
+          knownTags={Array.from(knownTags.current.values())}
+          selectedSongs={Array.from(selectedSongs.values()).filter((song) => bulkEditor.songIds.includes(song.id))}
           onSaved={saveBulkThemes}
           onClose={() => setBulkEditor(null)}
         />

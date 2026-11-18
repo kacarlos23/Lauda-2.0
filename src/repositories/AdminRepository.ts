@@ -90,14 +90,12 @@ const artistPublicSelect = {
   tenant: { select: tenantMiniSelect },
 } as const;
 
-const songPublicSelect = {
+const songListSelect = {
   id: true,
   title: true,
   normalizedTitle: true,
   composer: true,
   originalKey: true,
-  content: true,
-  comments: true,
   bpm: true,
   cifraUrl: true,
   letraUrl: true,
@@ -111,6 +109,12 @@ const songPublicSelect = {
   updatedAt: true,
   artist: { select: artistMiniSelect },
   tenant: { select: tenantMiniSelect },
+} as const;
+
+const songPublicSelect = {
+  ...songListSelect,
+  content: true,
+  comments: true,
 } as const;
 
 const schedulePublicSelect = {
@@ -222,7 +226,7 @@ const resourceConfig = {
     },
   },
   artists: { delegate: "artist", tenantField: "tenantId", orderBy: [{ tenant: { name: "asc" } }, { name: "asc" }], select: artistPublicSelect },
-  songs: { delegate: "song", tenantField: "tenantId", orderBy: { updatedAt: "desc" }, select: songPublicSelect },
+  songs: { delegate: "song", tenantField: "tenantId", orderBy: { updatedAt: "desc" }, select: songListSelect },
   "ministry-songs": {
     delegate: "ministrySong",
     tenantField: "tenantId",
@@ -302,6 +306,13 @@ export function isAdminResourceName(value: string): value is AdminResourceName {
   return adminResourceNames.includes(value as AdminResourceName);
 }
 
+export type AdminListOptions = {
+  tenantId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
 export class AdminRepository {
   constructor(private readonly db: PrismaClient = basePrisma) {}
 
@@ -312,6 +323,10 @@ export class AdminRepository {
   private delegate(resource: AdminResourceName): any {
     const delegateName = this.config(resource).delegate;
     return (this.db as any)[delegateName];
+  }
+
+  private detailSelect(resource: AdminResourceName) {
+    return resource === "songs" ? songPublicSelect : this.config(resource).select;
   }
 
   listResource(resource: AdminResourceName, options: { tenantId?: string; search?: string; page?: number; limit?: number }) {
@@ -334,19 +349,19 @@ export class AdminRepository {
   }
 
   getResource(resource: AdminResourceName, id: string) {
-    return this.delegate(resource).findUnique({ where: { id }, select: this.config(resource).select });
+    return this.delegate(resource).findUnique({ where: { id }, select: this.detailSelect(resource) });
   }
 
   getResourceScoped(resource: AdminResourceName, id: string, tenantId: string) {
     const config = this.config(resource);
     return this.delegate(resource).findFirst({
       where: { id, [config.tenantField]: tenantId },
-      select: config.select,
+      select: this.detailSelect(resource),
     });
   }
 
   createResource(resource: AdminResourceName, data: Record<string, unknown>) {
-    return this.delegate(resource).create({ data, select: this.config(resource).select });
+    return this.delegate(resource).create({ data, select: this.detailSelect(resource) });
   }
 
   createScheduleResource(data: Record<string, unknown>, actorId: string) {
@@ -433,7 +448,7 @@ export class AdminRepository {
   }
 
   updateResource(resource: AdminResourceName, id: string, data: Record<string, unknown>) {
-    return this.delegate(resource).update({ where: { id }, data, select: this.config(resource).select });
+    return this.delegate(resource).update({ where: { id }, data, select: this.detailSelect(resource) });
   }
 
   updateScheduleLifecycle(scheduleId: string, data: Record<string, unknown>, actorId: string) {
@@ -465,7 +480,7 @@ export class AdminRepository {
   }
 
   deleteResource(resource: AdminResourceName, id: string) {
-    return this.delegate(resource).delete({ where: { id }, select: this.config(resource).select });
+    return this.delegate(resource).delete({ where: { id }, select: this.detailSelect(resource) });
   }
 
   deleteScheduleResource(scheduleId: string, actorId: string) {
@@ -478,8 +493,17 @@ export class AdminRepository {
     });
   }
 
-  listTenants() {
-    return this.listResource("tenants", { page: 1, limit: 200 });
+  private listWithDefaultLimit(resource: AdminResourceName, input: string | AdminListOptions | undefined, defaultLimit: number) {
+    const options = typeof input === "string" ? { tenantId: input } : (input ?? {});
+    return this.listResource(resource, {
+      ...options,
+      page: options.page ?? 1,
+      limit: options.limit ?? defaultLimit,
+    });
+  }
+
+  listTenants(options?: AdminListOptions) {
+    return this.listWithDefaultLimit("tenants", options, 200);
   }
 
   getTenantById(tenantId: string) {
@@ -499,8 +523,8 @@ export class AdminRepository {
     return this.updateResource("tenants", tenantId, data as Record<string, unknown>);
   }
 
-  listUsers(tenantId?: string) {
-    return this.listResource("users", { tenantId, page: 1, limit: 500 });
+  listUsers(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.listWithDefaultLimit("users", tenantIdOrOptions, 500);
   }
 
   findUserById(userId: string) {
@@ -527,16 +551,16 @@ export class AdminRepository {
     });
   }
 
-  listMinistries() {
-    return this.listResource("ministries", { page: 1, limit: 500 });
+  listMinistries(options?: AdminListOptions) {
+    return this.listWithDefaultLimit("ministries", options, 500);
   }
 
   findTenantById(tenantId: string) {
     return this.db.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
   }
 
-  listSongs(tenantId?: string) {
-    return this.listResource("songs", { tenantId, page: 1, limit: 500 });
+  listSongs(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.listWithDefaultLimit("songs", tenantIdOrOptions, 500);
   }
 
   getSongById(songId: string) {
@@ -547,8 +571,8 @@ export class AdminRepository {
     return this.updateResource("songs", songId, data as Record<string, unknown>);
   }
 
-  listSchedules(tenantId?: string) {
-    return this.listResource("schedules", { tenantId, page: 1, limit: 500 });
+  listSchedules(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.listWithDefaultLimit("schedules", tenantIdOrOptions, 500);
   }
 
   getScheduleById(scheduleId: string) {
@@ -658,6 +682,25 @@ export class AdminRepository {
 
   createAuditLog(data: { actorId: string; actorRole: string; action: string; resource: string; resourceId?: string | null; tenantId?: string | null; requestId?: string | null; payload?: Prisma.InputJsonValue }) {
     return this.db.adminAuditLog.create({ data: data as any });
+  }
+
+  async cleanupAuditLogs(retentionDays = 90, batchSize = 5000): Promise<{ deletedCount: number; cutoff: Date }> {
+    const safeDays = Math.max(1, Math.floor(retentionDays));
+    const safeBatch = Math.max(1, Math.min(10_000, Math.floor(batchSize)));
+    const cutoff = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+    const staleLogs = await this.db.adminAuditLog.findMany({
+      where: { createdAt: { lt: cutoff } },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+      take: safeBatch,
+    });
+    if (!staleLogs.length) {
+      return { deletedCount: 0, cutoff };
+    }
+    const result = await this.db.adminAuditLog.deleteMany({
+      where: { id: { in: staleLogs.map((entry) => entry.id) } },
+    });
+    return { deletedCount: result.count, cutoff };
   }
 
   private buildWhere(resource: AdminResourceName, config: ResourceConfig, options: { tenantId?: string; search?: string }) {

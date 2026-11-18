@@ -222,11 +222,17 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
     password: environment.SMTP_PASSWORD || null,
     from: environment.SMTP_FROM?.trim() || null,
   };
+  if (smtp.port > 65535) {
+    throw new Error("SMTP_PORT must be <= 65535");
+  }
   if (
     passwordResetDeliveryMode === "smtp" &&
     (!smtp.host || !smtp.user || !smtp.password || !smtp.from)
   ) {
     throw new Error("SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM are required for SMTP delivery");
+  }
+  if (passwordResetDeliveryMode === "disabled" && appEnv !== "test") {
+    console.warn("[unifiedConfig] PASSWORD_RESET_DELIVERY_MODE=disabled: password reset emails will not be delivered.");
   }
 
   const passwordResetTestPin = environment.PASSWORD_RESET_TEST_PIN?.trim() || null;
@@ -281,6 +287,7 @@ export function createConfig(environment: NodeJS.ProcessEnv = process.env) {
       passwordResetTestPin,
       passwordResetDelivery: {
         mode: passwordResetDeliveryMode,
+        isEmailDeliveryConfigured: passwordResetDeliveryMode === "smtp",
         smtp,
       },
       mfa: {

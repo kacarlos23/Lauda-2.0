@@ -18,6 +18,7 @@ interface InstrumentState {
   updateInstrument: (id: string, payload: UpdateInstrumentPayload) => Promise<void>;
   deleteInstrument: (id: string) => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -63,6 +64,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
         error: getErrorMessage(error, "Não foi possível criar o instrumento."),
         saving: false,
       });
+      throw error;
     }
   },
 
@@ -79,6 +81,7 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
         error: getErrorMessage(error, "Não foi possível atualizar o instrumento."),
         saving: false,
       });
+      throw error;
     }
   },
 
@@ -95,6 +98,9 @@ export const useInstrumentStore = create<InstrumentState>((set, get) => ({
         error: getErrorMessage(error, "Não foi possível excluir o instrumento."),
         deletingId: null,
       });
+      throw error;
     }
   },
+
+  reset: () => set({ instruments: [], loading: false, saving: false, deletingId: null, error: null }),
 }));

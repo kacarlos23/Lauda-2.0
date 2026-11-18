@@ -31,10 +31,17 @@ function apiStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+type AdminListParams = {
+  tenantId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
 export const adminService = {
   async getResource<T = Record<string, unknown>>(
     resource: GlobalResourceName,
-    filters?: { tenantId?: string; search?: string; page?: number; limit?: number }
+    filters?: AdminListParams
   ): Promise<AdminResourceListResponse<T>> {
     try {
       const response = await api.get<{ success: boolean; data: AdminResourceListResponse<T> | T[] }>(`/admin/${resource}`, {
@@ -48,6 +55,15 @@ export const adminService = {
         };
       }
       return data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async getResourceById<T = Record<string, unknown>>(resource: GlobalResourceName, id: string): Promise<T> {
+    try {
+      const response = await api.get<{ success: boolean; data: T }>(`/admin/${resource}/${id}`);
+      return response.data.data;
     } catch (error) {
       handleApiError(error);
     }
@@ -100,9 +116,12 @@ export const adminService = {
     }
   },
 
-  async getTenants(): Promise<GlobalTenant[]> {
+  async getTenants(filters?: AdminListParams): Promise<GlobalTenant[]> {
     try {
-      const response = await api.get<{ success: boolean; data: GlobalTenant[] }>("/admin/tenants");
+      const cleaned = cleanParams(filters);
+      const response = cleaned
+        ? await api.get<{ success: boolean; data: GlobalTenant[] }>("/admin/tenants", { params: cleaned })
+        : await api.get<{ success: boolean; data: GlobalTenant[] }>("/admin/tenants");
       return response.data.data;
     } catch (error) {
       handleApiError(error);
@@ -118,10 +137,10 @@ export const adminService = {
     }
   },
 
-  async getGlobalUsers(filters?: { tenantId?: string }): Promise<GlobalUser[]> {
+  async getGlobalUsers(filters?: AdminListParams): Promise<GlobalUser[]> {
     try {
       const response = await api.get<{ success: boolean; data: GlobalUser[] }>("/admin/users", {
-        params: filters,
+        params: cleanParams(filters),
       });
       return response.data.data;
     } catch (error) {
@@ -129,9 +148,12 @@ export const adminService = {
     }
   },
 
-  async getGlobalMinistries(): Promise<GlobalMinistry[]> {
+  async getGlobalMinistries(filters?: AdminListParams): Promise<GlobalMinistry[]> {
     try {
-      const response = await api.get<{ success: boolean; data: GlobalMinistry[] }>("/admin/ministries");
+      const cleaned = cleanParams(filters);
+      const response = cleaned
+        ? await api.get<{ success: boolean; data: GlobalMinistry[] }>("/admin/ministries", { params: cleaned })
+        : await api.get<{ success: boolean; data: GlobalMinistry[] }>("/admin/ministries");
       return response.data.data;
     } catch (error) {
       handleApiError(error);
@@ -165,9 +187,9 @@ export const adminService = {
     }
   },
 
-  async getGlobalSongs(filters?: { tenantId?: string }): Promise<GlobalSong[]> {
+  async getGlobalSongs(filters?: AdminListParams): Promise<GlobalSong[]> {
     try {
-      const response = await api.get<{ success: boolean; data: GlobalSong[] }>("/admin/songs", { params: filters });
+      const response = await api.get<{ success: boolean; data: GlobalSong[] }>("/admin/songs", { params: cleanParams(filters) });
       return response.data.data;
     } catch (error) {
       handleApiError(error);
@@ -182,9 +204,9 @@ export const adminService = {
     }
   },
 
-  async getGlobalSchedules(filters?: { tenantId?: string }): Promise<GlobalSchedule[]> {
+  async getGlobalSchedules(filters?: AdminListParams): Promise<GlobalSchedule[]> {
     try {
-      const response = await api.get<{ success: boolean; data: GlobalSchedule[] }>("/admin/schedules", { params: filters });
+      const response = await api.get<{ success: boolean; data: GlobalSchedule[] }>("/admin/schedules", { params: cleanParams(filters) });
       return response.data.data;
     } catch (error) {
       handleApiError(error);

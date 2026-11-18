@@ -55,6 +55,17 @@ describe("getSongDetailViewState", () => {
     })).toEqual({ status: "ready", song });
   });
 
+  it("aguarda detalhe completo quando o cache em memória veio da listagem summary sem cifra", () => {
+    const summarySong = { ...song, content: undefined as unknown as string };
+    expect(getSongDetailViewState({
+      routeSongId: "song-1",
+      currentSong: summarySong,
+      requestedSongId: "song-1",
+      detailLoading: true,
+      detailError: null,
+    })).toEqual({ status: "loading" });
+  });
+
   it("só mostra erro depois do request da rota falhar", () => {
     expect(getSongDetailViewState({
       routeSongId: "song-1",

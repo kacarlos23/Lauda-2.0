@@ -3,7 +3,7 @@ import { revokeTenantSessions, revokeUserSessions } from "./authSessionService";
 import { Prisma, Role } from "@prisma/client";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import { config } from "../config/unifiedConfig";
-import { AdminRepository, AdminResourceName, adminResourceNames } from "../repositories/AdminRepository";
+import { AdminListOptions, AdminRepository, AdminResourceName, adminResourceNames } from "../repositories/AdminRepository";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
 import { normalizeCatalogText } from "../utils/catalogNormalization";
 import { AdminEventType, buildAdminAuditData } from "../audit/adminAudit";
@@ -123,8 +123,8 @@ export class AdminService {
     return deleted;
   }
 
-  listTenants() {
-    return this.repository.listTenants();
+  listTenants(options?: AdminListOptions) {
+    return this.repository.listTenants(options);
   }
 
   async getTenantById(tenantId: string) {
@@ -144,8 +144,8 @@ export class AdminService {
     return updated;
   }
 
-  listUsers(tenantId?: string) {
-    return this.repository.listUsers(tenantId);
+  listUsers(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.repository.listUsers(tenantIdOrOptions);
   }
 
   async updateUser(actor: AdminActor, userId: string, input: AdminUpdateUserInput) {
@@ -214,12 +214,12 @@ export class AdminService {
     return updated;
   }
 
-  listMinistries() {
-    return this.repository.listMinistries();
+  listMinistries(options?: AdminListOptions) {
+    return this.repository.listMinistries(options);
   }
 
-  listSongs(tenantId?: string) {
-    return this.repository.listSongs(tenantId);
+  listSongs(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.repository.listSongs(tenantIdOrOptions);
   }
 
   async updateSong(actor: AdminActor, songId: string, input: AdminUpdateSongInput) {
@@ -247,8 +247,8 @@ export class AdminService {
     return updated;
   }
 
-  listSchedules(tenantId?: string) {
-    return this.repository.listSchedules(tenantId);
+  listSchedules(tenantIdOrOptions?: string | AdminListOptions) {
+    return this.repository.listSchedules(tenantIdOrOptions);
   }
 
   async updateSchedule(actor: AdminActor, scheduleId: string, input: AdminUpdateScheduleInput) {

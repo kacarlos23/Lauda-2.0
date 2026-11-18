@@ -325,7 +325,7 @@ function Start-Backend {
       $runCommand = "node dist/server.js"
     }
   }
-  $nodeEnvironment = if ($Production) { "set NODE_ENV=production&& " } else { "" }
+  $nodeEnvironment = if ($Production -or $runCommand -eq "node dist/server.js") { "set NODE_ENV=production&& " } else { "" }
   $localRedisEnvironment = if ($Production) { "" } else { "set RATE_LIMIT_STORE=redis&& set RATE_LIMIT_REDIS_URL=$RedisUrl&& set REALTIME_REDIS_URL=$RedisUrl&& " }
   $runtimeEnvironment = "${nodeEnvironment}${localRedisEnvironment}set HOST=$BackendBindHost&& set TRUST_PROXY_HOPS=$TrustProxyHops&& set PORT=$BackendPort&& "
   $command = "${runtimeEnvironment}($runCommand) >> `"$outLog`" 2>> `"$errLog`""

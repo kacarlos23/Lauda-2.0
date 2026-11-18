@@ -37,5 +37,53 @@ describe("chordStore", () => {
     useChordStore.getState().changeScrollSpeed(-100);
     expect(useChordStore.getState()).toMatchObject({ fontSize: 32, scrollSpeed: 0.5 });
   });
+
+  it("reset limpa songOffsets e música ativa", () => {
+    useChordStore.getState().initializeSong("song-1", "C");
+    useChordStore.getState().transpose(3);
+    useChordStore.getState().reset();
+    expect(useChordStore.getState()).toMatchObject({
+      activeSongId: null,
+      originalKey: "C",
+      currentKey: "C",
+      semitoneOffset: 0,
+      songOffsets: {},
+    });
+  });
+
+  it("persiste e restaura preferências e transposições via localStorage", () => {
+    const storage = new Map<string, string>();
+    const previousWindow = (globalThis as { window?: unknown }).window;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    });
+    try {
+      jest.resetModules();
+      const firstStore = require("./chordStore").useChordStore as typeof useChordStore;
+      firstStore.getState().initializeSong("song-9", "D");
+      firstStore.getState().transpose(2);
+      firstStore.getState().changeFontSize(4);
+
+      jest.resetModules();
+      const restoredStore = require("./chordStore").useChordStore as typeof useChordStore;
+      restoredStore.getState().initializeSong("song-9", "D");
+      expect(restoredStore.getState()).toMatchObject({
+        fontSize: 20,
+        semitoneOffset: 2,
+        currentKey: "E",
+      });
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: previousWindow,
+      });
+    }
+  });
 });
 

@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Mail } from "lucide-react-native";
 import { api } from "../../src/services/api";
 import { AuthShell } from "../../src/components/AuthShell";
-import { AppInput, Button } from "../../src/components/ui";
+import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
 import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
 import { goBackTo } from "../../src/utils/navigation";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
@@ -12,23 +12,28 @@ import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleForgotPassword = async () => {
     if (loading) return;
 
     if (!email.trim()) {
-      Alert.alert("Erro", "Por favor, insira seu e-mail.");
+      const message = "Por favor, insira seu e-mail.";
+      setError(message);
+      Alert.alert("Erro", message);
       return;
     }
 
     setLoading(true);
+    setError(null);
     try {
-      await api.post("/auth/forgot-password", { email });
+      await api.post("/auth/forgot-password", { email: email.trim().toLowerCase() });
       Alert.alert("Sucesso", "Se o e-mail existir, um código foi enviado.");
-      router.push({ pathname: nav.resetPassword, params: { email } });
-    } catch (error: any) {
-      const message = error.response?.data?.error || "Erro ao solicitar recuperação de senha.";
+      router.push({ pathname: nav.resetPassword, params: { email: email.trim().toLowerCase() } });
+    } catch (caught: any) {
+      const message = caught?.response?.data?.error || "Erro ao solicitar recuperação de senha.";
+      setError(message);
       Alert.alert("Erro", message);
     } finally {
       setLoading(false);
@@ -41,6 +46,8 @@ export default function ForgotPasswordScreen() {
       title="Recupere seu acesso"
       subtitle="Informe seu e-mail para receber o código PIN de recuperação."
     >
+      <ErrorBanner message={error} style={styles.errorBanner} />
+
       <AppInput
         label="E-mail"
         icon={<Mail color={colors.muted} size={iconSizes.s18} strokeWidth={2} />}
@@ -48,7 +55,10 @@ export default function ForgotPasswordScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          if (error) setError(null);
+        }}
         returnKeyType="send"
         submitBehavior="blurAndSubmit"
         onSubmitEditing={() => void handleForgotPassword()}
@@ -78,6 +88,9 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  errorBanner: {
+    marginBottom: spacing.md,
+  },
   primaryButton: {
     marginTop: spacing.xl,
   },

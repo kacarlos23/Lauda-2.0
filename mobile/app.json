@@ -31,7 +31,15 @@
       "favicon": "./assets/brand/png/favicon-48.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true,
+            "default": "development"
+          }
+        }
+      ],
       "expo-secure-store",
       [
         "expo-notifications",

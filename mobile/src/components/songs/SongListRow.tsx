@@ -91,7 +91,7 @@ export function SongListRow({
             {onEditThemes ? (
               <View ref={themeButton} collapsable={false}>
                 <TouchableOpacity
-                  style={[styles.themeButton, editingThemes && styles.themeButtonActive]}
+                  style={[styles.themeButton, compactLinkActions && styles.compactThemeButton, editingThemes && styles.themeButtonActive]}
                   onPress={openThemes}
                   accessibilityRole="button"
                   accessibilityLabel={`Editar temas de ${song.title}`}
@@ -109,7 +109,9 @@ export function SongListRow({
           </View>
         ) : null}
       </View>
-      {compactLinkActions ? <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View> : null}
+      {compactLinkActions && Boolean(song.tags?.length) ? (
+        <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View>
+      ) : null}
     </View>
   );
 }
@@ -160,6 +162,7 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: radiusValues.r4, borderWidth: 1,
     borderColor: colors.line, alignItems: "center", justifyContent: "center",
   },
+  compactThemeButton: { width: controlSizes.default, height: controlSizes.default },
   themeButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },

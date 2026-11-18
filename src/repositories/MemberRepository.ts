@@ -1,5 +1,6 @@
 import { prisma } from "./prismaClient";
 import { basePrisma } from "../config/prisma";
+import { NotFoundError } from "../errors/AppError";
 import { revokeUserSessionsInTransaction } from "../services/authSessionService";
 import { Role } from "@prisma/client";
 import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schema";
@@ -29,7 +30,6 @@ export class MemberRepository {
       select: {
         id: true,
         name: true,
-        avatarUrl: true,
         comments: true,
         role: true,
         tenantId: true,
@@ -84,29 +84,82 @@ export class MemberRepository {
     });
   }
 
-  create(data: CreateMemberInput & { password: string }) {
-    const { name, email, phone, role, password, comments } = data;
-    return prisma.user.create({
-      data: {
-        name,
-        email,
-        phone: phone ?? null,
-        role,
-        comments: comments ?? null,
-        password,
-        tenantId: this.tenantId,
+  create(data: CreateMemberInput & { password: string; ministries?: Array<{ ministryId: string; isLeader: boolean }> }) {
+    const { name, email, phone, role, password, comments, ministries = [] } = data;
+    const select = {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      avatarUrl: true,
+      comments: true,
+      role: true,
+      tenantId: true,
+      createdAt: true,
+      ministries: {
+        include: {
+          ministry: { select: { id: true, name: true } },
+        },
+        orderBy: { ministry: { name: "asc" as const } },
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        avatarUrl: true,
-        comments: true,
-        role: true,
-        tenantId: true,
-        createdAt: true,
-      },
+      instruments: userInstrumentInclude,
+    };
+
+    if (ministries.length === 0) {
+      return prisma.user.create({
+        data: {
+          name,
+          email,
+          phone: phone ?? null,
+          role,
+          comments: comments ?? null,
+          password,
+          tenantId: this.tenantId,
+        },
+        select,
+      }).then(mapMemberInstruments);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const ministryIds = ministries.map((item) => item.ministryId);
+      const found = await tx.ministry.findMany({
+        where: { id: { in: ministryIds }, tenantId: this.tenantId },
+        select: { id: true },
+      });
+      if (found.length !== ministryIds.length) {
+        throw new NotFoundError("Ministério não encontrado.");
+      }
+
+      const created = await tx.user.create({
+        data: {
+          name,
+          email,
+          phone: phone ?? null,
+          role,
+          comments: comments ?? null,
+          password,
+          tenantId: this.tenantId,
+        },
+        select: { id: true },
+      });
+
+      await tx.ministryMember.createMany({
+        data: ministries.map((item) => ({
+          userId: created.id,
+          ministryId: item.ministryId,
+          isLeader: item.isLeader,
+          tenantId: this.tenantId,
+          status: "ACTIVE",
+        })),
+        skipDuplicates: true,
+      });
+
+      const hydrated = await tx.user.findFirstOrThrow({
+        where: { id: created.id, tenantId: this.tenantId },
+        select,
+      });
+
+      return mapMemberInstruments(hydrated);
     });
   }
 
@@ -153,12 +206,19 @@ export class MemberRepository {
   }
 
   async deactivateMember(userId: string) {
+    const now = new Date();
     return basePrisma.$transaction(async (tx) => {
       const result = await tx.user.updateMany({
         where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
-        data: { isActive: false, deletedAt: new Date() },
+        data: { isActive: false, deletedAt: now },
       });
-      if (result.count) await revokeUserSessionsInTransaction(tx, userId, "user_deactivated");
+      if (result.count) {
+        await tx.ministryMember.updateMany({
+          where: { userId, tenantId: this.tenantId, deletedAt: null },
+          data: { status: "INACTIVE", isActive: false, isLeader: false, deletedAt: now },
+        });
+        await revokeUserSessionsInTransaction(tx, userId, "user_deactivated");
+      }
       return result.count;
     });
   }

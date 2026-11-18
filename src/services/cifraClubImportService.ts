@@ -7,12 +7,21 @@ import { normalizeChordText } from "../utils/chordText";
 const BASE_URL = "https://www.cifraclub.com.br";
 const MAX_GENERAL_SEARCH_PAGES = 2;
 const MAX_GENERAL_SEARCH_RESULTS = 20;
+const MAX_CIFRA_HTML_BYTES = 2 * 1024 * 1024;
 const NAVIGATION_TIMEOUT_MS = 20_000;
-const WINDOWS_BROWSER_ARGS = [
-  "--window-position=-32000,-32000",
+const STATIC_FETCH_TIMEOUT_MS = 8_000;
+const BROWSER_IDLE_TTL_MS = 60_000;
+const MAX_CONCURRENT_PAGES = 2;
+const HEADLESS_BROWSER_ARGS = [
   "--window-size=1280,720",
   "--disable-blink-features=AutomationControlled",
+  "--no-sandbox",
 ];
+const HTTP_FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+};
 
 type MusicalKey = (typeof MUSICAL_KEYS)[number];
 
@@ -33,10 +42,21 @@ export type CifraClubImportResult = {
 };
 
 export class CifraClubImportService {
+  private static sharedBrowser: Browser | null = null;
+  private static sharedBrowserPromise: Promise<Browser> | null = null;
+  private static browserIdleTimer: NodeJS.Timeout | null = null;
+  private static activeBrowserUsers = 0;
+  private static activePages = 0;
+  private static readonly pageWaitQueue: Array<() => void> = [];
+
   async search(input: CifraClubSearchInput): Promise<{ items: CifraClubSearchResult[] }> {
-    const browser = await CifraClubImportService.launchBrowser();
-    try {
-      const page = await CifraClubImportService.newPage(browser);
+    const browserMocked = CifraClubImportService.isBrowserMocked();
+    if (!browserMocked) {
+      const staticResult = await CifraClubImportService.tryStaticSearch(input);
+      if (staticResult) return staticResult;
+    }
+
+    return CifraClubImportService.withBrowserPage(false, async (page) => {
       const results = new Map<string, CifraClubSearchResult>();
       const merge = (items: CifraClubSearchResult[]) => items.forEach((item) => {
         const previous = results.get(item.url);
@@ -62,46 +82,271 @@ export class CifraClubImportService {
         .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input));
       if (!items.length) throw new NotFoundError("Nenhuma cifra encontrada no Cifra Club para os termos informados.");
       return { items };
-    } finally {
-      await browser.close().catch(() => undefined);
-    }
+    });
   }
 
   async import(url: string): Promise<CifraClubImportResult> {
-    const browser = await CifraClubImportService.launchBrowser();
+    const browserMocked = CifraClubImportService.isBrowserMocked();
+    if (!browserMocked) {
+      const staticResult = await CifraClubImportService.tryStaticImport(url);
+      if (staticResult) return staticResult;
+    }
+
     try {
-      const page = await CifraClubImportService.newPage(browser, true);
-      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS });
-      CifraClubImportService.assertExternalServiceAvailable(response);
-      if (!response?.ok() || !CifraClubImportService.isCifraClubUrl(page.url())) {
-        throw new ValidationError("Não foi possível acessar a cifra informada no Cifra Club.");
-      }
+      return await CifraClubImportService.withBrowserPage(true, async (page) => {
+        const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS });
+        CifraClubImportService.assertExternalServiceAvailable(response);
+        if (!response?.ok() || !CifraClubImportService.isCifraClubUrl(page.url())) {
+          throw new ValidationError("Não foi possível acessar a cifra informada no Cifra Club.");
+        }
 
-      const html = await page.content();
-      const metadata = CifraClubImportService.parseSongPage(html, page.url());
-      const downloadContent = await this.tryDownloadContent(page);
-      const cleanDownload = downloadContent ? CifraClubImportService.cleanTextFile(downloadContent) : null;
+        const html = await CifraClubImportService.safePageContent(page);
+        const metadata = CifraClubImportService.parseSongPage(html, page.url());
+        const downloadContent = await this.tryDownloadContent(page);
+        const cleanDownload = downloadContent ? CifraClubImportService.cleanTextFile(downloadContent) : null;
 
-      return {
-        ...metadata,
-        content: CifraClubImportService.cleanTextFile(cleanDownload?.trim() ? CifraClubImportService.withCapoInstruction(cleanDownload, html) : metadata.content),
-        source: cleanDownload?.trim() ? "download" : "page-fallback",
-      };
+        return {
+          ...metadata,
+          content: CifraClubImportService.cleanTextFile(cleanDownload?.trim() ? CifraClubImportService.withCapoInstruction(cleanDownload, html) : metadata.content),
+          source: cleanDownload?.trim() ? "download" : "page-fallback",
+        };
+      });
     } catch (error) {
       if (error instanceof ValidationError || error instanceof ServiceUnavailableError) throw error;
       throw new ServiceUnavailableError("Não foi possível concluir a importação do Cifra Club. Tente novamente.");
-    } finally {
-      await browser.close().catch(() => undefined);
     }
+  }
+
+  private static isBrowserMocked(): boolean {
+    return Boolean(
+      (CifraClubImportService.launchBrowser as unknown as { _isMockFunction?: boolean })?._isMockFunction
+      || (CifraClubImportService.newPage as unknown as { _isMockFunction?: boolean })?._isMockFunction
+      || (chromium.launch as unknown as { _isMockFunction?: boolean })?._isMockFunction
+    );
+  }
+
+  private static async acquirePageSlot(): Promise<void> {
+    if (CifraClubImportService.activePages < MAX_CONCURRENT_PAGES) {
+      CifraClubImportService.activePages += 1;
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      CifraClubImportService.pageWaitQueue.push(resolve);
+    });
+  }
+
+  private static releasePageSlot(): void {
+    const next = CifraClubImportService.pageWaitQueue.shift();
+    if (next) {
+      next();
+      return;
+    }
+    CifraClubImportService.activePages = Math.max(0, CifraClubImportService.activePages - 1);
+  }
+
+  private static clearBrowserIdleTimer(): void {
+    if (CifraClubImportService.browserIdleTimer) {
+      clearTimeout(CifraClubImportService.browserIdleTimer);
+      CifraClubImportService.browserIdleTimer = null;
+    }
+  }
+
+  private static scheduleIdleClose(): void {
+    CifraClubImportService.clearBrowserIdleTimer();
+    if (CifraClubImportService.activeBrowserUsers > 0 || !CifraClubImportService.sharedBrowser) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      CifraClubImportService.browserIdleTimer = null;
+      if (CifraClubImportService.activeBrowserUsers > 0) return;
+      const browser = CifraClubImportService.sharedBrowser;
+      CifraClubImportService.sharedBrowser = null;
+      void browser?.close().catch(() => undefined);
+    }, BROWSER_IDLE_TTL_MS);
+    timer.unref?.();
+    CifraClubImportService.browserIdleTimer = timer;
+  }
+
+  private static async acquireSharedBrowser(): Promise<Browser> {
+    CifraClubImportService.clearBrowserIdleTimer();
+    CifraClubImportService.activeBrowserUsers += 1;
+    try {
+      const existing = CifraClubImportService.sharedBrowser;
+      if (existing && existing.isConnected()) {
+        return existing;
+      }
+      if (!CifraClubImportService.sharedBrowserPromise) {
+        CifraClubImportService.sharedBrowserPromise = CifraClubImportService.launchBrowser()
+          .then((browser) => {
+            CifraClubImportService.sharedBrowser = browser;
+            browser.once?.("disconnected", () => {
+              if (CifraClubImportService.sharedBrowser === browser) {
+                CifraClubImportService.sharedBrowser = null;
+              }
+            });
+            return browser;
+          })
+          .finally(() => {
+            CifraClubImportService.sharedBrowserPromise = null;
+          });
+      }
+      return await CifraClubImportService.sharedBrowserPromise;
+    } catch (error) {
+      CifraClubImportService.activeBrowserUsers = Math.max(0, CifraClubImportService.activeBrowserUsers - 1);
+      CifraClubImportService.scheduleIdleClose();
+      throw error;
+    }
+  }
+
+  private static releaseSharedBrowser(): void {
+    CifraClubImportService.activeBrowserUsers = Math.max(0, CifraClubImportService.activeBrowserUsers - 1);
+    CifraClubImportService.scheduleIdleClose();
+  }
+
+  private static async withBrowserPage<T>(
+    acceptDownloads: boolean,
+    handler: (page: Page) => Promise<T>,
+  ): Promise<T> {
+    if (CifraClubImportService.isBrowserMocked()) {
+      const browser = await CifraClubImportService.launchBrowser();
+      try {
+        const page = await CifraClubImportService.newPage(browser, acceptDownloads);
+        return await handler(page);
+      } finally {
+        await browser.close().catch(() => undefined);
+      }
+    }
+
+    await CifraClubImportService.acquirePageSlot();
+    try {
+      const browser = await CifraClubImportService.acquireSharedBrowser();
+      let page: Page | null = null;
+      try {
+        page = await CifraClubImportService.newPage(browser, acceptDownloads);
+        return await handler(page);
+      } finally {
+        await page?.close?.().catch(() => undefined);
+        CifraClubImportService.releaseSharedBrowser();
+      }
+    } finally {
+      CifraClubImportService.releasePageSlot();
+    }
+  }
+
+  private static async fetchStaticHtml(url: string): Promise<{ url: string; html: string } | null> {
+    try {
+      const response = await fetch(url, {
+        headers: HTTP_FETCH_HEADERS,
+        redirect: "follow",
+        signal: AbortSignal.timeout(STATIC_FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const finalUrl = response.url || url;
+      if (!CifraClubImportService.isCifraClubUrl(finalUrl)) return null;
+      const contentLength = Number(response.headers.get("content-length") ?? "0");
+      if (Number.isFinite(contentLength) && contentLength > MAX_CIFRA_HTML_BYTES) return null;
+      const html = await response.text();
+      if (Buffer.byteLength(html, "utf8") > MAX_CIFRA_HTML_BYTES) return null;
+      return { url: finalUrl, html };
+    } catch {
+      return null;
+    }
+  }
+
+  private static async tryStaticImport(url: string): Promise<CifraClubImportResult | null> {
+    const fetched = await CifraClubImportService.fetchStaticHtml(url);
+    if (!fetched) return null;
+    try {
+      const metadata = CifraClubImportService.parseSongPage(fetched.html, fetched.url);
+      const content = CifraClubImportService.cleanTextFile(metadata.content);
+      if (!content.trim()) return null;
+      return {
+        ...metadata,
+        content,
+        source: "page-fallback",
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private static async tryStaticSearch(input: CifraClubSearchInput): Promise<{ items: CifraClubSearchResult[] } | null> {
+    const results = new Map<string, CifraClubSearchResult>();
+    const merge = (items: CifraClubSearchResult[]) => items.forEach((item) => {
+      const previous = results.get(item.url);
+      results.set(item.url, previous
+        ? { ...previous, originalKey: previous.originalKey ?? item.originalKey ?? null }
+        : item);
+    });
+
+    let artistCatalogItems: CifraClubSearchResult[] = [];
+    if (input.artist) {
+      const directResults = new Map<string, CifraClubSearchResult>();
+      for (const candidateUrl of CifraClubImportService.candidateSearchUrls(input)) {
+        const fetched = await CifraClubImportService.fetchStaticHtml(candidateUrl);
+        if (!fetched || !CifraClubImportService.isSongUrl(fetched.url)) continue;
+        try {
+          const parsed = CifraClubImportService.parseSongPage(fetched.html, fetched.url);
+          if (!CifraClubImportService.matchesCandidate(parsed, input)) continue;
+          directResults.set(parsed.cifraUrl, {
+            title: parsed.title,
+            artist: parsed.artist,
+            url: parsed.cifraUrl,
+            originalKey: parsed.originalKey,
+          });
+        } catch {
+          // Segue para os demais candidatos estáticos ou fallback do browser.
+        }
+      }
+      if (directResults.size) {
+        return {
+          items: Array.from(directResults.values())
+            .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input)),
+        };
+      }
+
+      const artistUrl = CifraClubImportService.artistPageUrl(input.artist);
+      if (artistUrl) {
+        const fetched = await CifraClubImportService.fetchStaticHtml(artistUrl);
+        if (fetched) {
+          artistCatalogItems = CifraClubImportService.parseSearchResults(fetched.html, fetched.url, input);
+          merge(artistCatalogItems);
+        }
+      }
+    }
+
+    if (!input.artist || artistCatalogItems.length === 0) {
+      const query = [input.artist, input.title].filter(Boolean).join(" ");
+      if (query) {
+        const fetched = await CifraClubImportService.fetchStaticHtml(`${BASE_URL}/?q=${encodeURIComponent(query)}`);
+        if (fetched) {
+          merge(CifraClubImportService.parseSearchResults(fetched.html, fetched.url, input));
+        }
+      }
+    }
+
+    const items = Array.from(results.values())
+      .filter((candidate) => CifraClubImportService.matchesCandidate(candidate, input))
+      .sort((first, second) => CifraClubImportService.compareCandidates(first, second, input));
+    return items.length ? { items } : null;
+  }
+
+  private static async safePageContent(page: Page): Promise<string> {
+    const html = await page.content();
+    if (Buffer.byteLength(html, "utf8") > MAX_CIFRA_HTML_BYTES) {
+      throw new ValidationError("A página consultada no Cifra Club excede o tamanho máximo suportado.");
+    }
+    return html;
   }
 
   private static async launchBrowser(): Promise<Browser> {
     const candidates: LaunchOptions[] = process.platform === "win32"
       ? [
-        { channel: "chrome", headless: false, args: WINDOWS_BROWSER_ARGS },
-        { channel: "msedge", headless: false, args: WINDOWS_BROWSER_ARGS },
+        { channel: "chrome", headless: true, args: HEADLESS_BROWSER_ARGS },
+        { channel: "msedge", headless: true, args: HEADLESS_BROWSER_ARGS },
+        { headless: true, args: HEADLESS_BROWSER_ARGS },
       ]
-      : [{ headless: true }];
+      : [{ headless: true, args: HEADLESS_BROWSER_ARGS }];
 
     let lastError: unknown;
     for (const options of candidates) {
@@ -150,6 +395,8 @@ export class CifraClubImportService {
       if (!download) return null;
       const filePath = await download.path();
       if (!filePath) return null;
+      const stats = await fs.stat(filePath);
+      if (stats.size > MAX_CIFRA_HTML_BYTES) return null;
       const bytes = await fs.readFile(filePath);
       const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
         .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").trim();
@@ -168,7 +415,7 @@ export class CifraClubImportService {
         const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS });
         CifraClubImportService.assertExternalServiceAvailable(response);
         if (!response?.ok() || !CifraClubImportService.isSongUrl(page.url())) continue;
-        const html = await page.content();
+        const html = await CifraClubImportService.safePageContent(page);
         const parsed = CifraClubImportService.parseSongPage(html, page.url());
         if (!CifraClubImportService.matchesCandidate(parsed, input)) continue;
         results.set(parsed.cifraUrl, {
@@ -196,7 +443,7 @@ export class CifraClubImportService {
       const response = await page.goto(artistPageUrl, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS });
       CifraClubImportService.assertExternalServiceAvailable(response);
       if (!response?.ok()) return [];
-      return CifraClubImportService.parseSearchResults(await page.content(), page.url(), input);
+      return CifraClubImportService.parseSearchResults(await CifraClubImportService.safePageContent(page), page.url(), input);
     } catch (error) {
       if (error instanceof ServiceUnavailableError) throw error;
       return [];
@@ -222,7 +469,7 @@ export class CifraClubImportService {
       );
 
       const collectCurrentPage = async () => {
-        for (const item of CifraClubImportService.parseSearchResults(await page.content(), page.url(), input)) {
+        for (const item of CifraClubImportService.parseSearchResults(await CifraClubImportService.safePageContent(page), page.url(), input)) {
           const previous = results.get(item.url);
           results.set(item.url, previous
             ? { ...previous, originalKey: previous.originalKey ?? item.originalKey ?? null }

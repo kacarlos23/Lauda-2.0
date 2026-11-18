@@ -20,7 +20,10 @@ export function getSongDetailViewState(input: SongDetailStateInput): SongDetailV
     return { status: "error", message: "Música não encontrada." };
   }
 
-  if (input.currentSong?.id === routeSongId) {
+  if (
+    input.currentSong?.id === routeSongId &&
+    (!input.detailLoading || typeof input.currentSong.content === "string")
+  ) {
     return { status: "ready", song: input.currentSong };
   }
 

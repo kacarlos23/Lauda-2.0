@@ -1,5 +1,5 @@
 import { InputControl as TextInput } from "../../src/components/ui/InputControl";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -83,7 +83,9 @@ const TEXT = {
 export default function DashboardScreen() {
   const router = useRouter();
   const { user, tenant } = useAuthStore();
-  const { schedules, loading, error, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const { schedules, loading, error, lastFetchedAt, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const lastFetchedAtRef = useRef(lastFetchedAt);
+  lastFetchedAtRef.current = lastFetchedAt;
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -106,7 +108,11 @@ export default function DashboardScreen() {
   const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
 
   useEffect(() => {
-    void loadMySchedules();
+    const fetchedAt = lastFetchedAtRef.current;
+    if (!fetchedAt || Date.now() - fetchedAt > 30_000) {
+      const dateFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      void loadMySchedules({ params: { summary: true, limit: 20, dateFrom }, persistParams: false });
+    }
   }, [loadMySchedules]);
 
   useEffect(() => {
@@ -238,7 +244,7 @@ export default function DashboardScreen() {
             variant="secondary"
             size="sm"
             style={styles.retryButton}
-            onPress={() => void loadMySchedules({ refresh: true })}
+            onPress={() => void loadMySchedules({ refresh: true, params: { summary: true, limit: 20 }, persistParams: false })}
             accessibilityLabel="Tentar carregar dashboard novamente"
           />
         ) : null}

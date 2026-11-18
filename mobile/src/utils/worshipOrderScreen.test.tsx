@@ -37,6 +37,11 @@ jest.mock("../components/schedules/SortableSongList", () => ({ SortableSongList:
 jest.mock("../components/schedules/WorshipReadingCard", () => ({ WorshipReadingCard: () => null }));
 jest.mock("../hooks/useFormExit", () => ({ useFormExit: () => ({ dirty, dialog: null, reset: jest.fn(), complete: jest.fn() }) }));
 jest.mock("../store/authStore", () => ({ useAuthStore: () => ({ user: { id: "user", role: "MEMBER", permissions } }) }));
+jest.mock("../store/scheduleStore", () => ({
+  useScheduleStore: Object.assign(jest.fn(), {
+    getState: () => ({ loadSchedules: jest.fn(), loadMySchedules: jest.fn() }),
+  }),
+}));
 jest.mock("../services/musicService", () => ({ musicService: { exportSongs: jest.fn() } }));
 jest.mock("../services/scheduleService", () => ({ scheduleService: { listSchedules: async () => [] } }));
 jest.mock("../services/worshipOrderService", () => ({ worshipOrderService: { get: jest.fn() } }));
