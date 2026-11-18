@@ -178,14 +178,15 @@ export default function ProfileScreen() {
       } finally {
         setInstrumentsLoading(false);
         setProfileRefreshing(false);
-        if (inFlightProfileRefreshRef.current === request) {
-          inFlightProfileRefreshRef.current = null;
-        }
       }
     })();
 
     inFlightProfileRefreshRef.current = request;
-    return request;
+    try {
+      await request;
+    } finally {
+      if (inFlightProfileRefreshRef.current === request) inFlightProfileRefreshRef.current = null;
+    }
   }, [applyCurrentUser]);
 
   useFocusEffect(useCallback(() => {
