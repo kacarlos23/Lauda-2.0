@@ -20,7 +20,7 @@ export function normalizeSongContent<T extends { content: string }>(song: T): T 
 
 // Allow common Brazilian spellings (C7M, Em7(9), A7(9/13)) without
 // mistaking words such as [Final], [Bridge] or [Amigos] for chords.
-const chordSymbol = /^[A-G](?:#|b|♯|♭)?(?:(?:maj|min|dim|aug|sus|add|omit|alt|no)|[Mm\d#b♯♭()+°ºøΔ^\-]|\/\d+)*(?:\/[A-G](?:#|b|♯|♭)?)?$/;
+const chordSymbol = /^[A-G][#b♯♭]?(?:m(?:aj|in)?|dim|aug|sus|add|omit|alt|no|\/\d|[M\d#b♯♭()+°ºøΔ^\-])*(?:\/[A-G][#b♯♭]?)?$/;
 export function isChordSymbol(value: string): boolean {
   const symbol = value.startsWith("(") && value.endsWith(")") ? value.slice(1, -1) : value;
   return chordSymbol.test(symbol);

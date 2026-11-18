@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import sanitizeHtml from "sanitize-html";
 import { Browser, chromium, Download, LaunchOptions, Page, Response } from "playwright";
 import { NotFoundError, ServiceUnavailableError, ValidationError } from "../errors/AppError";
 import { CifraClubSearchInput, MUSICAL_KEYS } from "../validators/song.schema";
@@ -395,9 +396,15 @@ export class CifraClubImportService {
       if (!download) return null;
       const filePath = await download.path();
       if (!filePath) return null;
-      const stats = await fs.stat(filePath);
-      if (stats.size > MAX_CIFRA_HTML_BYTES) return null;
-      const bytes = await fs.readFile(filePath);
+      const handle = await fs.open(filePath, "r");
+      let bytes: Buffer;
+      try {
+        const stats = await handle.stat();
+        if (stats.size > MAX_CIFRA_HTML_BYTES) return null;
+        bytes = await handle.readFile();
+      } finally {
+        await handle.close();
+      }
       const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
         .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").trim();
       if (!text || /<\/?(?:html|body|script)\b|^%PDF-|\uFFFD/i.test(text)) return null;
@@ -609,14 +616,26 @@ export class CifraClubImportService {
   }
 
   private static cleanText(value: string): string {
-    return this.decodeEntities(value
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>|<\/div>|<\/li>|<\/h\d>|<\/tr>/gi, "\n")
-      .replace(/<[^>]+>/g, " "))
-      .replace(/\s+/g, " ")
-      .trim();
+    const chunks: string[] = [];
+    let needSpace = false;
+    sanitizeHtml(value, {
+      allowedTags: [],
+      allowedAttributes: {},
+      nonTextTags: ["style", "script", "textarea", "option", "noscript"],
+      transformTags: {
+        "*": (tagName, attribs) => {
+          needSpace = true;
+          return { tagName, attribs };
+        },
+      },
+      textFilter: (text) => {
+        if (needSpace && chunks.length > 0) chunks.push(" ");
+        needSpace = false;
+        chunks.push(text);
+        return "";
+      },
+    });
+    return this.decodeEntities(chunks.join("")).replace(/\s+/g, " ").trim();
   }
 
   private static decodeEntities(value: string): string {

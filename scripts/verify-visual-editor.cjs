@@ -255,7 +255,7 @@ async function main() {
     assert.equal(publicRelease.feature, "visual-chord-editor");
     const localRelease = JSON.parse(fs.readFileSync(path.join(root, "mobile/web-build/public-test/release.json"), "utf8"));
     assert.deepEqual(publicRelease, localRelease);
-    fs.writeFileSync(path.join(artifacts, "verification.json"), JSON.stringify({ verifiedAt: new Date().toISOString(), url: base, productionCatalogUnchanged: true, checks, release: publicRelease }, null, 2));
+    fs.writeFileSync(path.join(artifacts, "verification.json"), JSON.stringify({ verifiedAt: new Date().toISOString(), url: base, productionCatalogUnchanged: true, checks, release: localRelease }, null, 2));
     console.log(JSON.stringify({ url: base, checks }, null, 2));
   } catch (error) {
     if (page) { await page.screenshot({ path: path.join(artifacts, "failure.png"), fullPage: true }).catch(() => {}); console.error("Browser URL:", page.url()); }

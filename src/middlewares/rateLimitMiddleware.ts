@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { NextFunction, Request, Response } from "express";
+import { ipKeyGenerator, rateLimit, type Store } from "express-rate-limit";
 import { config } from "../config/unifiedConfig";
 import { ServiceUnavailableError } from "../errors/AppError";
 import { rateLimitStore, type RateLimitStore } from "../security/rateLimitStore";
@@ -84,6 +85,46 @@ export function createRateLimiter(options: RateLimitOptions) {
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
+
+function createExpressRateLimitStore(windowMs: number): Store {
+  return {
+    localKeys: false,
+    increment: async (key: string) => {
+      try {
+        const result = await rateLimitStore().consume(key, windowMs);
+        return { totalHits: result.count, resetTime: new Date(result.resetAt) };
+      } catch {
+        if (config.rateLimit.failureMode === "open") {
+          return { totalHits: 1, resetTime: new Date(Date.now() + windowMs) };
+        }
+        throw new ServiceUnavailableError("Proteção contra abuso temporariamente indisponível");
+      }
+    },
+    decrement: async () => undefined,
+    resetKey: async () => undefined,
+  };
+}
+
+export const apiRateLimit = rateLimit({
+  windowMs: FIFTEEN_MINUTES,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  passOnStoreError: false,
+  skip: () => !config.rateLimit.enabled,
+  keyGenerator: (req) => {
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
+    return pseudonymousRateLimitKey("api", "ip", ip);
+  },
+  store: createExpressRateLimitStore(FIFTEEN_MINUTES),
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: "Muitas tentativas. Tente novamente mais tarde.",
+      code: "RATE_LIMITED",
+    });
+  },
+});
 
 export const loginRateLimit = createRateLimiter({
   scope: "login",

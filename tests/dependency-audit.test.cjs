@@ -1,7 +1,9 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const { approvedException, onlyReviewedHighAdvisory } = require("../scripts/security/dependency-audit.cjs");
-const { root, validateReceipt } = require("../scripts/security/runtime-audit-receipt.cjs");
+const { checkout, clearReceipt, consumeReceipt, receiptPath, root, validateReceipt } = require("../scripts/security/runtime-audit-receipt.cjs");
 
 const policy = {
   id: "GHSA-fc5q-39xc-vjpf",
@@ -96,4 +98,30 @@ test("accepts fresh coverage only for this checkout and successful CI job", () =
     assert.throws(() => validateReceipt({ ...receipt, ...invalid }, context));
   }
   assert.throws(() => validateReceipt(receipt, { ...context, stepOutcome: "failure" }), /successful CI job/);
+});
+
+test("reads and consumes runtime audit receipts without path-check races", () => {
+  const file = receiptPath(null);
+  clearReceipt(file);
+  assert.throws(() => consumeReceipt(null, Date.now()), /Runtime audit receipt missing/);
+
+  const identity = checkout(null);
+  assert.match(identity.commit, /^[a-f0-9]{40}$/);
+  assert.match(identity.sourceHash, /^[a-f0-9]{64}$/);
+
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const now = Date.now();
+  fs.writeFileSync(file, JSON.stringify({
+    schema_version: 1,
+    status: "passed",
+    timestamp: now,
+    ...identity,
+    worktree: root,
+    run: null,
+    packages: ["picomatch"],
+    platforms: ["web", "android", "ios"].map((name) => ({ name, bundles: 1, maps: 1, sources: 1 })),
+  }));
+  const consumed = consumeReceipt(null, now + 100);
+  assert.equal(consumed.status, "passed");
+  assert.equal(fs.existsSync(file), false);
 });

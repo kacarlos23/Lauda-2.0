@@ -30,9 +30,22 @@ function validateProject(root = projectRoot) {
   for (const file of new Set(files)) {
     if (!textFile.test(file) && !textNames.has(path.basename(file)) && !file.startsWith(".husky/")) continue;
     const absolute = path.join(root, file);
-    if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
+    let fd;
+    try {
+      fd = fs.openSync(absolute, "r");
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "EISDIR" || error.code === "EACCES") continue;
+      throw error;
+    }
+    let buffer;
+    try {
+      if (!fs.fstatSync(fd).isFile()) continue;
+      buffer = fs.readFileSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
     checked++;
-    errors.push(...validateText(fs.readFileSync(absolute), file));
+    errors.push(...validateText(buffer, file));
   }
   return { checked, errors };
 }

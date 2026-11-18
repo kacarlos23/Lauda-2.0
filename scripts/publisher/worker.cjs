@@ -66,19 +66,42 @@ function recoverInterrupted(root) {
   }
 }
 
+function acquireWorkerLock(lockPath) {
+  while (true) {
+    try {
+      fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid }), { flag: "wx" });
+      return;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+    }
+    let lock;
+    try {
+      lock = core.readJson(lockPath);
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    try {
+      process.kill(lock.pid, 0);
+      throw new Error("Publisher already running or its PID is in use");
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+    try {
+      fs.unlinkSync(lockPath);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+}
+
 async function main(configPath) {
   const config = core.readJson(configPath);
   const root = fs.realpathSync(config.projectRoot);
   const base = path.join(root, ".lauda-publisher");
   for (const folder of ["inbox", "processing", "results"]) core.plainPath(root, path.join(base, folder));
   const lockPath = path.join(base, "worker.lock");
-  if (fs.existsSync(lockPath)) {
-    const lock = core.readJson(lockPath);
-    try { process.kill(lock.pid, 0); throw new Error("Publisher already running or its PID is in use"); }
-    catch (error) { if (error.code !== "ESRCH") throw error; }
-    fs.unlinkSync(lockPath);
-  }
-  fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid }), { flag: "wx" });
+  acquireWorkerLock(lockPath);
   // A host shutdown during publication is ambiguous; never automatically replay it.
   recoverInterrupted(root);
   const heartbeat = () => core.writeJson(path.join(base, "state.json"), { pid: process.pid, account: os.userInfo().username, heartbeat: new Date().toISOString(), projectRoot: root, version: 1 });
