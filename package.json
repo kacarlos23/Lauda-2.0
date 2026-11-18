@@ -16,6 +16,7 @@
     "promote:global-admin": "ts-node scripts/promote-global-admin.ts",
     "resilience:restore-drill": "node scripts/resilience/backup-restore-drill.cjs",
     "security:dependencies": "node scripts/security/dependency-audit.cjs",
+    "security:runtime-bundle": "node scripts/verify-runtime-bundle.mjs",
     "security:policy": "node scripts/security/validate-policy.cjs",
     "security:sbom": "node scripts/security/generate-sbom.cjs",
     "security:sbom:verify": "node scripts/security/generate-sbom.cjs --verify",
