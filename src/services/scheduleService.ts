@@ -49,8 +49,21 @@ export class ScheduleService {
     );
   }
 
-  private async ensureCanManageSchedule(scheduleId: string, user: RequestUser) {
-    const schedule = await this.scheduleRepository.findScheduleById(scheduleId);
+  private async ensureCanManageSchedule(
+    scheduleId: string,
+    user: RequestUser,
+  ): Promise<NonNullable<Awaited<ReturnType<ScheduleRepository["findScheduleById"]>>>>;
+  private async ensureCanManageSchedule<T extends { id: string; ministryId: string }>(
+    scheduleId: string,
+    user: RequestUser,
+    existingSchedule: T,
+  ): Promise<T>;
+  private async ensureCanManageSchedule(
+    scheduleId: string,
+    user: RequestUser,
+    existingSchedule?: { id: string; ministryId: string },
+  ) {
+    const schedule = existingSchedule ?? await this.scheduleRepository.findScheduleById(scheduleId);
     if (!schedule) {
       throw new NotFoundError("Escala não encontrada");
     }
@@ -271,15 +284,15 @@ export class ScheduleService {
       throw new NotFoundError("Atribuição não encontrada");
     }
 
-    await this.ensureCanManageSchedule(scheduleId, user);
+    await this.ensureCanManageSchedule(scheduleId, user, assignment.schedule);
     const result = await this.scheduleRepository.deleteAssignment(scheduleId, assignmentId, user.id);
     if (result.count === 0) {
       throw new NotFoundError("Atribuição não encontrada");
     }
   }
 
-  async listMine(userId: string) {
-    return this.scheduleRepository.findSchedulesForUser(userId);
+  async listMine(userId: string, filters: Partial<ListSchedulesInput> = {}) {
+    return this.scheduleRepository.findSchedulesForUser(userId, filters);
   }
 
   async getReportData(scheduleId: string) {
@@ -305,20 +318,44 @@ export class ScheduleService {
     existingRoles = new Map<string, string>(),
   ) {
     const assignmentsToValidate = assignments.filter((assignment) => existingRoles.get(assignment.userId) !== assignment.role);
-    await this.ensureAssignmentsHaveProfileRoles(assignmentsToValidate);
-    for (const assignment of assignments) {
-      const targetUser = await this.scheduleRepository.findTenantUserById(assignment.userId);
-      if (!targetUser) {
-        throw new NotFoundError("Usuário não encontrado neste tenant");
+    const validatedUserIds = await this.ensureAssignmentsHaveProfileRoles(assignmentsToValidate);
+    if (!assignments.length) return;
+
+    const uniqueUserIds = Array.from(new Set(assignments.map((assignment) => assignment.userId)));
+    const remainingUserIds = uniqueUserIds.filter((userId) => !validatedUserIds.has(userId));
+    if (remainingUserIds.length > 0) {
+      if (typeof this.scheduleRepository.findTenantUsersByIds === "function") {
+        const foundUsers = await this.scheduleRepository.findTenantUsersByIds(remainingUserIds);
+        const foundSet = new Set(foundUsers.map((entry) => entry.id));
+        if (remainingUserIds.some((userId) => !foundSet.has(userId))) {
+          throw new NotFoundError("Usuário não encontrado neste tenant");
+        }
+      } else {
+        for (const userId of remainingUserIds) {
+          const targetUser = await this.scheduleRepository.findTenantUserById(userId);
+          if (!targetUser) {
+            throw new NotFoundError("Usuário não encontrado neste tenant");
+          }
+        }
       }
-      if (!this.isAdmin(user.role) && !await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
-        await this.ensureUserBelongsToMinistry(ministryId, assignment.userId);
+    }
+
+    if (!this.isAdmin(user.role) && !await hasPermission(user, "schedule:assign_members", user.tenantId) && user.role === Role.MINISTRY_LEADER) {
+      if (typeof this.scheduleRepository.findMinistryMemberUserIds === "function") {
+        const memberUserIds = await this.scheduleRepository.findMinistryMemberUserIds(ministryId, uniqueUserIds);
+        if (uniqueUserIds.some((userId) => !memberUserIds.has(userId))) {
+          throw new ForbiddenError("Líder só pode escalar membros do próprio ministério");
+        }
+      } else {
+        for (const userId of uniqueUserIds) {
+          await this.ensureUserBelongsToMinistry(ministryId, userId);
+        }
       }
     }
   }
 
-  private async ensureAssignmentsHaveProfileRoles(assignments: CreateAssignmentInput[]) {
-    if (!assignments.length) return;
+  private async ensureAssignmentsHaveProfileRoles(assignments: CreateAssignmentInput[]): Promise<Set<string>> {
+    if (!assignments.length) return new Set();
     const users = await this.scheduleRepository.findUsersWithAssignmentRoles(assignments.map((assignment) => assignment.userId));
     const usersById = new Map(users.map((target) => [target.id, target]));
 
@@ -332,6 +369,8 @@ export class ScheduleService {
         throw new ValidationError(`A função "${assignment.role}" não está vinculada ao perfil de ${target.name}`);
       }
     }
+
+    return new Set(usersById.keys());
   }
 
   private async ensureUserBelongsToMinistry(ministryId: string, userId: string) {

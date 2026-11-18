@@ -10,7 +10,8 @@
     { "source": "/songs/:id([0-9a-fA-F-]{36})/edit", "destination": "/songs/[id]/edit.html" },
     { "source": "/songs/:id([0-9a-fA-F-]{36})", "destination": "/songs/[id].html" },
     { "source": "/ministries/:id([0-9a-fA-F-]{36})/members", "destination": "/ministries/[id]/members.html" },
-    { "source": "/ministries/:id([0-9a-fA-F-]{36})", "destination": "/ministries/[id].html" }
+    { "source": "/ministries/:id([0-9a-fA-F-]{36})", "destination": "/ministries/[id].html" },
+    { "source": "**", "destination": "/index.html" }
   ],
   "headers": [
     { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }

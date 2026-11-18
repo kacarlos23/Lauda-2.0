@@ -1,5 +1,5 @@
 import { uiPatterns } from "../../../../src/components/ui/patterns";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -40,42 +40,65 @@ export default function MinistryMembersScreen() {
   const { user } = useAuthStore();
   const [members, setMembers] = useState<MinistryMember[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState<MemberStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    const normalized = search.trim();
+    if (!normalized) {
+      setDebouncedSearch("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearch(normalized);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const loadMembers = useCallback(
     async (nextPage = 1) => {
-      if (!id) return;
+      if (!id) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
+      const requestId = ++requestIdRef.current;
       try {
         setError(null);
         const response = await ministryApi.listMembers(id, {
-          search: search.trim() || undefined,
+          search: debouncedSearch || undefined,
           status: status === "ALL" ? undefined : status,
           page: nextPage,
           limit: 20,
         });
-        setMembers(nextPage === 1 ? response.items : [...members, ...response.items]);
+        if (requestId !== requestIdRef.current) return;
+        setMembers((current) => (nextPage === 1 ? response.items : [...current, ...response.items]));
         setPage(response.pagination.page);
         setTotalPages(response.pagination.totalPages);
       } catch (err) {
+        if (requestId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : "Não foi possível carregar membros.");
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [id, members, search, status]
+    [id, debouncedSearch, status]
   );
 
   useEffect(() => {
     setLoading(true);
-    loadMembers(1);
-  }, [search, status]);
+    void loadMembers(1);
+  }, [loadMembers]);
 
   const handleRefresh = () => {
     setRefreshing(true);

@@ -11,11 +11,12 @@ type Props = {
   selected: string[];
   untagged: boolean;
   compact: boolean;
+  refreshTrigger?: number;
   onToggle: (name: string | null) => void;
   action?: React.ReactNode;
 };
 
-export function SongThemeBar({ counts, selected, untagged, compact, onToggle, action }: Props) {
+export function SongThemeBar({ counts, selected, untagged, compact, refreshTrigger: _refreshTrigger, onToggle, action }: Props) {
   const dark = useThemeStore((state) => state.mode === "dark");
   const reducedMotion = useReducedMotion();
   const [focusedId, setFocusedId] = useState<string | null>(null);

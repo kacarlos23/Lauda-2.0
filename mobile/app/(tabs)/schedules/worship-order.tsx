@@ -8,6 +8,7 @@ import { AppInput, Button, ErrorBanner, Screen } from "../../../src/components/u
 import { breakpoints, colors, iconSizes, overlays, spacing, typography } from "../../../src/theme";
 import { Schedule, ScheduleSong, Song } from "../../../src/types";
 import { useAuthStore } from "../../../src/store/authStore";
+import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { canEditSchedule, canViewScheduleAdminList, canViewScheduleReports } from "../../../src/utils/schedulePermissions";
 import { canManageMusic } from "../../../src/utils/musicPermissions";
 import { scheduleService } from "../../../src/services/scheduleService";
@@ -76,7 +77,11 @@ export default function WorshipOrderScreen() {
     if (!canView || !validDate(requestedDate)) { setError("Informe uma data válida no formato DD/MM/AAAA."); return; }
     setBusy(true); setError(null); setMessage("");
     try {
-      const [all, order] = await Promise.all([scheduleService.listSchedules(), worshipOrderService.get(requestedDate)]);
+      const brtEndIso = new Date(Date.parse(`${requestedDate}T23:59:59.999-03:00`)).toISOString();
+      const [all, order] = await Promise.all([
+        scheduleService.listSchedules({ dateFrom: requestedDate, dateTo: brtEndIso, limit: 50 }),
+        worshipOrderService.get(requestedDate),
+      ]);
       setSchedules(all); setPeriods({ morning: order?.morning ?? null, evening: order?.evening ?? null });
       setDate(requestedDate); setLoadedDate(requestedDate);
       formExit.reset({ periods: { morning: order?.morning ?? null, evening: order?.evening ?? null } });
@@ -149,13 +154,15 @@ export default function WorshipOrderScreen() {
       const payload = Object.fromEntries((["morning", "evening"] as const).map((period) => {
         const schedule = periods[period];
         return [period, schedule ? { scheduleId: schedule.id, readings: withWorshipItems(schedule, worshipItems(schedule)).readings ?? [], songs: (schedule.songs ?? []).map((entry) => ({
-          songId: entry.songId, moment: entry.moment ?? "Louvor", momentDescription: entry.momentDescription, videoUrlOverride: null,
+          songId: entry.songId, moment: entry.moment ?? "Louvor", momentDescription: entry.momentDescription, videoUrlOverride: entry.videoUrlOverride ?? null,
         })) } : null];
       })) as WorshipOrderPayload;
       const saved = await worshipOrderService.save(loadedDate, payload);
       setPeriods({ morning: saved.morning, evening: saved.evening });
       // Keep the schedule selector consistent with persisted songs.
       setSchedules((all) => all.map((schedule) => saved.morning?.id === schedule.id ? saved.morning : saved.evening?.id === schedule.id ? saved.evening : schedule));
+      void useScheduleStore.getState().loadSchedules({ refresh: true });
+      void useScheduleStore.getState().loadMySchedules({ refresh: true });
       setMessage("Ordem de culto salva.");
       await formExit.complete({ periods: { morning: saved.morning, evening: saved.evening } });
     } catch (reason) { setError(errorText(reason)); }

@@ -93,13 +93,21 @@ describe("catálogo de rotas", () => {
     }
 
     const serveConfig = JSON.parse(fs.readFileSync(path.resolve("serve.json"), "utf8")) as {
-      rewrites: Array<{ destination: string }>;
+      rewrites: Array<{ source: string; destination: string }>;
     };
     const expectedDynamicDestinations = routeEntries
       .filter(([, route]) => route.path.includes("[id]"))
       .map(([, route]) => `/${route.expoScreen}.html`)
       .sort();
-    expect(serveConfig.rewrites.map((rewrite) => rewrite.destination).sort()).toEqual(expectedDynamicDestinations);
+    const dynamicDestinations = serveConfig.rewrites
+      .filter((rewrite) => rewrite.source.includes(":id("))
+      .map((rewrite) => rewrite.destination)
+      .sort();
+    expect(dynamicDestinations).toEqual(expectedDynamicDestinations);
+    expect(serveConfig.rewrites[serveConfig.rewrites.length - 1]).toEqual({
+      source: "**",
+      destination: "/index.html",
+    });
 
     for (const [key, route] of routeEntries) {
       expect(routeForPathname(materializeRoutePath(key, SAMPLE_ID))?.key).toBe(key);

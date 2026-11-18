@@ -21,6 +21,7 @@ import { memberService } from "../../../src/services/memberService";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { musicService } from "../../../src/services/musicService";
 import { useAuthStore } from "../../../src/store/authStore";
+import { useMusicStore } from "../../../src/store/musicStore";
 import { useScheduleStore } from "../../../src/store/scheduleStore";
 import { Artist, Member, Ministry, MinistryMember, MUSICAL_KEYS, MusicalKey, Song } from "../../../src/types";
 import {
@@ -197,7 +198,7 @@ export default function NewScheduleScreen() {
     if (!quickSongContent.trim()) return Alert.alert("Dados incompletos", "Informe a cifra da música.");
     try {
       setQuickSongSaving(true);
-      const created = await musicService.createSong({
+      const created = await useMusicStore.getState().createSong({
         title: quickSongTitle.trim(),
         artistId: quickSongArtist.id,
         composer: null,

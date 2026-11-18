@@ -60,12 +60,12 @@ describe("instrumentStore", () => {
     expect(useInstrumentStore.getState().saving).toBe(false);
   });
 
-  it("createInstrument mantem estado anterior em erro", async () => {
+  it("createInstrument mantem estado anterior e propaga erro", async () => {
     const previous = [makeInstrument("2", "Vocal")];
     useInstrumentStore.setState({ instruments: previous });
     mockedInstrumentService.createInstrument.mockRejectedValueOnce(new Error("Nome duplicado"));
 
-    await useInstrumentStore.getState().createInstrument({ name: "Vocal" });
+    await expect(useInstrumentStore.getState().createInstrument({ name: "Vocal" })).rejects.toThrow("Nome duplicado");
 
     expect(useInstrumentStore.getState().instruments).toEqual(previous);
     expect(useInstrumentStore.getState().error).toBe("Nome duplicado");
@@ -86,12 +86,12 @@ describe("instrumentStore", () => {
     expect(useInstrumentStore.getState().saving).toBe(false);
   });
 
-  it("updateInstrument mantem estado anterior em erro", async () => {
+  it("updateInstrument mantem estado anterior e propaga erro", async () => {
     const previous = [makeInstrument("1", "Baixo")];
     useInstrumentStore.setState({ instruments: previous });
     mockedInstrumentService.updateInstrument.mockRejectedValueOnce(new Error("Falha ao editar"));
 
-    await useInstrumentStore.getState().updateInstrument("1", { name: "Baixo 2" });
+    await expect(useInstrumentStore.getState().updateInstrument("1", { name: "Baixo 2" })).rejects.toThrow("Falha ao editar");
 
     expect(useInstrumentStore.getState().instruments).toEqual(previous);
     expect(useInstrumentStore.getState().error).toBe("Falha ao editar");
@@ -109,12 +109,12 @@ describe("instrumentStore", () => {
     expect(useInstrumentStore.getState().deletingId).toBeNull();
   });
 
-  it("deleteInstrument mantem item em erro", async () => {
+  it("deleteInstrument mantem item e propaga erro", async () => {
     const previous = [makeInstrument("1", "Baixo")];
     useInstrumentStore.setState({ instruments: previous });
     mockedInstrumentService.deleteInstrument.mockRejectedValueOnce(new Error("Falha ao excluir"));
 
-    await useInstrumentStore.getState().deleteInstrument("1");
+    await expect(useInstrumentStore.getState().deleteInstrument("1")).rejects.toThrow("Falha ao excluir");
 
     expect(useInstrumentStore.getState().instruments).toEqual(previous);
     expect(useInstrumentStore.getState().error).toBe("Falha ao excluir");
@@ -126,6 +126,13 @@ describe("instrumentStore", () => {
 
     useInstrumentStore.getState().clearError();
 
+    expect(useInstrumentStore.getState().error).toBeNull();
+  });
+
+  it("reset limpa instrumentos e estado", () => {
+    useInstrumentStore.setState({ instruments: [makeInstrument("1", "Baixo")], error: "Erro" });
+    useInstrumentStore.getState().reset();
+    expect(useInstrumentStore.getState().instruments).toEqual([]);
     expect(useInstrumentStore.getState().error).toBeNull();
   });
 });
