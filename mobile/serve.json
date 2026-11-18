@@ -36,10 +36,6 @@
     {
       "source": "/songs/:id([0-9a-fA-F-]{36})",
       "destination": "/songs/[id].html"
-    },
-    {
-      "source": "**",
-      "destination": "/index.html"
     }
   ]
 }

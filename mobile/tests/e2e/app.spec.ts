@@ -1076,7 +1076,8 @@ test("edita dados do perfil pelo acesso no cabeçalho", async ({ page }) => {
 
   await expect.poll(() => payload?.name).toBe("Ana Atualizada");
   expect(payload?.phone).toBe("11999990000");
-  expect(payload?.avatarUrl).toMatch(/^data:image\/png;base64,/);
+  expect(payload?.avatarUrl).toMatch(/^data:image\/(?:webp|jpeg);base64,/);
+  expect(payload?.avatarUrl?.length).toBeLessThanOrEqual(70_000);
   await expect(page.getByTestId("header-profile-button").last()).toBeVisible();
 });
 
