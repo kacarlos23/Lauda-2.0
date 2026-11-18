@@ -104,10 +104,8 @@ describe("catálogo de rotas", () => {
       .map((rewrite) => rewrite.destination)
       .sort();
     expect(dynamicDestinations).toEqual(expectedDynamicDestinations);
-    expect(serveConfig.rewrites[serveConfig.rewrites.length - 1]).toEqual({
-      source: "**",
-      destination: "/index.html",
-    });
+    // A catch-all rewrite would replace the HTML exported for individual routes.
+    expect(serveConfig.rewrites.map((rewrite) => rewrite.source)).not.toContain("**");
 
     for (const [key, route] of routeEntries) {
       expect(routeForPathname(materializeRoutePath(key, SAMPLE_ID))?.key).toBe(key);
