@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
@@ -37,6 +38,7 @@ import { nav } from "../../../src/navigation/routes";
 const emptyForm = { name: "", colorHex: "", iconKey: "" };
 
 export default function InstrumentCatalogScreen() {
+  const withDockClearance = useDockContentClearance();
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = safeReturnTo(params.returnTo, [nav.profile, nav.church] as const, nav.profile);
   const { user } = useAuthStore();
@@ -185,7 +187,7 @@ export default function InstrumentCatalogScreen() {
           accessibilityLabel="Buscar instrumentos e cargos"
         />
       </FilterPanel>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={withDockClearance(styles.container)} keyboardShouldPersistTaps="handled">
         <View style={styles.backRow}><AppBackButton href={returnTo} /></View>
         <View style={styles.header}>
           <Text style={styles.title}>Instrumentos/Cargos</Text>

@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../../src/components/ui/patterns";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -35,6 +36,7 @@ function statusLabel(status: string) {
 }
 
 export default function MinistryMembersScreen() {
+  const withDockClearance = useDockContentClearance();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -124,7 +126,7 @@ export default function MinistryMembersScreen() {
       <FlatList
         data={members}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={withDockClearance(styles.list)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.filters}>

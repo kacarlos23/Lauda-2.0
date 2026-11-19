@@ -19,6 +19,7 @@ import { ArtistPicker } from "../../../src/components/ArtistPicker";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongSelectionBar } from "../../../src/components/songs/SongSelectionBar";
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { SongBulkThemeEditor } from "../../../src/components/songs/SongBulkThemeEditor";
 const LazySongDataTransferPanel = lazy(() =>
   import("../../../src/components/songs/SongDataTransferPanel").then((mod) => ({
@@ -137,6 +138,7 @@ export default function SongsScreen() {
 }
 
 function SongsCatalogue({ user }: { user: User | null }) {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const routeParams = useLocalSearchParams<{
@@ -525,10 +527,9 @@ function SongsCatalogue({ user }: { user: User | null }) {
       <ScrollView
         style={styles.scroller}
         testID="song-catalog-scroll"
-        contentContainerStyle={[styles.page, isSelectionMode && {
-          // The dock occupies its own row; keep extra clearance when scrolling to the end.
-          paddingBottom: screen.contentBottomPadding + spacing.xl + Math.max(spacing.sm, insets.bottom),
-        }]}
+        contentContainerStyle={isSelectionMode
+          ? [styles.page, { paddingBottom: screen.contentBottomPadding + spacing.xl + Math.max(spacing.sm, insets.bottom) }]
+          : withDockClearance(styles.page)}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
           <RefreshControl

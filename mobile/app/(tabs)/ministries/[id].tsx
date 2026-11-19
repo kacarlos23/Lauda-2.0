@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -31,6 +32,7 @@ import { goBackTo } from "../../../src/utils/navigation";
 import { nav } from "../../../src/navigation/routes";
 
 export default function MinistryDetailsScreen() {
+  const withDockClearance = useDockContentClearance();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -235,7 +237,7 @@ export default function MinistryDetailsScreen() {
       <FlatList
         data={members}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={withDockClearance(styles.content)}
         ListHeaderComponent={
           <View style={styles.ministryInfo}>
             <Text style={styles.title}>{ministry.name}</Text>

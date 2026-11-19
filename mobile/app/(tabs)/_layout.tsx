@@ -1,8 +1,9 @@
 import { requestFormNavigation } from "../../src/navigation/formExitGuard";
 import { Redirect, Tabs, usePathname, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlatformPressable } from "@react-navigation/elements";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from "react-native";
 import { useAuthStore } from "../../src/store/authStore";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { BrandLogo } from "../../src/components/BrandLogo";
@@ -23,11 +24,16 @@ import {
   navigationItemsFor,
 } from "../../src/navigation/manifest";
 import { GROUP_HREFS, ROUTES, TAB_ROUTE_KEYS } from "../../src/navigation/routes";
+import { stagingNavigationEnabled } from "../../src/tokens/stagingNavigation";
+import { StagingDockClearance } from "../../src/navigation/stagingDockClearance";
 import {
   AnimatedTabBubble,
   AnimatedTabIcon,
   AnimatedTabLabel,
 } from "../../src/components/AnimatedTabNavigation";
+
+const DOCK_HEIGHT = 66;
+const DOCK_BOTTOM_GAP = 10;
 
 function MobileTabBubbleBackground() {
   const user = useAuthStore((state) => state.user);
@@ -48,12 +54,17 @@ function renderMobileTabBubbleBackground() {
   return <MobileTabBubbleBackground />;
 }
 
+function renderMobileDockBackground() {
+  return <View testID="staging-dock-surface" style={StyleSheet.absoluteFill} />;
+}
+
 export default function TabsLayout() {
   const router = useRouter();
   const { user, tenant, isLoading, refreshCurrentUser } = useAuthStore();
-  const { isMobile, isTablet } = useResponsiveLayout();
+  const { isMobile, isTablet, isDesktop } = useResponsiveLayout();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const safeArea = useSafeAreaInsets();
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
@@ -79,6 +90,10 @@ export default function TabsLayout() {
   }
 
   const showSidebar = !isMobile;
+  const stagingWeb = stagingNavigationEnabled && Platform.OS === "web";
+  const showDock = stagingWeb && isMobile;
+  const dockBottom = DOCK_BOTTOM_GAP + safeArea.bottom;
+  const dockClearance = showDock ? DOCK_HEIGHT + dockBottom : 0;
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
   const mobileTabItems = navigationItemsFor("mobile-tab", user);
   const mobileMoreItems = navigationItemsFor("mobile-more", user);
@@ -93,95 +108,145 @@ export default function TabsLayout() {
           isCollapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((current) => !current)}
           currentRoute={pathname}
+          indicatorStyle={stagingWeb && isDesktop}
         />
       ) : null}
 
-      <Tabs
-        backBehavior="fullHistory"
-        screenOptions={{
-          sceneStyle: {
-            backgroundColor: colors.background,
-            marginLeft: showSidebar ? sidebarWidth : 0,
-          },
-          tabBarStyle: showSidebar
-            ? { display: "none" }
-            : {
-                backgroundColor: colors.surfaceDark,
-                borderTopWidth: 1,
-                borderTopColor: colors.primaryDark,
-                height: controlSizes.tabBar,
-                paddingTop: spacing.sm,
-                paddingBottom: spacing.sm,
-              },
-          tabBarActiveTintColor: colors.inverse,
-          tabBarInactiveTintColor: colors.inverseMeta,
-          tabBarItemStyle: { flex: 1, minWidth: 0 },
-          tabBarBackground: showSidebar
-            ? undefined
-            : renderMobileTabBubbleBackground,
-          headerShown: true,
-          headerStyle: { backgroundColor: colors.surface },
-          headerShadowVisible: false,
-          headerTintColor: colors.ink,
-          headerTitle: () => !isMobile ? (
-            <Text style={styles.tenantName} numberOfLines={1}>{tenant?.name ?? "Lauda"}</Text>
-          ) : null,
-          headerLeft: () => isMobile ? (
-            <View style={{ marginLeft: spacing.lg }}>
-              <BrandLogo variant="symbol" width={32} />
-            </View>
-          ) : null,
-          headerRight: () => <View style={styles.headerActions}><ThemeToggle />{user.tenantId ? <NotificationBell /> : null}<ProfileHeaderButton /></View>,
-        }}
-      >
-        {TAB_ROUTE_KEYS.map((routeKey) => {
-          const route = ROUTES[routeKey];
-          const navigationItem = mobileTabItems.find((item) => item.route === routeKey);
-          const visuallySelected = navigationItem?.id === selectedMobileTabId;
-          return (
-            <Tabs.Screen
-              key={routeKey}
-              name={route.expoScreen}
-              options={{
-                title: route.title,
-                ...(navigationItem ? {
-                  tabBarButton: (props) => <PlatformPressable {...props} onPress={(event) => {
-                    event.preventDefault();
-                    requestFormNavigation(() => router.navigate(hrefForNavigationItem(navigationItem)));
-                  }} />,
-                } : { href: null }),
-                tabBarLabel: navigationItem
-                  ? ({ focused }) => (
-                      <AnimatedTabLabel
-                        focused={focused || visuallySelected}
-                        label={navigationItem.label}
-                        itemId={navigationItem.id}
+      <StagingDockClearance.Provider value={dockClearance}>
+        <Tabs
+          backBehavior="fullHistory"
+          screenOptions={{
+            sceneStyle: {
+              backgroundColor: colors.background,
+              marginLeft: showSidebar ? sidebarWidth : 0,
+            },
+            tabBarStyle: showSidebar
+              ? { display: "none" }
+              : showDock ? [styles.dockTabBar, { bottom: dockBottom }] : {
+                  backgroundColor: colors.surfaceDark,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.primaryDark,
+                  height: controlSizes.tabBar,
+                  paddingTop: spacing.sm,
+                  paddingBottom: spacing.sm,
+                },
+            tabBarActiveTintColor: colors.inverse,
+            tabBarInactiveTintColor: colors.inverseMeta,
+            tabBarItemStyle: { flex: 1, minWidth: 0 },
+            tabBarBackground: showSidebar
+              ? undefined
+              : showDock ? renderMobileDockBackground : renderMobileTabBubbleBackground,
+            headerShown: true,
+            headerStyle: { backgroundColor: colors.surface },
+            headerShadowVisible: false,
+            headerTintColor: colors.ink,
+            headerTitle: () => !isMobile ? (
+              <Text style={styles.tenantName} numberOfLines={1}>{tenant?.name ?? "Lauda"}</Text>
+            ) : null,
+            headerLeft: () => isMobile ? (
+              <View style={{ marginLeft: spacing.lg }}>
+                <BrandLogo variant="symbol" width={32} />
+              </View>
+            ) : null,
+            headerRight: () => <View style={styles.headerActions}><ThemeToggle />{user.tenantId ? <NotificationBell /> : null}<ProfileHeaderButton /></View>,
+          }}
+        >
+          {TAB_ROUTE_KEYS.map((routeKey) => {
+            const route = ROUTES[routeKey];
+            const navigationItem = mobileTabItems.find((item) => item.route === routeKey);
+            const visuallySelected = navigationItem?.id === selectedMobileTabId;
+            return (
+              <Tabs.Screen
+                key={routeKey}
+                name={route.expoScreen}
+                options={{
+                  title: route.title,
+                  ...(navigationItem ? {
+                    tabBarButton: (props) => (
+                      <PlatformPressable
+                        {...props}
+                        {...(showDock ? {
+                          testID: `staging-dock-tab-${navigationItem.id}`,
+                          "aria-selected": visuallySelected,
+                          style: [props.style, styles.dockButton, visuallySelected && styles.dockButtonActive],
+                        } : {})}
+                        onPress={(event) => {
+                          event.preventDefault();
+                          requestFormNavigation(() => router.navigate(hrefForNavigationItem(navigationItem)));
+                        }}
                       />
-                    )
-                  : undefined,
-                tabBarIcon: navigationItem
-                  ? ({ focused }) => (
-                      <AnimatedTabIcon
-                        Icon={navigationItem.Icon}
-                        focused={focused || visuallySelected}
-                        itemId={navigationItem.id}
-                      />
-                    )
-                  : undefined,
-                ...("hideHeaderBack" in route && route.hideHeaderBack
-                  ? { headerLeft: () => null }
-                  : {}),
-              }}
-            />
-          );
-        })}
-      </Tabs>
+                    ),
+                  } : { href: null }),
+                  tabBarLabel: navigationItem
+                    ? ({ focused }) => showDock ? (
+                        <Text numberOfLines={1} style={[styles.dockLabel, visuallySelected && styles.dockLabelActive]}>
+                          {navigationItem.label}
+                        </Text>
+                      ) : (
+                        <AnimatedTabLabel
+                          focused={focused || visuallySelected}
+                          label={navigationItem.label}
+                          itemId={navigationItem.id}
+                        />
+                      )
+                    : undefined,
+                  tabBarIcon: navigationItem
+                    ? ({ focused }) => showDock ? (
+                        <navigationItem.Icon
+                          color={visuallySelected ? colors.primary : colors.muted}
+                          size={iconSizes.s22}
+                          strokeWidth={2}
+                        />
+                      ) : (
+                        <AnimatedTabIcon
+                          Icon={navigationItem.Icon}
+                          focused={focused || visuallySelected}
+                          itemId={navigationItem.id}
+                        />
+                      )
+                    : undefined,
+                  ...("hideHeaderBack" in route && route.hideHeaderBack
+                    ? { headerLeft: () => null }
+                    : {}),
+                }}
+              />
+            );
+          })}
+        </Tabs>
+      </StagingDockClearance.Provider>
       <NotificationToast />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  dockTabBar: {
+    position: "absolute",
+    start: 8,
+    end: 8,
+    height: DOCK_HEIGHT,
+    paddingHorizontal: 6,
+    paddingTop: 8,
+    paddingBottom: 8,
+    zIndex: 10,
+    borderTopWidth: 0,
+  },
+  dockButton: {
+    minHeight: controlSizes.large,
+    borderRadius: 16,
+  },
+  dockButtonActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  dockLabel: {
+    color: colors.muted,
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.semibold,
+  },
+  dockLabelActive: {
+    color: colors.primary,
+    fontWeight: fontWeights.bold,
+  },
   sessionLoading: {
     flex: 1,
     alignItems: "center",

@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import React, { useCallback, useState } from "react";
@@ -23,6 +24,7 @@ import { can } from "../../../src/utils/permissions";
 import { nav } from "../../../src/navigation/routes";
 
 export default function MinistriesScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const { user } = useAuthStore();
   const {
@@ -145,7 +147,7 @@ export default function MinistriesScreen() {
       <FlatList
         data={filteredMinistries}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={withDockClearance(styles.list)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.header}>

@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
 import { useCallback, useState } from "react";
@@ -113,6 +114,7 @@ function buildPermissionDraft(member: Member, ministries: Ministry[]): Permissio
 }
 
 export default function MembersScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const { user } = useAuthStore();
   const {
@@ -504,7 +506,7 @@ export default function MembersScreen() {
         data={filteredMembers}
         keyExtractor={(item) => item.id}
         style={styles.listScroller}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={withDockClearance(styles.list)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />
         }

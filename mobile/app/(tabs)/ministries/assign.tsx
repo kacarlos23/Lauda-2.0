@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useCallback, useState } from "react";
@@ -26,6 +27,7 @@ import { nav } from "../../../src/navigation/routes";
 const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
 
 export default function AssignMemberScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const params = useLocalSearchParams<{ ministryId?: string }>();
   const { user } = useAuthStore();
@@ -101,7 +103,7 @@ export default function AssignMemberScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={withDockClearance(styles.content)}>
         <View style={styles.topBar}>
           <AppBackButton href={ministryId ? nav.ministryMembers(ministryId) : nav.ministries} compact />
           <Text style={styles.title}>Atribuir membro</Text>

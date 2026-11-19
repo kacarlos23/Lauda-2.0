@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useFormExit } from "../../../src/hooks/useFormExit";
@@ -52,6 +53,7 @@ function dateFromRouteParam(value?: string | string[]) {
 }
 
 export default function NewScheduleScreen() {
+  const withDockClearance = useDockContentClearance();
   const { width } = useWindowDimensions();
   const compactLayout = width < breakpoints.formCompact;
   const router = useRouter();
@@ -246,7 +248,7 @@ export default function NewScheduleScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={withDockClearance([styles.container, compactLayout && styles.containerCompact])} keyboardShouldPersistTaps="handled">
       {formExit.dialog}
       <Modal visible={songsModal} transparent animationType="fade" onRequestClose={closeSongsModal}>
         <View style={styles.backdrop}><View style={styles.modalCard}>

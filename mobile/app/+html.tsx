@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { colors } from "../src/theme";
 import { themePreviewEnabled } from "../src/tokens/colorModes";
 import { themeBootstrapScript } from "../src/store/themeStore";
+import { stagingNavigationCss, stagingNavigationEnabled } from "../src/tokens/stagingNavigation";
 
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
@@ -39,6 +40,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
           [role="button"]:focus-visible, a:focus-visible { outline: 2px solid ${colors.primary}; outline-offset: 3px; }
           [data-lauda-rich-editor]:focus { outline: 2px solid ${colors.primary}; outline-offset: 2px; }
         ` }} />
+        {stagingNavigationEnabled ? <style dangerouslySetInnerHTML={{ __html: stagingNavigationCss }} /> : null}
         {themePreviewEnabled ? <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript() }} /> : null}
       </head>
       <body>{children}</body>
