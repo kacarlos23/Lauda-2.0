@@ -4,7 +4,7 @@ import { InputControl as TextInput } from "../../../src/components/ui/InputContr
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CheckCircle2, Edit2, Plus, Trash2, User as UserIcon } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { Button, EmptyState, ErrorBanner, LoadingState, RichCommentEditor, RichCommentView } from "../../../src/components/ui";
@@ -26,7 +26,7 @@ import {
 } from "../../../src/theme";
 import { Member } from "../../../src/types";
 import { toggleLinkedMemberIds, sortMembersForToggle } from "../../../src/utils/ministryMemberToggle";
-import { can } from "../../../src/utils/permissions";
+import { can, canAccessMinistries } from "../../../src/utils/permissions";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
 import { nav } from "../../../src/navigation/routes";
@@ -60,12 +60,13 @@ export default function MinistryDetailsScreen() {
   const [memberSearch, setMemberSearch] = useState("");
   const [toggleError, setToggleError] = useState<string | null>(null);
 
+  const canOpenMinistries = canAccessMinistries(user);
   const canEditMinistry = can(user, "ministry:edit");
   const canDeleteMinistry = can(user, "ministry:delete");
   const canAssignMembers = can(user, "ministry:assign_members");
 
   const loadAllMembers = useCallback(async () => {
-    if (!canAssignMembers) {
+    if (!canOpenMinistries || !canAssignMembers) {
       setAllMembers([]);
       return;
     }
@@ -76,15 +77,14 @@ export default function MinistryDetailsScreen() {
     } catch (error) {
       setToggleError(error instanceof Error ? error.message : "Não foi possível carregar os membros.");
     }
-  }, [canAssignMembers]);
+  }, [canAssignMembers, canOpenMinistries]);
 
   useFocusEffect(
     useCallback(() => {
-      if (id) {
-        fetchMinistry(id);
-        loadAllMembers();
-      }
-    }, [id, fetchMinistry, loadAllMembers])
+      if (!canOpenMinistries || !id) return;
+      fetchMinistry(id);
+      loadAllMembers();
+    }, [canOpenMinistries, id, fetchMinistry, loadAllMembers])
   );
 
   useEffect(() => {
@@ -199,6 +199,10 @@ export default function MinistryDetailsScreen() {
       setPendingMemberIds((current) => current.filter((currentId) => currentId !== memberId));
     }
   };
+
+  if (!canOpenMinistries) {
+    return <Redirect href={nav.home} />;
+  }
 
   if (loading && !ministry) {
     return <LoadingState message="Carregando ministério..." />;

@@ -4,7 +4,7 @@ import { InputControl as TextInput } from "../../../src/components/ui/InputContr
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Check } from "lucide-react-native";
 import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -21,7 +21,7 @@ import {
 } from "../../../src/theme";
 import { AppBackButton } from "../../../src/components/AppBackButton";
 import { goBackTo } from "../../../src/utils/navigation";
-import { can } from "../../../src/utils/permissions";
+import { can, canAccessMinistries } from "../../../src/utils/permissions";
 import { nav } from "../../../src/navigation/routes";
 
 const statuses: MemberStatus[] = ["ACTIVE", "INACTIVE"];
@@ -31,6 +31,7 @@ export default function AssignMemberScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ ministryId?: string }>();
   const { user } = useAuthStore();
+  const canOpenMinistries = canAccessMinistries(user);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [ministryId, setMinistryId] = useState(params.ministryId ?? "");
   const [userId, setUserId] = useState("");
@@ -43,6 +44,7 @@ export default function AssignMemberScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadMinistries = useCallback(async () => {
+    if (!canOpenMinistries) return;
     try {
       setLoading(true);
       const data = await ministryApi.getMinistries();
@@ -53,12 +55,13 @@ export default function AssignMemberScreen() {
     } finally {
       setLoading(false);
     }
-  }, [ministryId]);
+  }, [canOpenMinistries, ministryId]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!canOpenMinistries) return;
       void loadMinistries();
-    }, [loadMinistries])
+    }, [canOpenMinistries, loadMinistries])
   );
 
   const handleSubmit = async () => {
@@ -92,6 +95,10 @@ export default function AssignMemberScreen() {
       setSubmitting(false);
     }
   };
+
+  if (!canOpenMinistries) {
+    return <Redirect href={nav.home} />;
+  }
 
   if (!can(user, "ministry:assign_members")) {
     return (

@@ -16,7 +16,8 @@ import {
   SIDEBAR_EXPANDED_WIDTH,
   SidebarNavigation,
 } from "../../src/components/SidebarNavigation";
-import { colors, controlSizes, fontSizes, fontWeights, iconSizes, spacing, typography } from "../../src/theme";
+import { colors, controlSizes, fontSizes, fontWeights, iconSizes, radiusValues, spacing, typography } from "../../src/theme";
+import { useReducedMotion } from "../../src/hooks/useReducedMotion";
 import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import {
   activeMobileTabIndex,
@@ -26,14 +27,20 @@ import {
 import { GROUP_HREFS, ROUTES, TAB_ROUTE_KEYS } from "../../src/navigation/routes";
 import { stagingNavigationEnabled } from "../../src/tokens/stagingNavigation";
 import { StagingDockClearance } from "../../src/navigation/stagingDockClearance";
+import { stagingScreenTransitionOptions } from "../../src/navigation/stagingTransitions";
+import {
+  DOCK_BOTTOM_GAP,
+  DOCK_HEIGHT,
+  DOCK_HORIZONTAL_INSET,
+  DOCK_PADDING_X,
+  DOCK_PADDING_Y,
+  StagingDockSurface,
+} from "../../src/components/StagingDockSurface";
 import {
   AnimatedTabBubble,
   AnimatedTabIcon,
   AnimatedTabLabel,
 } from "../../src/components/AnimatedTabNavigation";
-
-const DOCK_HEIGHT = 66;
-const DOCK_BOTTOM_GAP = 10;
 
 function MobileTabBubbleBackground() {
   const user = useAuthStore((state) => state.user);
@@ -55,7 +62,7 @@ function renderMobileTabBubbleBackground() {
 }
 
 function renderMobileDockBackground() {
-  return <View testID="staging-dock-surface" style={StyleSheet.absoluteFill} />;
+  return <StagingDockSurface />;
 }
 
 export default function TabsLayout() {
@@ -65,6 +72,7 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const safeArea = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
@@ -113,13 +121,17 @@ export default function TabsLayout() {
       ) : null}
 
       <StagingDockClearance.Provider value={dockClearance}>
-        <Tabs
-          backBehavior="fullHistory"
-          screenOptions={{
-            sceneStyle: {
-              backgroundColor: colors.background,
-              marginLeft: showSidebar ? sidebarWidth : 0,
-            },
+        <View
+          testID={stagingWeb && isDesktop ? "staging-desktop-content" : undefined}
+          style={[styles.contentShell, { marginLeft: showSidebar ? sidebarWidth : 0 }]}
+        >
+          <Tabs
+            backBehavior="fullHistory"
+            screenOptions={{
+              ...stagingScreenTransitionOptions(stagingWeb, reducedMotion),
+              sceneStyle: {
+                backgroundColor: colors.background,
+              },
             tabBarStyle: showSidebar
               ? { display: "none" }
               : showDock ? [styles.dockTabBar, { bottom: dockBottom }] : {
@@ -168,7 +180,7 @@ export default function TabsLayout() {
                         {...(showDock ? {
                           testID: `staging-dock-tab-${navigationItem.id}`,
                           "aria-selected": visuallySelected,
-                          style: [props.style, styles.dockButton, visuallySelected && styles.dockButtonActive],
+                          style: [props.style, styles.dockButton],
                         } : {})}
                         onPress={(event) => {
                           event.preventDefault();
@@ -212,7 +224,8 @@ export default function TabsLayout() {
               />
             );
           })}
-        </Tabs>
+          </Tabs>
+        </View>
       </StagingDockClearance.Provider>
       <NotificationToast />
     </View>
@@ -220,23 +233,24 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  contentShell: {
+    flex: 1,
+    minWidth: 0,
+  },
   dockTabBar: {
     position: "absolute",
-    start: 8,
-    end: 8,
+    start: DOCK_HORIZONTAL_INSET,
+    end: DOCK_HORIZONTAL_INSET,
     height: DOCK_HEIGHT,
-    paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: DOCK_PADDING_X,
+    paddingTop: DOCK_PADDING_Y,
+    paddingBottom: DOCK_PADDING_Y,
     zIndex: 10,
     borderTopWidth: 0,
   },
   dockButton: {
     minHeight: controlSizes.large,
-    borderRadius: 16,
-  },
-  dockButtonActive: {
-    backgroundColor: colors.primarySoft,
+    borderRadius: radiusValues.r16,
   },
   dockLabel: {
     color: colors.muted,

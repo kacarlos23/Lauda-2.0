@@ -3,7 +3,7 @@ import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { BottomSheet } from "../../../src/components/BottomSheet";
 import { AppInput, Button, EmptyState, ErrorBanner, FilterButton, FilterPanel, LoadingState, RichCommentEditor, Screen, SectionHeader } from "../../../src/components/ui";
@@ -20,7 +20,7 @@ import {
   typography,
 } from "../../../src/theme";
 import { emptyMinistryFilters, filterMinistries, hasActiveFilters, MinistryListFilters } from "../../../src/utils/listFilters";
-import { can } from "../../../src/utils/permissions";
+import { can, canAccessMinistries } from "../../../src/utils/permissions";
 import { nav } from "../../../src/navigation/routes";
 
 export default function MinistriesScreen() {
@@ -48,6 +48,7 @@ export default function MinistriesScreen() {
   const [draftFilters, setDraftFilters] = useState<MinistryListFilters>(emptyMinistryFilters);
   const [showFilters, setShowFilters] = useState(false);
 
+  const canOpenMinistries = canAccessMinistries(user);
   const canCreateMinistry = can(user, "ministry:create");
   const activeFilters = hasActiveFilters(filters);
   const canApplyFilters = hasActiveFilters(draftFilters);
@@ -55,8 +56,9 @@ export default function MinistriesScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!canOpenMinistries) return;
       void fetchMinistries();
-    }, [fetchMinistries])
+    }, [canOpenMinistries, fetchMinistries])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -121,6 +123,10 @@ export default function MinistriesScreen() {
       setComments("");
     }
   };
+
+  if (!canOpenMinistries) {
+    return <Redirect href={nav.home} />;
+  }
 
   if (loading && ministries.length === 0) {
     return <LoadingState message="Carregando ministérios..." />;

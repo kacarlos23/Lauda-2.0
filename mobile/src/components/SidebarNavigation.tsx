@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -37,8 +38,8 @@ import {
   routeMatches,
   SIDEBAR_GROUPS,
 } from "../navigation/manifest";
-import { nav } from "../navigation/routes";
-import { desktopIndicatorEasing } from "../tokens/stagingNavigation";
+import { nav, ROUTES } from "../navigation/routes";
+import { desktopIndicatorEasing, stagingTransitionMs } from "../tokens/stagingNavigation";
 import { BrandLogo } from "./BrandLogo";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 
@@ -77,8 +78,10 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
   useEffect(() => {
     Animated.timing(labelOpacity, {
       toValue: isCollapsed ? 0 : 1,
-      duration: indicatorStyle && reducedMotion ? motion.reducedMs : SIDEBAR_ANIMATION_MS,
-      useNativeDriver: true,
+      duration: indicatorStyle
+        ? (reducedMotion ? motion.reducedMs : stagingTransitionMs.sidebarWidth)
+        : SIDEBAR_ANIMATION_MS,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
   }, [indicatorStyle, isCollapsed, labelOpacity, reducedMotion]);
 
@@ -123,9 +126,13 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
 
     const animation = Animated.timing(activeRailY, {
       toValue: nextPosition,
-      duration: reducedMotion ? motion.reducedMs : motion.navigationSelectionMs,
+      duration: reducedMotion
+        ? motion.reducedMs
+        : indicatorStyle
+          ? stagingTransitionMs.sidebarIndicator
+          : motion.navigationSelectionMs,
       easing: indicatorStyle ? Easing.bezier(...desktopIndicatorEasing) : Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
 
@@ -169,6 +176,16 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
       </View>
 
       <View style={styles.navList}>
+        {activeRailVisible && indicatorStyle ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.indicatorActiveBackdrop,
+              { transform: [{ translateY: activeRailY }] },
+            ]}
+            testID="staging-sidebar-active-backdrop"
+          />
+        ) : null}
         {activeRailVisible ? (
           <Animated.View
             pointerEvents="none"
@@ -186,7 +203,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
           return (
             <View
               key={group}
-              style={styles.group}
+              style={[styles.group, indicatorStyle && styles.indicatorGroup]}
               onLayout={(event) => rememberOffset(groupOffsets.current, group, event)}
             >
               {isCollapsed ? (
@@ -198,7 +215,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
               )}
               {groupItems.map((item) => {
                 const href = hrefForNavigationItem(item);
-                const hrefText = String(href);
+                const hrefText = ROUTES[item.route].path;
                 const active = routeMatches(currentRoute, item.route);
                 const iconColor = indicatorStyle
                   ? active ? colors.primary : colors.muted
@@ -216,7 +233,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
                       style={(state) => [
                         styles.navItem,
                         isCollapsed && styles.navItemCollapsed,
-                        active && (indicatorStyle ? styles.indicatorItemActive : styles.navItemActive),
+                        active && (indicatorStyle ? !activeRailVisible && styles.indicatorItemActive : styles.navItemActive),
                         hoveredLabel === item.label && !active && (indicatorStyle ? styles.indicatorItemHover : styles.navItemHover),
                         state.pressed && styles.pressed,
                       ]}
@@ -468,12 +485,21 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: colors.dangerOnDark, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold },
   indicatorSidebar: { backgroundColor: colors.surface, borderRightColor: colors.line },
+  indicatorGroup: { paddingVertical: spacing.xs },
   indicatorBorder: { borderColor: colors.line },
   indicatorDivider: { backgroundColor: colors.line },
   indicatorInk: { color: colors.ink },
   indicatorMuted: { color: colors.muted },
   indicatorDanger: { color: colors.danger },
   indicatorItemActive: { backgroundColor: colors.primarySoft },
+  indicatorActiveBackdrop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: controlSizes.default,
+    backgroundColor: colors.primarySoft,
+  },
   indicatorItemHover: { backgroundColor: colors.surfaceMuted },
   indicatorLabelActive: { color: colors.primary },
   indicatorRail: {
