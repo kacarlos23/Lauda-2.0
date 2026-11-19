@@ -1,9 +1,7 @@
 export const RICH_TEXT_MAX_CHARACTERS = 3_000;
 export const RICH_TEXT_MAX_HTML_LENGTH = 30_000;
 
-const BLOCK_END = /<\/(?:div|p|li|ul|ol)>/gi;
-const LINE_BREAK = /<br\s*\/?>/gi;
-const TAG = /<[^>]*>/g;
+const BLOCK_OR_BREAK_TAGS = new Set(["br", "br/", "/div", "/p", "/li", "/ul", "/ol"]);
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&",
@@ -13,6 +11,25 @@ const NAMED_ENTITIES: Record<string, string> = {
   nbsp: " ",
   quot: '"',
 };
+
+function stripMarkupToPlainText(value: string): string {
+  let result = "";
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === "<") {
+      const close = value.indexOf(">", i + 1);
+      if (close !== -1) {
+        const tag = value.slice(i + 1, close).trim().toLowerCase();
+        if (BLOCK_OR_BREAK_TAGS.has(tag) || tag.startsWith("br ") || tag.startsWith("br/")) {
+          result += "\n";
+        }
+        i = close;
+        continue;
+      }
+    }
+    result += value[i];
+  }
+  return result;
+}
 
 export function decodeRichTextEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, token: string) => {
@@ -30,12 +47,7 @@ export function decodeRichTextEntities(value: string): string {
 
 export function richTextToPlainText(value?: string | null): string {
   if (!value) return "";
-  return decodeRichTextEntities(
-    value
-      .replace(LINE_BREAK, "\n")
-      .replace(BLOCK_END, "\n")
-      .replace(TAG, "")
-  )
+  return decodeRichTextEntities(stripMarkupToPlainText(value))
     .replace(/\u00a0/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

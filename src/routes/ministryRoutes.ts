@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { MinistryController } from "../controllers/MinistryController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const ctrl = new MinistryController();
 
 // All ministry routes require authentication
+router.use(apiRateLimit);
 router.use(authMiddleware);
 
 router.post(

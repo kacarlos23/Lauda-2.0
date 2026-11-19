@@ -41,6 +41,7 @@
     "dejavu-fonts-ttf": "^2.37.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.4",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.1.4",
     "pdfkit": "^0.19.1",

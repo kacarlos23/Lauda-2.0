@@ -29,11 +29,26 @@ function checkout(run) {
   if (run && commit !== run.sha) throw new Error("Runtime audit checkout does not match GITHUB_SHA");
   const paths = [...new Set(git("ls-files", "-z", "--cached", "--others", "--exclude-standard").split("\0").filter(Boolean))].sort();
   const hash = createHash("sha256");
+  const openFlags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
   for (const name of paths) {
     const file = path.join(root, name);
-    const stat = fs.lstatSync(file, { throwIfNoEntry: false });
-    if (stat && !stat.isFile()) throw new Error(`Unexpected checkout entry: ${name}`);
-    const content = stat ? createHash("sha256").update(fs.readFileSync(file)).digest("hex") : "deleted";
+    let content = "deleted";
+    let fd;
+    try {
+      fd = fs.openSync(file, openFlags);
+    } catch (error) {
+      if (error.code === "ELOOP") throw new Error(`Unexpected checkout entry: ${name}`);
+      if (error.code !== "ENOENT") throw error;
+    }
+    if (fd !== undefined) {
+      try {
+        const stat = fs.fstatSync(fd);
+        if (!stat.isFile()) throw new Error(`Unexpected checkout entry: ${name}`);
+        content = createHash("sha256").update(fs.readFileSync(fd)).digest("hex");
+      } finally {
+        fs.closeSync(fd);
+      }
+    }
     hash.update(JSON.stringify([name, content]));
   }
   return { commit, sourceHash: hash.digest("hex") };
@@ -74,15 +89,36 @@ function validateReceipt(receipt, { now, identity, run, stepOutcome }) {
 
 function consumeReceipt(run, now) {
   const file = receiptPath(run);
-  if (!fs.existsSync(file)) throw new Error("Runtime audit receipt missing. Run npm run security:runtime-bundle first");
-  if (!fs.lstatSync(path.dirname(file)).isDirectory() || !fs.lstatSync(file).isFile()) {
+  const dirStat = fs.lstatSync(path.dirname(file), { throwIfNoEntry: false });
+  if (dirStat && !dirStat.isDirectory()) {
     throw new Error("Runtime audit receipt is not a regular file");
+  }
+  const openFlags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+  let fd;
+  try {
+    fd = fs.openSync(file, openFlags);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new Error("Runtime audit receipt missing. Run npm run security:runtime-bundle first");
+    }
+    if (error.code === "ELOOP") {
+      throw new Error("Runtime audit receipt is not a regular file");
+    }
+    throw error;
   }
   let receipt;
   try {
-    receipt = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!fs.fstatSync(fd).isFile()) {
+      throw new Error("Runtime audit receipt is not a regular file");
+    }
+    receipt = JSON.parse(fs.readFileSync(fd, "utf8"));
   } finally {
-    fs.unlinkSync(file);
+    fs.closeSync(fd);
+    try {
+      fs.unlinkSync(file);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
   }
   return validateReceipt(receipt, { now, identity: checkout(run), run, stepOutcome: process.env.RUNTIME_AUDIT_STEP_OUTCOME });
 }

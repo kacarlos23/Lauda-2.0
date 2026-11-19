@@ -27,6 +27,11 @@ describe("visual chord editing without rewriting unrelated source", () => {
   });
   test.each(["C", "G/B", "C#m7", "Bb9", "D7(9)", "C7M", "F#m7(b5)", "C6/9", "B♭maj7"])("accepts %s", chord => expect(isChordSymbol(chord)).toBe(true));
   test.each(["", "Hello", "Coda", "Amor", "[C]", "C\nG", "C<script>"])("rejects a non-chord %s", chord => expect(isChordSymbol(chord)).toBe(false));
+  test("rejects adversarial repetitive non-chords in linear time without ReDoS", () => {
+    const start = Date.now();
+    expect(isChordSymbol(`A/${"90/".repeat(500)}!`)).toBe(false);
+    expect(Date.now() - start).toBeLessThan(100);
+  });
   test("inserts inside a word without changing its letters; does not duplicate identical marks", () => {
     const source = "Vou te cantar";
     expect(insertChord(source, 0, 10, "G")).toBe("Vou te can[G]tar");
