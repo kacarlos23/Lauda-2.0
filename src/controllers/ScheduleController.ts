@@ -147,7 +147,8 @@ export class ScheduleController extends BaseController {
   }
 
   async listMine(req: Request, res: Response): Promise<void> {
-    const schedules = await this.buildService(req).listMine(req.user!.id);
+    const filters = listSchedulesSchema.parse(req.query);
+    const schedules = await this.buildService(req).listMine(req.user!.id, filters);
     this.handleSuccess(res, schedules);
   }
 }

@@ -74,7 +74,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     expect(commits).toHaveLength(0);
     await page.getByRole("button", { name: "Importar 1 músicas", exact: true }).click();
     await page.getByRole("button", { name: "Importar", exact: true }).click();
-    await expect(page.getByText("1 músicas criadas; 0 atualizadas; 1 vínculos adicionados; 0 restauradas. 0 já vinculadas; 0 ignoradas.", { exact: true })).toBeVisible();
+    await expect(page.getByText("1 músicas criadas; 0 atualizadas; 0 restauradas; 1 vínculos adicionados. 0 já vinculadas; 0 ignoradas.", { exact: true })).toBeVisible();
     expect(commits).toEqual([{ ministryId, document: catalog, documentHash: "a".repeat(64), ...transferOptions }]);
   });
 }

@@ -196,12 +196,12 @@ describe("edição rápida de temas", () => {
     expect(renderer!.root.findByType(SongThemeChecklist).findAllByType(TouchableOpacity)[0].props.style[1]).toBeTruthy();
   });
 
-  function RowWithEditor({ empty = false }: { empty?: boolean }) {
+  function RowWithEditor({ empty = false, compact = false }: { empty?: boolean; compact?: boolean }) {
     const [editing, setEditing] = useState(false);
     const [position, setPosition] = useState<typeof anchor | null>(null);
     const value = empty ? { ...song, tags: [] } : song;
     return <>
-      <SongListRow song={value} selectionMode={false} selected={false} isLast editingThemes={editing}
+      <SongListRow song={value} selectionMode={false} selected={false} isLast compactLinkActions={compact} editingThemes={editing}
         onPress={() => {}} onEditThemes={(next) => { setPosition(next); setEditing(true); }} />
       {editing ? <SongQuickThemeEditor song={value} anchor={position} knownNames={[]} onPreview={onPreview}
         onSaved={onSaved} onError={onError} onClose={() => setEditing(false)} /> : null}
@@ -217,6 +217,17 @@ describe("edição rápida de temas", () => {
     advance();
     advance(16);
     expect(controls.get(label)!.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("evita botão duplicado de tema vazio no modo compacto e devolve o foco ao botão Editar", async () => {
+    await render(<RowWithEditor empty compact />);
+    expect(renderer!.root.findAllByType(TouchableOpacity).some((node) => node.props.accessibilityLabel === "Adicionar tema a Canção")).toBe(false);
+    await act(async () => option("Editar temas de Canção").props.onPress());
+    advance();
+    escape();
+    advance();
+    advance(16);
+    expect(controls.get("Editar temas de Canção")!.focus).toHaveBeenCalledTimes(1);
   });
 
   it("devolve o foco após toque fora", async () => {

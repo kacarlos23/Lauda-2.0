@@ -14,7 +14,7 @@ export function focusSongThemeControl(target: View | null) {
   if (!target) return;
   if (Platform.OS === "web") {
     (target as View & { focus?: () => void }).focus?.();
-  } else if (AccessibilityInfo.setAccessibilityFocus && findNodeHandle) {
+  } else if (typeof AccessibilityInfo?.setAccessibilityFocus === "function" && typeof findNodeHandle === "function") {
     const handle = findNodeHandle(target);
     if (handle != null) AccessibilityInfo.setAccessibilityFocus(handle);
   }
@@ -33,12 +33,13 @@ export function songThemeOptions(names: readonly string[]): string[] {
 
 type ChecklistProps = {
   options: string[];
+  optionLabels?: ReadonlyMap<string, string>;
   checked: ReadonlySet<string>;
   disabled?: boolean;
   onToggle: (name: string) => void;
 };
 
-export function SongThemeChecklist({ options, checked, disabled, onToggle }: ChecklistProps) {
+export function SongThemeChecklist({ options, optionLabels, checked, disabled, onToggle }: ChecklistProps) {
   const dark = useThemeStore((state) => state.mode === "dark");
   const firstItem = useContext(FirstItemContext);
   const [focused, setFocused] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export function SongThemeChecklist({ options, checked, disabled, onToggle }: Che
       {options.map((name, index) => {
         const key = normalizeCatalogText(name);
         const active = checked.has(key);
+        const label = optionLabels?.get(key) ?? name;
         return (
           <TouchableOpacity
             key={key}
@@ -54,7 +56,7 @@ export function SongThemeChecklist({ options, checked, disabled, onToggle }: Che
             onPress={() => onToggle(name)}
             disabled={disabled}
             accessibilityRole="checkbox"
-            accessibilityLabel={name}
+            accessibilityLabel={label}
             accessibilityState={{ checked: active, disabled }}
             aria-checked={active}
             onFocus={() => { if (Platform.OS === "web") setFocused(key); }}
@@ -65,7 +67,7 @@ export function SongThemeChecklist({ options, checked, disabled, onToggle }: Che
               {active ? <Check color={colors.surface} size={iconSizes.s13} strokeWidth={3} /> : null}
             </View>
             <View style={[styles.dot, { backgroundColor: songThemeColors(name, dark).ink }]} />
-            <Text style={styles.optionName}>{name}</Text>
+            <Text style={styles.optionName}>{label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -84,7 +86,8 @@ type MenuProps = {
 
 export function SongThemeMenu({ title, anchor, note, footer, children, onClose }: MenuProps) {
   const { width, height } = useWindowDimensions();
-  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+  const canQueryReducedMotion = typeof AccessibilityInfo?.isReduceMotionEnabled === "function";
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(() => (canQueryReducedMotion ? null : false));
   const progress = useRef(new Animated.Value(0)).current;
   const firstItem = useRef<View>(null);
   const [closing, setClosing] = useState(false);
@@ -100,12 +103,16 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
 
   useEffect(() => {
     let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then(
-      (enabled) => { if (mounted) setReducedMotion(enabled); },
-      () => { if (mounted) setReducedMotion(true); },
-    );
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => { mounted = false; subscription.remove(); };
+    if (typeof AccessibilityInfo?.isReduceMotionEnabled === "function") {
+      void AccessibilityInfo.isReduceMotionEnabled().then(
+        (enabled) => { if (mounted) setReducedMotion(enabled); },
+        () => { if (mounted) setReducedMotion(true); },
+      );
+    }
+    const subscription = typeof AccessibilityInfo?.addEventListener === "function"
+      ? AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion)
+      : undefined;
+    return () => { mounted = false; subscription?.remove?.(); };
   }, []);
 
   useEffect(() => {
@@ -170,7 +177,8 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
         <Pressable testID="song-theme-backdrop" style={StyleSheet.absoluteFill} onPress={close} accessible={false} />
         <Animated.View
           style={[styles.popover, { width: menuWidth, left, maxHeight: Math.max(120, opensBelow ? below : above),
-            opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }],
+            opacity: progress,
+            transform: [{ translateY: typeof progress.interpolate === "function" ? progress.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) : 0 }],
           }, placement]}
           accessibilityViewIsModal
           accessibilityLabel={title}

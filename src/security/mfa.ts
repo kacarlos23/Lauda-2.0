@@ -30,8 +30,15 @@ function decodeBase32(value: string): Buffer {
   return Buffer.from(bytes);
 }
 
+const derivedMfaKeys = new Map<string, Buffer>();
+
 function encryptionKey(): Buffer {
-  return crypto.createHash("sha256").update(config.auth.mfa.encryptionKey, "utf8").digest();
+  const material = config.auth.mfa.encryptionKey;
+  const cached = derivedMfaKeys.get(material);
+  if (cached) return cached;
+  const derived = crypto.scryptSync(material, "lauda-mfa-aes-256-gcm-v1", 32);
+  derivedMfaKeys.set(material, derived);
+  return derived;
 }
 
 export function generateMfaSecret(): string {

@@ -2,11 +2,13 @@ import { Router } from "express";
 import { MemberController } from "../controllers/MemberController";
 import { MinistryController } from "../controllers/MinistryController";
 import { authMiddleware, requirePermission, requireSelfOrPermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const ctrl = new MemberController();
 const ministryCtrl = new MinistryController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 
 router.get("/me/ministries", (req, res) => ministryCtrl.getMyAssignments(req, res));

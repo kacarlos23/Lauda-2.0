@@ -10,6 +10,7 @@ $entry = Join-Path $project 'dist\server.js'
 Set-Location -LiteralPath $project
 # Match the existing supervisor's compiled-API launch environment. The .env and
 # Windows-provided application settings are left intact, including credentials.
+if ([string]::IsNullOrWhiteSpace($env:NODE_ENV)) { $env:NODE_ENV = 'production' }
 $env:HOST = '0.0.0.0'
 $env:PORT = '3000'
 $env:TRUST_PROXY_HOPS = '1'

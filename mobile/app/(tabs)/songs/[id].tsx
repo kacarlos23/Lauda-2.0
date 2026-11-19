@@ -94,7 +94,7 @@ export default function SongDetailScreen() {
     setKeyFeedback(null);
     stopAutoScroll();
     try {
-      const content = transposeChordSheetContent(song.content, chord.semitoneOffset, song.originalKey);
+      const content = transposeChordSheetContent(song.content ?? "", chord.semitoneOffset, song.originalKey);
       const saved = await updateSong(song.id, { originalKey: chord.currentKey as MusicalKey, content });
       useChordStore.getState().acceptDefaultKey(saved.id, saved.originalKey);
       setKeyFeedback({ message: `Tom ${saved.originalKey} salvo como padrão.` });
@@ -169,7 +169,7 @@ export default function SongDetailScreen() {
           {keyFeedback ? <View style={styles.keyFeedback}>{keyFeedback.error
             ? <ErrorBanner message={keyFeedback.message} testID="default-key-error" />
             : <Text accessibilityLiveRegion="polite" style={styles.meta} testID="default-key-success">{keyFeedback.message}</Text>}</View> : null}
-          <View style={styles.chordCard}><ChordSheetView content={song.content} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>
+          <View style={styles.chordCard}><ChordSheetView content={song.content ?? ""} originalKey={song.originalKey} semitones={chord.semitoneOffset} fontSize={chord.fontSize} /></View>
         </View>
         {showSideBySideMedia && youtubePlayer ? <View style={styles.playerColumn}>{youtubePlayer}</View> : null}
       </View>

@@ -129,7 +129,9 @@ export function SongListRow({
           </View>
         ) : null}
       </View>
-      {compactLinkActions ? <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View> : null}
+      {compactLinkActions && Boolean(song.tags?.length) ? (
+        <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View>
+      ) : null}
     </View>
   );
 }
@@ -177,12 +179,12 @@ const styles = StyleSheet.create({
   mobileThemesSelected: { marginLeft: controlSizes.medium + 20 + 2 * spacing.sm },
   actions: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: spacing.xs },
   themeButton: {
-    width: 44, height: 44, borderRadius: radiusValues.r4, borderWidth: 1,
+    width: controlSizes.default, height: controlSizes.default, borderRadius: radiusValues.r4, borderWidth: 1,
     borderColor: colors.line, alignItems: "center", justifyContent: "center",
   },
   themeButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   themeButtonFocused: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  addThemeButton: { minWidth: 44, minHeight: 44, justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radiusValues.r4 },
+  addThemeButton: { minWidth: controlSizes.default, minHeight: controlSizes.default, justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radiusValues.r4 },
   songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
   meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
   check: {

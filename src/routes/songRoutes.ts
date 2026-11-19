@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { SongController } from "../controllers/songController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const controller = new SongController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 router.get("/", requirePermission("song:view"), (req, res) => controller.list(req, res));
 router.get("/tags", requirePermission("song:view"), (req, res) => controller.listTags(req, res));

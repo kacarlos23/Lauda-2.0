@@ -2,6 +2,7 @@ import { Router } from "express";
 import { AuthController } from "../controllers/AuthController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
 import {
+  apiRateLimit,
   forgotPasswordRateLimit,
   inviteReadRateLimit,
   inviteRegenerateRateLimit,
@@ -14,6 +15,8 @@ import {
 
 const router = Router();
 const authController = new AuthController();
+
+router.use(apiRateLimit);
 
 router.post("/register", registrationRateLimit, (req, res) => authController.register(req, res));
 router.post("/member-register", memberRegistrationRateLimit, (req, res) => authController.registerPublicMember(req, res));

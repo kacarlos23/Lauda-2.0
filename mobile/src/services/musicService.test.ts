@@ -90,6 +90,23 @@ describe("musicService", () => {
     });
   });
 
+  it("solicita e encaminha tagCounts quando includeTagCounts está ativo", async () => {
+    const tagCounts = {
+      items: [{ id: "tag-1", name: "Adoração", slug: "adoracao", count: 1 }],
+      untaggedCount: 1,
+    };
+    const data = { items: [], pagination: { page: 1, limit: 20, total: 2, totalPages: 1 }, tagCounts };
+    mockedApi.get.mockResolvedValueOnce({ data: { success: true, data } });
+
+    const result = await musicService.listSongs("", 1, 20, { includeTagCounts: true });
+
+    expect(mockedApi.get).toHaveBeenCalledWith("/songs", {
+      params: { includeTagCounts: true, search: "", page: 1, limit: 20 },
+      signal: undefined,
+    });
+    expect(result.tagCounts).toEqual(tagCounts);
+  });
+
   it("envia temas da listagem em um único parâmetro e carrega o catálogo da igreja", async () => {
     const data = { items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } };
     mockedApi.get.mockResolvedValueOnce({ data: { success: true, data } });

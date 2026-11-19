@@ -86,7 +86,23 @@ async function main() {
   }
   const output = path.join(root, "test-results", "theme-preview");
   fs.mkdirSync(output, { recursive: true });
-  fs.writeFileSync(path.join(output, "fixture.json"), JSON.stringify({ email: credentials.email, ministryId: ministry.id, songs: songs.map(({id,title})=>({id,title})), schedules: schedules.map(({id,title})=>({id,title})) }, null, 2));
+  const verifyDb = new Client({ connectionString: settings.DATABASE_URL });
+  await verifyDb.connect();
+  let fixtureData;
+  try {
+    const dbMinistries = (await verifyDb.query('SELECT id FROM "Ministry" WHERE "tenantId"=$1 AND name=$2 AND "deletedAt" IS NULL LIMIT 1', [auth.tenant.id, "Louvor"])).rows;
+    const dbSongs = (await verifyDb.query('SELECT id, title FROM "Song" WHERE "tenantId"=$1 AND "deletedAt" IS NULL ORDER BY title ASC', [auth.tenant.id])).rows;
+    const dbSchedules = (await verifyDb.query('SELECT id, title FROM "Schedule" WHERE "tenantId"=$1 AND "deletedAt" IS NULL ORDER BY date ASC', [auth.tenant.id])).rows;
+    fixtureData = {
+      email: credentials.email,
+      ministryId: dbMinistries[0]?.id ?? null,
+      songs: dbSongs.map(({ id, title }) => ({ id, title })),
+      schedules: dbSchedules.map(({ id, title }) => ({ id, title })),
+    };
+  } finally {
+    await verifyDb.end();
+  }
+  fs.writeFileSync(path.join(output, "fixture.json"), JSON.stringify(fixtureData, null, 2));
   fs.writeFileSync(path.join(output, "session.local.json"), JSON.stringify({ cookies: [], origins: [{
     origin: "http://127.0.0.1:8094", localStorage: [
       { name: "auth_token", value: auth.token || auth.accessToken },

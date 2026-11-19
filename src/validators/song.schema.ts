@@ -56,6 +56,7 @@ export const songScopeSchema = z.object({
 export const songListSchema = songScopeSchema.extend({
   tags: songTagFilterSchema,
   untagged: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
+  includeTagCounts: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

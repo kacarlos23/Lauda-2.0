@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { richTextCommentsSchema } from "./richText.schema";
 
+const memberMinistryAssignmentSchema = z.object({
+  ministryId: z.string().uuid("ID do ministério inválido"),
+  isLeader: z.boolean().optional().default(false),
+});
+
 export const createMemberSchema = z.object({
   name: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
   email: z.string().email("E-mail inválido"),
@@ -8,6 +13,10 @@ export const createMemberSchema = z.object({
   phone: z.string().optional(),
   role: z.enum(["MEMBER", "MINISTRY_LEADER"]).default("MEMBER"),
   comments: richTextCommentsSchema,
+  ministryId: z.string().uuid("ID do ministério inválido").optional(),
+  isLeader: z.boolean().optional().default(false),
+  ministryIds: z.array(z.string().uuid("ID do ministério inválido")).optional(),
+  ministries: z.array(memberMinistryAssignmentSchema).optional(),
 });
 
 export const addMemberMinistrySchema = z.object({

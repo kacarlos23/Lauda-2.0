@@ -25,7 +25,7 @@ export function graphemeCells(text: string): GraphemeCell[] {
 }
 
 export function isChordSymbol(value: string): boolean {
-  return /^[A-G](?:#|b|♯|♭)?(?:(?:maj|min|dim|aug|sus|add|omit|alt|no)|[Mm\d#b♯♭()+°ºøΔ^\-]|\/\d+)*(?:\/[A-G](?:#|b|♯|♭)?)?$/.test(value);
+  return /^[A-G][#b♯♭]?(?:m(?:aj|in)?|dim|aug|sus|add|omit|alt|no|\/\d|[M\d#b♯♭()+°ºøΔ^\-])*(?:\/[A-G][#b♯♭]?)?$/.test(value);
 }
 
 /** Existing source is preserved; newly entered accidentals use the viewer/exporter's notation. */

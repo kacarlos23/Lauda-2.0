@@ -301,6 +301,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+const MAX_REFERENCE_PAGES = 3;
+
 async function loadAllReferenceItems(resource: GlobalResourceName): Promise<Row[]> {
   const items: Row[] = [];
   let page = 1;
@@ -309,7 +311,7 @@ async function loadAllReferenceItems(resource: GlobalResourceName): Promise<Row[
   do {
     const response = await adminService.getResource(resource, { page, limit: 100 });
     items.push(...response.items);
-    totalPages = response.pagination.totalPages;
+    totalPages = Math.min(response.pagination.totalPages, MAX_REFERENCE_PAGES);
     page += 1;
   } while (page <= totalPages);
 
@@ -323,6 +325,7 @@ export default function GlobalAdminScreen() {
   const [activeResource, setActiveResource] = useState<GlobalResourceName>("tenants");
   const [tenantFilter, setTenantFilter] = useState<string | undefined>();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Row[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
@@ -359,11 +362,20 @@ export default function GlobalAdminScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!search) {
+      setDebouncedSearch("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const loadRows = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await adminService.getResource(activeResource, { tenantId: tenantFilter, search, page, limit: 25 });
+      const response = await adminService.getResource(activeResource, { tenantId: tenantFilter, search: debouncedSearch, page, limit: 25 });
       setItems(response.items);
       setPagination(response.pagination);
     } catch (loadError) {
@@ -371,7 +383,7 @@ export default function GlobalAdminScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeResource, page, search, tenantFilter]);
+  }, [activeResource, debouncedSearch, page, tenantFilter]);
 
   useEffect(() => {
     if (isGlobalAdmin(user)) void loadReferences();
@@ -385,6 +397,7 @@ export default function GlobalAdminScreen() {
     setActiveResource(resource);
     setPage(1);
     setSearch("");
+    setDebouncedSearch("");
   }
 
   async function reloadAll() {
@@ -393,6 +406,20 @@ export default function GlobalAdminScreen() {
     } catch (reloadError) {
       setError(getErrorMessage(reloadError, "Não foi possível atualizar o painel global."));
     }
+  }
+
+  async function openEditModal(row: Row) {
+    if (activeResource === "songs" && row.content === undefined) {
+      try {
+        const fullRow = await adminService.getResourceById<Row>("songs", String(row.id));
+        setModal({ mode: "edit", row: fullRow });
+        return;
+      } catch (fetchError) {
+        Alert.alert("Erro ao abrir música", fetchError instanceof Error ? fetchError.message : "Não foi possível carregar os detalhes da música.");
+        return;
+      }
+    }
+    setModal({ mode: "edit", row });
   }
 
   async function lifecycle(row: Row, action: "activate" | "deactivate" | "delete") {
@@ -542,7 +569,7 @@ export default function GlobalAdminScreen() {
                     <StatusPill status={rowStatus(row)} />
                     {!config.readOnly ? (
                       <>
-                        <IconButton label="Editar" icon="edit" onPress={() => setModal({ mode: "edit", row })} />
+                        <IconButton label="Editar" icon="edit" onPress={() => void openEditModal(row)} />
                         {activeResource === "users" && row.id !== user?.id && row.role !== "GLOBAL_ADMIN" ? (
                           <PermissionButton onPress={() => setPermissionUser(row)} />
                         ) : null}

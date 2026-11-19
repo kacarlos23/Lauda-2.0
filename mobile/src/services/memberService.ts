@@ -9,6 +9,10 @@ export type CreateMemberPayload = {
   password: string;
   role: Extract<Role, "MEMBER" | "MINISTRY_LEADER">;
   comments?: string | null;
+  ministryId?: string;
+  isLeader?: boolean;
+  ministryIds?: string[];
+  ministries?: Array<{ ministryId: string; isLeader?: boolean }>;
 };
 
 export type UpdateMemberPayload = {

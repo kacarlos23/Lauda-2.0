@@ -35,13 +35,22 @@ export const adminResourceIdParamsSchema = adminResourceParamsSchema.extend({
   id: z.string().uuid("ID inválido"),
 });
 
-export const adminUsersQuerySchema = z.object({
-  tenantId: z.string().uuid("tenantId inválido").optional(),
-});
+const optionalPositiveQueryInt = (max: number) =>
+  z.preprocess(
+    (value) => (value === undefined || value === null || value === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(max).optional(),
+  );
 
-export const adminTenantScopedQuerySchema = z.object({
+const adminOptionalFilterFields = {
   tenantId: z.string().uuid("tenantId inválido").optional(),
-});
+  search: z.string().trim().max(120).optional(),
+  page: optionalPositiveQueryInt(1000),
+  limit: optionalPositiveQueryInt(500),
+};
+
+export const adminUsersQuerySchema = z.object(adminOptionalFilterFields);
+
+export const adminTenantScopedQuerySchema = z.object(adminOptionalFilterFields);
 
 export const adminUserPermissionsQuerySchema = z.object({
   tenantId: z.string().uuid("tenantId inválido").optional(),

@@ -243,6 +243,8 @@ test("links de músicas são consolidados no conteúdo estreito", async ({ page 
   expect(rowBox!.height).toBeGreaterThanOrEqual(72);
   expect(rowBox!.height).toBeLessThanOrEqual(80);
   expect(triggerBox!.height).toBeGreaterThanOrEqual(44);
+  const editThemes = allLinksRow.getByRole("button", { name: "Editar temas de Ajuda-me a Vencer" });
+  expect((await editThemes.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(triggerBox!.x).toBeGreaterThan(titleBox!.x);
   expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(triggerBox!.x);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
