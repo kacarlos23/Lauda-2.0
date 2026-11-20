@@ -1,6 +1,6 @@
 import type { Href } from "expo-router";
 import { hrefForNavigationItem, navigationItemsFor, type NavigationSubject } from "../../navigation/manifest";
-import type { RouteKey } from "../../navigation/routes";
+import { ROUTES, type RouteKey } from "../../navigation/routes";
 
 export const CURRENT_ONBOARDING_VERSION = "v1";
 
@@ -47,7 +47,7 @@ export function buildOnboardingSteps(
       kind: "navigation",
       navigationItemId: item.id,
       href,
-      sidebarTestId: options.isMobile ? undefined : sidebarTestIdForHref(String(href)),
+      sidebarTestId: options.isMobile ? undefined : sidebarTestIdForHref(ROUTES[item.route].path),
     };
   });
 

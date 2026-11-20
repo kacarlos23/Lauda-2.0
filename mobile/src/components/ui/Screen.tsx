@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../navigation/stagingDockClearance";
 import React from "react";
 import { ScrollView, StyleProp, StyleSheet, useWindowDimensions, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +23,7 @@ export function Screen({
   contentStyle,
   testID,
 }: ScreenProps) {
+  const withDockClearance = useDockContentClearance();
   const dimensions = typeof useWindowDimensions === "function"
     ? useWindowDimensions()
     : { width: 1280, height: 800 };
@@ -41,7 +43,7 @@ export function Screen({
   return (
     <SafeAreaView style={[styles.safe, style]} edges={["left", "right"]} testID={testID}>
       {scroll ? (
-        <ScrollView contentContainerStyle={contentStyles}>{children}</ScrollView>
+        <ScrollView contentContainerStyle={withDockClearance(contentStyles)}>{children}</ScrollView>
       ) : (
         <View style={[styles.nonScrollContent, contentStyles]}>{children}</View>
       )}

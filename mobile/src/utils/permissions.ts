@@ -65,6 +65,23 @@ export function canViewMembers(subject?: PermissionSubject): boolean {
   return can(subject, "member:view");
 }
 
+export function canManageMinistries(subject?: PermissionSubject): boolean {
+  return (
+    can(subject, "ministry:create") ||
+    can(subject, "ministry:edit") ||
+    can(subject, "ministry:delete") ||
+    can(subject, "ministry:assign_members")
+  );
+}
+
+export function canAccessMinistries(subject?: PermissionSubject): boolean {
+  const role = subjectRole(subject);
+  if (!role) return false;
+  if (role === "GLOBAL_ADMIN") return true;
+  if (role === "MEMBER") return canManageMinistries(subject);
+  return can(subject, "ministry:view") || canManageMinistries(subject);
+}
+
 export function formatRoleLabel(role?: Role | string): string {
   const labels: Record<string, string> = {
     GLOBAL_ADMIN: "Administrador global",

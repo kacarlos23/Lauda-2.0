@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -34,6 +35,7 @@ import { transposeChordSheetContent } from "../../../src/utils/chordEngine";
 import { MusicalKey } from "../../../src/types";
 
 export default function SongDetailScreen() {
+  const withDockClearance = useDockContentClearance();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
@@ -139,7 +141,7 @@ export default function SongDetailScreen() {
       scrollEventThrottle={16}
       onLayout={(event) => { viewportHeight.value = event.nativeEvent.layout.height; }}
       onContentSizeChange={(_, height) => { contentHeight.value = height; }}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={withDockClearance(styles.content)}
     >
       <Text style={styles.title}>{song.title}</Text><Text style={styles.artist}>{song.artist.name}</Text>
       <View style={styles.metadata}><Text style={styles.meta}>Tom padrão: {song.originalKey}</Text>{song.bpm ? <Text style={styles.meta}>{song.bpm} BPM</Text> : null}{song.composer ? <Text style={styles.meta}>Compositor: {song.composer}</Text> : null}</View>

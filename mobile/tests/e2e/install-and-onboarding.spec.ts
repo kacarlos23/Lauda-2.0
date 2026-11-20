@@ -306,8 +306,9 @@ test("tutorial de primeiro acesso percorre abas, permite pular com lembrete, rev
 
   // Inicia automaticamente no Passo 1 (Início)
   await expect(page.getByTestId("onboarding-overlay")).toBeVisible();
+  await expect(page.getByTestId("onboarding-spotlight")).toBeVisible();
   await expect(page.getByTestId("onboarding-step-title")).toHaveText("Início");
-  await expect(page.getByTestId("onboarding-progress")).toContainText("Passo 1 de 6");
+  await expect(page.getByTestId("onboarding-progress")).toContainText("Passo 1 de 5");
 
   // Avançar e Voltar
   await page.getByTestId("onboarding-next-button").click();
@@ -328,7 +329,7 @@ test("tutorial de primeiro acesso percorre abas, permite pular com lembrete, rev
   await expect(page.getByTestId("onboarding-step-title")).toHaveText("Início");
 
   // Percorre todas as abas até o passo final
-  for (const expectedTitle of ["Escalas", "Ministérios", "Músicas", "Mais", "Vincule seu instrumento ou cargo"]) {
+  for (const expectedTitle of ["Escalas", "Músicas", "Mais", "Vincule seu instrumento ou cargo"]) {
     await page.getByTestId("onboarding-next-button").click();
     await expect(page.getByTestId("onboarding-step-title")).toHaveText(expectedTitle);
   }

@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useEffect, useState } from "react";
@@ -44,6 +45,7 @@ const emptyForm = {
 };
 
 export default function NewMemberScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const { user } = useAuthStore();
   const { createMember } = useMemberStore();
@@ -117,7 +119,7 @@ export default function NewMemberScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={withDockClearance(styles.scroll)} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>
           <View style={styles.back}><AppBackButton href={nav.members} /></View>
 

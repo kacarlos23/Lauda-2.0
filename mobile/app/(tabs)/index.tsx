@@ -45,6 +45,7 @@ import {
   can,
   canAccessChurchAdmin,
   canAccessGlobalAdminArea,
+  canAccessMinistries,
   canManageMembers,
   canViewMembers,
   formatRoleLabel,
@@ -102,6 +103,7 @@ export default function DashboardScreen() {
   const membersWithoutMinistry = members.filter((member) => !member.ministries?.length);
   const membersWithoutInstrument = members.filter((member) => !member.instruments?.length);
   const canSeeMembers = canViewMembers(user);
+  const canSeeMinistries = canAccessMinistries(user);
   const canCreateMembers = canManageMembers(user);
   const canCreateSchedules = canCreateSchedule(user);
   const canCreateSongs = canManageMusic(user, "song:create");
@@ -491,21 +493,23 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.ministriesBar}
-        onPress={() => router.push(nav.ministries)}
-        activeOpacity={0.76}
-        accessibilityRole="link"
-        accessibilityLabel="Abrir ministérios"
-      >
-        <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
-        <View style={styles.ministryCopy}>
-          <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
-          <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
-          <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
-        </View>
-        <Text style={styles.ministryArrow}>›</Text>
-      </TouchableOpacity>
+      {canSeeMinistries ? (
+        <TouchableOpacity
+          style={styles.ministriesBar}
+          onPress={() => router.push(nav.ministries)}
+          activeOpacity={0.76}
+          accessibilityRole="link"
+          accessibilityLabel="Abrir ministérios"
+        >
+          <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
+          <View style={styles.ministryCopy}>
+            <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
+            <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
+            <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
+          </View>
+          <Text style={styles.ministryArrow}>›</Text>
+        </TouchableOpacity>
+      ) : null}
     </Screen>
     </>
   );

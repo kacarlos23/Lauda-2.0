@@ -81,7 +81,6 @@ describe("buildOnboardingSteps", () => {
     expect(steps.map((step) => step.title)).toEqual([
       "Início",
       "Escalas",
-      "Ministérios",
       "Músicas",
       "Mais",
       "Vincule seu instrumento ou cargo",
@@ -102,10 +101,15 @@ describe("buildOnboardingSteps", () => {
       "Ministérios",
       "Músicas",
       "Membros",
+      "Artistas",
+      "Instrumentos/Cargos",
       "Igreja",
       "Perfil",
       "Vincule seu instrumento ou cargo",
     ]);
+    expect(steps.find((step) => step.route === "instruments")?.sidebarTestId).toBe(
+      "sidebar-nav-instruments"
+    );
   });
 });
 

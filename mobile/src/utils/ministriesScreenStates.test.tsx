@@ -17,6 +17,7 @@ type MinistryStoreState = {
 };
 
 let ministryState: MinistryStoreState;
+let currentRole = "TENANT_ADMIN";
 
 jest.mock("react-native", () => {
   const React = require("react");
@@ -53,10 +54,14 @@ jest.mock("react-native-safe-area-context", () => {
   };
 });
 
-jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn() }),
-  useFocusEffect: (callback: () => void) => callback(),
-}));
+jest.mock("expo-router", () => {
+  const React = require("react");
+  return {
+    Redirect: ({ href }: { href: string }) => React.createElement("Redirect", { href }),
+    useRouter: () => ({ push: jest.fn() }),
+    useFocusEffect: (callback: () => void) => callback(),
+  };
+});
 
 jest.mock("../../src/components/BottomSheet", () => {
   const React = require("react");
@@ -66,7 +71,7 @@ jest.mock("../../src/components/BottomSheet", () => {
 });
 
 jest.mock("../../src/store/authStore", () => ({
-  useAuthStore: () => ({ user: { role: "TENANT_ADMIN" } }),
+  useAuthStore: () => ({ user: { role: currentRole } }),
 }));
 
 jest.mock("../../src/store/ministryStore", () => ({
@@ -122,6 +127,10 @@ describe("MinistriesScreen states", () => {
     jest.restoreAllMocks();
   });
 
+  beforeEach(() => {
+    currentRole = "TENANT_ADMIN";
+  });
+
   it("renderiza loading inicial padronizado", async () => {
     setup({ loading: true });
 
@@ -143,5 +152,15 @@ describe("MinistriesScreen states", () => {
     expect(text).toContain("Nenhum minist");
     expect(text).toContain("Crie o primeiro minist");
     expect(text).toContain("Criar minist");
+  });
+
+  it("redireciona membro comum para fora de Ministérios sem consultar a API", async () => {
+    currentRole = "MEMBER";
+    setup({});
+    const renderer = await renderScreen();
+    const redirect = renderer.root.findByType("Redirect" as any);
+
+    expect(redirect.props.href).toBe("/");
+    expect(ministryState.fetchMinistries).not.toHaveBeenCalled();
   });
 });

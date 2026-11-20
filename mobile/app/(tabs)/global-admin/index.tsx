@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -319,6 +320,7 @@ async function loadAllReferenceItems(resource: GlobalResourceName): Promise<Row[
 }
 
 export default function GlobalAdminScreen() {
+  const withDockClearance = useDockContentClearance();
   const { user } = useAuthStore();
   const viewport = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 1280, height: 800 };
   const compactLayout = viewport.width < breakpoints.adminCompact;
@@ -472,7 +474,7 @@ export default function GlobalAdminScreen() {
         <ScrollView
           horizontal={compactLayout}
           style={[styles.sidebar, compactLayout && styles.sidebarCompact]}
-          contentContainerStyle={[styles.sidebarContent, compactLayout && styles.sidebarContentCompact]}
+          contentContainerStyle={withDockClearance([styles.sidebarContent, compactLayout && styles.sidebarContentCompact])}
           showsHorizontalScrollIndicator={false}
         >
           <Text style={styles.sidebarTitle}>Operação global</Text>
@@ -489,7 +491,7 @@ export default function GlobalAdminScreen() {
           ))}
         </ScrollView>
 
-        <ScrollView style={styles.main} contentContainerStyle={styles.mainContent}>
+        <ScrollView style={styles.main} contentContainerStyle={withDockClearance(styles.mainContent)}>
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.title}>{config.label}</Text>

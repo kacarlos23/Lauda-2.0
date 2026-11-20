@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { ArrowLeft, ArrowRight, CheckCircle2, Compass, Guitar, X } from "lucide-react-native";
@@ -6,6 +6,7 @@ import { InstrumentBadge } from "../../components/instruments/InstrumentBadge";
 import { Button } from "../../components/ui";
 import { useResponsiveLayout } from "../../hooks/useResponsiveLayout";
 import { nav } from "../../navigation/routes";
+import { StagingDockClearance } from "../../navigation/stagingDockClearance";
 import { useAuthStore } from "../../store/authStore";
 import {
   colors,
@@ -38,8 +39,9 @@ function findWebSpotlightRect(step: OnboardingStep | undefined, isMobile: boolea
 
   let target: Element | null = null;
   if (isMobile && step.navigationItemId) {
+    const dockTab = document.querySelector(`[data-testid="staging-dock-tab-${step.navigationItemId}"]`);
     const inner = document.querySelector(`[data-testid="mobile-tab-selection-${step.navigationItemId}"]`);
-    target = inner?.closest('[role="tab"]') ?? inner;
+    target = dockTab ?? inner?.closest('[role="tab"]') ?? inner;
   } else if (!isMobile && step.sidebarTestId) {
     target = document.querySelector(`[data-testid="${step.sidebarTestId}"]`);
   }
@@ -64,6 +66,7 @@ function findWebSpotlightRect(step: OnboardingStep | undefined, isMobile: boolea
 
 export function OnboardingOverlay() {
   const user = useAuthStore((state) => state.user);
+  const dockClearance = useContext(StagingDockClearance);
   const { isMobile, screenWidth } = useResponsiveLayout();
   const pathname = usePathname();
   const router = useRouter();
@@ -160,7 +163,12 @@ export function OnboardingOverlay() {
       <View
         style={[
           styles.cardContainer,
-          isMobile ? styles.cardContainerMobile : styles.cardContainerDesktop,
+          isMobile
+            ? [
+                styles.cardContainerMobile,
+                { paddingBottom: Math.max(controlSizes.tabBar, dockClearance) + spacing.lg },
+              ]
+            : styles.cardContainerDesktop,
         ]}
         pointerEvents="box-none"
       >

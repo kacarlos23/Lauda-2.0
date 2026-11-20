@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SongThemeOperation } from "../../services/musicService";
 import { colors, fontSizes, fontWeights, radiusValues, shadow, spacing } from "../../theme";
 import { Button } from "../ui";
+import { useDockClearance } from "../../navigation/stagingDockClearance";
 import type { SongThemeAnchor } from "./SongThemeMenu";
 
 type Props = {
@@ -23,6 +24,8 @@ export function SongSelectionBar({
   const addButton = useRef<View>(null);
   const removeButton = useRef<View>(null);
   const insets = useSafeAreaInsets();
+  const dockClearance = useDockClearance();
+  const paddingBottom = dockClearance ? dockClearance + spacing.sm : Math.max(spacing.sm, insets.bottom);
   const [focused, setFocused] = useState<string | null>(null);
   const quantity = `${count} ${count === 1 ? "música" : "músicas"}`;
   const focusProps = (action: string) => ({
@@ -40,7 +43,7 @@ export function SongSelectionBar({
   };
 
   return (
-    <View style={[styles.dock, { paddingBottom: Math.max(spacing.sm, insets.bottom) }]} testID="song-selection-dock">
+    <View style={[styles.dock, { paddingBottom }]} testID="song-selection-dock">
       <View style={[styles.bar, compact && styles.compactBar]} testID="song-selection-bar">
         <Text style={styles.count} accessibilityLiveRegion="polite" aria-live="polite">{`${count} ${count === 1 ? "selecionada" : "selecionadas"}`}</Text>
         <View style={styles.actions}>

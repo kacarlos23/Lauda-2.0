@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../src/components/instruments/InstrumentBadge";
@@ -104,6 +105,7 @@ function sortInstruments(instruments: Instrument[]): Instrument[] {
 
 
 export default function ProfileScreen() {
+  const withDockClearance = useDockContentClearance();
   const { user, logout, applyCurrentUser, refreshCurrentUser } = useAuthStore();
   const router = useRouter();
   const { section } = useLocalSearchParams<{ section?: string }>();
@@ -364,7 +366,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={withDockClearance(styles.container)}>
         <View style={styles.profileCard}>
           <TouchableOpacity style={styles.avatarButton} onPress={() => void pickAvatar()} accessibilityLabel="Alterar foto de perfil" testID="profile-avatar-picker">
             {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={iconSizes.s38} strokeWidth={2.4} /></View>}

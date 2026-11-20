@@ -1,8 +1,9 @@
+import { useDockContentClearance } from "../../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../../src/components/ui/patterns";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { Plus, User as UserIcon } from "lucide-react-native";
 import { ministryApi } from "../../../../src/services/ministryApi";
 import { useAuthStore } from "../../../../src/store/authStore";
@@ -19,7 +20,7 @@ import {
 } from "../../../../src/theme";
 import { AppBackButton } from "../../../../src/components/AppBackButton";
 import { Button, EmptyState, ErrorBanner, LoadingState, MemberStatusBadge, SearchField } from "../../../../src/components/ui";
-import { can } from "../../../../src/utils/permissions";
+import { can, canAccessMinistries } from "../../../../src/utils/permissions";
 import { nav } from "../../../../src/navigation/routes";
 
 const statuses: Array<MemberStatus | "ALL"> = ["ALL", "ACTIVE", "INACTIVE"];
@@ -35,6 +36,7 @@ function statusLabel(status: string) {
 }
 
 export default function MinistryMembersScreen() {
+  const withDockClearance = useDockContentClearance();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -47,6 +49,7 @@ export default function MinistryMembersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canOpenMinistries = canAccessMinistries(user);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -63,7 +66,7 @@ export default function MinistryMembersScreen() {
 
   const loadMembers = useCallback(
     async (nextPage = 1) => {
-      if (!id) {
+      if (!canOpenMinistries || !id) {
         setLoading(false);
         setRefreshing(false);
         return;
@@ -92,13 +95,18 @@ export default function MinistryMembersScreen() {
         }
       }
     },
-    [id, debouncedSearch, status]
+    [canOpenMinistries, id, debouncedSearch, status]
   );
 
   useEffect(() => {
+    if (!canOpenMinistries) return;
     setLoading(true);
     void loadMembers(1);
-  }, [loadMembers]);
+  }, [canOpenMinistries, loadMembers]);
+
+  if (!canOpenMinistries) {
+    return <Redirect href={nav.home} />;
+  }
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -124,7 +132,7 @@ export default function MinistryMembersScreen() {
       <FlatList
         data={members}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={withDockClearance(styles.list)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View style={styles.filters}>

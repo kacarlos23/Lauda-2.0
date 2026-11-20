@@ -1,12 +1,12 @@
 import { uiPatterns } from "../../../src/components/ui/patterns";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect } from "expo-router";
 import { Edit3, Save, UserRound, X } from "lucide-react-native";
 import { useAuthStore } from "../../../src/store/authStore";
 import { musicService } from "../../../src/services/musicService";
 import { Artist } from "../../../src/types";
-import { canManageMusic } from "../../../src/utils/musicPermissions";
+import { canManageMusic, canViewArtists } from "../../../src/utils/musicPermissions";
 import {
   colors,
   controlSizes,
@@ -39,6 +39,9 @@ export default function ArtistsScreen() {
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
 
+  const canView = canViewArtists(user);
+  const canEdit = canManageMusic(user, "song:edit");
+
   const load = async (value = search) => {
     setLoading(true);
     try {
@@ -51,11 +54,12 @@ export default function ArtistsScreen() {
   };
 
   useEffect(() => {
+    if (!canView) return;
     const timer = setTimeout(() => void load(search), 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [canView, search]);
 
-  if (!canManageMusic(user, "song:edit")) return <Redirect href={nav.songs} />;
+  if (!canView) return <Redirect href={nav.songs} />;
 
   const startEdit = (artist: Artist) => {
     setEditing(artist);
@@ -89,7 +93,10 @@ export default function ArtistsScreen() {
   return (
     <Screen scroll>
       <View style={styles.backRow}><AppBackButton href={nav.songs} /></View>
-      <PageHeader title="Artistas" subtitle="Catálogo usado nas músicas e cifras." />
+      <PageHeader
+        title="Artistas"
+        subtitle={canEdit ? "Catálogo usado nas músicas e cifras." : "Consulte os artistas cadastrados nas músicas e cifras."}
+      />
 
       <Toolbar style={styles.toolbar}>
         <SearchField
@@ -101,7 +108,7 @@ export default function ArtistsScreen() {
         />
       </Toolbar>
 
-      {editing ? (
+      {canEdit && editing ? (
         <View style={styles.editor}>
           <Text style={styles.editorTitle}>Editar artista</Text>
           <View style={styles.editorFields}>
@@ -156,14 +163,16 @@ export default function ArtistsScreen() {
                 <View style={styles.placeholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
               )}
               <Text style={styles.name}>{artist.name}</Text>
-              <TouchableOpacity
-                style={styles.edit}
-                onPress={() => startEdit(artist)}
-                accessibilityRole="button"
-                accessibilityLabel={`Editar ${artist.name}`}
-              >
-                <Edit3 color={colors.primary} size={iconSizes.s18} strokeWidth={2.1} />
-              </TouchableOpacity>
+              {canEdit ? (
+                <TouchableOpacity
+                  style={styles.edit}
+                  onPress={() => startEdit(artist)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Editar ${artist.name}`}
+                >
+                  <Edit3 color={colors.primary} size={iconSizes.s18} strokeWidth={2.1} />
+                </TouchableOpacity>
+              ) : null}
             </View>
           ))}
         </View>

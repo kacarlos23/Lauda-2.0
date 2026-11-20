@@ -196,6 +196,8 @@ describe("Dashboard central de ações", () => {
     expect(text).not.toContain("Cadastrar música");
     expect(text).not.toContain("Criar ministério");
     expect(text).not.toContain("Atenção em membros");
+    expect(text).not.toContain("Acompanhe suas equipes");
+    expect(text).not.toContain("Ministérios");
     expect(loadMembersMock).not.toHaveBeenCalled();
   });
 

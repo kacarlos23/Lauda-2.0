@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useEffect, useMemo, useState } from "react";
@@ -40,6 +41,7 @@ function formatDate(value?: string): string {
 }
 
 export default function ChurchAdminScreen() {
+  const withDockClearance = useDockContentClearance();
   const { user } = useAuthStore();
   const { summary, loading, saving, error, loadChurch, updateChurch } = useChurchStore();
   const [editing, setEditing] = useState(false);
@@ -96,7 +98,7 @@ export default function ChurchAdminScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={withDockClearance(styles.container)}>
         <View style={styles.header}>
           <Text style={styles.title}>Dados da Igreja</Text>
           <Text style={styles.subtitle}>Administração do tenant atual</Text>
