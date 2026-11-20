@@ -31,5 +31,10 @@ describe("shared chord text", () => {
     expect(isTraditionalChordLine("A graça de Deus")).toBe(false);
     expect(mapTraditionalChordLine("G     D", (symbol) => `${symbol}#`)).toBe("G#    D#");
   });
+  it("avalia entradas malformadas repetitivas em tempo linear sem ReDoS", () => {
+    const start = Date.now();
+    expect(isChordSymbol(`A/${"90/".repeat(500)}!`)).toBe(false);
+    expect(Date.now() - start).toBeLessThan(100);
+  });
 });
 

@@ -27,13 +27,47 @@ export class MemberService {
     return member;
   }
 
-  async create(input: CreateMemberInput) {
-    const existing = await this.memberRepository.findByEmail(input.email);
+  async create(input: CreateMemberInput, user?: RequestUser) {
+    const email = input.email.trim().toLowerCase();
+    const existing = await this.memberRepository.findByEmail(email);
     if (existing) {
       throw new ValidationError("Já existe um usuário com este e-mail");
     }
+
+    const assignmentMap = new Map<string, { ministryId: string; isLeader: boolean }>();
+    for (const ministryId of input.ministryIds ?? []) {
+      assignmentMap.set(ministryId, { ministryId, isLeader: false });
+    }
+    for (const item of input.ministries ?? []) {
+      const current = assignmentMap.get(item.ministryId);
+      assignmentMap.set(item.ministryId, {
+        ministryId: item.ministryId,
+        isLeader: Boolean(current?.isLeader || item.isLeader),
+      });
+    }
+    if (input.ministryId) {
+      const current = assignmentMap.get(input.ministryId);
+      assignmentMap.set(input.ministryId, {
+        ministryId: input.ministryId,
+        isLeader: Boolean(current?.isLeader || input.isLeader),
+      });
+    }
+
+    const ministries = Array.from(assignmentMap.values());
+    if (ministries.length > 0 && user) {
+      const [canAssignOnMember, canAssignOnMinistry] = await Promise.all([
+        hasPermission(user, "member:assign_ministry", user.tenantId),
+        hasPermission(user, "ministry:assign_members", user.tenantId),
+      ]);
+      if (!canAssignOnMember && !canAssignOnMinistry) {
+        throw new ForbiddenError("Usuário sem permissão para vincular ministérios");
+      }
+    }
+
+    const shouldBeLeader = input.role === Role.MINISTRY_LEADER || ministries.some((item) => item.isLeader);
+    const role = shouldBeLeader && input.role === Role.MEMBER ? Role.MINISTRY_LEADER : input.role;
     const password = await bcrypt.hash(input.password, 10);
-    return this.memberRepository.create({ ...input, password });
+    return this.memberRepository.create({ ...input, email, role, password, ministries });
   }
 
   async updateMyProfile(userId: string, input: UpdateMyProfileInput) {

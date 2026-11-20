@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { config } from "../../config/unifiedConfig";
-import { createRateLimiter, pseudonymousRateLimitKey } from "../../middlewares/rateLimitMiddleware";
+import { apiRateLimit, createRateLimiter, pseudonymousRateLimitKey } from "../../middlewares/rateLimitMiddleware";
+import * as rateLimitStoreModule from "../../security/rateLimitStore";
 import type { RateLimitStore } from "../../security/rateLimitStore";
 
 function response(): Response {
@@ -147,5 +148,32 @@ describe("rate limit middleware", () => {
     await limiter({ ip: "127.0.0.1", socket: {} } as Request, response(), next as NextFunction);
 
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it("apiRateLimit skips when disabled and enforces/forwards when enabled", async () => {
+    const consume = jest.fn(async () => ({ count: 1, resetAt: Date.now() + 60_000 }));
+    const storeSpy = jest.spyOn(rateLimitStoreModule, "rateLimitStore").mockReturnValue({ consume });
+    try {
+      config.rateLimit.enabled = false;
+      const disabledNext = jest.fn();
+      await apiRateLimit({ ip: "127.0.0.1", socket: {}, headers: {}, app: { get: () => false } } as unknown as Request, response(), disabledNext as NextFunction);
+      expect(disabledNext).toHaveBeenCalledWith();
+      expect(consume).not.toHaveBeenCalled();
+
+      config.rateLimit.enabled = true;
+      const enabledNext = jest.fn();
+      await apiRateLimit({ ip: "127.0.0.1", socket: {}, headers: {}, app: { get: () => false } } as unknown as Request, response(), enabledNext as NextFunction);
+      expect(consume).toHaveBeenCalledTimes(1);
+      expect(enabledNext).toHaveBeenCalledWith();
+
+      consume.mockResolvedValueOnce({ count: 601, resetAt: Date.now() + 60_000 });
+      const limitedRes = response();
+      const limitedNext = jest.fn();
+      await apiRateLimit({ ip: "127.0.0.1", socket: {}, headers: {}, app: { get: () => false } } as unknown as Request, limitedRes, limitedNext as NextFunction);
+      expect(limitedRes.status).toHaveBeenCalledWith(429);
+      expect(limitedNext).not.toHaveBeenCalled();
+    } finally {
+      storeSpy.mockRestore();
+    }
   });
 });

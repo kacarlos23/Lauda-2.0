@@ -14,10 +14,8 @@ export function passwordResetHmac(input: {
   userId: string;
   pin: string;
 }): string {
-  return crypto
-    .createHmac("sha256", input.pepper)
-    .update(`${input.challengeId}:${input.userId}:${input.pin}`, "utf8")
-    .digest("base64url");
+  const salt = `${input.pepper}:${input.challengeId}:${input.userId}`;
+  return crypto.scryptSync(input.pin, salt, 32).toString("base64url");
 }
 
 export function constantTimeEqual(left: string, right: string): boolean {

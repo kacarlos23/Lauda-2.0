@@ -139,6 +139,7 @@ export type ScheduleListParams = {
   dateTo?: string;
   page?: number;
   limit?: number;
+  summary?: boolean;
 };
 
 export const scheduleService = {

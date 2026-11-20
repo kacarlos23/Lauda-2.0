@@ -2,10 +2,12 @@ import { Router } from "express";
 import { ScheduleController } from "../controllers/ScheduleController";
 import { WorshipOrderController } from "../controllers/WorshipOrderController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const ctrl = new ScheduleController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 const worship = new WorshipOrderController();
 router.get("/worship-order/:date", requirePermission("schedule:view"), (req, res) => worship.get(req, res));

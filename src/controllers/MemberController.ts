@@ -27,7 +27,7 @@ export class MemberController extends BaseController {
 
   async create(req: Request, res: Response): Promise<void> {
     const input = createMemberSchema.parse(req.body);
-    const member = await this.buildService(req).create(input);
+    const member = await this.buildService(req).create(input, req.user!);
     this.handleSuccess(res, member, 201);
   }
 

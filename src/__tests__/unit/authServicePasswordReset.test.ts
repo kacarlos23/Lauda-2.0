@@ -54,4 +54,24 @@ describe("AuthService password reset delivery", () => {
     expect(serializedLogs).not.toContain("123456");
     consoleSpy.mockRestore();
   });
+
+  it("fails explicitly when password reset email delivery is disabled outside test env", async () => {
+    const { config } = require("../../config/unifiedConfig") as typeof import("../../config/unifiedConfig");
+    const { ServiceUnavailableError } = require("../../errors/AppError") as typeof import("../../errors/AppError");
+    const previousEnv = config.env;
+    const previousMode = config.auth.passwordResetDelivery.mode;
+    (config as { env: string }).env = "development";
+    (config.auth.passwordResetDelivery as { mode: string }).mode = "disabled";
+
+    try {
+      const service = new AuthService();
+      await expect(service.requestPasswordReset({ email: "any@example.com" })).rejects.toBeInstanceOf(
+        ServiceUnavailableError
+      );
+      expect(repository.findUserByEmail).not.toHaveBeenCalled();
+    } finally {
+      (config as { env: string }).env = previousEnv;
+      (config.auth.passwordResetDelivery as { mode: string }).mode = previousMode;
+    }
+  });
 });

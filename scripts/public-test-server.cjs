@@ -3,6 +3,7 @@ const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const express = require("express");
+const { rateLimit } = require("express-rate-limit");
 const { root, childEnvironment } = require("./public-test-config.cjs");
 const env = childEnvironment();
 const output = path.join(root, "mobile/web-build/public-test");
@@ -45,6 +46,8 @@ app.use((req, res, next) => {
 const dynamicRewrites = require("./worship-test.serve.json").rewrites
   .filter(rule => rule.source.includes(":id("))
   .map(rule => ({ pattern: new RegExp("^" + rule.source.replace(/:id\(([^)]+)\)/g, "($1)") + "/?$"), file: rule.destination.slice(1) }));
+const stagingRateLimit = rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false });
+app.use(stagingRateLimit);
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
   const pathname = new URL(req.url, "http://localhost").pathname;

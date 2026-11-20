@@ -55,10 +55,53 @@ const ScheduleWriteSchema = z.object({
 export const CreateScheduleSchema = ScheduleWriteSchema;
 export const UpdateScheduleSchema = ScheduleWriteSchema;
 
+const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+const scheduleQueryDateSchema = (boundary: "start" | "end") =>
+  z
+    .union([
+      z.string().datetime({ message: isoDateTimeMessage }),
+      z.string().regex(dateOnlyRegex, isoDateTimeMessage),
+    ])
+    .optional()
+    .transform((value) => {
+      if (!value) return undefined;
+      if (!dateOnlyRegex.test(value)) return new Date(value);
+      return new Date(`${value}${boundary === "start" ? "T00:00:00.000Z" : "T23:59:59.999Z"}`);
+    });
+
+const optionalPositiveInt = (max: number) =>
+  z.preprocess(
+    (value) => (value === undefined || value === null || value === "" ? undefined : value),
+    z
+      .union([
+        z.number().int().min(1).max(max),
+        z
+          .string()
+          .regex(/^\d+$/, "Limite deve ser um número inteiro positivo")
+          .transform((value) => Number(value))
+          .refine((value) => value >= 1 && value <= max, `Limite deve estar entre 1 e ${max}`),
+      ])
+      .optional(),
+  );
+
+const optionalBooleanQuery = z.preprocess(
+  (value) => (value === undefined || value === null || value === "" ? undefined : value),
+  z
+    .union([
+      z.boolean(),
+      z.enum(["true", "false"]).transform((value) => value === "true"),
+    ])
+    .optional(),
+);
+
 export const ListSchedulesSchema = z.object({
-  from: z.string().datetime({ message: isoDateTimeMessage }).optional().transform((value) => value ? new Date(value) : undefined),
-  to: z.string().datetime({ message: isoDateTimeMessage }).optional().transform((value) => value ? new Date(value) : undefined),
+  from: scheduleQueryDateSchema("start"),
+  to: scheduleQueryDateSchema("end"),
+  dateFrom: scheduleQueryDateSchema("start"),
+  dateTo: scheduleQueryDateSchema("end"),
   ministryId: z.string().uuid("Ministério deve ser um UUID válido").optional(),
+  limit: optionalPositiveInt(200),
+  summary: optionalBooleanQuery,
 });
 
 export const CreateAssignmentSchema = ScheduleAssignmentInputSchema;

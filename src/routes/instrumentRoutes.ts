@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { InstrumentController } from "../controllers/InstrumentController";
 import { authMiddleware, requirePermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const ctrl = new InstrumentController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 
 router.get("/", requirePermission("instrument:view"), (req, res) => ctrl.list(req, res));

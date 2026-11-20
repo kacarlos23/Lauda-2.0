@@ -89,6 +89,7 @@ export default function EditScheduleScreen() {
   const [songOrderModal, setSongOrderModal] = useState(false);
   const [draggedSongIndex, setDraggedSongIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(() => !allSchedules.some((item) => item.id === id));
   const [exporting, setExporting] = useState(false);
   const [exportingSongs, setExportingSongs] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -108,8 +109,13 @@ export default function EditScheduleScreen() {
   });
 
   useEffect(() => {
-    void loadSchedules();
-  }, [loadSchedules]);
+    let active = true;
+    setScheduleLoading(true);
+    void Promise.resolve(loadSchedules({ params: {}, persistParams: false })).finally(() => {
+      if (active) setScheduleLoading(false);
+    });
+    return () => { active = false; };
+  }, [id, loadSchedules]);
 
   useEffect(() => {
     if (!schedule) return;
@@ -320,7 +326,7 @@ export default function EditScheduleScreen() {
     return <View style={styles.center}><Text style={styles.error}>Você não tem permissão para editar escalas.</Text><AppBackButton href={nav.schedules} /></View>;
   }
 
-  if (loading) {
+  if (loading || (scheduleLoading && !schedule)) {
     return <LoadingState message="Carregando escala..." />;
   }
 
@@ -330,7 +336,18 @@ export default function EditScheduleScreen() {
         <ErrorBanner
           message="Escala não encontrada."
           style={styles.error}
-          action={<Button title="Tentar novamente" variant="secondary" onPress={() => loadSchedules()} />}
+          action={(
+            <Button
+              title="Tentar novamente"
+              variant="secondary"
+              onPress={() => {
+                setScheduleLoading(true);
+                void Promise.resolve(loadSchedules({ refresh: true, params: {}, persistParams: false })).finally(() => {
+                  setScheduleLoading(false);
+                });
+              }}
+            />
+          )}
         />
         <AppBackButton href={nav.schedules} />
       </View>

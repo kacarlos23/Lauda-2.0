@@ -9,6 +9,7 @@ import { Artist, MusicalKey, Pagination, Song } from "../types";
 
 type ApiResponse<T> = { success: boolean; data: T };
 export type Paginated<T> = { items: T[]; pagination: Pagination };
+export type PaginatedSongs = Paginated<Song> & { tagCounts?: SongTagCounts };
 
 export type ArtistPayload = { name: string; imageUrl?: string | null };
 export type SongPayload = {
@@ -32,6 +33,7 @@ export type SongListParams = {
   ministryId?: string;
   tags?: string[];
   untagged?: boolean;
+  includeTagCounts?: boolean;
 };
 
 export type SongTagOption = { id: string; name: string };
@@ -192,10 +194,10 @@ export const musicService = {
     } catch (error) { apiError(error, "Não foi possível atualizar o artista."); }
   },
 
-  async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams, signal?: AbortSignal): Promise<Paginated<Song>> {
+  async listSongs(search = "", page = 1, limit = 20, filters?: SongListParams, signal?: AbortSignal): Promise<PaginatedSongs> {
     try {
       const { tags, ...rest } = filters ?? {};
-      const response = await api.get<ApiResponse<Paginated<Song>>>("/songs", {
+      const response = await api.get<ApiResponse<PaginatedSongs>>("/songs", {
         params: {
           ...rest,
           ...(tags?.length ? { tags: tags.join(",") } : {}),
@@ -205,7 +207,18 @@ export const musicService = {
         },
         signal,
       });
-      return { ...response.data.data, items: response.data.data.items.map(normalizeSongContent) };
+      const data = response.data.data;
+      const tagCounts = data.tagCounts
+        ? {
+            items: (data.tagCounts.items ?? []).map(({ count = 0, ...tag }) => ({ ...tag, count })),
+            untaggedCount: data.tagCounts.untaggedCount ?? 0,
+          }
+        : undefined;
+      return {
+        ...data,
+        items: data.items.map(normalizeSongContent),
+        ...(tagCounts ? { tagCounts } : {}),
+      };
     } catch (error) { apiError(error, "Não foi possível carregar as músicas."); }
   },
 

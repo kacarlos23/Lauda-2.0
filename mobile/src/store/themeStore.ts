@@ -56,11 +56,23 @@ export const useThemeStore = create<ThemeState>((set) => ({
   },
 }));
 
+const INLINE_SCRIPT_ESCAPES: Record<string, string> = {
+  "<": "\\u003c",
+  ">": "\\u003e",
+  "&": "\\u0026",
+  "\u2028": "\\u2028",
+  "\u2029": "\\u2029",
+};
+
+function serializeForInlineScript(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (char) => INLINE_SCRIPT_ESCAPES[char]);
+}
+
 // Runs in the document head before the first paint, using the same color roles as React.
 export function themeBootstrapScript(): string {
   const palettes = {
     light: { color: lightColors, overlay: lightOverlays },
     dark: { color: { ...lightColors, ...darkColors }, overlay: { ...lightOverlays, ...darkOverlays } },
   };
-  return `(function(){try{var q=new URL(location.href).searchParams.get('theme'),s=null;try{s=localStorage.getItem('${THEME_STORAGE_KEY}');}catch(e){}var a=['light','dark','system'],p=a.indexOf(q)>=0?q:a.indexOf(s)>=0?s:'system';var m=p==='dark'||p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var d=${JSON.stringify(palettes)}[m];for(var g in d)for(var k in d[g])document.documentElement.style.setProperty('--lauda-'+g+'-'+k,d[g][k]);document.documentElement.dataset.colorMode=m;document.documentElement.style.colorScheme=m;}catch(e){}})();`;
+  return `(function(){try{var q=new URL(location.href).searchParams.get('theme'),s=null;try{s=localStorage.getItem('${THEME_STORAGE_KEY}');}catch(e){}var a=['light','dark','system'],p=a.indexOf(q)>=0?q:a.indexOf(s)>=0?s:'system';var m=p==='dark'||p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var d=${serializeForInlineScript(palettes)}[m];for(var g in d)for(var k in d[g])document.documentElement.style.setProperty('--lauda-'+g+'-'+k,d[g][k]);document.documentElement.dataset.colorMode=m;document.documentElement.style.colorScheme=m;}catch(e){}})();`;
 }

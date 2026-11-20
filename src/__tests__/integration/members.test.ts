@@ -253,6 +253,7 @@ describe("Members API", () => {
     });
     expect(member).not.toHaveProperty("email");
     expect(member).not.toHaveProperty("phone");
+    expect(member).not.toHaveProperty("avatarUrl");
     expect(member.ministries).toEqual([]);
     expect(member.userInstruments).toBeUndefined();
   });
@@ -847,5 +848,77 @@ describe("Members API", () => {
       role: "MEMBER",
       tenantId: tenant.user.tenantId,
     });
+  });
+
+  it("POST /api/members vincula ministérios atomicamente e DELETE /api/members/:id inativa vínculos em ministérios", async () => {
+    const tenant = await registerTenant("members-atomic-deactivate");
+    const foreignTenant = await registerTenant("members-atomic-foreign");
+    const ministry = await createMinistry(tenant.token, "Louvor Atômico");
+    const foreignMinistry = await createMinistry(foreignTenant.token, "Ministério Externo");
+
+    const invalid = await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        name: "Membro Rollback",
+        email: "rollback-member@example.com",
+        password: "member123",
+        role: "MEMBER",
+        ministryIds: [foreignMinistry.id],
+      })
+      .expect(404);
+
+    expect(invalid.body.success).toBe(false);
+    expect(await prisma.user.findUnique({ where: { email: "rollback-member@example.com" } })).toBeNull();
+
+    const created = await request(app)
+      .post("/api/members")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        name: "Membro Vinculado",
+        email: "linked-member@example.com",
+        password: "member123",
+        role: "MEMBER",
+        ministryIds: [ministry.id],
+      })
+      .expect(201);
+
+    const memberId = created.body.data.id as string;
+    expect(created.body.data.ministries).toEqual([
+      expect.objectContaining({ ministryId: ministry.id, isLeader: false }),
+    ]);
+
+    const beforeList = await request(app)
+      .get("/api/ministries")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(beforeList.body.data.find((item: { id: string }) => item.id === ministry.id)?._count?.members).toBe(1);
+
+    await request(app)
+      .delete(`/api/members/${memberId}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+
+    const deactivatedLink = await prisma.ministryMember.findFirst({
+      where: { userId: memberId, ministryId: ministry.id },
+    });
+    expect(deactivatedLink).toMatchObject({
+      isActive: false,
+      status: "INACTIVE",
+      isLeader: false,
+    });
+    expect(deactivatedLink?.deletedAt).toBeTruthy();
+
+    const afterList = await request(app)
+      .get("/api/ministries")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(afterList.body.data.find((item: { id: string }) => item.id === ministry.id)?._count?.members).toBe(0);
+
+    const afterDetails = await request(app)
+      .get(`/api/ministries/${ministry.id}`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    expect(afterDetails.body.data.members).toEqual([]);
   });
 });

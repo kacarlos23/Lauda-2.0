@@ -12,6 +12,7 @@ jest.mock("../services/scheduleService", () => ({
 
 jest.mock("./invalidation", () => ({
   invalidateRelatedData: jest.fn(() => Promise.resolve()),
+  resetAllDomainStores: jest.fn(),
 }));
 
 import type { ScheduleAssignment } from "../types";
@@ -51,6 +52,9 @@ describe("scheduleStore", () => {
     useScheduleStore.setState({
       allSchedules: [],
       schedules: [],
+      activeParams: undefined,
+      myActiveParams: undefined,
+      loadedRange: null,
       loading: false,
       schedulesLoading: false,
       mySchedulesLoading: false,
@@ -263,5 +267,58 @@ describe("scheduleStore", () => {
     expect(useScheduleStore.getState().allSchedules[0].assignments?.[0]).toMatchObject({
       substituteResolvedAt: "2026-05-20T11:00:00.000Z",
     });
+  });
+
+  it("preserva activeParams e expande loadedRange para reutilização no refresh", async () => {
+    const initialRange = { dateFrom: "2026-06-01", dateTo: "2026-08-31", limit: 120 };
+    const expandedRange = { dateFrom: "2026-05-01", dateTo: "2026-09-30", limit: 120 };
+    jest.mocked(scheduleService.listSchedules).mockResolvedValue([schedule.schedule]);
+    jest.mocked(scheduleService.getMySchedules).mockResolvedValue([schedule]);
+
+    await useScheduleStore.getState().loadSchedules({ params: initialRange });
+    await useScheduleStore.getState().loadMySchedules({ params: initialRange });
+    expect(useScheduleStore.getState().activeParams).toEqual(initialRange);
+    expect(useScheduleStore.getState().loadedRange).toEqual({ dateFrom: "2026-06-01", dateTo: "2026-08-31" });
+
+    await useScheduleStore.getState().loadSchedules({ refresh: true });
+    await useScheduleStore.getState().loadMySchedules({ refresh: true });
+    expect(scheduleService.listSchedules).toHaveBeenLastCalledWith(initialRange);
+    expect(scheduleService.getMySchedules).toHaveBeenLastCalledWith(initialRange);
+
+    await useScheduleStore.getState().loadSchedules({ params: expandedRange });
+    expect(useScheduleStore.getState().loadedRange).toEqual({ dateFrom: "2026-05-01", dateTo: "2026-09-30" });
+  });
+
+  it("deduplica chamadas simultâneas de loadSchedules e loadMySchedules com os mesmos parâmetros", async () => {
+    let resolveList!: (value: (typeof schedule.schedule)[]) => void;
+    let resolveMine!: (value: (typeof schedule)[]) => void;
+    jest.mocked(scheduleService.listSchedules).mockImplementation(
+      () => new Promise((resolve) => {
+        resolveList = resolve;
+      })
+    );
+    jest.mocked(scheduleService.getMySchedules).mockImplementation(
+      () => new Promise((resolve) => {
+        resolveMine = resolve;
+      })
+    );
+
+    const firstList = useScheduleStore.getState().loadSchedules({ params: { dateFrom: "2026-06-01", limit: 100 } });
+    const secondList = useScheduleStore.getState().loadSchedules({ params: { limit: 100, dateFrom: "2026-06-01" } });
+    expect(scheduleService.listSchedules).toHaveBeenCalledTimes(1);
+
+    resolveList([schedule.schedule]);
+    await Promise.all([firstList, secondList]);
+
+    const firstMine = useScheduleStore.getState().loadMySchedules({ params: { summary: true, limit: 20 }, persistParams: false });
+    const secondMine = useScheduleStore.getState().loadMySchedules({ params: { limit: 20, summary: true }, persistParams: false });
+    expect(scheduleService.getMySchedules).toHaveBeenCalledTimes(1);
+
+    resolveMine([schedule]);
+    await Promise.all([firstMine, secondMine]);
+
+    jest.mocked(scheduleService.listSchedules).mockResolvedValueOnce([schedule.schedule]);
+    await useScheduleStore.getState().loadSchedules({ refresh: true });
+    expect(scheduleService.listSchedules).toHaveBeenCalledTimes(2);
   });
 });

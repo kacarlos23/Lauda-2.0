@@ -174,10 +174,46 @@ describe("CifraClubImportService", () => {
         isClosed: () => false,
         waitForEvent: async () => ({ path: async () => "temporary-download" }),
       };
-      jest.spyOn(fs, "readFile").mockResolvedValue(bytes);
+      const close = jest.fn().mockResolvedValue(undefined);
+      jest.spyOn(fs, "open").mockResolvedValue({
+        stat: async () => ({ size: bytes.length }),
+        readFile: async () => bytes,
+        close,
+      } as any);
       await expect(service.tryDownloadContent(page)).resolves.toBeNull();
+      expect(close).toHaveBeenCalledTimes(1);
     }
   );
+
+  it("descarta download acima do limite de tamanho e fecha o arquivo", async () => {
+    const service = new CifraClubImportService() as any;
+    const page = {
+      getByText: () => ({ first: () => ({ count: async () => 1, click: async () => undefined }) }),
+      isClosed: () => false,
+      waitForEvent: async () => ({ path: async () => "temporary-download" }),
+    };
+    const close = jest.fn().mockResolvedValue(undefined);
+    jest.spyOn(fs, "open").mockResolvedValue({
+      stat: async () => ({ size: 2 * 1024 * 1024 + 1 }),
+      readFile: jest.fn(),
+      close,
+    } as any);
+    await expect(service.tryDownloadContent(page)).resolves.toBeNull();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("remove tags script com fechamento com espaços sem manter código no título ou artista", () => {
+    const html = `
+      <h1>Autor <script >alert(1)</script >da Vida</h1>
+      <h2>Aline <style>body{display:none}</style>Barros</h2>
+      <p>Tom: C</p>
+      <pre>[C]Letra</pre>
+    `;
+    const result = CifraClubImportService.parseSongPage(html, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");
+    expect(result.title).toBe("Autor da Vida");
+    expect(result.artist).toBe("Aline Barros");
+    expect(result.title).not.toContain("alert");
+  });
   it("extrai metadados e cifra pública da página", () => {
     const result = CifraClubImportService.parseSongPage(songHtml, "https://www.cifraclub.com.br/aline-barros/autor-da-vida/");
 

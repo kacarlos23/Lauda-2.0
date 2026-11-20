@@ -103,14 +103,17 @@ export default function InstrumentCatalogScreen() {
       iconKey: form.iconKey || null,
     };
 
-    if (editingId) {
-      await updateInstrument(editingId, payload);
-    } else {
-      await createInstrument(payload);
-    }
-
-    if (!showStoreError()) {
+    try {
+      if (editingId) {
+        await updateInstrument(editingId, payload);
+      } else {
+        await createInstrument(payload);
+      }
       resetForm();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Não foi possível salvar o instrumento.";
+      setFormError(message);
+      Alert.alert("Erro", message);
     }
   };
 
@@ -128,10 +131,14 @@ export default function InstrumentCatalogScreen() {
 
   const handleDelete = (instrument: Instrument) => {
     const confirmation = buildDeleteInstrumentConfirmation(async () => {
-      await deleteInstrument(instrument.id);
-      showStoreError();
-      if (editingId === instrument.id) {
-        resetForm();
+      try {
+        await deleteInstrument(instrument.id);
+        if (editingId === instrument.id) {
+          resetForm();
+        }
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : "Não foi possível excluir o instrumento.";
+        Alert.alert("Erro", message);
       }
     });
 

@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "./sessionStorage";
+import { sanitizeUserForSessionStorage } from "../utils/sessionUser";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 
 export { normalizeApiBaseUrl, resolveApiBaseUrl } from "./apiBaseUrl";
@@ -101,7 +102,7 @@ export async function refreshAccessToken(): Promise<string> {
   await setSessionItem("auth_token", accessToken);
   await setSessionItem("refresh_token", response.data.data.refreshToken);
   if (response.data.data.user) {
-    await setSessionItem("auth_user", JSON.stringify(response.data.data.user));
+    await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(response.data.data.user as Record<string, unknown>)));
   }
   if (response.data.data.tenant) {
     await setSessionItem("auth_tenant", JSON.stringify(response.data.data.tenant));

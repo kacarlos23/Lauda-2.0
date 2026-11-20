@@ -32,16 +32,26 @@ async function api(route, token, body, method = "GET", expected = 200) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await response.text();
-  assert.equal(response.status, expected, `${method} ${route}: ${text.slice(0, 500)}`);
+  if (response.status !== expected) {
+    console.error(`${method} ${route}: ${text.slice(0, 500)}`);
+  }
+  assert.equal(response.status, expected, `${method} ${route}: HTTP ${response.status} != ${expected}`);
   return JSON.parse(text).data;
 }
-async function savePdf(token, name) {
+async function verifyPdfEndpoint(token) {
   const response = await fetch(`${url}/api/schedules/worship-order/${date}/pdf`, { headers: { authorization: `Bearer ${token}` } });
-  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal(response.status, 200, `PDF HTTP ${response.status}`);
   assert.match(response.headers.get("content-type"), /application\/pdf/);
   const bytes = Buffer.from(await response.arrayBuffer());
   assert.equal(bytes.subarray(0, 4).toString(), "%PDF");
-  fs.writeFileSync(path.join(output, name), bytes);
+}
+async function savePdfFromBrowser(page, name) {
+  await page.goto(`${url}/schedules/worship-order?date=${date}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Exportar PDF", exact: true }).waitFor();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar PDF", exact: true }).click();
+  const download = await downloadPromise;
+  await download.saveAs(path.join(output, name));
 }
 async function drag(page, handleId, targetId) {
   const handle = page.getByTestId(handleId), target = page.getByTestId(targetId);
@@ -61,22 +71,31 @@ async function main() {
   try {
     const email = `worship-readings-${crypto.randomUUID()}@example.invalid`, password = `Test-${crypto.randomUUID()}!`;
     const owner = await api("/auth/register", undefined, { churchName: "[TESTE] Leituras e texto", name: "Validação de leituras", email, password }, "POST", 201);
-    tenantId = owner.tenant.id;
-    assert.equal((await pool.query('SELECT id FROM "Tenant" WHERE id=$1', [tenantId])).rowCount, 1);
+    const tenantCheck = await pool.query('SELECT id FROM "Tenant" WHERE id=$1', [owner.tenant.id]);
+    assert.equal(tenantCheck.rowCount, 1);
+    tenantId = tenantCheck.rows[0].id;
     const token = owner.token || owner.accessToken;
     const wrongEnvironment = await fetch("https://api.laudaapp.com/api/auth/me", { headers: { authorization: `Bearer ${token}` } });
     assert.equal(wrongEnvironment.status, 401);
     const ministry = await api("/ministries", token, { name: "[TESTE] Ministério de validação" }, "POST", 201);
     const artist = await api("/artists", token, { name: "[TESTE] Artista de validação de leituras" }, "POST", 201);
+    const songTitles = ["[TESTE] Primeira canção", "[TESTE] Última canção", "[TESTE] Canção da noite"];
+    const morningTitle = "[TESTE] Celebração da esperança";
+    const eveningTitle = "[TESTE] Encontro de gratidão";
     const songs = [];
-    for (const title of ["[TESTE] Primeira canção", "[TESTE] Última canção", "[TESTE] Canção da noite"]) songs.push(await api("/songs", token, { title, artistId: artist.id, originalKey: "C", content: "[C]Canção para validação.", videoUrl: "https://youtu.be/LaudaTest01" }, "POST", 201));
-    const morning = await api("/schedules", token, { title: "[TESTE] Celebração da esperança", date: `${date}T12:00:00Z`, ministryId: ministry.id, songIds: songs.slice(0, 2).map(s => s.id), assignments: [] }, "POST", 201);
-    const evening = await api("/schedules", token, { title: "[TESTE] Encontro de gratidão", date: `${date}T22:00:00Z`, ministryId: ministry.id, songIds: [songs[2].id], assignments: [] }, "POST", 201);
+    for (const title of songTitles) {
+      const song = await api("/songs", token, { title, artistId: artist.id, originalKey: "C", content: "[C]Canção para validação.", videoUrl: "https://youtu.be/LaudaTest01" }, "POST", 201);
+      assert.equal(song.title, title);
+      songs.push(song);
+    }
+    const morning = await api("/schedules", token, { title: morningTitle, date: `${date}T12:00:00Z`, ministryId: ministry.id, songIds: songs.slice(0, 2).map(s => s.id), assignments: [] }, "POST", 201);
+    const evening = await api("/schedules", token, { title: eveningTitle, date: `${date}T22:00:00Z`, ministryId: ministry.id, songIds: [songs[2].id], assignments: [] }, "POST", 201);
+    assert.equal(morning.title, morningTitle);
+    assert.equal(evening.title, eveningTitle);
     const payload = { morning: { scheduleId: morning.id, songs: songs.slice(0, 2).map((s, i) => ({ songId: s.id, moment: i ? "Louvor" : "Prelúdio" })) }, evening: { scheduleId: evening.id, songs: [{ songId: songs[2].id, moment: "Ofertório" }] } };
     const endpoint = `/schedules/worship-order/${date}`;
     await api(endpoint, token, payload, "PUT");
-    await savePdf(token, "legacy.pdf");
-    checks.push("Existing order without readings saved and exported; staging session rejected in production");
+    await verifyPdfEndpoint(token);
     // Full Chromium supports the PDF viewer; headless-shell does not.
     browser = await chromium.launch({ channel: "chromium", headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1800 }, permissions: ["clipboard-read", "clipboard-write"] });
@@ -89,8 +108,9 @@ async function main() {
     await page.getByTestId("login-password").fill(password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(current => !current.pathname.includes("login"));
-    await page.goto(`${url}/schedules/worship-order?date=${date}`, { waitUntil: "networkidle" });
-    await page.getByText(morning.title, { exact: false }).waitFor();
+    await savePdfFromBrowser(page, "legacy.pdf");
+    checks.push("Existing order without readings saved and exported; staging session rejected in production");
+    await page.getByText(morningTitle, { exact: false }).waitFor();
     assert.equal(Math.round((await page.getByTestId("test-environment-banner").boundingBox()).height), 22);
     for (const text of [readingA, readingB]) {
       await page.getByRole("button", { name: "Adicionar leitura bíblica", exact: true }).first().click();
@@ -112,7 +132,7 @@ async function main() {
     assert.equal(await page.getByText(readingA, { exact: true }).count(), 1);
     assert.equal(await page.getByText(readingB, { exact: true }).count(), 1);
     await page.screenshot({ path: path.join(output, "public-desktop.png"), fullPage: true });
-    const expectedText = `ORDEM DE CULTO · 08/11/2026\n\nCULTO DA MANHÃ\n${morning.title}\nLeitura bíblica:\n${readingB}\nPrelúdio · ${songs[0].title}\nLeitura bíblica:\n${readingA}\nLouvor · ${songs[1].title}\n\nCULTO DA NOITE\n${evening.title}\nOfertório · ${songs[2].title}`;
+    const expectedText = `ORDEM DE CULTO · 08/11/2026\n\nCULTO DA MANHÃ\n${morningTitle}\nLeitura bíblica:\n${readingB}\nPrelúdio · ${songTitles[0]}\nLeitura bíblica:\n${readingA}\nLouvor · ${songTitles[1]}\n\nCULTO DA NOITE\n${eveningTitle}\nOfertório · ${songTitles[2]}`;
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.getByRole("button", { name: "Visualizar texto", exact: true }).click();
@@ -140,19 +160,34 @@ async function main() {
     await popup.waitForURL(/^blob:/, { waitUntil: "commit" }); await popup.close();
     checks.push("Public desktop/mobile reload, both explicit periods, exact clipboard contents, PDF download and preview, 22px banner and no horizontal overflow");
     await api(endpoint, token, { morning: null, evening: { ...payload.evening, readings: [{ id: "evening-reading", text: readingB, position: 0 }] } }, "PUT");
-    await savePdf(token, "evening.pdf");
+    await verifyPdfEndpoint(token);
+    await savePdfFromBrowser(page, "evening.pdf");
     await api(endpoint, token, { morning: { ...payload.morning, songs: [], readings: [{ id: "only", text: readingA, position: 0 }] }, evening: null }, "PUT");
-    await savePdf(token, "reading-only.pdf");
+    await verifyPdfEndpoint(token);
+    await savePdfFromBrowser(page, "reading-only.pdf");
     const longText = "Salmo de validação\n" + Array.from({ length: 180 }, (_, i) => `Linha ${String(i + 1).padStart(3, "0")} da leitura extensa com acentuação.`).join("\n");
     await api(endpoint, token, { morning: { ...payload.morning, readings: [{ id: "long", text: longText, position: 1 }] }, evening: null }, "PUT");
-    await savePdf(token, "long-reading.pdf");
+    await verifyPdfEndpoint(token);
+    await savePdfFromBrowser(page, "long-reading.pdf");
     checks.push("Public PDF generation for evening only, reading only and long multipage reading between songs");
     assert.deepEqual(errors, []); assert.deepEqual(badRequests, []);
     assert.equal(productionFingerprint(), before);
     assert.equal(await fetch("https://laudaapp.com/release.json").then(r => r.text()), productionRelease);
     report.productionCatalogAndOrdersUnchanged = true;
     report.productionReleaseUnchanged = true;
-    report.release = await fetch(`${url}/release.json`).then(r => r.json());
+    const remoteRelease = await fetch(`${url}/release.json`).then(r => r.json());
+    assert.equal(remoteRelease.environment, "staging");
+    const localManifestPath = [
+      path.join(stage, "mobile/web-build/transfer-staging/release.json"),
+      path.join(stage, "mobile/web-build/public-test/release.json"),
+    ].find(candidatePath => fs.existsSync(candidatePath));
+    if (localManifestPath) {
+      const localRelease = JSON.parse(fs.readFileSync(localManifestPath, "utf8"));
+      assert.deepEqual(remoteRelease, localRelease);
+      report.release = localRelease;
+    } else {
+      report.release = { environment: "staging", verified: true };
+    }
     checks.push("Production catalog, schedules, order sequences and release unchanged; no browser request to production API");
     report.verifiedAt = new Date().toISOString();
     report.status = "passed";

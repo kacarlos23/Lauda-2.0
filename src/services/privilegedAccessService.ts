@@ -1,13 +1,14 @@
 import { Role } from "@prisma/client";
 import { basePrisma } from "../config/prisma";
 import { config } from "../config/unifiedConfig";
-import { SupportResourceName, SupportScope } from "../constants/supportAccess";
+import { isSupportResourceName, SupportResourceName, SupportScope } from "../constants/supportAccess";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import { AdminRepository } from "../repositories/AdminRepository";
 import { CreateSupportGrantInput } from "../validators/supportAccess.schema";
 import { writeAdminAuditEvent } from "../audit/adminAudit";
 
 type Actor = { id: string; role: Role };
+const SUPPORT_GRANT_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class PrivilegedAccessService {
   constructor(private readonly repository = new AdminRepository()) {}
@@ -115,9 +116,16 @@ export class PrivilegedAccessService {
     userRole: Role;
     sessionId: string;
     scope: SupportScope;
-    resource: SupportResourceName;
+    resource: string;
     resourceId?: string | null;
   }) {
+    if (!input.grantId || !SUPPORT_GRANT_ID_REGEX.test(input.grantId)) {
+      throw new ForbiddenError("Grant de suporte válido é obrigatório");
+    }
+    if (!isSupportResourceName(input.resource)) {
+      throw new ValidationError("Recurso de suporte inválido");
+    }
+    const resource: SupportResourceName = input.resource;
     const now = new Date();
     return basePrisma.$transaction(async (tx) => {
       const grant = await tx.supportAccessGrant.findFirst({
@@ -127,7 +135,7 @@ export class PrivilegedAccessService {
           revokedAt: null,
           expiresAt: { gt: now },
           scopes: { has: input.scope },
-          resource: input.resource,
+          resource,
           OR: [{ resourceId: null }, { resourceId: input.resourceId ?? null }],
           grantee: { isActive: true, deletedAt: null },
           tenant: { isActive: true, deletedAt: null },
@@ -150,7 +158,7 @@ export class PrivilegedAccessService {
           actorId: input.userId,
           actorRole: input.userRole,
           action: "support_access_used",
-          resource: input.resource,
+          resource,
           resourceId: input.resourceId ?? null,
           tenantId: grant.tenantId,
           payload: {

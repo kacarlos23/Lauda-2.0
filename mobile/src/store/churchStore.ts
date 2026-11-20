@@ -13,6 +13,7 @@ interface ChurchState {
   updateChurchName: (name: string) => Promise<void>;
   loadOverview: () => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -66,4 +67,5 @@ export const useChurchStore = create<ChurchState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+  reset: () => set({ summary: null, overview: null, loading: false, saving: false, error: null }),
 }));

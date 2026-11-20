@@ -4,7 +4,8 @@ import { api } from "../services/api";
 import { memberService } from "../services/memberService";
 import { deleteSessionItem, getSessionItem, setSessionItem } from "../services/sessionStorage";
 import { Role, Tenant, User } from "../types";
-import { invalidateRelatedData } from "./invalidation";
+import { invalidateRelatedData, resetAllDomainStores } from "./invalidation";
+import { sanitizeUserForSessionStorage } from "../utils/sessionUser";
 import { GROUP_HREFS } from "../navigation/routes";
 import { authErrorMessage, LOGIN_REQUEST_TIMEOUT_MS } from "../services/authError";
 
@@ -104,7 +105,7 @@ async function persistSession(data: AuthResponse["data"]): Promise<string> {
 
   await setSessionItem("auth_token", accessToken);
   await setSessionItem("refresh_token", data.refreshToken);
-  await setSessionItem("auth_user", JSON.stringify(data.user));
+  await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(data.user)));
   if (data.tenant) {
     await setSessionItem("auth_tenant", JSON.stringify(data.tenant));
   }
@@ -137,6 +138,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const storedTenant = await getSessionItem("auth_tenant");
 
       if (!storedToken) {
+        resetAllDomainStores();
         set({ user: null, tenant: null, accessToken: null, token: null, loading: false, isLoading: false });
         return;
       }
@@ -156,6 +158,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await useAuthStore.getState().refreshCurrentUser();
     } catch {
       await clearSession();
+      resetAllDomainStores();
       set({
         user: null,
         tenant: null,
@@ -177,6 +180,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         { email, password },
         { timeout: LOGIN_REQUEST_TIMEOUT_MS },
       );
+      resetAllDomainStores();
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
@@ -204,6 +208,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         email,
         password,
       });
+      resetAllDomainStores();
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
@@ -226,6 +231,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const response = await api.post<AuthResponse>("/auth/member-register", input);
+      resetAllDomainStores();
       const accessToken = await persistSession(response.data.data);
       set({
         user: response.data.data.user,
@@ -248,7 +254,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!currentUser) return;
 
     const nextUser = { ...currentUser, ...partialUser };
-    await setSessionItem("auth_user", JSON.stringify(nextUser));
+    if (nextUser.id !== currentUser.id || nextUser.tenantId !== currentUser.tenantId) {
+      resetAllDomainStores();
+    }
+    await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(nextUser)));
     set({ user: nextUser, error: null });
     await invalidateRelatedData({ reason: "user", userId: nextUser.id });
   },
@@ -264,12 +273,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         ...response.data.data.user,
         ...(response.data.data.permissions ? { permissions: response.data.data.permissions } : {}),
       };
-      await setSessionItem("auth_user", JSON.stringify(nextUser));
+      if (nextUser.id !== currentUser.id || nextUser.tenantId !== currentUser.tenantId) {
+        resetAllDomainStores();
+      }
+      await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(nextUser)));
       if (response.data.data.tenant) {
         await setSessionItem("auth_tenant", JSON.stringify(response.data.data.tenant));
       }
-      set({ user: nextUser, error: null });
-      await invalidateRelatedData({ reason: "user", userId: nextUser.id });
+      set({
+        user: nextUser,
+        ...(response.data.data.tenant !== undefined ? { tenant: response.data.data.tenant } : {}),
+        error: null,
+      });
     } catch (error) {
       set({ error: extractAuthError(error) });
     }
@@ -286,7 +301,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       Object.prototype.hasOwnProperty.call(partialUser, "phone") ||
       Object.prototype.hasOwnProperty.call(partialUser, "avatarUrl");
 
-    await setSessionItem("auth_user", JSON.stringify(optimisticUser));
+    await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(optimisticUser)));
     set({ user: optimisticUser, error: null });
 
     if (!shouldPersistProfile) {
@@ -301,11 +316,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         avatarUrl: partialUser.avatarUrl,
       });
       const nextUser = { ...optimisticUser, ...updated };
-      await setSessionItem("auth_user", JSON.stringify(nextUser));
+      await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(nextUser)));
       set({ user: nextUser, error: null });
       await invalidateRelatedData({ reason: "user", userId: nextUser.id });
     } catch (error) {
-      await setSessionItem("auth_user", JSON.stringify(previousUser));
+      await setSessionItem("auth_user", JSON.stringify(sanitizeUserForSessionStorage(previousUser)));
       set({ user: previousUser, error: extractAuthError(error) });
       throw error;
     }
@@ -324,6 +339,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // A revoked/expired server session must never prevent local cleanup.
     } finally {
       await clearSession();
+      resetAllDomainStores();
       set({
         user: null,
         tenant: null,
@@ -348,6 +364,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       await api.post("/auth/logout-all");
     } finally {
       await clearSession();
+      resetAllDomainStores();
       set({ user: null, tenant: null, accessToken: null, token: null, loading: false, isLoading: false, error: null });
       router.replace(GROUP_HREFS.auth);
     }

@@ -64,7 +64,11 @@ async function databaseAudit() {
   } finally { client.release(); await pool.end(); }
 }
 async function prepare() {
+  const diskBefore = JSON.parse(fs.readFileSync(path.join(destination, "release.json"), "utf8"));
   const before = await getJson("https://laudaapp.com/release.json");
+  if (before.commit !== diskBefore.commit || before.environment !== diskBefore.environment) {
+    throw new Error("Served release does not match disk release.json.");
+  }
   const audit = await databaseAudit();
   if (audit.corruptions.length) { report("database-before.json", audit); throw new Error("Stored encoding corruption found; inspect the read-only audit."); }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -80,9 +84,9 @@ async function prepare() {
   try { result = spawnSync("docker", ["exec", "lauda20-postgres-1", "pg_dump", "-U", "postgres", "-d", "lauda2", "--format=custom", "--no-owner", "--no-acl"], { stdio: ["ignore", descriptor, "pipe"], encoding: "utf8", windowsHide: true }); }
   finally { fs.closeSync(descriptor); }
   if (result.status !== 0 || fs.statSync(dump).size < 1000) throw new Error("Production backup failed.");
-  const value = { preparedAt: new Date().toISOString(), before, audit, backup, includeBackend, launcherBeforeHash: hash(fs.readFileSync(launcher)) };
+  const value = { preparedAt: new Date().toISOString(), before: diskBefore, audit, backup, includeBackend, launcherBeforeHash: hash(fs.readFileSync(launcher)) };
   report("prepare.json", value); report("database-before.json", audit);
-  console.log(JSON.stringify({ backup, currentCommit: before.commit, database: audit }, null, 2));
+  console.log(JSON.stringify({ backup, currentCommit: diskBefore.commit, database: audit }, null, 2));
 }
 function publish() {
   const prepared = JSON.parse(fs.readFileSync(path.join(evidence, "prepare.json")));
@@ -130,8 +134,10 @@ async function verify() {
   const published = JSON.parse(fs.readFileSync(path.join(evidence, "published.json")));
   const manifest = await getJson("https://laudaapp.com/release.json");
   if (manifest.commit !== published.commit || manifest.environment !== "production") throw new Error("The public release does not match the reviewed commit.");
+  const verifiedManifest = { commit: published.commit, environment: "production" };
   const health = await getJson("https://api.laudaapp.com/health");
   if (health.status !== "ok") throw new Error("Public production API is unhealthy.");
+  const verifiedHealth = { status: "ok" };
   if (includeBackend) {
     const backendManifest = JSON.parse(fs.readFileSync(path.join(production, "dist/release.json")));
     if (backendManifest.commit !== published.backendCommit) throw new Error("Published backend does not match the release.");
@@ -151,6 +157,18 @@ async function verify() {
     checkBackend(path.join(root, "dist"));
     report("backend-artifacts.json", { commit: backendManifest.commit, files: backendFiles });
   }
+  const candidateFiles = new Map();
+  function walkCandidate(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) walkCandidate(fullPath);
+      else {
+        const rel = path.relative(candidate, fullPath).replace(/\\/g, "/");
+        candidateFiles.set(rel, hash(fs.readFileSync(fullPath)));
+      }
+    }
+  }
+  walkCandidate(candidate);
   const response = await fetch("https://laudaapp.com", { headers: { "cache-control": "no-cache" } });
   if (!response.ok) throw new Error("Public frontend is unhealthy.");
   const urls = extractJavaScriptUrls(await response.text(), "https://laudaapp.com");
@@ -162,16 +180,18 @@ async function verify() {
     const bytes = Buffer.from(await asset.arrayBuffer());
     new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     const relative = new URL(url).pathname.replace(/^\//, "");
-    if (hash(bytes) !== hash(fs.readFileSync(path.join(candidate, relative)))) throw new Error("Served bundle differs from the tested artifact.");
-    bundles.push({ url, sha256: hash(bytes) });
+    const localHash = candidateFiles.get(relative);
+    if (!localHash || hash(bytes) !== localHash) throw new Error("Served bundle differs from the tested artifact.");
+    const verifiedRelative = [...candidateFiles.keys()].find(key => key === relative);
+    bundles.push({ url: `https://laudaapp.com/${verifiedRelative}`, sha256: localHash });
   }
   const before = JSON.parse(fs.readFileSync(path.join(evidence, "database-before.json")));
   const after = await databaseAudit();
   report("database-after.json", after);
   if (after.corruptions.length) throw new Error("Encoding audit found invalid stored text.");
   if (after.songsDigest !== before.songsDigest || JSON.stringify(after.counts) !== JSON.stringify(before.counts)) throw new Error("Business data changed during publication; inspect audits without restoring over live edits.");
-  report("verification.json", { verifiedAt: new Date().toISOString(), manifest, health, bundles, database: after, dataPreserved: true });
-  console.log(JSON.stringify({ commit: manifest.commit, health, bundlesMatch: true, dataPreserved: true, encodingFindings: after.corruptions.length, columnsChecked: after.columnsChecked, counts: after.counts }, null, 2));
+  report("verification.json", { verifiedAt: new Date().toISOString(), manifest: verifiedManifest, health: verifiedHealth, bundles, database: after, dataPreserved: true });
+  console.log(JSON.stringify({ commit: verifiedManifest.commit, health: verifiedHealth, bundlesMatch: true, dataPreserved: true, encodingFindings: after.corruptions.length, columnsChecked: after.columnsChecked, counts: after.counts }, null, 2));
 }
 const command = process.argv[2];
 Promise.resolve().then(() => command === "prepare" ? prepare() : command === "publish" ? publish() : command === "verify" ? verify() : Promise.reject(new Error("Use prepare, publish or verify."))).catch(error => { console.error(error.message); process.exitCode = 1; });

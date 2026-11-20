@@ -35,7 +35,12 @@ async function api(route, body, token, method = "GET", expected = 200) {
   return payload.data;
 }
 async function account(label) {
-  const accounts = fs.existsSync(credentialsPath) ? JSON.parse(fs.readFileSync(credentialsPath, "utf8")) : {};
+  let accounts = {};
+  try {
+    accounts = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   if (accounts[label]) {
     const credentials = accounts[label];
     const auth = await api("/auth/login", credentials, undefined, "POST");
@@ -51,14 +56,21 @@ async function account(label) {
   fs.writeFileSync(credentialsPath, JSON.stringify(accounts, null, 2));
   return { ...auth, password, token: auth.token || auth.accessToken };
 }
-async function pdf(date, token, filename) {
+async function verifyPdfEndpoint(date, token) {
   const response = await fetch(`${apiBase}/schedules/worship-order/${date}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type"), /application\/pdf/);
   assert.ok(response.headers.get("content-disposition").includes(`Ordem_de_Culto_${date.split("-").reverse().join("-")}.pdf`));
   const bytes = Buffer.from(await response.arrayBuffer());
   assert.equal(bytes.subarray(0, 4).toString(), "%PDF");
-  fs.writeFileSync(path.join(output, filename), bytes);
+}
+async function saveOrderPdfFromBrowser(page, targetDate, filename) {
+  await page.goto(`${webBase}/schedules/worship-order?date=${targetDate}`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Exportar PDF", exact: true }).waitFor();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar PDF", exact: true }).click();
+  const download = await downloaded;
+  await download.saveAs(path.join(output, filename));
 }
 async function dragSong(page, title, targetId) {
   const handle = page.getByTestId(`drag-${title}`);
@@ -91,8 +103,23 @@ async function main() {
     // Confirm that the API actually writes to the guarded database before further mutations.
     const tenant = await db.query('SELECT id FROM "Tenant" WHERE id=$1', [owner.tenant.id]);
     assert.equal(tenant.rowCount, 1);
-    report.tenantId = owner.tenant.id;
+    report.tenantId = tenant.rows[0].id;
     report.checks.push("API conectada ao banco isolado confirmado por tenant criado");
+    browser = await chromium.launch({ channel: "chromium", headless: true });
+    page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    page.setDefaultTimeout(30000);
+    const errors = [], apiHosts = new Set();
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (request) => { if (request.url().includes("/api/")) apiHosts.add(new URL(request.url()).host); });
+    // Fail closed for accidental remote API usage; no API responses are mocked.
+    await page.route("**://api.laudaapp.com/**", (remote) => remote.abort());
+    phase("browser-login");
+    await page.goto(`${webBase}/login`, { waitUntil: "networkidle", timeout: 120000 });
+    await page.getByLabel("E-mail", { exact: true }).fill(owner.user.email);
+    await page.getByLabel("Senha", { exact: true }).fill(owner.password);
+    await page.getByRole("button", { name: "Entrar", exact: true }).click();
+    await page.waitForURL((url) => !url.pathname.includes("login"), { timeout: 30000 });
+    phase("database-and-api");
     const ministry = await api("/ministries", { name: "[TESTE] Louvor de homologação" }, owner.token, "POST", 201);
     const artist = await api("/artists", { name: "[TESTE] Artista composto para homologação, integrante um e integrante dois " + crypto.randomBytes(3).toString("hex") }, owner.token, "POST", 201);
     const titles = [
@@ -116,11 +143,14 @@ async function main() {
     };
     const route = `/schedules/worship-order/${date}`;
     await api(route, { morning: payload.morning, evening: null }, owner.token, "PUT");
-    await pdf(date, owner.token, "morning.pdf");
+    await verifyPdfEndpoint(date, owner.token);
+    await saveOrderPdfFromBrowser(page, date, "morning.pdf");
     await api(route, { morning: null, evening: payload.evening }, owner.token, "PUT");
-    await pdf(date, owner.token, "evening.pdf");
+    await verifyPdfEndpoint(date, owner.token);
+    await saveOrderPdfFromBrowser(page, date, "evening.pdf");
     await api(route, payload, owner.token, "PUT");
-    await pdf(date, owner.token, "both.pdf");
+    await verifyPdfEndpoint(date, owner.token);
+    await saveOrderPdfFromBrowser(page, date, "both.pdf");
     const persisted = await api(route, undefined, owner.token);
     assert.deepEqual(persisted.morning.songs.map((entry) => entry.songId), payload.morning.songs.map((entry) => entry.songId));
     assert.equal(persisted.evening.songs[4].momentDescription, "Encerramento de homologação");
@@ -146,23 +176,10 @@ async function main() {
     await api(`/schedules/worship-order/${longDate}`, {
       morning: { scheduleId: longSchedule.id, songs: manySongs.map((song) => ({ songId: song.id, moment: "Louvor" })) }, evening: null,
     }, owner.token, "PUT");
-    await pdf(longDate, owner.token, "long.pdf");
+    await verifyPdfEndpoint(longDate, owner.token);
+    await saveOrderPdfFromBrowser(page, longDate, "long.pdf");
     report.checks.push("PDF multipágina com 32 músicas reais do banco de testes");
 
-    browser = await chromium.launch({ channel: "chromium", headless: true });
-    page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-    page.setDefaultTimeout(30000);
-    const errors = [], apiHosts = new Set();
-    page.on("pageerror", (error) => errors.push(error.message));
-    page.on("request", (request) => { if (request.url().includes("/api/")) apiHosts.add(new URL(request.url()).host); });
-    // Fail closed for accidental remote API usage; no API responses are mocked.
-    await page.route("**://api.laudaapp.com/**", (remote) => remote.abort());
-    phase("browser-login");
-    await page.goto(`${webBase}/login`, { waitUntil: "networkidle", timeout: 120000 });
-    await page.getByLabel("E-mail", { exact: true }).fill(owner.user.email);
-    await page.getByLabel("Senha", { exact: true }).fill(owner.password);
-    await page.getByRole("button", { name: "Entrar", exact: true }).click();
-    await page.waitForURL((url) => !url.pathname.includes("login"), { timeout: 30000 });
     phase("browser-reorder-and-save");
     await page.goto(`${webBase}/schedules/worship-order?date=${date}`, { waitUntil: "domcontentloaded" });
     const title = songs[0].title;
@@ -192,9 +209,11 @@ async function main() {
     await page.getByRole("button", { name: "Exportar PDF", exact: true }).click();
     const download = await downloaded;
     assert.equal(download.suggestedFilename(), "Ordem_de_Culto_20-10-2026.pdf");
-    const downloadedBytes = fs.readFileSync(await download.path());
+    const downloadedPath = await download.path();
+    assert.ok(downloadedPath);
+    const downloadedBytes = fs.readFileSync(downloadedPath);
     assert.deepEqual(downloadedBytes, await (await responseEvent).body());
-    fs.writeFileSync(path.join(output, "download.pdf"), downloadedBytes);
+    await download.saveAs(path.join(output, "download.pdf"));
     assert.deepEqual(errors, []);
     assert.deepEqual([...apiHosts], ["127.0.0.1:3010"]);
     report.checks.push("login pela interface, reordenação, momento, salvamento e recarga sem mocks", "prévia e download com bytes idênticos aos recebidos da API", "interface desktop e mobile web, sem erros JavaScript ou chamadas à API de produção");
@@ -246,7 +265,8 @@ async function main() {
     assert.deepEqual(editedOrder.morning.songs.map((entry) => entry.songId), [songs[0].id, songs[1].id]);
     assert.equal(editedOrder.morning.songs[0].moment, "Outro");
     assert.equal(editedOrder.morning.songs[0].momentDescription, "Encerramento cadastrado na edição da escala");
-    await pdf(formDate, owner.token, "edited-from-form.pdf");
+    await verifyPdfEndpoint(formDate, owner.token);
+    await saveOrderPdfFromBrowser(page, formDate, "edited-from-form.pdf");
     assert.deepEqual(errors, []);
     report.checks.push("drag-and-drop real na ordem, no cadastro e na edição: sequência persistida", "cadastro real da escala: período e momento persistidos, vídeo do repertório e PDF exportado", "edição real da escala: descrição de Outro preservada e acesso direto ao PDF");
     report.status = "passed";
