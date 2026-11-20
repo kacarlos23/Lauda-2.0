@@ -2,7 +2,13 @@ import { prisma } from "./prismaClient";
 import { basePrisma } from "../config/prisma";
 import { NotFoundError } from "../errors/AppError";
 import { revokeUserSessionsInTransaction } from "../services/authSessionService";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
+import {
+  CURRENT_ONBOARDING_VERSION,
+  PrismaOnboardingStatusValue,
+  toOnboardingStateView,
+  type UserOnboardingRecordLike,
+} from "../constants/onboarding";
 import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schema";
 
 const userInstrumentInclude = {
@@ -11,6 +17,19 @@ const userInstrumentInclude = {
   },
 };
 
+function memberOnboardingInclude(tenantId: string) {
+  return {
+    where: { tenantId, version: CURRENT_ONBOARDING_VERSION },
+    select: {
+      version: true,
+      status: true,
+      completedAt: true,
+      dismissedAt: true,
+      updatedAt: true,
+    },
+  };
+}
+
 function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }> }>(
   member: T
 ) {
@@ -18,6 +37,19 @@ function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id
   return {
     ...rest,
     instruments: instruments.map((item) => item.instrument),
+  };
+}
+
+function mapMemberDetails<
+  T extends {
+    instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
+    onboardings?: UserOnboardingRecordLike[];
+  },
+>(member: T) {
+  const { onboardings = [], ...withoutOnboarding } = member;
+  return {
+    ...mapMemberInstruments(withoutOnboarding),
+    onboarding: toOnboardingStateView(onboardings[0] ?? null),
   };
 }
 
@@ -67,10 +99,11 @@ export class MemberRepository {
           },
         },
         instruments: userInstrumentInclude,
+        onboardings: memberOnboardingInclude(this.tenantId),
       },
     });
 
-    return member ? mapMemberInstruments(member) : null;
+    return member ? mapMemberDetails(member) : null;
   }
 
   findByEmail(email: string) {
@@ -103,6 +136,15 @@ export class MemberRepository {
         orderBy: { ministry: { name: "asc" as const } },
       },
       instruments: userInstrumentInclude,
+      onboardings: memberOnboardingInclude(this.tenantId),
+    };
+
+    const onboardingCreate = {
+      create: {
+        tenantId: this.tenantId,
+        version: CURRENT_ONBOARDING_VERSION,
+        status: "NOT_STARTED" as const,
+      },
     };
 
     if (ministries.length === 0) {
@@ -115,9 +157,10 @@ export class MemberRepository {
           comments: comments ?? null,
           password,
           tenantId: this.tenantId,
+          onboardings: onboardingCreate,
         },
         select,
-      }).then(mapMemberInstruments);
+      }).then(mapMemberDetails);
     }
 
     return prisma.$transaction(async (tx) => {
@@ -139,6 +182,7 @@ export class MemberRepository {
           comments: comments ?? null,
           password,
           tenantId: this.tenantId,
+          onboardings: onboardingCreate,
         },
         select: { id: true },
       });
@@ -159,7 +203,7 @@ export class MemberRepository {
         select,
       });
 
-      return mapMemberInstruments(hydrated);
+      return mapMemberDetails(hydrated);
     });
   }
 
@@ -352,8 +396,111 @@ export class MemberRepository {
             orderBy: { ministry: { name: "asc" } },
           },
           instruments: userInstrumentInclude,
+          onboardings: memberOnboardingInclude(this.tenantId),
         },
       });
-    }).then((member) => (member ? mapMemberInstruments(member) : null));
+    }).then((member) => (member ? mapMemberDetails(member) : null));
+  }
+
+  async findMyOnboarding(userId: string, version: string) {
+    const record = await prisma.userOnboarding.findFirst({
+      where: { tenantId: this.tenantId, userId, version },
+      select: {
+        version: true,
+        status: true,
+        completedAt: true,
+        dismissedAt: true,
+        updatedAt: true,
+      },
+    });
+    return toOnboardingStateView(record, version);
+  }
+
+  async upsertMyOnboarding(userId: string, version: string, nextStatus: PrismaOnboardingStatusValue) {
+    const apply = async () => prisma.$transaction(async (tx) => {
+      const existing = await tx.userOnboarding.findFirst({
+        where: { tenantId: this.tenantId, userId, version },
+        select: {
+          id: true,
+          version: true,
+          status: true,
+          startedAt: true,
+          dismissedAt: true,
+          completedAt: true,
+          updatedAt: true,
+        },
+      });
+      const now = new Date();
+
+      if (!existing) {
+        const created = await tx.userOnboarding.create({
+          data: {
+            userId,
+            tenantId: this.tenantId,
+            version,
+            status: nextStatus,
+            startedAt: now,
+            dismissedAt: nextStatus === "DISMISSED" ? now : null,
+            completedAt: nextStatus === "COMPLETED" ? now : null,
+          },
+          select: {
+            version: true,
+            status: true,
+            completedAt: true,
+            dismissedAt: true,
+            updatedAt: true,
+          },
+        });
+        return toOnboardingStateView(created, version);
+      }
+
+      if (existing.status === "COMPLETED") {
+        return toOnboardingStateView(existing, version);
+      }
+      if (existing.status === "DISMISSED" && nextStatus === "NOT_STARTED") {
+        return toOnboardingStateView(existing, version);
+      }
+      if (existing.status === nextStatus) {
+        return toOnboardingStateView(existing, version);
+      }
+
+      const allowedPreviousStatuses: PrismaOnboardingStatusValue[] =
+        nextStatus === "COMPLETED" ? ["NOT_STARTED", "DISMISSED"] : ["NOT_STARTED"];
+
+      await tx.userOnboarding.updateMany({
+        where: {
+          id: existing.id,
+          tenantId: this.tenantId,
+          status: { in: allowedPreviousStatuses },
+        },
+        data: {
+          status: nextStatus,
+          startedAt: existing.startedAt ?? now,
+          ...(nextStatus === "DISMISSED" ? { dismissedAt: now } : {}),
+          ...(nextStatus === "COMPLETED" ? { completedAt: now } : {}),
+        },
+      });
+
+      const current = await tx.userOnboarding.findFirstOrThrow({
+        where: { id: existing.id, tenantId: this.tenantId },
+        select: {
+          version: true,
+          status: true,
+          completedAt: true,
+          dismissedAt: true,
+          updatedAt: true,
+        },
+      });
+      return toOnboardingStateView(current, version);
+    });
+
+    try {
+      return await apply();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return apply();
+      }
+      throw error;
+    }
   }
 }

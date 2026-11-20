@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { colors } from "../src/theme";
 import { themePreviewEnabled } from "../src/tokens/colorModes";
 import { themeBootstrapScript } from "../src/store/themeStore";
+import { stagingNavigationCss, stagingNavigationEnabled } from "../src/tokens/stagingNavigation";
 
 export default function RootHtml({ children }: PropsWithChildren) {
   return (
@@ -15,6 +16,10 @@ export default function RootHtml({ children }: PropsWithChildren) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         <meta name="theme-color" content={colors.primaryDark} />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Lauda" />
         <meta
           name="description"
           content="Lauda — gestão de ministérios, escalas e equipes."
@@ -39,6 +44,7 @@ export default function RootHtml({ children }: PropsWithChildren) {
           [role="button"]:focus-visible, a:focus-visible { outline: 2px solid ${colors.primary}; outline-offset: 3px; }
           [data-lauda-rich-editor]:focus { outline: 2px solid ${colors.primary}; outline-offset: 2px; }
         ` }} />
+        {stagingNavigationEnabled ? <style dangerouslySetInnerHTML={{ __html: stagingNavigationCss }} /> : null}
         {themePreviewEnabled ? <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript() }} /> : null}
       </head>
       <body>{children}</body>

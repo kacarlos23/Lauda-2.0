@@ -12,6 +12,7 @@ const loadMySchedulesMock = jest.fn();
 const loadMembersMock = jest.fn();
 let currentRole: Role = "MEMBER";
 let currentMembers: any[] = [];
+let currentUserOverrides: Record<string, unknown> = {};
 
 function permissionsForRole(role: Role): string[] {
   switch (role) {
@@ -47,6 +48,7 @@ jest.mock("react-native", () => {
   const create = (type: string) => ({ children, ...props }: any) => React.createElement(type, props, children);
   return {
     ActivityIndicator: create("ActivityIndicator"),
+    Linking: { openURL: jest.fn() },
     Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
     ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
@@ -69,6 +71,19 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
+jest.mock("expo-secure-store", () => ({
+  getItemAsync: jest.fn(() => Promise.resolve(null)),
+  setItemAsync: jest.fn(() => Promise.resolve()),
+  deleteItemAsync: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock("../services/memberService", () => ({
+  memberService: {
+    getMyOnboarding: jest.fn(),
+    updateMyOnboarding: jest.fn(),
+  },
+}));
+
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
@@ -76,11 +91,15 @@ jest.mock("lucide-react-native", () => {
     CalendarClock: Icon,
     Church: Icon,
     ClipboardList: Icon,
+    Download: Icon,
+    Guitar: Icon,
     Music2: Icon,
     Plus: Icon,
     Settings2: Icon,
+    Smartphone: Icon,
     UserPlus: Icon,
     UsersRound: Icon,
+    X: Icon,
   };
 });
 
@@ -92,6 +111,7 @@ jest.mock("../store/authStore", () => ({
       role: currentRole,
       tenantId: "tenant-1",
       permissions: permissionsForRole(currentRole),
+      ...currentUserOverrides,
     },
     tenant: { id: "tenant-1", name: "Igreja Teste" },
   }),
@@ -158,6 +178,7 @@ describe("Dashboard central de ações", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    currentUserOverrides = {};
     currentMembers = [
       { id: "member-1", name: "Ana", role: "MEMBER", tenantId: "tenant-1", ministries: [], instruments: [] },
       { id: "member-2", name: "Bruno", role: "MEMBER", tenantId: "tenant-1", ministries: [{ ministry: { id: "m1", name: "Louvor" }, isLeader: false }], instruments: [] },
@@ -175,6 +196,8 @@ describe("Dashboard central de ações", () => {
     expect(text).not.toContain("Cadastrar música");
     expect(text).not.toContain("Criar ministério");
     expect(text).not.toContain("Atenção em membros");
+    expect(text).not.toContain("Acompanhe suas equipes");
+    expect(text).not.toContain("Ministérios");
     expect(loadMembersMock).not.toHaveBeenCalled();
   });
 
@@ -225,5 +248,21 @@ describe("Dashboard central de ações", () => {
     await renderDashboard("MINISTRY_LEADER");
 
     expect(loadMembersMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("exibe lembrete discreto de instrumento apenas quando tutorial foi pulado sem vínculo confirmado", async () => {
+    currentUserOverrides = {
+      instruments: [],
+      onboarding: { version: "v1", status: "dismissed", shouldAutoStart: false },
+    };
+    const dismissedRenderer = await renderDashboard("MEMBER");
+    expect(textContent(dismissedRenderer)).toContain("Vincule seu instrumento ou cargo");
+
+    currentUserOverrides = {
+      instruments: [{ id: "inst-1", name: "Teclado", colorHex: "#2563EB" }],
+      onboarding: { version: "v1", status: "dismissed", shouldAutoStart: false },
+    };
+    const linkedRenderer = await renderDashboard("MEMBER");
+    expect(textContent(linkedRenderer)).not.toContain("Vincule seu instrumento ou cargo");
   });
 });

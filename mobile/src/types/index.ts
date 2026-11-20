@@ -57,6 +57,17 @@ export interface Instrument {
   deletedAt?: string | null;
 }
 
+export type OnboardingStatus = "not_started" | "dismissed" | "completed";
+
+export interface UserOnboardingState {
+  version: string;
+  status: OnboardingStatus;
+  shouldAutoStart: boolean;
+  completedAt?: string | null;
+  dismissedAt?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -69,6 +80,7 @@ export interface User {
   isActive?: boolean;
   deletedAt?: string | null;
   instruments?: Instrument[];
+  onboarding?: UserOnboardingState;
 }
 
 export interface Ministry {
@@ -116,6 +128,7 @@ export interface Member {
   role: Role;
   tenantId: string | null;
   instruments?: Instrument[];
+  onboarding?: UserOnboardingState;
   ministries: Array<{ ministry: { id: string; name: string }; isLeader: boolean }>;
 }
 

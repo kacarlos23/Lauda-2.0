@@ -104,6 +104,22 @@ export const listMinistryMembersSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+const onboardingVersionSchema = z
+  .string()
+  .trim()
+  .min(1, "Versão do tutorial inválida")
+  .max(32, "Versão do tutorial inválida")
+  .regex(/^[a-z0-9][a-z0-9._-]{0,31}$/i, "Versão do tutorial inválida");
+
+export const getMyOnboardingQuerySchema = z.object({
+  version: onboardingVersionSchema.optional().default("v1"),
+});
+
+export const updateMyOnboardingSchema = z.object({
+  version: onboardingVersionSchema.optional().default("v1"),
+  status: z.enum(["not_started", "dismissed", "completed"]),
+});
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 export type AddMemberMinistryInput = z.infer<typeof addMemberMinistrySchema>;
 export type UpdateMemberInstrumentsInput = z.infer<typeof updateMemberInstrumentsSchema>;
@@ -114,3 +130,5 @@ export type ToggleMinistryMemberInput = z.infer<typeof toggleMinistryMemberSchem
 export type AssignMemberToMinistryInput = z.infer<typeof assignMemberToMinistrySchema>;
 export type UpdateMemberAssignmentInput = z.infer<typeof updateMemberAssignmentSchema>;
 export type ListMinistryMembersInput = z.infer<typeof listMinistryMembersSchema>;
+export type GetMyOnboardingQuery = z.infer<typeof getMyOnboardingQuerySchema>;
+export type UpdateMyOnboardingInput = z.infer<typeof updateMyOnboardingSchema>;

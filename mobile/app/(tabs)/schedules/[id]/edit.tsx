@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../../src/components/ui/InputControl";
 import { useFormExit } from "../../../../src/hooks/useFormExit";
@@ -53,6 +54,7 @@ function timeValue(value: string) {
 }
 
 export default function EditScheduleScreen() {
+  const withDockClearance = useDockContentClearance();
   const { width } = useWindowDimensions();
   const compactLayout = width < breakpoints.formCompact;
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -355,7 +357,7 @@ export default function EditScheduleScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, compactLayout && styles.containerCompact]} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={withDockClearance([styles.container, compactLayout && styles.containerCompact])} keyboardShouldPersistTaps="handled">
       {formExit.dialog}
       <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={closeDeleteModal}>
         <Pressable

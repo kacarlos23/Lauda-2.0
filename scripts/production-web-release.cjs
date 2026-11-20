@@ -108,17 +108,20 @@ function publish() {
   const normalizedHash = value => hash(value.toString("utf8").replace(/\r\n/g, "\n"));
   if (normalizedHash(fs.readFileSync(path.join(prepared.backup, "start-project-before.ps1"))) !== normalizedHash(expectedOldLauncher)) throw new Error("Production launcher has unrelated changes; do not overwrite it.");
   const html = [];
+  const deferredServiceWorker = [];
   function assets(source, target) {
     fs.mkdirSync(target, { recursive: true });
     for (const item of fs.readdirSync(source, { withFileTypes: true })) {
       const from = path.join(source, item.name), to = path.join(target, item.name);
       if (item.isDirectory()) assets(from, to);
       else if (item.name.endsWith(".html")) html.push([from, to]);
+      else if (target === destination && (item.name === "sw.js" || item.name === "sw-manifest.json")) deferredServiceWorker.push([from, to]);
       else if (item.name !== "release.json") fs.copyFileSync(from, to);
     }
   }
   assets(candidate, destination);
   for (const [from, to] of html) { const temporary = to + ".visual-editor.tmp"; fs.copyFileSync(from, temporary); fs.renameSync(temporary, to); }
+  for (const [from, to] of deferredServiceWorker) { const temporary = to + ".visual-editor.tmp"; fs.copyFileSync(from, temporary); fs.renameSync(temporary, to); }
   fs.writeFileSync(launcher, nextLauncher);
   const backendCommit = includeBackend ? commit : prepared.before.backendCommit;
   if (includeBackend) {

@@ -55,6 +55,12 @@ enum PushDeliveryStatus {
   DEVICE_INVALID
 }
 
+enum OnboardingStatus {
+  NOT_STARTED
+  DISMISSED
+  COMPLETED
+}
+
 model Tenant {
   id        String    @id @default(uuid())
   name      String
@@ -88,6 +94,7 @@ model Tenant {
   domainEvents        DomainEventOutbox[]
   notifications       Notification[]
   pushDevices         PushDevice[]
+  userOnboardings     UserOnboarding[]
 }
 
 model MemberInvite {
@@ -144,6 +151,7 @@ model User {
   actedNotifications    Notification[]       @relation("NotificationActor")
   domainEvents           DomainEventOutbox[]  @relation("DomainEventActor")
   pushDevices            PushDevice[]
+  onboardings            UserOnboarding[]
 
   resetPasswordToken         String?   @unique
   resetPasswordChallengeId   String?   @unique
@@ -156,6 +164,25 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+model UserOnboarding {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  version     String           @default("v1")
+  status      OnboardingStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  dismissedAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([tenantId, userId, version])
+  @@index([tenantId, userId])
+  @@index([userId])
 }
 
 model AuthSession {

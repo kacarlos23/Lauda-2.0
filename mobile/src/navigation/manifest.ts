@@ -14,9 +14,9 @@ import {
   Users,
 } from "lucide-react-native";
 import type { User } from "../types";
-import { canManageInstrumentCatalog } from "../utils/instrumentCatalog";
-import { canManageMusic } from "../utils/musicPermissions";
-import { canAccessChurchAdmin, canAccessGlobalAdminArea, canViewMembers } from "../utils/permissions";
+import { canViewInstrumentCatalog } from "../utils/instrumentCatalog";
+import { canViewArtists } from "../utils/musicPermissions";
+import { canAccessChurchAdmin, canAccessGlobalAdminArea, canAccessMinistries, canViewMembers } from "../utils/permissions";
 import { ROUTES, type RouteKey } from "./routes";
 
 export type NavigationIconProps = {
@@ -46,12 +46,12 @@ const always = () => true;
 export const NAVIGATION_ITEMS = [
   { id: "home", route: "home", label: "Início", Icon: Home, placements: ["mobile-tab", "desktop-sidebar"], sidebarGroup: "Visão geral", canAccess: always },
   { id: "schedules", route: "schedules", label: "Escalas", Icon: CalendarClock, placements: ["mobile-tab", "desktop-sidebar"], sidebarGroup: "Operação", canAccess: always },
-  { id: "ministries", route: "ministries", label: "Ministérios", Icon: Church, placements: ["mobile-tab", "desktop-sidebar"], sidebarGroup: "Operação", canAccess: always },
-  { id: "songs", route: "songs", label: "Músicas", Icon: Music2, placements: ["mobile-tab", "desktop-sidebar"], sidebarGroup: "Operação", canAccess: always },
   { id: "profile-more", route: "profile", label: "Perfil", description: "Foto, dados pessoais e instrumentos do seu perfil.", Icon: UserCircle2, placements: ["mobile-more"], canAccess: always },
+  { id: "ministries", route: "ministries", label: "Ministérios", description: "Consulte e organize equipes, líderes e vínculos ministeriais.", Icon: Church, placements: ["desktop-sidebar", "mobile-more"], sidebarGroup: "Operação", canAccess: canAccessMinistries },
+  { id: "songs", route: "songs", label: "Músicas", Icon: Music2, placements: ["mobile-tab", "desktop-sidebar"], sidebarGroup: "Operação", canAccess: always },
   { id: "members", route: "members", label: "Membros", description: "Consulte pessoas, convites, permissões e vínculos ministeriais.", Icon: Users, placements: ["desktop-sidebar", "mobile-more"], sidebarGroup: "Pessoas", canAccess: canViewMembers },
-  { id: "artists", route: "artists", label: "Artistas", description: "Edite o catálogo de artistas usado em músicas e cifras.", Icon: Music2, placements: ["mobile-more"], canAccess: (user) => canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") },
-  { id: "instruments", route: "instruments", label: "Instrumentos/Cargos", description: "Cadastre e ajuste funções usadas em membros e escalas.", Icon: Guitar, placements: ["mobile-more"], href: { pathname: ROUTES.instruments.path, params: { returnTo: ROUTES.profile.path } }, canAccess: canManageInstrumentCatalog },
+  { id: "artists", route: "artists", label: "Artistas", description: "Consulte o catálogo de artistas usado em músicas e cifras.", Icon: Music2, placements: ["desktop-sidebar", "mobile-more"], sidebarGroup: "Operação", canAccess: canViewArtists },
+  { id: "instruments", route: "instruments", label: "Instrumentos/Cargos", description: "Consulte os instrumentos e cargos usados em perfis e escalas.", Icon: Guitar, placements: ["desktop-sidebar", "mobile-more"], sidebarGroup: "Configurações", href: { pathname: ROUTES.instruments.path, params: { returnTo: ROUTES.profile.path } }, canAccess: canViewInstrumentCatalog },
   { id: "church-more", route: "church", label: "Dados da Igreja", description: "Acompanhe indicadores do tenant e abra as gestões administrativas.", Icon: Building2, placements: ["mobile-more"], canAccess: canAccessChurchAdmin },
   { id: "global-admin", route: "globalAdmin", label: "Painel Global", description: "CRUD global, permissões e operação multi-igreja.", Icon: Shield, placements: ["mobile-more"], canAccess: canAccessGlobalAdminArea },
   { id: "church-sidebar", route: "church", label: "Igreja", Icon: Church, placements: ["desktop-sidebar"], sidebarGroup: "Configurações", canAccess: canAccessChurchAdmin },

@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Church,
   ClipboardList,
+  Guitar,
   Music2,
   Plus,
   UserPlus,
@@ -21,6 +22,9 @@ import {
   Screen,
   SectionHeader,
 } from "../../src/components/ui";
+import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
+import { onboardingScopeKeyFor } from "../../src/features/onboarding/onboardingStorage";
+import { useOnboardingStore } from "../../src/features/onboarding/onboardingStore";
 import { useAuthStore } from "../../src/store/authStore";
 import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
@@ -41,6 +45,7 @@ import {
   can,
   canAccessChurchAdmin,
   canAccessGlobalAdminArea,
+  canAccessMinistries,
   canManageMembers,
   canViewMembers,
   formatRoleLabel,
@@ -98,6 +103,7 @@ export default function DashboardScreen() {
   const membersWithoutMinistry = members.filter((member) => !member.ministries?.length);
   const membersWithoutInstrument = members.filter((member) => !member.instruments?.length);
   const canSeeMembers = canViewMembers(user);
+  const canSeeMinistries = canAccessMinistries(user);
   const canCreateMembers = canManageMembers(user);
   const canCreateSchedules = canCreateSchedule(user);
   const canCreateSongs = canManageMusic(user, "song:create");
@@ -106,6 +112,18 @@ export default function DashboardScreen() {
   const canManageInstruments = canManageInstrumentCatalog(user);
   const canOpenChurchAdmin = canAccessChurchAdmin(user);
   const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
+  const dismissedScopes = useOnboardingStore((state) => state.dismissedScopes);
+  const onboardingScopeKey = user ? onboardingScopeKeyFor(user) : null;
+  const onboardingDismissed = Boolean(
+    user?.onboarding?.status === "dismissed" ||
+      (onboardingScopeKey && dismissedScopes[onboardingScopeKey])
+  );
+  const showInstrumentReminder = Boolean(
+    user?.tenantId &&
+      onboardingDismissed &&
+      Array.isArray(user?.instruments) &&
+      user.instruments.length === 0
+  );
 
   useEffect(() => {
     const fetchedAt = lastFetchedAtRef.current;
@@ -249,6 +267,30 @@ export default function DashboardScreen() {
           />
         ) : null}
       />
+
+      <InstallAppPanel variant="card" testIDPrefix="home-install" />
+
+      {showInstrumentReminder ? (
+        <View style={styles.instrumentReminder} testID="home-instruments-reminder">
+          <View style={styles.instrumentReminderIcon}>
+            <Guitar color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
+          </View>
+          <View style={styles.instrumentReminderCopy}>
+            <Text style={styles.instrumentReminderTitle}>Vincule seu instrumento ou cargo</Text>
+            <Text style={styles.instrumentReminderText}>
+              Para ser escalado em uma função, vincule ao seu perfil o instrumento ou cargo correspondente.
+            </Text>
+          </View>
+          <Button
+            title="Vincular instrumento ou cargo"
+            variant="secondary"
+            size="sm"
+            onPress={() => router.push(nav.profileSection("instruments"))}
+            accessibilityLabel="Vincular instrumento ou cargo"
+            testID="home-link-instruments-button"
+          />
+        </View>
+      ) : null}
 
       <View style={styles.heroLayout}>
         <View style={styles.nextPanel}>
@@ -451,21 +493,23 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.ministriesBar}
-        onPress={() => router.push(nav.ministries)}
-        activeOpacity={0.76}
-        accessibilityRole="link"
-        accessibilityLabel="Abrir ministérios"
-      >
-        <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
-        <View style={styles.ministryCopy}>
-          <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
-          <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
-          <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
-        </View>
-        <Text style={styles.ministryArrow}>›</Text>
-      </TouchableOpacity>
+      {canSeeMinistries ? (
+        <TouchableOpacity
+          style={styles.ministriesBar}
+          onPress={() => router.push(nav.ministries)}
+          activeOpacity={0.76}
+          accessibilityRole="link"
+          accessibilityLabel="Abrir ministérios"
+        >
+          <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
+          <View style={styles.ministryCopy}>
+            <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
+            <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
+            <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
+          </View>
+          <Text style={styles.ministryArrow}>›</Text>
+        </TouchableOpacity>
+      ) : null}
     </Screen>
     </>
   );
@@ -494,6 +538,39 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   errorBanner: { marginBottom: spacing.sm },
+  instrumentReminder: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  instrumentReminderIcon: {
+    width: controlSizes.compact,
+    height: controlSizes.compact,
+    borderRadius: radii.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  instrumentReminderCopy: {
+    flex: 1,
+    minWidth: 200,
+  },
+  instrumentReminderTitle: {
+    ...typography.label,
+    color: colors.ink,
+  },
+  instrumentReminderText: {
+    ...typography.metadata,
+    color: colors.muted,
+    marginTop: spacing.xxs,
+  },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.lg },
   heroLayout: {
     flexDirection: "row",

@@ -2,7 +2,17 @@ import { Request, Response } from "express";
 import { BaseController } from "./BaseController";
 import { MemberService } from "../services/memberService";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { addMemberMinistrySchema, createMemberSchema, updateMemberInstrumentsSchema, updateMemberPermissionsSchema, updateMemberSchema, updateMyProfileSchema } from "../validators/member.schema";
+import { ValidationError } from "../errors/AppError";
+import {
+  addMemberMinistrySchema,
+  createMemberSchema,
+  getMyOnboardingQuerySchema,
+  updateMemberInstrumentsSchema,
+  updateMemberPermissionsSchema,
+  updateMemberSchema,
+  updateMyOnboardingSchema,
+  updateMyProfileSchema,
+} from "../validators/member.schema";
 
 export class MemberController extends BaseController {
   private buildService(req: Request) {
@@ -72,5 +82,23 @@ export class MemberController extends BaseController {
     const input = updateMyProfileSchema.parse(req.body);
     const member = await this.buildService(req).updateMyProfile(req.user!.id, input);
     this.handleSuccess(res, member);
+  }
+
+  async getMyOnboarding(req: Request, res: Response): Promise<void> {
+    if (!req.user?.tenantId) {
+      throw new ValidationError("Igreja não vinculada à conta");
+    }
+    const query = getMyOnboardingQuerySchema.parse(req.query);
+    const onboarding = await this.buildService(req).getMyOnboarding(req.user.id, query.version);
+    this.handleSuccess(res, onboarding);
+  }
+
+  async updateMyOnboarding(req: Request, res: Response): Promise<void> {
+    if (!req.user?.tenantId) {
+      throw new ValidationError("Igreja não vinculada à conta");
+    }
+    const input = updateMyOnboardingSchema.parse(req.body);
+    const onboarding = await this.buildService(req).updateMyOnboarding(req.user.id, input);
+    this.handleSuccess(res, onboarding);
   }
 }

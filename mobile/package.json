@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "prebuild:web": "node ../scripts/validate-text-encoding.cjs && node ../scripts/validate-frontend-api.cjs --environment",
     "build:web": "expo export --platform web",
-    "postbuild:web": "node ../scripts/validate-frontend-api.cjs --dist dist",
+    "postbuild:web": "node ./scripts/build-service-worker.cjs --dist dist && node ../scripts/validate-frontend-api.cjs --dist dist",
     "serve:web": "serve dist --config ../serve.json",
     "test": "jest --config jest.config.js",
     "test:e2e": "playwright test",

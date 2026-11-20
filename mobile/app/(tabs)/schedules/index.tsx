@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -69,6 +70,7 @@ function newScheduleHref(date: string) {
 }
 
 export default function SchedulesScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ date?: string | string[]; scheduleId?: string | string[] }>();
   const routeDate = Array.isArray(routeParams.date) ? routeParams.date[0] : routeParams.date;
@@ -459,7 +461,7 @@ export default function SchedulesScreen() {
         style={styles.flatList}
         data={isDesktop ? [] : selectedSchedules}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, isMobile && styles.listMobile]}
+        contentContainerStyle={withDockClearance([styles.list, isMobile && styles.listMobile])}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
         ListHeaderComponent={
           <View>

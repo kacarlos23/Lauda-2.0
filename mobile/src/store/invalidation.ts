@@ -100,6 +100,7 @@ export function resetAllDomainStores(): void {
   const { useChurchStore } = require("./churchStore") as typeof import("./churchStore");
   const { useInstrumentStore } = require("./instrumentStore") as typeof import("./instrumentStore");
   const { useNotificationStore } = require("./notificationStore") as typeof import("./notificationStore");
+  const { useOnboardingStore } = require("../features/onboarding/onboardingStore") as typeof import("../features/onboarding/onboardingStore");
 
   useMusicStore.getState().reset();
   useScheduleStore.getState().reset();
@@ -110,4 +111,5 @@ export function resetAllDomainStores(): void {
   useChurchStore.getState().reset();
   useInstrumentStore.getState().reset();
   useNotificationStore.getState().reset();
+  useOnboardingStore.getState().reset();
 }

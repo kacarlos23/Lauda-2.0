@@ -1,6 +1,6 @@
 import { AxiosError } from "axios";
 import { api } from "./api";
-import { Member, Role } from "../types";
+import { Member, OnboardingStatus, Role, UserOnboardingState } from "../types";
 
 export type CreateMemberPayload = {
   name: string;
@@ -39,6 +39,11 @@ export type UpdateMyProfilePayload = {
   name?: string;
   phone?: string | null;
   avatarUrl?: string | null;
+};
+
+export type UpdateMyOnboardingPayload = {
+  version?: string;
+  status: OnboardingStatus;
 };
 
 export type MemberListParams = {
@@ -130,6 +135,26 @@ export const memberService = {
   async updateMyProfile(payload: UpdateMyProfilePayload): Promise<Member> {
     try {
       const response = await api.patch<ApiResponse<Member>>("/members/me/profile", payload);
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async getMyOnboarding(version = "v1"): Promise<UserOnboardingState> {
+    try {
+      const response = await api.get<ApiResponse<UserOnboardingState>>("/members/me/onboarding", {
+        params: { version },
+      });
+      return response.data.data;
+    } catch (error) {
+      handleApiError(error);
+    }
+  },
+
+  async updateMyOnboarding(payload: UpdateMyOnboardingPayload): Promise<UserOnboardingState> {
+    try {
+      const response = await api.patch<ApiResponse<UserOnboardingState>>("/members/me/onboarding", payload);
       return response.data.data;
     } catch (error) {
       handleApiError(error);
