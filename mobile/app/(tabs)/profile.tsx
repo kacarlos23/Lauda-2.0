@@ -6,7 +6,7 @@ import { AppearancePreferences } from "../../src/components/ThemeControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, Check, Pencil, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
@@ -106,10 +106,12 @@ function sortInstruments(instruments: Instrument[]): Instrument[] {
 export default function ProfileScreen() {
   const { user, logout, applyCurrentUser, refreshCurrentUser } = useAuthStore();
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const [availableInstruments, setAvailableInstruments] = useState<Instrument[]>([]);
   const [selectedInstruments, setSelectedInstruments] = useState<Instrument[]>(() => user?.instruments ?? []);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => getInstrumentIds(user?.instruments));
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
+  const [instrumentsSaving, setInstrumentsSaving] = useState(false);
   const [profileRefreshing, setProfileRefreshing] = useState(false);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -121,6 +123,9 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const instrumentsSectionYRef = useRef<number | null>(null);
+  const handledInstrumentsFocusRef = useRef(false);
   const hasLoadedProfileDataRef = useRef(false);
   const inFlightProfileRefreshRef = useRef<Promise<void> | null>(null);
   const canManageInstruments = canManageInstrumentCatalog(user);
@@ -190,8 +195,30 @@ export default function ProfileScreen() {
   }, [applyCurrentUser]);
 
   useFocusEffect(useCallback(() => {
+    handledInstrumentsFocusRef.current = false;
     void refreshProfileData({ initial: !hasLoadedProfileDataRef.current });
+    return () => {
+      handledInstrumentsFocusRef.current = false;
+    };
   }, [refreshProfileData]));
+
+  useEffect(() => {
+    if (section !== "instruments") {
+      handledInstrumentsFocusRef.current = false;
+      return;
+    }
+    if (instrumentsLoading || instrumentsError || handledInstrumentsFocusRef.current) {
+      return;
+    }
+    handledInstrumentsFocusRef.current = true;
+    setPickerVisible(true);
+    if (instrumentsSectionYRef.current !== null) {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, instrumentsSectionYRef.current - spacing.lg),
+        animated: true,
+      });
+    }
+  }, [section, instrumentsLoading, instrumentsError]);
 
   const performLogout = async () => {
     await logout();
@@ -233,6 +260,7 @@ export default function ProfileScreen() {
 
     setSelectedIds(nextIds);
     setSelectedInstruments(optimisticInstruments);
+    setInstrumentsSaving(true);
 
     try {
       const result = await instrumentService.updateMyInstruments(nextIds);
@@ -244,6 +272,8 @@ export default function ProfileScreen() {
       setSelectedIds(previousIds);
       setSelectedInstruments(previousInstruments);
       showInstrumentError(error instanceof Error ? error.message : "Não foi possível atualizar instrumentos.");
+    } finally {
+      setInstrumentsSaving(false);
     }
   };
 
@@ -334,7 +364,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         <View style={styles.profileCard}>
           <TouchableOpacity style={styles.avatarButton} onPress={() => void pickAvatar()} accessibilityLabel="Alterar foto de perfil" testID="profile-avatar-picker">
             {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={iconSizes.s38} strokeWidth={2.4} /></View>}
@@ -392,7 +422,13 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          testID="profile-instruments-section"
+          onLayout={(event) => {
+            instrumentsSectionYRef.current = event.nativeEvent.layout.y;
+          }}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
             {!instrumentsLoading && !instrumentsError ? (
@@ -460,7 +496,11 @@ export default function ProfileScreen() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleGroup}>
                   <Text style={styles.modalTitle}>Selecionar instrumentos/cargos</Text>
-                  <Text style={styles.modalSubtitle}>Toque nas opções para atualizar o seu perfil.</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {instrumentsSaving
+                      ? "Salvando vínculo no servidor..."
+                      : "Toque nas opções para atualizar o seu perfil."}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={styles.closeButton}

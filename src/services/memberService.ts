@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { MemberRepository } from "../repositories/MemberRepository";
-import { CreateMemberInput, UpdateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyProfileInput } from "../validators/member.schema";
+import { CreateMemberInput, UpdateMemberInput, UpdateMemberInstrumentsInput, UpdateMemberPermissionsInput, UpdateMyOnboardingInput, UpdateMyProfileInput } from "../validators/member.schema";
+import { toPrismaOnboardingStatus } from "../constants/onboarding";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors/AppError";
 import { hasPermission } from "./permissionService";
 
@@ -77,6 +78,20 @@ export class MemberService {
     });
     if (!member) throw new NotFoundError("Membro não encontrado");
     return member;
+  }
+
+  async getMyOnboarding(userId: string, version: string) {
+    await this.getById(userId);
+    return this.memberRepository.findMyOnboarding(userId, version);
+  }
+
+  async updateMyOnboarding(userId: string, input: UpdateMyOnboardingInput) {
+    await this.getById(userId);
+    return this.memberRepository.upsertMyOnboarding(
+      userId,
+      input.version,
+      toPrismaOnboardingStatus(input.status)
+    );
   }
 
   async update(memberId: string, input: UpdateMemberInput, user: RequestUser) {

@@ -8,6 +8,7 @@ import { useAuthStore } from "../src/store/authStore";
 import { GROUP_HREFS } from "../src/navigation/routes";
 import { colors, motion, overlays } from "../src/theme";
 import { ThemeRuntime } from "../src/components/ThemeControls";
+import { InstallRuntime } from "../src/features/install/InstallRuntime";
 
 export default function RootLayout() {
   const { user, isLoading, loadSession } = useAuthStore();
@@ -111,6 +112,7 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }}>
+      <InstallRuntime />
       <ThemeRuntime />
       <TestEnvironmentBanner />
       <RouteMetadata />

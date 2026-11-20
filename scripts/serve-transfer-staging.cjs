@@ -62,7 +62,22 @@ app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   res.sendFile(match.file, { root: output });
 });
-app.use(express.static(output, { extensions: ["html"], setHeaders(res, file) { res.setHeader("Cache-Control", /\.(html|json)$/.test(file) ? "no-store" : "public, max-age=3600"); } }));
+app.use(express.static(output, {
+  extensions: ["html"],
+  setHeaders(res, file) {
+    const base = path.basename(file);
+    if (base === "sw.js") {
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Service-Worker-Allowed", "/");
+      return;
+    }
+    if (base === "sw-manifest.json" || base === "apk-release.json") {
+      res.setHeader("Cache-Control", "no-cache");
+      return;
+    }
+    res.setHeader("Cache-Control", /\.(html|json)$/.test(file) ? "no-store" : "public, max-age=3600");
+  },
+}));
 // Already-open tabs can still fetch assets from the preceding staging release.
 app.use("/_expo", express.static(path.join(oldOutput, "_expo")));
 app.use("/assets", express.static(path.join(oldOutput, "assets")));

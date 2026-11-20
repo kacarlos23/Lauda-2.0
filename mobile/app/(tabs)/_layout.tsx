@@ -10,6 +10,7 @@ import { NotificationBell } from "../../src/components/NotificationBell";
 import { ThemeToggle } from "../../src/components/ThemeControls";
 import { NotificationRuntime } from "../../src/components/NotificationRuntime";
 import { NotificationToast } from "../../src/components/NotificationToast";
+import { OnboardingOverlay } from "../../src/features/onboarding/OnboardingOverlay";
 import {
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_EXPANDED_WIDTH,
@@ -176,6 +177,7 @@ export default function TabsLayout() {
           );
         })}
       </Tabs>
+      <OnboardingOverlay />
       <NotificationToast />
     </View>
   );

@@ -921,4 +921,117 @@ describe("Members API", () => {
       .expect(200);
     expect(afterDetails.body.data.members).toEqual([]);
   });
+
+  it("cria onboarding pendente para novas contas e mantém precedência de completed sobre dismissed", async () => {
+    const tenant = await registerTenant("onboarding-flow");
+    expect(tenant.user.onboarding).toMatchObject({
+      version: "v1",
+      status: "not_started",
+      shouldAutoStart: true,
+    });
+
+    const createdMember = await createMember(tenant.token, "onboarding-member@example.com");
+    expect(createdMember.status).toBe(201);
+    expect(createdMember.body.data.onboarding).toMatchObject({
+      version: "v1",
+      status: "not_started",
+      shouldAutoStart: true,
+    });
+
+    const invite = await request(app)
+      .get("/api/auth/member-invite")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .expect(200);
+    const publicMember = await request(app)
+      .post("/api/auth/member-register")
+      .send({
+        inviteCode: invite.body.data.code,
+        name: "Membro Convite Onboarding",
+        email: "onboarding-invite@example.com",
+        password: "public123",
+      })
+      .expect(201);
+    expect(publicMember.body.data.user.onboarding).toMatchObject({
+      version: "v1",
+      status: "not_started",
+      shouldAutoStart: true,
+    });
+
+    const memberToken = publicMember.body.data.token as string;
+    const meBefore = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .expect(200);
+    expect(meBefore.body.data.user.onboarding.shouldAutoStart).toBe(true);
+
+    // Conta antiga sem registro de UserOnboarding retorna shouldAutoStart=false
+    await prisma.userOnboarding.deleteMany({ where: { userId: publicMember.body.data.user.id } });
+    const legacyOnboarding = await request(app)
+      .get("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .expect(200);
+    expect(legacyOnboarding.body.data).toMatchObject({
+      version: "v1",
+      status: "not_started",
+      shouldAutoStart: false,
+    });
+
+    // Pular tutorial registra dismissed
+    const dismissed = await request(app)
+      .patch("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ status: "dismissed" })
+      .expect(200);
+    expect(dismissed.body.data).toMatchObject({
+      version: "v1",
+      status: "dismissed",
+      shouldAutoStart: false,
+    });
+
+    // Não regressa de dismissed para not_started
+    const noRegression = await request(app)
+      .patch("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ status: "not_started" })
+      .expect(200);
+    expect(noRegression.body.data.status).toBe("dismissed");
+
+    // Atualiza para completed e valida precedência mesmo em chamadas concorrentes
+    const completed = await request(app)
+      .patch("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ status: "completed" })
+      .expect(200);
+    expect(completed.body.data.status).toBe("completed");
+
+    const concurrent = await Promise.all([
+      request(app)
+        .patch("/api/members/me/onboarding")
+        .set("Authorization", `Bearer ${memberToken}`)
+        .send({ status: "dismissed" }),
+      request(app)
+        .patch("/api/members/me/onboarding")
+        .set("Authorization", `Bearer ${memberToken}`)
+        .send({ status: "completed" }),
+    ]);
+    expect(concurrent.map((item) => item.status)).toEqual([200, 200]);
+    expect(concurrent[0].body.data.status).toBe("completed");
+    expect(concurrent[1].body.data.status).toBe("completed");
+
+    // Isolamento de tenant: outro tenant não vê ou altera o onboarding do primeiro usuário
+    const otherTenant = await registerTenant("onboarding-isolation");
+    const otherOnboarding = await request(app)
+      .get("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${otherTenant.token}`)
+      .expect(200);
+    expect(otherOnboarding.body.data.status).toBe("not_started");
+    expect(otherOnboarding.body.data.shouldAutoStart).toBe(true);
+
+    // Payload inválido retorna 400
+    await request(app)
+      .patch("/api/members/me/onboarding")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ status: "unknown" })
+      .expect(400);
+  });
 });

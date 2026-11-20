@@ -79,6 +79,11 @@ describe("catálogo de rotas", () => {
       pathname: "/instruments",
       params: { returnTo: "/profile" },
     });
+    expect(nav.profile).toBe("/profile");
+    expect(nav.profileSection("instruments")).toEqual({
+      pathname: "/profile",
+      params: { section: "instruments" },
+    });
   });
 
   it("mantém catálogo, arquivos Expo e rewrites dinâmicos sincronizados", () => {

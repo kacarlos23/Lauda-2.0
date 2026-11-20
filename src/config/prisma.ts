@@ -27,6 +27,7 @@ const tenantScopedModels = new Set(
     "DomainEventOutbox",
     "Notification",
     "PushDevice",
+    "UserOnboarding",
   ].map((model) => model.toLowerCase())
 );
 

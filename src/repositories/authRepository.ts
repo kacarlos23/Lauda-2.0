@@ -1,12 +1,35 @@
 import { Prisma, User } from "@prisma/client";
 import { DEFAULT_INSTRUMENTS } from "../constants/defaultInstruments";
+import { CURRENT_ONBOARDING_VERSION, PrismaOnboardingStatusValue } from "../constants/onboarding";
 import { prisma } from "./prismaClient";
 import { basePrisma } from "../config/prisma";
 import { revokeUserSessionsInTransaction } from "../services/authSessionService";
 
+export type AuthUserOnboarding = {
+  tenantId: string;
+  version: string;
+  status: PrismaOnboardingStatusValue;
+  completedAt: Date | null;
+  dismissedAt: Date | null;
+  updatedAt: Date;
+};
+
+const userOnboardingSelect = {
+  where: { version: CURRENT_ONBOARDING_VERSION },
+  select: {
+    tenantId: true,
+    version: true,
+    status: true,
+    completedAt: true,
+    dismissedAt: true,
+    updatedAt: true,
+  },
+} as const;
+
 export type AuthUser = Pick<User, "id" | "name" | "email" | "password" | "phone" | "avatarUrl" | "role" | "tenantId" | "isActive" | "deletedAt" | "mfaSecretEncrypted" | "mfaEnabledAt"> & {
   instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
   tenant?: { id: string; name: string; isActive: boolean; deletedAt: Date | null } | null;
+  onboardings?: AuthUserOnboarding[];
 };
 
 export class AuthRepository {
@@ -38,6 +61,7 @@ export class AuthRepository {
             instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
           },
         },
+        onboardings: userOnboardingSelect,
       },
     });
   }
@@ -70,6 +94,7 @@ export class AuthRepository {
             instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
           },
         },
+        onboardings: userOnboardingSelect,
       },
     });
   }
@@ -85,7 +110,7 @@ export class AuthRepository {
     name: string;
     email: string;
     hashedPassword: string;
-  }): Promise<Prisma.TenantGetPayload<{ include: { users: true } }>> {
+  }) {
     return prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
@@ -108,7 +133,28 @@ export class AuthRepository {
         include: { users: true },
       });
 
-      return tenant;
+      const adminUser = tenant.users[0];
+      const onboarding = await tx.userOnboarding.create({
+        data: {
+          userId: adminUser.id,
+          tenantId: tenant.id,
+          version: CURRENT_ONBOARDING_VERSION,
+          status: "NOT_STARTED",
+        },
+        select: {
+          tenantId: true,
+          version: true,
+          status: true,
+          completedAt: true,
+          dismissedAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return {
+        ...tenant,
+        users: [{ ...adminUser, onboardings: [onboarding] }],
+      };
     });
   }
 
@@ -210,6 +256,13 @@ export class AuthRepository {
           phone: data.phone ?? null,
           password: data.hashedPassword,
           role: "MEMBER",
+          onboardings: {
+            create: {
+              tenantId: data.tenantId,
+              version: CURRENT_ONBOARDING_VERSION,
+              status: "NOT_STARTED",
+            },
+          },
           ministries: data.ministryId
             ? {
                 create: {
@@ -238,6 +291,7 @@ export class AuthRepository {
               instrument: { select: { id: true, name: true, colorHex: true, iconKey: true } },
             },
           },
+          onboardings: userOnboardingSelect,
         },
       });
     });

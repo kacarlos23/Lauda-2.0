@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import { Prisma, Role } from "@prisma/client";
 import { config } from "../config/unifiedConfig";
 import { ServiceUnavailableError, UnauthorizedError, ValidationError } from "../errors/AppError";
-import { AuthRepository } from "../repositories/authRepository";
+import { AuthRepository, type AuthUserOnboarding } from "../repositories/authRepository";
+import { toOnboardingStateView } from "../constants/onboarding";
 import { effectivePermissionKeys } from "./permissionService";
 import { isEligibleForAuthentication } from "../security/authEligibility";
 import {
@@ -71,6 +72,13 @@ function normalizeInviteCode(code: string): string {
 }
 
 export class AuthService {
+  private resolveOnboarding(tenantId: string | null, onboardings?: AuthUserOnboarding[]) {
+    const matched = tenantId
+      ? onboardings?.find((item) => item.tenantId === tenantId) ?? null
+      : null;
+    return toOnboardingStateView(matched);
+  }
+
   private async buildAuthResponse(user: {
     id: string;
     name: string;
@@ -81,6 +89,7 @@ export class AuthService {
     tenantId: string | null;
     tenant?: { id: string; name: string } | null;
     instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
+    onboardings?: AuthUserOnboarding[];
   }, options: {
     metadata?: SessionMetadata;
     rotated?: { sessionId: string; refreshToken: string };
@@ -116,6 +125,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
         permissions,
+        onboarding: this.resolveOnboarding(user.tenantId, user.onboardings),
         mfaEnabled: Boolean((user as { mfaEnabledAt?: Date | null }).mfaEnabledAt),
       },
         tenant: user.tenant ?? null,
@@ -358,6 +368,7 @@ export class AuthService {
         tenantId: user.tenantId,
         instruments: user.instruments?.map((item) => item.instrument) ?? [],
         permissions,
+        onboarding: this.resolveOnboarding(user.tenantId, user.onboardings),
         mfaEnabled: Boolean(user.mfaEnabledAt),
       },
       tenant: user.tenant ?? null,
