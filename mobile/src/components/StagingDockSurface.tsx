@@ -12,7 +12,7 @@ import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
 import { activeMobileTabIndex, navigationItemsFor } from "../navigation/manifest";
 import { useAuthStore } from "../store/authStore";
-import { colors, radiusValues } from "../theme";
+import { colors, overlays, radiusValues } from "../theme";
 import { desktopIndicatorEasing, stagingTransitionMs } from "../tokens/stagingNavigation";
 
 export const DOCK_HEIGHT = 66;
@@ -130,7 +130,10 @@ export function StagingDockSurface() {
   }, [activeIndex, itemCount, opacity, reducedMotion, trackWidth, translateX, visible]);
 
   return (
-    <View testID="staging-dock-surface" style={StyleSheet.absoluteFill}>
+    <View
+      testID="staging-dock-surface"
+      style={[StyleSheet.absoluteFill, Platform.OS !== "web" && styles.nativeSurface]}
+    >
       <View
         style={styles.track}
         onLayout={handleTrackLayout}
@@ -158,6 +161,18 @@ export function StagingDockSurface() {
 }
 
 const styles = StyleSheet.create({
+  nativeSurface: {
+    backgroundColor: overlays.dockSurface,
+    borderRadius: radiusValues.r26,
+    borderWidth: 1,
+    borderColor: overlays.dockBorder,
+    overflow: "hidden",
+    elevation: 8,
+    shadowColor: colors.brandInk,
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
   track: {
     position: "absolute",
     left: DOCK_PADDING_X - 1,

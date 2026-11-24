@@ -6,7 +6,7 @@ import type { ScheduleSongDetails, WorshipPeriod } from "../../../src/types";
 import { ScheduleParticipationFields, ScheduleWorshipPeriod } from "../../../src/components/schedules/ScheduleWorshipFields";
 import { defaultParticipation, worshipDateKey } from "../../../src/utils/worshipOrder";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search } from "lucide-react-native";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   modalHeaderSpacer: { width: controlSizes.medium, height: controlSizes.medium },
   modalTitle: { flex: 1, color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, textAlign: "center" },
   songSearchRow: { minHeight: controlSizes.large, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
-  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any,
+  songSearchInput: Platform.OS === "web" ? ({ flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any) : { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15 },
   songSearchError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   emptyText: { color: colors.muted, fontSize: fontSizes.s13, textAlign: "center", paddingVertical: spacing.lg },
   modalList: { maxHeight: 440, marginTop: spacing.md },

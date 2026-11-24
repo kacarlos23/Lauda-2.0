@@ -23,7 +23,8 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging",
-        "EXPO_PUBLIC_API_URL": "https://testes.laudaapp.com/api"
+        "EXPO_PUBLIC_API_URL": "https://testes.laudaapp.com/api",
+        "EXPO_PUBLIC_APK_MANIFEST_URL": "https://testes.laudaapp.com/apk-release.json"
       }
     },
     "production-apk": {
@@ -35,7 +36,8 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.laudaapp.com/api"
+        "EXPO_PUBLIC_API_URL": "https://api.laudaapp.com/api",
+        "EXPO_PUBLIC_APK_MANIFEST_URL": "https://laudaapp.com/apk-release.json"
       }
     },
     "production": {

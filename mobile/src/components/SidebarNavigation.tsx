@@ -16,6 +16,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   LogOut,
+  Smartphone,
 } from "lucide-react-native";
 import {
   colors,
@@ -42,6 +43,7 @@ import { nav, ROUTES } from "../navigation/routes";
 import { desktopIndicatorEasing, stagingTransitionMs } from "../tokens/stagingNavigation";
 import { BrandLogo } from "./BrandLogo";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useInstallStore } from "../features/install/installStore";
 
 export const SIDEBAR_COLLAPSED_WIDTH = 72;
 export const SIDEBAR_EXPANDED_WIDTH = 248;
@@ -65,6 +67,13 @@ function getInitials(name?: string): string {
 
 function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indicatorStyle = false }: SidebarNavigationProps) {
   const { user, logout } = useAuthStore();
+  const apkRelease = useInstallStore((state) => state.apkRelease);
+  const deviceClass = useInstallStore((state) => state.deviceClass);
+  const isNativeApp = useInstallStore((state) => state.isNativeApp);
+  const updateAvailable = useInstallStore((state) => state.updateAvailable);
+  const showApkShortcut = Boolean(
+    deviceClass !== "ios" && ((!isNativeApp && apkRelease) || (isNativeApp && updateAvailable))
+  );
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [activeRailVisible, setActiveRailVisible] = useState(false);
@@ -268,6 +277,49 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indic
       </View>
 
       <View style={[styles.footer, indicatorStyle && styles.indicatorBorder]}>
+        {showApkShortcut ? (
+          <View style={styles.itemWrapper}>
+            <Pressable
+              onPress={() => requestFormNavigation(() => router.push(nav.profileSection("app")))}
+              onHoverIn={() => setHoveredLabel("__apk")}
+              onHoverOut={() => setHoveredLabel(null)}
+              style={({ pressed }) => [
+                styles.navItem,
+                isCollapsed && styles.navItemCollapsed,
+                hoveredLabel === "__apk" && (indicatorStyle ? styles.indicatorItemHover : styles.navItemHover),
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={updateAvailable ? "Atualizar aplicativo" : "App Android (APK)"}
+              testID="sidebar-apk-download"
+            >
+              <Smartphone
+                color={updateAvailable ? colors.accent : indicatorStyle ? colors.primary : colors.inverseMuted}
+                size={iconSizes.s20}
+                strokeWidth={2}
+              />
+              {!isCollapsed ? (
+                <Animated.Text
+                  style={[
+                    styles.navLabel,
+                    indicatorStyle && styles.indicatorMuted,
+                    { opacity: labelOpacity },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {updateAvailable ? "Atualizar app" : "App Android (APK)"}
+                </Animated.Text>
+              ) : null}
+            </Pressable>
+            {isCollapsed && hoveredLabel === "__apk" ? (
+              <View style={styles.tooltip} pointerEvents="none">
+                <Text style={styles.tooltipText}>
+                  {updateAvailable ? "Atualizar aplicativo" : "App Android (APK)"}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <Pressable
           onPress={() => requestFormNavigation(() => router.push(nav.profile))}
           onHoverIn={() => setHoveredLabel("__profile")}

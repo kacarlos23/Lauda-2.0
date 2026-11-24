@@ -18,8 +18,14 @@ module.exports = ({ config }) => {
     extra: {
       ...(config.extra ?? {}),
       appEnv,
+      apkManifestUrl:
+        process.env.EXPO_PUBLIC_APK_MANIFEST_URL ||
+        (isStaging
+          ? "https://testes.laudaapp.com/apk-release.json"
+          : "https://laudaapp.com/apk-release.json"),
       eas: {
-        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+        ...(config.extra?.eas ?? {}),
+        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || config.extra?.eas?.projectId,
       },
     },
   };

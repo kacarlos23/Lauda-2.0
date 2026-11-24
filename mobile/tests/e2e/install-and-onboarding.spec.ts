@@ -79,6 +79,17 @@ async function setupApiMocks(
     });
   }
 
+  await page.route("https://downloads.laudaapp.com/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.android.package-archive",
+        "Content-Disposition": 'attachment; filename="lauda-v1.4.0-b4.apk"',
+      },
+      body: Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+    });
+  });
+
   await page.route("**/api/**", async (route) => {
     const req = route.request();
     const pathname = new URL(req.url()).pathname;
@@ -220,70 +231,168 @@ test("manifesto PWA, service worker e apk-release padrão servem corretamente se
   expect(errors.consoleErrors).toEqual([]);
 });
 
-test("exibe ação Instalar Lauda no login/início/mais, mostra APK apenas quando disponível e oculta em standalone", async ({ page }) => {
-  const errors = collectErrors(page);
+test("exibe download do APK por plataforma (Login, Mais e Perfil/Sidebar), oculta no Início e guia instalação", async ({ page, browser }) => {
+  const validApkRelease = {
+    available: true,
+    environment: "production",
+    version: "1.4.0",
+    versionCode: 4,
+    fileSizeBytes: 52_428_800,
+    releaseNotes: "Versão inicial para Android.",
+    url: "https://downloads.laudaapp.com/production/lauda-v1.4.0-b4.apk",
+    sha256: "c".repeat(64),
+  };
+
+  // 1. Sem APK anunciado, não exibe botões de APK ou PWA competindo no Desktop
+  const desktopErrors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await setupApiMocks(page, {
     onboarding: { version: "v1", status: "completed", shouldAutoStart: false },
   });
-
   await page.goto("/login", { waitUntil: "networkidle" });
-  await expect(page.getByTestId("login-install-install-button")).toBeVisible();
   await expect(page.getByTestId("login-install-apk-download-button")).toHaveCount(0);
+  await expect(page.getByTestId("login-install-install-button")).toHaveCount(0);
 
-  await page.getByTestId("login-install-install-button").click();
-  await expect(page.getByTestId("login-install-instructions-modal")).toBeVisible();
-  await page.getByTestId("login-install-instructions-close").click();
-  await expect(page.getByTestId("login-install-instructions-modal")).toHaveCount(0);
+  await login(page);
+  await expect(page.getByTestId("sidebar-apk-download")).toHaveCount(0);
+  await expect(page.getByTestId("home-install-apk-download-button")).toHaveCount(0);
 
-  // Com APK válido anunciado pelo ambiente, exibe o botão secundário
+  // 2. Desktop com APK anunciado: Login, Sidebar e Perfil (ausente no Início)
+  await page.evaluate(() => window.localStorage.clear());
   await page.unroute("**/apk-release.json").catch(() => undefined);
   await page.unroute("**/api/**").catch(() => undefined);
   await setupApiMocks(page, {
     onboarding: { version: "v1", status: "completed", shouldAutoStart: false },
-    apkRelease: {
-      available: true,
-      version: "1.4.0",
-      url: "https://laudaapp.com/downloads/lauda-1.4.0.apk",
-      sha256: "c".repeat(64),
-      environment: "production",
-    },
+    apkRelease: validApkRelease,
   });
 
   await page.goto("/login", { waitUntil: "networkidle" });
   await expect(page.getByTestId("login-install-apk-download-button")).toBeVisible();
+  await page.getByTestId("login-install-apk-guide-button").click();
+  await expect(page.getByTestId("login-install-apk-guide-modal")).toBeVisible();
+  await expect(page.getByTestId("login-install-apk-desktop-note")).toBeVisible();
+  await page.getByTestId("login-install-apk-checksum-toggle").click();
+  await expect(page.getByTestId("login-install-apk-checksum-details")).toBeVisible();
+  await page.getByTestId("login-install-apk-guide-close").click();
+  await expect(page.getByTestId("login-install-apk-guide-modal")).toHaveCount(0);
 
-  await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
-  await expect(page.getByTestId("home-install-install-button")).toBeVisible();
-  await expect(page.getByTestId("home-install-apk-download-button")).toBeVisible();
+  await expect(page.getByTestId("home-install-panel")).toHaveCount(0);
+  await expect(page.getByTestId("home-install-apk-download-button")).toHaveCount(0);
+  await expect(page.getByTestId("sidebar-apk-download")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Mais" }).first().click();
-  await expect(page.getByTestId("more-install-install-button")).toBeVisible();
-  await expect(page.getByTestId("more-install-apk-download-button")).toBeVisible();
+  await page.getByTestId("sidebar-apk-download").click();
+  await expect(page).toHaveURL(/\/profile\?section=app/);
+  await expect(page.getByTestId("profile-install-panel")).toBeVisible();
+  await expect(page.getByTestId("profile-install-apk-download-button")).toBeVisible();
+  expect(desktopErrors.pageErrors).toEqual([]);
+  expect(desktopErrors.consoleErrors).toEqual([]);
 
-  // Em modo standalone (já instalado), oculta a ação de instalação
-  await page.addInitScript(() => {
-    const originalMatchMedia = window.matchMedia.bind(window);
-    window.matchMedia = (query: string) => {
-      if (query === "(display-mode: standalone)") {
-        return {
-          matches: true,
-          media: query,
-          onchange: null,
-          addListener: () => undefined,
-          removeListener: () => undefined,
-          addEventListener: () => undefined,
-          removeEventListener: () => undefined,
-          dispatchEvent: () => false,
-        } as MediaQueryList;
-      }
-      return originalMatchMedia(query);
-    };
+  // 3. Mobile Android (navegador e PWA standalone): Login e Mais exibem APK; Início não
+  const androidContext = await browser.newContext({
+    userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
+    viewport: { width: 390, height: 844 },
   });
-  await page.goto("/", { waitUntil: "networkidle" });
-  await expect(page.getByTestId("home-install-install-button")).toHaveCount(0);
-  expect(errors.pageErrors).toEqual([]);
-  expect(errors.consoleErrors).toEqual([]);
+  try {
+    const androidPage = await androidContext.newPage();
+    const androidErrors = collectErrors(androidPage);
+    await setupApiMocks(androidPage, {
+      onboarding: { version: "v1", status: "completed", shouldAutoStart: false },
+      apkRelease: validApkRelease,
+    });
+
+    await androidPage.goto("/login", { waitUntil: "networkidle" });
+    await expect(androidPage.getByTestId("login-install-apk-download-button")).toBeVisible();
+    await login(androidPage);
+    await expect(androidPage.getByTestId("home-install-apk-download-button")).toHaveCount(0);
+
+    await androidPage.getByRole("tab", { name: "Mais" }).first().click();
+    await expect(androidPage.getByTestId("more-install-apk-download-button")).toBeVisible();
+
+    await androidPage.getByTestId("more-install-apk-guide-button").click();
+    await expect(androidPage.getByTestId("more-install-apk-guide-modal")).toBeVisible();
+    await androidPage.getByTestId("more-install-apk-checksum-toggle").click();
+    await expect(androidPage.getByTestId("more-install-apk-checksum-details")).toBeVisible();
+    await androidPage.getByTestId("more-install-apk-guide-close").click();
+
+    // Em modo standalone (PWA Android), o botão de APK continua disponível em Mais
+    await androidPage.addInitScript(() => {
+      const originalMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query: string) => {
+        if (query === "(display-mode: standalone)") {
+          return {
+            matches: true,
+            media: query,
+            onchange: null,
+            addListener: () => undefined,
+            removeListener: () => undefined,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          } as MediaQueryList;
+        }
+        return originalMatchMedia(query);
+      };
+    });
+    await androidPage.goto("/more", { waitUntil: "networkidle" });
+    await expect(androidPage.getByTestId("more-install-apk-download-button")).toBeVisible();
+    expect(androidErrors.pageErrors).toEqual([]);
+    expect(androidErrors.consoleErrors).toEqual([]);
+  } finally {
+    await androidContext.close();
+  }
+
+  // 4. Mobile iPhone (Safari): apenas "Instalar no iPhone", sem botão de APK; oculto em standalone
+  const iosContext = await browser.newContext({
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+  });
+  try {
+    const iosPage = await iosContext.newPage();
+    const iosErrors = collectErrors(iosPage);
+    await setupApiMocks(iosPage, {
+      onboarding: { version: "v1", status: "completed", shouldAutoStart: false },
+      apkRelease: validApkRelease,
+    });
+
+    await iosPage.goto("/login", { waitUntil: "networkidle" });
+    await expect(iosPage.getByTestId("login-install-install-button")).toBeVisible();
+    await expect(iosPage.getByTestId("login-install-apk-download-button")).toHaveCount(0);
+    await iosPage.getByTestId("login-install-install-button").click();
+    await expect(iosPage.getByTestId("login-install-instructions-modal")).toBeVisible();
+    await expect(iosPage.getByTestId("login-install-modal-apk-button")).toHaveCount(0);
+    await iosPage.getByTestId("login-install-instructions-close").click();
+
+    await login(iosPage);
+    await iosPage.getByRole("tab", { name: "Mais" }).first().click();
+    await expect(iosPage.getByTestId("more-install-install-button")).toBeVisible();
+    await expect(iosPage.getByTestId("more-install-apk-download-button")).toHaveCount(0);
+
+    await iosPage.addInitScript(() => {
+      const originalMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query: string) => {
+        if (query === "(display-mode: standalone)") {
+          return {
+            matches: true,
+            media: query,
+            onchange: null,
+            addListener: () => undefined,
+            removeListener: () => undefined,
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            dispatchEvent: () => false,
+          } as MediaQueryList;
+        }
+        return originalMatchMedia(query);
+      };
+    });
+    await iosPage.goto("/more", { waitUntil: "networkidle" });
+    await expect(iosPage.getByTestId("more-install-install-button")).toHaveCount(0);
+    expect(iosErrors.pageErrors).toEqual([]);
+    expect(iosErrors.consoleErrors).toEqual([]);
+  } finally {
+    await iosContext.close();
+  }
 });
 
 test("tutorial de primeiro acesso percorre abas, permite pular com lembrete, rever em Mais e concluir no Perfil", async ({ page }) => {

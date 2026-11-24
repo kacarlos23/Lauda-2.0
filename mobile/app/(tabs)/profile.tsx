@@ -12,6 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, Check, Pencil, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 import { Button, EmptyState, ErrorBanner, LoadingState, RoleBadge } from "../../src/components/ui";
+import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
+import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
@@ -127,9 +129,12 @@ export default function ProfileScreen() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const instrumentsSectionYRef = useRef<number | null>(null);
+  const appSectionYRef = useRef<number | null>(null);
   const handledInstrumentsFocusRef = useRef(false);
+  const handledAppFocusRef = useRef(false);
   const hasLoadedProfileDataRef = useRef(false);
   const inFlightProfileRefreshRef = useRef<Promise<void> | null>(null);
+  const { isMobile } = useResponsiveLayout();
   const canManageInstruments = canManageInstrumentCatalog(user);
   const hasGlobalAccess = isGlobalAdmin(user);
 
@@ -198,9 +203,11 @@ export default function ProfileScreen() {
 
   useFocusEffect(useCallback(() => {
     handledInstrumentsFocusRef.current = false;
+    handledAppFocusRef.current = false;
     void refreshProfileData({ initial: !hasLoadedProfileDataRef.current });
     return () => {
       handledInstrumentsFocusRef.current = false;
+      handledAppFocusRef.current = false;
     };
   }, [refreshProfileData]));
 
@@ -221,6 +228,21 @@ export default function ProfileScreen() {
       });
     }
   }, [section, instrumentsLoading, instrumentsError]);
+
+  useEffect(() => {
+    if (section !== "app" || isMobile) {
+      handledAppFocusRef.current = false;
+      return;
+    }
+    if (handledAppFocusRef.current || appSectionYRef.current === null) {
+      return;
+    }
+    handledAppFocusRef.current = true;
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(0, appSectionYRef.current - spacing.lg),
+      animated: true,
+    });
+  }, [section, isMobile]);
 
   const performLogout = async () => {
     await logout();
@@ -593,6 +615,24 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         ) : null}
 
+        {!isMobile ? (
+          <View
+            testID="profile-app-section"
+            onLayout={(event) => {
+              appSectionYRef.current = event.nativeEvent.layout.y;
+              if (section === "app" && !handledAppFocusRef.current) {
+                handledAppFocusRef.current = true;
+                scrollViewRef.current?.scrollTo({
+                  y: Math.max(0, event.nativeEvent.layout.y - spacing.lg),
+                  animated: true,
+                });
+              }
+            }}
+          >
+            <InstallAppPanel variant="card" testIDPrefix="profile-install" />
+          </View>
+        ) : null}
+
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
           <LogOut color={colors.danger} size={iconSizes.s18} strokeWidth={2.6} />
           <Text style={styles.logoutText}>Sair da conta</Text>
@@ -612,7 +652,7 @@ const styles = StyleSheet.create({
     paddingBottom: screen.contentBottomPadding,
   },
   profileCard: { ...uiPatterns.section, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg, marginBottom: spacing.lg },
-  profileIdentity: { flex: 1, minWidth: 220, alignItems: "flex-start" },
+  profileIdentity: { flexGrow: 1, flexShrink: 1, flexBasis: 200, minWidth: 200, alignItems: "flex-start" },
   avatarCircle: {
     width: 92,
     height: 92,

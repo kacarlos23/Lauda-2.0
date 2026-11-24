@@ -1,6 +1,7 @@
 import React from "react";
-import { Modal, ScrollView, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
+import { Modal, Platform, ScrollView, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 import { SlidersHorizontal, X } from "lucide-react-native";
+import { useSafeInsets } from "../../hooks/useSafeInsets";
 import {
   colors,
   controlSizes,
@@ -46,9 +47,18 @@ export function FilterButton({ active = false, onPress, style, accessibilityLabe
 }
 
 export function FilterPanel({ visible, title = "Filtros", canApply, onApply, onClose, onClear, children }: FilterPanelProps) {
+  const insets = useSafeInsets();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+    <Modal visible={visible} transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
+      <View
+        style={[
+          styles.backdrop,
+          Platform.OS !== "web" && {
+            paddingTop: Math.max(spacing.xxl, insets.top + spacing.md),
+            paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.md),
+          },
+        ]}
+      >
         <View style={styles.panel}>
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>

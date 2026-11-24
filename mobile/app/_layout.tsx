@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { Platform, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { TestEnvironmentBanner } from "../src/components/TestEnvironmentBanner";
 import { Stack, useSegments } from "expo-router";
 import { useRouter } from "expo-router";
@@ -110,8 +112,9 @@ export default function RootLayout() {
     }
   }, [user, isLoading, router, segments]);
 
-  return (
-    <View style={{ flex: 1 }}>
+  const content = (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
       <InstallRuntime />
       <ThemeRuntime />
       <TestEnvironmentBanner />
@@ -122,5 +125,11 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
       </Stack>
     </View>
+  );
+
+  return typeof SafeAreaProvider === "function" ? (
+    <SafeAreaProvider>{content}</SafeAreaProvider>
+  ) : (
+    content
   );
 }

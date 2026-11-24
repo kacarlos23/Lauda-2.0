@@ -22,9 +22,9 @@ import {
   Screen,
   SectionHeader,
 } from "../../src/components/ui";
-import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
 import { onboardingScopeKeyFor } from "../../src/features/onboarding/onboardingStorage";
 import { useOnboardingStore } from "../../src/features/onboarding/onboardingStore";
+import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../src/store/authStore";
 import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
@@ -87,6 +87,7 @@ const TEXT = {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { isMobile } = useResponsiveLayout();
   const { user, tenant } = useAuthStore();
   const { schedules, loading, error, lastFetchedAt, loadMySchedules, updateScheduleStatus } = useScheduleStore();
   const lastFetchedAtRef = useRef(lastFetchedAt);
@@ -268,8 +269,6 @@ export default function DashboardScreen() {
         ) : null}
       />
 
-      <InstallAppPanel variant="card" testIDPrefix="home-install" />
-
       {showInstrumentReminder ? (
         <View style={styles.instrumentReminder} testID="home-instruments-reminder">
           <View style={styles.instrumentReminderIcon}>
@@ -292,8 +291,8 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <View style={styles.heroLayout}>
-        <View style={styles.nextPanel}>
+      <View style={[styles.heroLayout, isMobile && styles.columnStack]}>
+        <View style={[styles.nextPanel, isMobile && styles.fullWidthPanel]}>
           <Text style={styles.nextKicker}>{TEXT.nextSchedule}</Text>
           {loading && schedules.length === 0 ? (
             <LoadingState centered={false} style={styles.heroLoading} />
@@ -329,19 +328,19 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        <View style={styles.metricRail}>
+        <View style={[styles.metricRail, isMobile && styles.fullWidthPanel]}>
           <Metric
             label="Pendências"
             value={pendingCount}
             detail={pendingCount ? "aguardando resposta" : "tudo em dia"}
             accent
-            style={styles.metric}
+            style={[styles.metric, isMobile && styles.metricMobile]}
           />
           <Metric
             label="Escalas"
             value={schedules.length}
             detail="carregadas para você"
-            style={styles.metric}
+            style={[styles.metric, isMobile && styles.metricMobile]}
           />
         </View>
       </View>
@@ -358,7 +357,7 @@ export default function DashboardScreen() {
             {quickActions.map((action, index) => action ? (
               <TouchableOpacity
                 key={action.title}
-                style={styles.actionButton}
+                style={[styles.actionButton, isMobile && styles.actionButtonMobile]}
                 activeOpacity={0.72}
                 onPress={action.onPress}
                 accessibilityRole="button"
@@ -375,8 +374,8 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      <View style={styles.infoColumns}>
-        <View style={styles.listPanel}>
+      <View style={[styles.infoColumns, isMobile && styles.columnStack]}>
+        <View style={[styles.listPanel, isMobile && styles.fullWidthPanel]}>
           <SectionHeader
             variant="section"
             title="Escalas pendentes"
@@ -427,7 +426,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.listPanel}>
+        <View style={[styles.listPanel, isMobile && styles.fullWidthPanel]}>
           <SectionHeader
             variant="section"
             title="Atividade recente"
@@ -645,10 +644,29 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   metric: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: "auto",
     justifyContent: "center",
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  metricMobile: {
+    flexGrow: 0,
+  },
+  columnStack: {
+    flexDirection: "column",
+  },
+  fullWidthPanel: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
+    width: "100%",
+    minWidth: 0,
+  },
+  actionButtonMobile: {
+    minWidth: 148,
+    flexBasis: 148,
   },
   section: {
     marginBottom: spacing.xl,
@@ -769,9 +787,12 @@ const styles = StyleSheet.create({
   attentionMetrics: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: spacing.sm,
   },
   attentionMetric: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 152,
   },
   ministriesBar: {
     minHeight: 112,

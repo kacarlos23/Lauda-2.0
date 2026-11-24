@@ -18,7 +18,9 @@ import {
   typography,
 } from "../theme";
 import { BrandLogo } from "./BrandLogo";
+import { isPublicTestEnvironment } from "./TestEnvironmentBanner";
 import { ThemeToggle } from "./ThemeControls";
+import { useSafeInsets } from "../hooks/useSafeInsets";
 
 type AuthShellProps = {
   overline: string;
@@ -38,6 +40,9 @@ export function AuthShell({
   const { width: viewportWidth, height } = useWindowDimensions();
   const [hydrated, setHydrated] = useState(Platform.OS !== "web");
   const desktop = hydrated && viewportWidth >= 900;
+  const insets = useSafeInsets();
+  const topInset = Platform.OS !== "web" && !isPublicTestEnvironment ? insets.top : 0;
+  const bottomInset = Platform.OS !== "web" ? insets.bottom : 0;
 
   useEffect(() => {
     setHydrated(true);
@@ -53,7 +58,7 @@ export function AuthShell({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.shell,
-          hydrated ? { minHeight: height } : undefined,
+          Platform.OS === "web" && hydrated ? { minHeight: height } : undefined,
           desktop && styles.shellDesktop,
         ]}
       >
@@ -74,7 +79,16 @@ export function AuthShell({
           </View>
         ) : null}
 
-        <View style={[styles.formPanel, desktop && styles.formPanelDesktop]}>
+        <View
+          style={[
+            styles.formPanel,
+            !desktop && {
+              paddingTop: spacing.xl + topInset,
+              paddingBottom: spacing.xxxl + bottomInset,
+            },
+            desktop && styles.formPanelDesktop,
+          ]}
+        >
           <View style={styles.themeToggle}><ThemeToggle /></View>
           <View
             style={[
