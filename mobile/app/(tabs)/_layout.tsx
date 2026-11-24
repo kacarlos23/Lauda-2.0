@@ -1,16 +1,18 @@
 import { requestFormNavigation } from "../../src/navigation/formExitGuard";
 import { Redirect, Tabs, usePathname, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlatformPressable } from "@react-navigation/elements";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from "react-native";
 import { useAuthStore } from "../../src/store/authStore";
+import { isPublicTestEnvironment } from "../../src/components/TestEnvironmentBanner";
+import { useSafeInsets } from "../../src/hooks/useSafeInsets";
 import { ProfileHeaderButton } from "../../src/components/ProfileHeaderButton";
 import { BrandLogo } from "../../src/components/BrandLogo";
 import { NotificationBell } from "../../src/components/NotificationBell";
 import { ThemeToggle } from "../../src/components/ThemeControls";
 import { NotificationRuntime } from "../../src/components/NotificationRuntime";
 import { NotificationToast } from "../../src/components/NotificationToast";
+import { useInstallStore } from "../../src/features/install/installStore";
 import { OnboardingOverlay } from "../../src/features/onboarding/OnboardingOverlay";
 import {
   SIDEBAR_COLLAPSED_WIDTH,
@@ -72,8 +74,9 @@ export default function TabsLayout() {
   const { isMobile, isTablet, isDesktop } = useResponsiveLayout();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const safeArea = useSafeAreaInsets();
+  const safeArea = useSafeInsets();
   const reducedMotion = useReducedMotion();
+  const updateAvailable = useInstallStore((state) => state.updateAvailable);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
@@ -100,7 +103,7 @@ export default function TabsLayout() {
 
   const showSidebar = !isMobile;
   const stagingWeb = stagingNavigationEnabled && Platform.OS === "web";
-  const showDock = stagingWeb && isMobile;
+  const showDock = stagingNavigationEnabled && isMobile;
   const dockBottom = DOCK_BOTTOM_GAP + safeArea.bottom;
   const dockClearance = showDock ? DOCK_HEIGHT + dockBottom : 0;
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
@@ -150,6 +153,7 @@ export default function TabsLayout() {
               ? undefined
               : showDock ? renderMobileDockBackground : renderMobileTabBubbleBackground,
             headerShown: true,
+            ...(Platform.OS !== "web" && isPublicTestEnvironment ? { headerStatusBarHeight: 0 } : {}),
             headerStyle: { backgroundColor: colors.surface },
             headerShadowVisible: false,
             headerTintColor: colors.ink,
@@ -180,7 +184,8 @@ export default function TabsLayout() {
                         {...props}
                         {...(showDock ? {
                           testID: `staging-dock-tab-${navigationItem.id}`,
-                          "aria-selected": visuallySelected,
+                          ...(Platform.OS === "web" ? { "aria-selected": visuallySelected } : {}),
+                          accessibilityState: { selected: visuallySelected },
                           style: [props.style, styles.dockButton],
                         } : {})}
                         onPress={(event) => {
@@ -204,19 +209,30 @@ export default function TabsLayout() {
                       )
                     : undefined,
                   tabBarIcon: navigationItem
-                    ? ({ focused }) => showDock ? (
-                        <navigationItem.Icon
-                          color={visuallySelected ? colors.primary : colors.muted}
-                          size={iconSizes.s22}
-                          strokeWidth={2}
-                        />
-                      ) : (
-                        <AnimatedTabIcon
-                          Icon={navigationItem.Icon}
-                          focused={focused || visuallySelected}
-                          itemId={navigationItem.id}
-                        />
-                      )
+                    ? ({ focused }) => {
+                        const icon = showDock ? (
+                          <navigationItem.Icon
+                            color={visuallySelected ? colors.primary : colors.muted}
+                            size={iconSizes.s22}
+                            strokeWidth={2}
+                          />
+                        ) : (
+                          <AnimatedTabIcon
+                            Icon={navigationItem.Icon}
+                            focused={focused || visuallySelected}
+                            itemId={navigationItem.id}
+                          />
+                        );
+                        if (navigationItem.id !== "more" || !updateAvailable) {
+                          return icon;
+                        }
+                        return (
+                          <View style={styles.tabIconWrap}>
+                            {icon}
+                            <View style={styles.updateDot} testID="tab-more-update-badge" />
+                          </View>
+                        );
+                      }
                     : undefined,
                   ...("hideHeaderBack" in route && route.hideHeaderBack
                     ? { headerLeft: () => null }
@@ -249,10 +265,17 @@ const styles = StyleSheet.create({
     paddingBottom: DOCK_PADDING_Y,
     zIndex: 10,
     borderTopWidth: 0,
+    backgroundColor: "transparent",
+    borderRadius: radiusValues.r26,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   dockButton: {
+    width: "100%",
     minHeight: controlSizes.large,
     borderRadius: radiusValues.r16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dockLabel: {
     color: colors.muted,
@@ -262,6 +285,22 @@ const styles = StyleSheet.create({
   dockLabelActive: {
     color: colors.primary,
     fontWeight: fontWeights.bold,
+  },
+  tabIconWrap: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  updateDot: {
+    position: "absolute",
+    top: -2,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
   sessionLoading: {
     flex: 1,

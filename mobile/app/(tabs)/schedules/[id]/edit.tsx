@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   modalTitle: { flex: 1, color: colors.ink, fontSize: fontSizes.s22, fontWeight: fontWeights.black, textAlign: "center" },
   songSearchRow: { minHeight: controlSizes.large, flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md },
   songSearchClear: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  songSearchInput: { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any,
+  songSearchInput: Platform.OS === "web" ? ({ flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15, outlineStyle: "none" } as any) : { flex: 1, minHeight: 46, color: colors.ink, fontSize: fontSizes.s15 },
   songSearchError: { color: colors.danger, fontSize: fontSizes.s12, fontWeight: fontWeights.bold, marginTop: spacing.xs },
   modalList: { maxHeight: 440, marginTop: spacing.md },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surfaceMuted, padding: spacing.md, marginBottom: spacing.sm },

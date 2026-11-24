@@ -4,6 +4,7 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from "react-native";
+import { useSafeInsets } from "../hooks/useSafeInsets";
 import {
   colors,
   controlSizes,
@@ -49,9 +51,11 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, presentation = "sheet", sheetStyle,
   onShow, onClosed, reduceMotion = false, animationDuration }: BottomSheetProps) {
+  const insets = useSafeInsets();
   const dimensions = typeof useWindowDimensions === "function" ? useWindowDimensions() : { width: 390 };
   const wide = dimensions.width >= breakpoints.mobile;
   const fixedModal = presentation === "modal";
+  const mobileSheet = !wide && !fixedModal && Platform.OS !== "web";
   const [modalVisible, setModalVisible] = useState(isOpen);
   const translateY = useRef(new Animated.Value(animationDuration == null ? SCREEN_HEIGHT : 8)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -144,6 +148,7 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
     <Modal
       visible={modalVisible}
       transparent
+      statusBarTranslucent
       animationType="none"
       onRequestClose={onClose}
       onShow={onShow}
@@ -175,13 +180,20 @@ export function BottomSheet({ isOpen, onClose, onBack, title, children, footer, 
           </View>
           <ScrollView
             style={styles.content}
-            contentContainerStyle={styles.contentContainer}
+            contentContainerStyle={[
+              styles.contentContainer,
+              mobileSheet && !footer && { paddingBottom: spacing.md + insets.bottom },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
           >
             {children}
           </ScrollView>
-          {footer && <View style={styles.footer}>{footer}</View>}
+          {footer && (
+            <View style={[styles.footer, mobileSheet && { paddingBottom: spacing.xl + insets.bottom }]}>
+              {footer}
+            </View>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -207,7 +219,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
-    maxHeight: "90%",
+    maxHeight: "88%",
     overflow: "hidden",
     ...shadow,
   },

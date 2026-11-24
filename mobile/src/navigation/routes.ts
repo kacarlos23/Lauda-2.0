@@ -52,7 +52,7 @@ export const ROUTES = defineRoutes({
 export type RouteKey = keyof typeof ROUTES;
 export type StaticRouteKey = Exclude<RouteKey, "scheduleEdit" | "ministryDetail" | "ministryMembers" | "songDetail" | "songEdit">;
 export type InstrumentReturnTo = typeof ROUTES.profile.path | typeof ROUTES.church.path;
-export type ProfileSection = "instruments";
+export type ProfileSection = "instruments" | "app";
 
 export const GROUP_HREFS = {
   auth: "/(auth)/login",

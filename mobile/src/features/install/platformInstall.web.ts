@@ -1,5 +1,11 @@
 import { currentAppEnvironment, parseApkReleaseManifest } from "./apkRelease";
-import type { InstallOutcome, PlatformInstallAdapter, PlatformInstallSnapshot } from "./types";
+import type {
+  ApkManifestFetchResult,
+  DeviceClass,
+  InstallOutcome,
+  PlatformInstallAdapter,
+  PlatformInstallSnapshot,
+} from "./types";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -27,15 +33,33 @@ function isIosDevice(): boolean {
   return navigator.platform === "MacIntel" && (navigator.maxTouchPoints ?? 0) > 1;
 }
 
+function detectDeviceClass(): DeviceClass {
+  if (isIosDevice()) return "ios";
+  if (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent || "")) {
+    return "android";
+  }
+  return "desktop";
+}
+
 function computeSnapshot(): PlatformInstallSnapshot {
   if (typeof window === "undefined") {
-    return { supported: false, installed: false, canPrompt: false, channel: "manual-browser" };
+    return {
+      supported: false,
+      installed: false,
+      canPrompt: false,
+      channel: "manual-browser",
+      deviceClass: "desktop",
+      isNativeApp: false,
+      installedVersion: null,
+      installedVersionCode: null,
+    };
   }
   const installed = isStandaloneMode();
+  const deviceClass = detectDeviceClass();
   const canPrompt = Boolean(deferredPrompt) && !installed;
   const channel = canPrompt
     ? "browser-prompt"
-    : isIosDevice()
+    : deviceClass === "ios"
       ? "ios-safari"
       : "manual-browser";
 
@@ -44,6 +68,10 @@ function computeSnapshot(): PlatformInstallSnapshot {
     installed,
     canPrompt,
     channel,
+    deviceClass,
+    isNativeApp: false,
+    installedVersion: null,
+    installedVersionCode: null,
   };
 }
 
@@ -76,6 +104,28 @@ function bindGlobalListeners() {
 }
 
 bindGlobalListeners();
+
+async function fetchWebApkManifest(): Promise<ApkManifestFetchResult> {
+  if (typeof window === "undefined" || typeof fetch !== "function") {
+    return { ok: true, manifest: null };
+  }
+  try {
+    const response = await fetch("/apk-release.json", {
+      headers: { "Cache-Control": "no-cache" },
+    });
+    if (!response.ok) return { ok: false, manifest: null };
+    const data: unknown = await response.json();
+    return {
+      ok: true,
+      manifest: parseApkReleaseManifest(data, {
+        expectedEnvironment: currentAppEnvironment(),
+        origin: window.location.origin,
+      }),
+    };
+  } catch {
+    return { ok: false, manifest: null };
+  }
+}
 
 export const platformInstallAdapter: PlatformInstallAdapter = {
   getSnapshot: () => {
@@ -130,19 +180,34 @@ export const platformInstallAdapter: PlatformInstallAdapter = {
   },
 
   fetchApkManifest: async () => {
-    if (typeof window === "undefined" || typeof fetch !== "function") return null;
+    const result = await fetchWebApkManifest();
+    return result.manifest;
+  },
+
+  fetchApkManifestWithStatus: () => fetchWebApkManifest(),
+
+  openApkDownload: async (url: string): Promise<boolean> => {
+    if (typeof window === "undefined") return false;
     try {
-      const response = await fetch("/apk-release.json", {
-        headers: { "Cache-Control": "no-cache" },
-      });
-      if (!response.ok) return null;
-      const data: unknown = await response.json();
-      return parseApkReleaseManifest(data, {
-        expectedEnvironment: currentAppEnvironment(),
-        origin: window.location.origin,
-      });
+      if (typeof document !== "undefined" && document.body && typeof document.createElement === "function") {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.setAttribute("download", "");
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        return true;
+      }
+      if (typeof window.open === "function") {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return true;
+      }
+      return false;
     } catch {
-      return null;
+      return false;
     }
   },
 };

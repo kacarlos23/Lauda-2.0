@@ -2,7 +2,7 @@ import { useDockContentClearance } from "../../../src/navigation/stagingDockClea
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Modal, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Modal, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CalendarClock, Plus } from "lucide-react-native";
 import { ScheduleCard } from "../../../src/components/schedules/ScheduleCard";
@@ -259,6 +259,20 @@ export default function SchedulesScreen() {
     [schedulesByDay, selectedDate]
   );
   const calendar = useMemo(() => buildCalendarDays(month), [month]);
+  const calendarWeeks = useMemo(() => {
+    const cells: Array<Date | null> = [
+      ...Array(calendar.firstPadding).fill(null),
+      ...calendar.days,
+    ];
+    while (cells.length % 7 !== 0) {
+      cells.push(null);
+    }
+    const weeks: Array<Array<Date | null>> = [];
+    for (let index = 0; index < cells.length; index += 7) {
+      weeks.push(cells.slice(index, index + 7));
+    }
+    return weeks;
+  }, [calendar]);
   const todayKey = dateKey(new Date());
 
   const openFilters = () => {
@@ -352,26 +366,32 @@ export default function SchedulesScreen() {
         {["D", "S", "T", "Q", "Q", "S", "S"].map((label, index) => <Text key={`${label}-${index}`} style={styles.weekLabel}>{label}</Text>)}
       </View>
       <View style={styles.dayGrid}>
-        {Array.from({ length: calendar.firstPadding }).map((_, index) => <View key={`pad-${index}`} style={styles.dayCell} />)}
-        {calendar.days.map((day) => {
-          const key = dateKey(day);
-          const hasSchedule = schedulesByDay.has(key);
-          const selected = key === selectedDate;
-          const today = key === todayKey;
-          return (
-            <TouchableOpacity
-              key={key}
-              style={[styles.dayCell, today && styles.todayCell, selected && styles.selectedCell]}
-              onPress={() => setSelectedDate(key)}
-              accessibilityRole="button"
-              accessibilityLabel={`Selecionar ${selectedDateTitle.format(day)}`}
-              accessibilityState={{ selected }}
-            >
-              <Text style={[styles.dayText, selected && styles.selectedDayText]}>{day.getDate()}</Text>
-              {hasSchedule ? <View style={[styles.dot, selected && styles.selectedDot]} /> : null}
-            </TouchableOpacity>
-          );
-        })}
+        {calendarWeeks.map((week, weekIndex) => (
+          <View key={`week-${weekIndex}`} style={styles.weekGridRow}>
+            {week.map((day, dayIndex) => {
+              if (!day) {
+                return <View key={`pad-${weekIndex}-${dayIndex}`} style={styles.dayCell} />;
+              }
+              const key = dateKey(day);
+              const hasSchedule = schedulesByDay.has(key);
+              const selected = key === selectedDate;
+              const today = key === todayKey;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.dayCell, today && styles.todayCell, selected && styles.selectedCell]}
+                  onPress={() => setSelectedDate(key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Selecionar ${selectedDateTitle.format(day)}`}
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.dayText, selected && styles.selectedDayText]}>{day.getDate()}</Text>
+                  {hasSchedule ? <View style={[styles.dot, selected && styles.selectedDot]} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
       <View style={styles.calendarLegend}>
         <View style={styles.legendItem}>
@@ -592,8 +612,9 @@ const styles = StyleSheet.create({
   monthNav: { color: colors.primary, fontSize: fontSizes.s30, fontWeight: fontWeights.bold, paddingHorizontal: spacing.md },
   weekRow: { flexDirection: "row" },
   weekLabel: { ...typography.badge, flex: 1, textAlign: "center", color: colors.muted, marginBottom: spacing.xs },
-  dayGrid: { flexDirection: "row", flexWrap: "wrap" },
-  dayCell: { width: `${100 / 7}%`, minHeight: controlSizes.default + spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
+  dayGrid: { gap: spacing.xxs },
+  weekGridRow: { flexDirection: "row" },
+  dayCell: { flex: 1, minHeight: controlSizes.default + spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radii.md },
   todayCell: { borderWidth: 1, borderColor: colors.primary },
   selectedCell: { backgroundColor: colors.primary },
   dayText: { ...typography.metadata, color: colors.text, textAlign: "center" },
@@ -627,7 +648,7 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, flexWrap: "wrap" },
   card: { padding: spacing.lg, marginBottom: spacing.md },
   cardPressArea: { flexDirection: "row", borderRadius: radii.lg },
-  cardClickable: { cursor: "pointer" } as any,
+  cardClickable: Platform.OS === "web" ? ({ cursor: "pointer" } as any) : {},
   cardHover: { backgroundColor: colors.primarySoft },
   cardPressed: { opacity: 0.86 },
   summaryDate: { width: 58, alignItems: "center", paddingTop: spacing.xs },

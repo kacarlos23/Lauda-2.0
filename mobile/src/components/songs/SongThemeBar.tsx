@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   fadeLeft: { left: 0, flexDirection: "row-reverse" },
   fadeRight: { right: 0 },
   fadeStrip: { width: spacing.xs, backgroundColor: colors.background },
-  focused: { outlineStyle: "solid", outlineWidth: 2, outlineOffset: 2, outlineColor: colors.primary },
+  focused: Platform.OS === "web" ? ({ outlineStyle: "solid", outlineWidth: 2, outlineOffset: 2, outlineColor: colors.primary } as any) : {},
   chip: {
     flexDirection: "row",
     alignItems: "center",
