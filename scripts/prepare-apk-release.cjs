@@ -27,21 +27,35 @@ function apiUrlForEnvironment(env) {
 }
 
 function validateApkFile(apkPath) {
-  const resolved = path.resolve(String(apkPath || ""));
-  if (!apkPath || !fs.existsSync(resolved)) {
+  const rawPath = String(apkPath || "").trim();
+  const resolved = path.resolve(rawPath);
+  if (!rawPath) {
     throw new Error(`Arquivo APK não encontrado: ${resolved}`);
   }
-  const stat = fs.statSync(resolved);
-  if (!stat.isFile()) {
-    throw new Error(`O caminho informado não é um arquivo regular: ${resolved}`);
-  }
-  if (stat.size < 4) {
-    throw new Error(`Arquivo APK inválido ou vazio: ${resolved}`);
+
+  let fd;
+  try {
+    fd = fs.openSync(resolved, "r");
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      throw new Error(`Arquivo APK não encontrado: ${resolved}`);
+    }
+    if (error && error.code === "EISDIR") {
+      throw new Error(`O caminho informado não é um arquivo regular: ${resolved}`);
+    }
+    throw error;
   }
 
-  const fd = fs.openSync(resolved, "r");
   const header = Buffer.alloc(4);
+  let stat;
   try {
+    stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      throw new Error(`O caminho informado não é um arquivo regular: ${resolved}`);
+    }
+    if (stat.size < 4) {
+      throw new Error(`Arquivo APK inválido ou vazio: ${resolved}`);
+    }
     fs.readSync(fd, header, 0, 4, 0);
   } finally {
     fs.closeSync(fd);
