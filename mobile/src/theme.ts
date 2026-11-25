@@ -105,6 +105,7 @@ export const lightOverlays = {
   modalBrand: "rgba(16, 40, 32, 0.46)",
   modalCool: "rgba(15, 23, 42, 0.46)",
   modalNeutral: "rgba(23, 33, 26, 0.42)",
+  bottomEdgeFade: "rgba(16, 40, 32, 0.24)",
 } as const;
 
 // Existing native and production builds retain their original colors.

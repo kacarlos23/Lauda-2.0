@@ -122,8 +122,18 @@ test("valida visualmente o separador e a busca em tempo real", async ({ page }) 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });
   await expect(search).toBeVisible();
   await expect(page.getByLabel("Abrir filtros de músicas")).toBeVisible();
-  await expect(page.getByText("Diante do Trono · Tom A", { exact: true })).toBeVisible();
-  await expect(page.getByText("Aline Barros · Tom G · 120 BPM", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-1").getByText("Diante do Trono", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-4").getByText("Aline Barros", { exact: true })).toBeVisible();
+  await page.getByTestId("song-menu-button-song-4").click();
+  const actionMenu = page.getByTestId("song-action-menu");
+  await expect(actionMenu.getByText("Tom G", { exact: true })).toBeVisible();
+  await expect(actionMenu.getByText("120 BPM", { exact: true })).toBeVisible();
+  if (desktopViewport) {
+    await page.keyboard.press("Escape");
+  } else {
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  }
+  await expect(actionMenu).toHaveCount(0);
   await expect(page.getByText(/\\u00b7/)).toHaveCount(0);
   await captureViewport(page, `${screenshotDirectory}/songs-list.png`);
 
@@ -182,7 +192,7 @@ test("mostra temas e aplica ações em lote com a barra fixa no desktop", async 
 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });
   await expect(search).toHaveAttribute("placeholder", "Música, artista ou #tema");
-  await expect(page.getByTestId("song-row-song-1").getByText("+1", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-1").getByTestId("song-tag-button-song-1")).toBeVisible();
   await page.getByRole("button", { name: "Adoração, 2 músicas" }).click();
   await expect(page.getByText("2 músicas encontradas", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sem tema, 4 músicas" }).click();

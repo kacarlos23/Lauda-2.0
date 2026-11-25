@@ -38,6 +38,7 @@ jest.mock("react-native", () => {
       }),
       spring: timing,
     },
+    Easing: { bezier: () => (value: number) => value, out: (fn: any) => fn, cubic: (value: number) => value },
     Dimensions: { get: () => ({ width: 1200, height: 900 }) },
     PanResponder: { create: () => ({ panHandlers: {} }) },
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
@@ -51,7 +52,17 @@ jest.mock("react-native", () => {
     useWindowDimensions: () => ({ width: 1200, height: 900 }),
   };
 });
-jest.mock("lucide-react-native", () => ({ Check: () => null, Tag: () => null, UserRound: () => null, X: () => null, ArrowLeft: () => null }));
+jest.mock("lucide-react-native", () => ({
+  ArrowLeft: () => null,
+  Check: () => null,
+  MoreHorizontal: () => null,
+  MoreVertical: () => null,
+  Music2: () => null,
+  Plus: () => null,
+  Tag: () => null,
+  UserRound: () => null,
+  X: () => null,
+}));
 jest.mock("../../store/themeStore", () => ({ useThemeStore: (selector: any) => selector({ mode: "light" }) }));
 jest.mock("../../services/musicService", () => ({ musicService: { changeSongTheme: jest.fn() } }));
 jest.mock("../SongLinkButtons", () => ({ hasSongLinks: () => false, SongLinkButtons: () => null }));
@@ -95,7 +106,7 @@ describe("edição rápida de temas", () => {
       });
     });
   };
-  const advance = (milliseconds = 180) => act(() => jest.advanceTimersByTime(milliseconds));
+  const advance = (milliseconds = 360) => act(() => jest.advanceTimersByTime(milliseconds));
   const escape = () => act(() => { keyboard.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" })); });
   const text = (value: string) => renderer!.root.findAllByType(Text).find((node) => node.props.children === value);
   const option = (name: string) => renderer!.root.findAllByType(TouchableOpacity).find((node) => node.props.accessibilityLabel === name)!;
@@ -219,15 +230,18 @@ describe("edição rápida de temas", () => {
     expect(controls.get(label)!.focus).toHaveBeenCalledTimes(1);
   });
 
-  it("evita botão duplicado de tema vazio no modo compacto e devolve o foco ao botão Editar", async () => {
+  it("usa botão circular único no modo compacto e devolve o foco ao botão", async () => {
     await render(<RowWithEditor empty compact />);
-    expect(renderer!.root.findAllByType(TouchableOpacity).some((node) => node.props.accessibilityLabel === "Adicionar tema a Canção")).toBe(false);
-    await act(async () => option("Editar temas de Canção").props.onPress());
+    const addButtons = renderer!.root.findAllByType(TouchableOpacity)
+      .filter((node) => node.props.accessibilityLabel === "Adicionar tema a Canção");
+    expect(addButtons).toHaveLength(1);
+    expect(renderer!.root.findAllByType(TouchableOpacity).some((node) => node.props.accessibilityLabel === "Editar temas de Canção")).toBe(false);
+    await act(async () => addButtons[0].props.onPress());
     advance();
     escape();
     advance();
     advance(16);
-    expect(controls.get("Editar temas de Canção")!.focus).toHaveBeenCalledTimes(1);
+    expect(controls.get("Adicionar tema a Canção")!.focus).toHaveBeenCalledTimes(1);
   });
 
   it("devolve o foco após toque fora", async () => {
@@ -273,5 +287,24 @@ describe("edição rápida de temas", () => {
     escape();
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(Animated.timing).not.toHaveBeenCalled();
+  });
+
+  it("não aplica borda no botão circular nem nos itens de temas e usa subida suave no sheet mobile", async () => {
+    await render(<RowWithEditor compact />);
+    const tagBtn = renderer!.root.findByProps({ testID: "song-tag-button-song-1" });
+    act(() => tagBtn.props.onFocus());
+    const tagStyle = Object.assign({}, ...[renderer!.root.findByProps({ testID: "song-tag-button-song-1" }).props.style].flat(Infinity).filter(Boolean));
+    expect(tagStyle.borderWidth ?? 0).toBe(0);
+    expect(tagStyle.borderColor).toBeUndefined();
+
+    jest.mocked(Animated.timing).mockClear();
+    await act(async () => tagBtn.props.onPress());
+    expect(jest.mocked(Animated.timing).mock.calls.some(([, cfg]) => cfg.duration === 340)).toBe(true);
+
+    const first = renderer!.root.findAllByType(TouchableOpacity).find((node) => node.props.accessibilityRole === "checkbox")!;
+    act(() => first.props.onFocus());
+    const optionStyle = Object.assign({}, ...[renderer!.root.findByType(SongThemeChecklist).findAllByType(TouchableOpacity)[0].props.style].flat(Infinity).filter(Boolean));
+    expect(optionStyle.borderColor).toBeUndefined();
+    expect(optionStyle.borderWidth ?? 0).toBe(0);
   });
 });

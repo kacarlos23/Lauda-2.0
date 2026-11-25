@@ -194,7 +194,7 @@ test("revisão responsiva das ações e da busca de cifras", async ({ page }) =>
   await page.screenshot({ path: "../dogfood-output/music-fixes-20260713/screenshots/schedule-song-search-mobile-after.png", fullPage: true });
 });
 
-test("links de músicas são consolidados no conteúdo estreito", async ({ page }) => {
+test("links de músicas são consolidados no menu contextual em conteúdo estreito", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
   await mockAuthenticatedApp(page);
 
@@ -205,73 +205,73 @@ test("links de músicas são consolidados no conteúdo estreito", async ({ page 
   const noLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174004");
   await expect(noLinksRow.getByTestId("song-link-buttons")).toHaveCount(0);
   await expect(noLinksRow.getByTestId("song-links-trigger")).toHaveCount(0);
-
-  const oneLinkRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174001");
-  await expect(oneLinkRow.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
-  await expect(oneLinkRow.getByText("Cifra", { exact: true })).toBeVisible();
-  await expect(oneLinkRow.getByText("Links 1", { exact: true })).toHaveCount(0);
+  await noLinksRow.getByTestId("song-menu-button-123e4567-e89b-42d3-a456-426614174004").click();
+  let menu = page.getByTestId("song-action-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByText("LINKS DA MÚSICA", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(menu).toHaveCount(0);
 
   const twoLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174002");
-  const twoLinksTrigger = twoLinksRow.getByTestId("song-links-trigger");
-  await expect(twoLinksTrigger).toHaveText("Links 2");
   await expect(twoLinksRow.getByRole("link")).toHaveCount(0);
-  await twoLinksTrigger.click();
+  await twoLinksRow.getByTestId("song-menu-button-123e4567-e89b-42d3-a456-426614174002").click();
   await expect(page).toHaveURL(/\/songs$/);
-  await expect(page.getByText("Links da música", { exact: true })).toBeVisible();
-
-  let sheet = page.getByTestId("song-links-sheet");
-  await expect(sheet.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de letra" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Fechar" }).click();
-  await expect(page.getByTestId("song-links-sheet")).toHaveCount(0);
+  menu = page.getByTestId("song-action-menu");
+  await expect(menu.getByText("LINKS DA MÚSICA", { exact: true })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de letra" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(menu).toHaveCount(0);
 
   const allLinksRow = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174003");
   const songTitle = allLinksRow.getByText("Ajuda-me a Vencer", { exact: true });
-  const allLinksTrigger = allLinksRow.getByTestId("song-links-trigger");
+  const tagButton = allLinksRow.getByTestId("song-tag-button-123e4567-e89b-42d3-a456-426614174003");
+  const menuButton = allLinksRow.getByTestId("song-menu-button-123e4567-e89b-42d3-a456-426614174003");
   await expect(songTitle).toBeVisible();
-  await expect(allLinksTrigger).toHaveText("Links 4");
 
-  const [rowBox, titleBox, triggerBox] = await Promise.all([
+  const [rowBox, titleBox, tagBox, menuBox] = await Promise.all([
     allLinksRow.boundingBox(),
     songTitle.boundingBox(),
-    allLinksTrigger.boundingBox(),
+    tagButton.boundingBox(),
+    menuButton.boundingBox(),
   ]);
   expect(rowBox).not.toBeNull();
   expect(titleBox).not.toBeNull();
-  expect(triggerBox).not.toBeNull();
-  expect(rowBox!.height).toBeGreaterThanOrEqual(72);
+  expect(tagBox).not.toBeNull();
+  expect(menuBox).not.toBeNull();
+  expect(rowBox!.height).toBeGreaterThanOrEqual(56);
   expect(rowBox!.height).toBeLessThanOrEqual(80);
-  expect(triggerBox!.height).toBeGreaterThanOrEqual(44);
-  const editThemes = allLinksRow.getByRole("button", { name: "Editar temas de Ajuda-me a Vencer" });
-  expect((await editThemes.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  expect(triggerBox!.x).toBeGreaterThan(titleBox!.x);
-  expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(triggerBox!.x);
+  expect(tagBox!.height).toBeGreaterThanOrEqual(44);
+  expect(menuBox!.height).toBeGreaterThanOrEqual(44);
+  expect(tagBox!.x).toBeGreaterThan(titleBox!.x);
+  expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(tagBox!.x);
+  expect(menuBox!.x).toBeGreaterThanOrEqual(tagBox!.x + tagBox!.width);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  await allLinksTrigger.click();
-  sheet = page.getByTestId("song-links-sheet");
-  await expect(page.getByText("Links da música", { exact: true })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de letra" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de áudio" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
-  await page.getByRole("button", { name: "Fechar" }).click();
+  await menuButton.click();
+  menu = page.getByTestId("song-action-menu");
+  await expect(menu.getByText("LINKS DA MÚSICA", { exact: true })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de letra" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de áudio" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(menu).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(allLinksRow.getByTestId("song-links-trigger")).toHaveText("Links 4");
   await expect(allLinksRow.getByText("Ajuda-me a Vencer", { exact: true })).toBeVisible();
   expect((await allLinksRow.boundingBox())!.height).toBeLessThanOrEqual(80);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
   await page.getByRole("button", { name: "Selecionar músicas", exact: true }).click();
-  await expect(allLinksRow.getByTestId("song-links-trigger")).toBeVisible();
-  await expect(allLinksRow.getByRole("button", { name: "Editar temas de Ajuda-me a Vencer" })).toBeVisible();
+  await expect(tagButton).toBeVisible();
+  await expect(menuButton).toBeVisible();
   await page.getByRole("checkbox", { name: "Selecionar Ajuda-me a Vencer" }).click();
   await expect(page.getByRole("checkbox", { name: "Desmarcar Ajuda-me a Vencer" })).toBeVisible();
 });
 
-test("desktop mantém todos os links de música diretamente na linha", async ({ page }) => {
+test("desktop mantém a linha limpa e exibe todos os links no menu contextual", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await mockAuthenticatedApp(page);
 
@@ -281,23 +281,27 @@ test("desktop mantém todos os links de música diretamente na linha", async ({ 
 
   const row = page.getByTestId("song-row-123e4567-e89b-42d3-a456-426614174003");
   await expect(row.getByText("Ajuda-me a Vencer", { exact: true })).toBeVisible();
-  await expect(row.getByRole("link")).toHaveCount(4);
-  await expect(row.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
-  await expect(row.getByRole("link", { name: "Abrir link de letra" })).toBeVisible();
-  await expect(row.getByRole("link", { name: "Abrir link de áudio" })).toBeVisible();
-  await expect(row.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
   await expect(row.getByTestId("song-links-trigger")).toHaveCount(0);
-  await expect(row.getByText("Links 4", { exact: true })).toHaveCount(0);
+  await expect(row.getByTestId("song-link-buttons")).toHaveCount(0);
+  await row.getByTestId("song-menu-button-123e4567-e89b-42d3-a456-426614174003").click();
+  const popover = page.getByTestId("song-action-popover");
+  await expect(popover).toBeVisible();
+  await expect(popover.getByRole("link", { name: "Abrir link de cifra" })).toBeVisible();
+  await expect(popover.getByRole("link", { name: "Abrir link de letra" })).toBeVisible();
+  await expect(popover.getByRole("link", { name: "Abrir link de áudio" })).toBeVisible();
+  await expect(popover.getByRole("link", { name: "Abrir link de vídeo" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
 
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await expect(row.getByRole("link")).toHaveCount(4);
-  await expect(row.getByTestId("song-links-trigger")).toHaveCount(0);
+  await expect(row.getByTestId("song-info-123e4567-e89b-42d3-a456-426614174003")).toBeVisible();
+  await expect(row.getByTestId("song-actions-123e4567-e89b-42d3-a456-426614174003")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
   // 683 CSS px correspondem à área útil de uma janela de 1366 px com zoom de 200%.
   await page.setViewportSize({ width: 683, height: 384 });
   const zoomedInfo = row.getByTestId("song-info-123e4567-e89b-42d3-a456-426614174003");
   const zoomedActions = row.getByTestId("song-actions-123e4567-e89b-42d3-a456-426614174003");
-  await expect(zoomedActions.getByRole("link")).toHaveCount(4);
   await row.scrollIntoViewIfNeeded();
   const [zoomedInfoBox, zoomedActionsBox] = await Promise.all([
     zoomedInfo.boundingBox(),

@@ -13,19 +13,19 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { MicVocal, Plus, Search, X } from "lucide-react-native";
+import { ArrowUpDown, Check, MicVocal, Plus, Search, X } from "lucide-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArtistPicker } from "../../../src/components/ArtistPicker";
-import { BottomSheet } from "../../../src/components/BottomSheet";
-import { SongLinkButtons } from "../../../src/components/SongLinkButtons";
 import { SongSelectionBar } from "../../../src/components/songs/SongSelectionBar";
-import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
+import { DOCK_HEIGHT } from "../../../src/components/StagingDockSurface";
+import { useDockClearance, useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { SongBulkThemeEditor } from "../../../src/components/songs/SongBulkThemeEditor";
 const LazySongDataTransferPanel = lazy(() =>
   import("../../../src/components/songs/SongDataTransferPanel").then((mod) => ({
     default: mod.SongDataTransferPanel,
   }))
 );
+import { SongActionMenu } from "../../../src/components/songs/SongActionMenu";
 import { SongListRow } from "../../../src/components/songs/SongListRow";
 import { SongThemeBar } from "../../../src/components/songs/SongThemeBar";
 import { SongQuickThemeEditor } from "../../../src/components/songs/SongQuickThemeEditor";
@@ -44,6 +44,7 @@ import {
   FilterSection,
   LoadingState,
 } from "../../../src/components/ui";
+import { GradualBlur } from "../../../src/components/ui/GradualBlur";
 import { useReducedMotion } from "../../../src/hooks/useReducedMotion";
 import { useResponsiveLayout } from "../../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -65,9 +66,10 @@ import {
   fontSizes,
   fontWeights,
   iconSizes,
+  lineHeights,
   motion,
+  overlays,
   radii,
-  radiusValues,
   screen,
   spacing,
 } from "../../../src/theme";
@@ -138,7 +140,9 @@ export default function SongsScreen() {
 }
 
 function SongsCatalogue({ user }: { user: User | null }) {
+  const dockClearance = useDockClearance();
   const withDockClearance = useDockContentClearance();
+  const bottomBlurHeight = dockClearance > 0 ? Math.max(0, dockClearance - Math.round(DOCK_HEIGHT / 3)) : 0;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const routeParams = useLocalSearchParams<{
@@ -188,7 +192,7 @@ function SongsCatalogue({ user }: { user: User | null }) {
   const [selectedSongs, setSelectedSongs] = useState<Map<string, SongSelectionSnapshot>>(() => new Map());
   const [exporting, setExporting] = useState(false);
   const [contentWidth, setContentWidth] = useState(0);
-  const [songForLinks, setSongForLinks] = useState<Song | null>(null);
+  const [songMenu, setSongMenu] = useState<{ song: Song; anchor: SongThemeAnchor | null } | null>(null);
   const [themeEditor, setThemeEditor] = useState<{ song: Song; anchor: SongThemeAnchor | null } | null>(null);
   const [themePreview, setThemePreview] = useState<SongThemeChange | null>(null);
   const [bulkEditor, setBulkEditor] = useState<{
@@ -351,7 +355,10 @@ function SongsCatalogue({ user }: { user: User | null }) {
   const activeFilters = Boolean(filters.artist || filters.originalKey);
   const canApplyFilters = !sameScope(filters, draftFilters);
   const hasDraftFilters = Boolean(draftFilters.artist || draftFilters.originalKey);
-  const compactLinkActions = (contentWidth || screenWidth) < 600;
+  const effectiveWidth = contentWidth || screenWidth;
+  const compactLinkActions = effectiveWidth < 600;
+  const ultraCompactHeader = screenWidth < 375;
+  const baseBottomPadding = compactLinkActions ? spacing.sm : screen.contentBottomPadding + spacing.xl;
 
   const toggleSong = useCallback((song: Song) => {
     setSelectedSongs((current) => {
@@ -414,6 +421,22 @@ function SongsCatalogue({ user }: { user: User | null }) {
       setExporting(false);
     }
   }, [selectedSongs, showFeedback]);
+
+  const exportSingleSong = useCallback(async (song: Song) => {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
+    setExporting(true);
+    try {
+      const safeTitle = song.title.replace(/[\\/:*?"<>|]/g, "").trim() || "Cifra";
+      await musicService.exportSongs([song.id], `${safeTitle}.pdf`);
+      showFeedback("Arquivo gerado com sucesso.");
+    } catch (reason) {
+      showFeedback(reason instanceof Error ? reason.message : TEXT.exportError, "error");
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
+  }, [showFeedback]);
 
   const openFilters = useCallback(() => {
     setDraftFilters(filters);
@@ -528,8 +551,8 @@ function SongsCatalogue({ user }: { user: User | null }) {
         style={styles.scroller}
         testID="song-catalog-scroll"
         contentContainerStyle={isSelectionMode
-          ? [styles.page, { paddingBottom: screen.contentBottomPadding + spacing.xl + Math.max(spacing.sm, insets.bottom) }]
-          : withDockClearance(styles.page)}
+          ? [styles.page, compactLinkActions && styles.pageCompact, { paddingBottom: baseBottomPadding + Math.max(spacing.sm, insets.bottom) }]
+          : withDockClearance([styles.page, compactLinkActions && styles.pageCompact])}
         keyboardShouldPersistTaps="handled"
         refreshControl={(
           <RefreshControl
@@ -539,22 +562,39 @@ function SongsCatalogue({ user }: { user: User | null }) {
           />
         )}
       >
-        <View style={styles.contentShell}>
+        <View style={[styles.contentShell, compactLinkActions && styles.contentShellCompact]}>
           <View style={styles.measuredContent} onLayout={handleContentLayout} testID="songs-content-width">
-            <View style={styles.header}>
+            <View style={[styles.header, compactLinkActions && styles.headerCompact]} testID="songs-header">
               <View style={styles.headerCopy}>
-                <Text style={styles.title}>{TEXT.songs}</Text>
-                <Text style={styles.subtitle}>Cifras da sua igreja</Text>
+                <Text style={[styles.title, compactLinkActions && styles.titleCompact]} numberOfLines={1}>{TEXT.songs}</Text>
+                <Text style={[styles.subtitle, compactLinkActions && styles.subtitleCompact]} numberOfLines={1}>Cifras da sua igreja</Text>
               </View>
-              <View style={styles.actions}>
+              <View style={[styles.actions, compactLinkActions && styles.actionsCompact]} testID="songs-header-actions">
                 {canManageMusic(user, "song:import") || canManageMusic(user, "song:export") ? (
-                  <Button
-                    title="Importar/exportar"
-                    variant="secondary"
-                    onPress={() => setShowDataTransfer(true)}
-                    accessibilityLabel="Importar ou exportar músicas"
-                    style={styles.transferButton}
-                  />
+                  compactLinkActions ? (
+                    <TouchableOpacity
+                      style={[styles.iconButton, styles.transferIconButton]}
+                      onPress={() => setShowDataTransfer(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Importar ou exportar músicas"
+                      testID="songs-transfer-button"
+                      hitSlop={4}
+                    >
+                      <ArrowUpDown color={colors.primary} size={iconSizes.s16} />
+                    </TouchableOpacity>
+                  ) : (
+                    <Button
+                      title="Importar/exportar"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => setShowDataTransfer(true)}
+                      accessibilityLabel="Importar ou exportar músicas"
+                      testID="songs-transfer-button"
+                      style={styles.compactHeaderButton}
+                      textStyle={styles.headerButtonText}
+                      hitSlop={4}
+                    />
+                  )
                 ) : null}
                 {canManageMusic(user, "song:edit") || canManageMusic(user, "song:create") ? (
                   <TouchableOpacity
@@ -562,23 +602,29 @@ function SongsCatalogue({ user }: { user: User | null }) {
                     onPress={() => router.push(nav.artists)}
                     accessibilityRole="button"
                     accessibilityLabel="Gerenciar artistas"
+                    testID="songs-artists-button"
+                    hitSlop={4}
                   >
-                    <MicVocal color={colors.primary} size={iconSizes.s19} />
+                    <MicVocal color={colors.primary} size={iconSizes.s16} />
                   </TouchableOpacity>
                 ) : null}
                 {canManageMusic(user, "song:create") ? (
                   <Button
-                    title={TEXT.newSong}
-                    icon={<Plus color={colors.surface} size={iconSizes.s19} />}
+                    title={ultraCompactHeader ? "Nova" : TEXT.newSong}
+                    size="sm"
+                    icon={<Plus color={colors.surface} size={iconSizes.s16} />}
                     onPress={() => router.push(nav.songNew)}
                     accessibilityLabel={TEXT.newSong}
-                    style={styles.newSongButton}
+                    testID="songs-new-button"
+                    style={[styles.compactHeaderButton, compactLinkActions && styles.compactNewSongButton]}
+                    textStyle={styles.headerButtonText}
+                    hitSlop={4}
                   />
                 ) : null}
               </View>
             </View>
 
-            <View style={[styles.searchRow, compactLinkActions && styles.searchRowCompact]}>
+            <View style={styles.searchRow} testID="songs-search-row">
               <AppInput
                 value={search}
                 onChangeText={setSearch}
@@ -600,10 +646,9 @@ function SongsCatalogue({ user }: { user: User | null }) {
                     <X color={colors.muted} size={iconSizes.s18} strokeWidth={2.4} />
                   </TouchableOpacity>
                 ) : null}
-                containerStyle={compactLinkActions ? styles.searchInputCompact : styles.searchInput}
+                containerStyle={styles.searchInput}
               />
               <FilterButton
-                label="Filtros"
                 active={activeFilters}
                 onPress={openFilters}
                 accessibilityLabel="Abrir filtros de músicas"
@@ -646,9 +691,9 @@ function SongsCatalogue({ user }: { user: User | null }) {
             />
 
             <View style={styles.singleColumn}>
-              <View style={styles.mainColumn}>
-                <View style={styles.listCard}>
-                  <View style={styles.listHeader}>
+              <View style={[styles.mainColumn, compactLinkActions && styles.mainColumnCompact]}>
+                <View style={[styles.listContainer, compactLinkActions && styles.listContainerCompact]} testID="songs-list-container">
+                  <View style={[styles.listHeader, compactLinkActions && styles.listHeaderCompact]}>
                     <Text style={styles.listCount} accessibilityLiveRegion="polite">{totalLabel(pagination.total)}</Text>
                     {isSelectionMode ? (
                       <SongSelectionSummary
@@ -667,37 +712,71 @@ function SongsCatalogue({ user }: { user: User | null }) {
                     <EmptyState
                       title={TEXT.noSongsFound}
                       description={search.trim() || activeFilters || filters.tags.length || filters.untagged ? "Tente ajustar a busca ou limpar os filtros." : TEXT.registerSongs}
-                      style={styles.emptyState}
+                      style={[styles.emptyState, compactLinkActions && styles.emptyStateCompact]}
                     />
                   ) : (
-                    songs.map((song, index) => (
-                      <SongListRow
-                        key={song.id}
-                        song={themePreview?.id === song.id ? { ...song, tags: themePreview.tags } : song}
-                        selectionMode={isSelectionMode}
-                        selected={selectedSongs.has(song.id)}
-                        isLast={index === songs.length - 1}
-                        compactLinkActions={compactLinkActions}
-                        editingThemes={themeEditor?.song.id === song.id}
-                        onEditThemes={canEditThemes ? (anchor) => {
-                          if (!themePreview) setThemeEditor({ song, anchor });
-                        } : undefined}
-                        onOpenLinks={() => setSongForLinks(song)}
-                        onPress={() => {
-                          if (isSelectionMode) {
-                            toggleSong(song);
-                            return;
-                          }
-                          primeSong(song);
-                          router.push(nav.songDetail(song.id));
-                        }}
-                      />
-                    ))
+                    <>
+                      {!compactLinkActions ? (
+                        <View style={styles.tableHeader} testID="songs-table-header">
+                          <View style={styles.tableHeaderIndex}>
+                            {isSelectionMode ? (
+                              <TouchableOpacity
+                                onPress={togglePageSelection}
+                                accessibilityRole="checkbox"
+                                accessibilityLabel={allPageSelected ? "Desmarcar músicas da página" : "Selecionar músicas da página"}
+                                accessibilityState={{ checked: allPageSelected }}
+                                style={[styles.headerCheck, allPageSelected && styles.headerCheckSelected]}
+                              >
+                                {allPageSelected ? <Check color={colors.surface} size={iconSizes.s13} strokeWidth={3} /> : null}
+                              </TouchableOpacity>
+                            ) : (
+                              <Text style={styles.tableHeaderText}>#</Text>
+                            )}
+                          </View>
+                          <Text style={[styles.tableHeaderText, styles.tableHeaderTitle]}>TÍTULO</Text>
+                          <Text style={[styles.tableHeaderText, styles.tableHeaderTags]}>ETIQUETAS</Text>
+                          <View style={styles.tableHeaderMenu} />
+                        </View>
+                      ) : null}
+                      <View style={[styles.listRows, compactLinkActions && styles.listRowsCompact]}>
+                        {songs.map((song, index) => (
+                          <SongListRow
+                            key={song.id}
+                            song={themePreview?.id === song.id ? { ...song, tags: themePreview.tags } : song}
+                            rowNumber={(pagination.page - 1) * (pagination.limit || 20) + index + 1}
+                            selectionMode={isSelectionMode}
+                            selected={selectedSongs.has(song.id)}
+                            isLast={index === songs.length - 1}
+                            compactLinkActions={compactLinkActions}
+                            editingThemes={themeEditor?.song.id === song.id}
+                            menuOpen={songMenu?.song.id === song.id}
+                            onEditThemes={canEditThemes ? (anchor) => {
+                              if (!themePreview) {
+                                setSongMenu(null);
+                                setThemeEditor({ song, anchor });
+                              }
+                            } : undefined}
+                            onOpenMenu={(anchor) => {
+                              setThemeEditor(null);
+                              setSongMenu({ song, anchor });
+                            }}
+                            onPress={() => {
+                              if (isSelectionMode) {
+                                toggleSong(song);
+                                return;
+                              }
+                              primeSong(song);
+                              router.push(nav.songDetail(song.id));
+                            }}
+                          />
+                        ))}
+                      </View>
+                    </>
                   )}
                 </View>
 
                 {pagination.totalPages > 1 ? (
-                  <View style={styles.pagination}>
+                  <View style={[styles.pagination, compactLinkActions && styles.paginationCompact]} testID="songs-pagination">
                     <TouchableOpacity style={styles.pageNavigation} accessibilityRole="button" accessibilityLabel="Página anterior" disabled={page <= 1} onPress={() => setPage(page - 1)}>
                       <Text style={[styles.pageArrow, page <= 1 && styles.disabledText]}>←</Text>
                       {contentWidth >= 600 ? <Text style={[styles.link, page <= 1 && styles.disabledText]}>Anterior</Text> : null}
@@ -735,6 +814,21 @@ function SongsCatalogue({ user }: { user: User | null }) {
         </View>
       </ScrollView>
 
+      {!isSelectionMode && bottomBlurHeight > 0 ? (
+        <GradualBlur
+          position="bottom"
+          target="parent"
+          height={bottomBlurHeight}
+          strength={1.1}
+          layers={6}
+          curve="bezier"
+          exponential
+          tint={overlays.bottomEdgeFade}
+          zIndex={5}
+          testID="songs-bottom-blur"
+        />
+      ) : null}
+
       {isSelectionMode ? (
         <SongSelectionBar
           count={selectedSongs.size}
@@ -771,50 +865,77 @@ function SongsCatalogue({ user }: { user: User | null }) {
         />
       ) : null}
 
-      <BottomSheet
-        isOpen={Boolean(songForLinks)}
-        onClose={() => setSongForLinks(null)}
-        title="Links da música"
-      >
-        {songForLinks ? (
-          <View style={styles.linksSheetContent} testID="song-links-sheet">
-            <Text style={styles.linksSheetSongTitle}>{songForLinks.title}</Text>
-            <Text style={styles.linksSheetSongMeta}>
-              {songForLinks.artist.name}
-              {" · "}
-              Tom {songForLinks.originalKey}
-            </Text>
-            <View style={styles.linksSheetActions}>
-              <SongLinkButtons links={songForLinks} variant="sheet" />
-            </View>
-          </View>
-        ) : null}
-      </BottomSheet>
+      {songMenu ? (
+        <SongActionMenu
+          key={songMenu.song.id}
+          song={themePreview?.id === songMenu.song.id ? { ...songMenu.song, tags: themePreview.tags } : songMenu.song}
+          anchor={songMenu.anchor}
+          selected={selectedSongs.has(songMenu.song.id)}
+          exporting={exporting}
+          onClose={() => setSongMenu(null)}
+          onOpenSong={() => {
+            const target = songMenu.song;
+            setSongMenu(null);
+            primeSong(target);
+            router.push(nav.songDetail(target.id));
+          }}
+          onEditThemes={canEditThemes ? () => {
+            if (!themePreview) {
+              setThemeEditor({ song: songMenu.song, anchor: songMenu.anchor });
+              setSongMenu(null);
+            }
+          } : undefined}
+          onToggleSelect={() => {
+            setIsSelectionMode(true);
+            toggleSong(songMenu.song);
+            setSongMenu(null);
+          }}
+          onEditSong={canEditThemes ? () => {
+            const target = songMenu.song;
+            setSongMenu(null);
+            primeSong(target);
+            router.push(nav.songEdit(target.id));
+          } : undefined}
+          onExportPdf={() => {
+            const target = songMenu.song;
+            setSongMenu(null);
+            void exportSingleSong(target);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, position: "relative", backgroundColor: colors.background },
   scroller: { flex: 1, width: "100%" },
   page: { flexGrow: 1, paddingVertical: spacing.xl, paddingBottom: screen.contentBottomPadding + spacing.xl },
+  pageCompact: { paddingTop: spacing.md, paddingBottom: spacing.sm },
   contentShell: { width: "100%", maxWidth: screen.listMaxWidth, alignSelf: "center", paddingHorizontal: spacing.xl },
+  contentShellCompact: { paddingHorizontal: spacing.lg },
   measuredContent: { width: "100%" },
   header: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: spacing.lg,
-    marginBottom: spacing.xl,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  headerCopy: { flexGrow: 1 },
+  headerCompact: {
+    marginBottom: spacing.md,
+  },
+  headerCopy: { flex: 1, minWidth: 0 },
   title: { ...uiPatterns.pageTitle },
+  titleCompact: { fontSize: fontSizes.s24, lineHeight: lineHeights.h28, letterSpacing: -0.5 },
   subtitle: { ...uiPatterns.subtitle, marginTop: spacing.xs },
-  actions: { flexDirection: "row", flexWrap: "wrap", maxWidth: "100%", alignItems: "center", gap: spacing.sm },
+  subtitleCompact: { fontSize: fontSizes.s12, lineHeight: lineHeights.h17, marginTop: spacing.xxs },
+  actions: { flexDirection: "row", flexWrap: "nowrap", flexShrink: 0, alignItems: "center", gap: spacing.sm },
+  actionsCompact: { gap: 6 },
   iconButton: {
-    width: controlSizes.default,
-    height: controlSizes.default,
+    width: controlSizes.compact,
+    height: controlSizes.compact,
     borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
@@ -822,36 +943,118 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primarySoftBorder,
   },
-  newSongButton: { minWidth: 150 },
-  transferButton: { minWidth: 170 },
-  searchRow: { flexDirection: "row", alignItems: "stretch", gap: spacing.md, marginBottom: spacing.md },
-  searchRowCompact: { flexDirection: "column", alignItems: "flex-end", gap: spacing.xs },
-  searchInput: { flex: 1 },
-  searchInputCompact: { width: "100%" },
-  filterButton: { height: controlSizes.default },
+  transferIconButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.lineStrong,
+  },
+  compactHeaderButton: {
+    height: controlSizes.compact,
+    minHeight: controlSizes.compact,
+    paddingHorizontal: spacing.md,
+  },
+  compactNewSongButton: {
+    paddingHorizontal: spacing.control,
+  },
+  headerButtonText: {
+    fontSize: fontSizes.s13,
+  },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  searchInput: { flex: 1, minWidth: 0 },
+  filterButton: {
+    width: controlSizes.default,
+    height: controlSizes.default,
+    paddingHorizontal: 0,
+    flexShrink: 0,
+  },
   clearSearchButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   error: { marginBottom: spacing.sm },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.sm },
   selectionEntryText: { color: colors.primary, fontSize: fontSizes.s13, fontWeight: fontWeights.extrabold },
   singleColumn: { width: "100%" },
   mainColumn: { flex: 1, minWidth: 0, gap: spacing.lg },
-  listCard: {
+  mainColumnCompact: { gap: spacing.sm },
+  listContainer: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radiusValues.r4,
-    backgroundColor: colors.surface,
-    overflow: "hidden",
+    backgroundColor: "transparent",
+  },
+  listContainerCompact: {
+    width: "auto",
+    marginHorizontal: -spacing.lg,
   },
   listHeader: {
-    minHeight: 50, flexDirection: "row", flexWrap: "wrap", alignItems: "center",
-    justifyContent: "space-between", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.line,
+    minHeight: 30,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: 0,
+    paddingBottom: spacing.xs,
   },
-  listCount: { color: colors.text, fontSize: fontSizes.s14, fontWeight: fontWeights.extrabold },
+  listHeaderCompact: {
+    paddingHorizontal: spacing.lg,
+  },
+  tableHeader: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  tableHeaderIndex: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tableHeaderTitle: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tableHeaderTags: {
+    width: 64,
+    textAlign: "center",
+  },
+  tableHeaderMenu: {
+    width: 44,
+    marginLeft: spacing.xs,
+  },
+  tableHeaderText: {
+    color: colors.muted,
+    fontSize: fontSizes.s11,
+    fontWeight: fontWeights.bold,
+    letterSpacing: 0.7,
+  },
+  headerCheck: {
+    width: 18,
+    height: 18,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.muted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCheckSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  listRows: {
+    paddingHorizontal: 0,
+    paddingVertical: spacing.xs,
+    gap: 2,
+  },
+  listRowsCompact: {
+    paddingVertical: 0,
+    gap: 0,
+  },
+  listCount: { color: colors.muted, fontSize: fontSizes.s12, fontWeight: fontWeights.semibold },
   inlineLoading: { alignItems: "center", padding: spacing.xl },
   emptyState: { borderWidth: 0, borderRadius: 0 },
+  emptyStateCompact: { marginHorizontal: spacing.lg },
   pagination: { width: "100%", maxWidth: 960, alignSelf: "center", flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  paginationCompact: { paddingTop: spacing.sm, paddingBottom: spacing.xs },
   pageNumbers: { position: "relative", flex: 1, maxWidth: 600, flexDirection: "row", alignItems: "center", marginHorizontal: spacing.sm },
   pageNavigation: { minWidth: 44, minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   pageSlot: { flex: 1, minWidth: 0, minHeight: 48, alignItems: "center", justifyContent: "center" },
@@ -862,22 +1065,4 @@ const styles = StyleSheet.create({
   link: { color: colors.muted, fontSize: fontSizes.s13, fontWeight: fontWeights.medium },
   pageText: { color: colors.muted, fontSize: fontSizes.s13 },
   disabledText: { opacity: 0.35 },
-  linksSheetContent: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  linksSheetSongTitle: {
-    color: colors.ink,
-    fontSize: fontSizes.s17,
-    fontWeight: fontWeights.black,
-  },
-  linksSheetSongMeta: {
-    color: colors.muted,
-    fontSize: fontSizes.s13,
-    marginTop: spacing.xs,
-  },
-  linksSheetActions: {
-    marginTop: spacing.lg,
-  },
 });

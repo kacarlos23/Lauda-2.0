@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, findNodeHandle, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { AccessibilityInfo, Animated, Easing, findNodeHandle, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Check } from "lucide-react-native";
 import { SUGGESTED_SONG_TAGS } from "../../../../src/constants/songTags";
 import { normalizeCatalogText } from "../../../../src/utils/catalogNormalization";
@@ -39,6 +39,16 @@ type ChecklistProps = {
   onToggle: (name: string) => void;
 };
 
+function isKeyboardFocusEvent(event: unknown): boolean {
+  if (Platform.OS !== "web") return false;
+  const target = (event as { currentTarget?: { matches?: (selector: string) => boolean }; target?: { matches?: (selector: string) => boolean } } | undefined)?.currentTarget
+    ?? (event as { target?: { matches?: (selector: string) => boolean } } | undefined)?.target;
+  if (typeof target?.matches === "function") {
+    return target.matches(":focus-visible");
+  }
+  return true;
+}
+
 export function SongThemeChecklist({ options, optionLabels, checked, disabled, onToggle }: ChecklistProps) {
   const dark = useThemeStore((state) => state.mode === "dark");
   const firstItem = useContext(FirstItemContext);
@@ -59,7 +69,7 @@ export function SongThemeChecklist({ options, optionLabels, checked, disabled, o
             accessibilityLabel={label}
             accessibilityState={{ checked: active, disabled }}
             aria-checked={active}
-            onFocus={() => { if (Platform.OS === "web") setFocused(key); }}
+            onFocus={(event) => { if (isKeyboardFocusEvent(event)) setFocused(key); }}
             onBlur={() => setFocused(null)}
             style={[styles.option, focused === key && styles.optionFocused]}
           >
@@ -135,8 +145,12 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
       if (closing) finishClose();
       return;
     }
+    const easing = typeof Easing?.bezier === "function" ? Easing.bezier(0.22, 1, 0.36, 1) : undefined;
     const animation = Animated.timing(progress, {
-      toValue: closing ? 0 : 1, duration: motion.interactionMs, useNativeDriver: true,
+      toValue: closing ? 0 : 1,
+      duration: motion.interactionMs,
+      easing,
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start(({ finished }) => {
       if (finished && closing) finishClose();
@@ -156,7 +170,7 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
   if (!anchor) {
     return (
       <BottomSheet isOpen={!closing} title={title} onClose={close} onClosed={finishClose}
-        onShow={focusFirstItem} reduceMotion={reducedMotion} animationDuration={motion.interactionMs} sheetStyle={styles.sheet} footer={footer}>
+        onShow={focusFirstItem} reduceMotion={reducedMotion} openDuration={340} closeDuration={220} sheetStyle={styles.sheet} footer={footer}>
         {hint ? <View style={styles.sheetNote}>{hint}</View> : null}
         {menu}
       </BottomSheet>
@@ -178,7 +192,7 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
         <Animated.View
           style={[styles.popover, { width: menuWidth, left, maxHeight: Math.max(120, opensBelow ? below : above),
             opacity: progress,
-            transform: [{ translateY: typeof progress.interpolate === "function" ? progress.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) : 0 }],
+            transform: [{ translateY: typeof progress.interpolate === "function" ? progress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) : 0 }],
           }, placement]}
           accessibilityViewIsModal
           accessibilityLabel={title}
@@ -201,8 +215,8 @@ export function SongThemeMenu({ title, anchor, note, footer, children, onClose }
 const styles = StyleSheet.create({
   checklist: { paddingHorizontal: spacing.md },
   option: { minHeight: 44, minWidth: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xxs,
-    borderWidth: 1, borderColor: "transparent", borderRadius: radiusValues.r4 },
-  optionFocused: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    paddingHorizontal: spacing.xs, borderRadius: radiusValues.r4 },
+  optionFocused: { backgroundColor: colors.primarySoft },
   optionName: { color: colors.text, fontSize: fontSizes.s13, flexShrink: 1 },
   checkbox: {
     width: 16, height: 16, borderRadius: radiusValues.r2,
@@ -210,7 +224,7 @@ const styles = StyleSheet.create({
   },
   checkboxActive: { borderColor: colors.primary, backgroundColor: colors.primary },
   dot: { width: 7, height: 7, borderRadius: radiusValues.r4 },
-  sheet: { borderRadius: radiusValues.r4, borderTopLeftRadius: radiusValues.r4, borderTopRightRadius: radiusValues.r4 },
+  sheet: { borderTopLeftRadius: radiusValues.r16, borderTopRightRadius: radiusValues.r16, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   sheetNote: { paddingTop: spacing.xs, paddingHorizontal: spacing.md, alignItems: "flex-end" },
   popover: {
     position: "absolute", backgroundColor: colors.surface, borderWidth: 1,

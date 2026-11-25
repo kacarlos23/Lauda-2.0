@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Check, Tag, UserRound } from "lucide-react-native";
+import { Check, MoreHorizontal, MoreVertical, Music2, Plus, UserRound } from "lucide-react-native";
 import { Song } from "../../types";
-import { hasSongLinks, SongLinkButtons } from "../SongLinkButtons";
-import { SongThemeLabels } from "./SongThemeLabels";
 import { focusSongThemeControl, type SongThemeAnchor } from "./SongThemeMenu";
 import {
   colors,
@@ -11,7 +9,7 @@ import {
   fontSizes,
   fontWeights,
   iconSizes,
-  radiusValues,
+  radii,
   spacing,
 } from "../../theme";
 
@@ -22,60 +20,156 @@ type Props = {
   isLast: boolean;
   compactLinkActions?: boolean;
   editingThemes?: boolean;
+  menuOpen?: boolean;
+  rowNumber?: number;
   onEditThemes?: (anchor: SongThemeAnchor | null) => void;
+  onOpenMenu?: (anchor: SongThemeAnchor | null) => void;
   onOpenLinks?: () => void;
   onPress: () => void;
 };
+
+function isKeyboardFocusEvent(event: unknown): boolean {
+  if (Platform.OS !== "web") return false;
+  const target = (event as { currentTarget?: { matches?: (selector: string) => boolean }; target?: { matches?: (selector: string) => boolean } } | undefined)?.currentTarget
+    ?? (event as { target?: { matches?: (selector: string) => boolean } } | undefined)?.target;
+  if (typeof target?.matches === "function") {
+    return target.matches(":focus-visible");
+  }
+  return true;
+}
 
 export function SongListRow({
   song,
   selectionMode,
   selected,
-  isLast,
+  isLast: _isLast,
   compactLinkActions = false,
   editingThemes = false,
+  menuOpen = false,
+  rowNumber,
   onEditThemes,
-  onOpenLinks,
+  onOpenMenu,
   onPress,
 }: Props) {
   const themeButton = useRef<View>(null);
-  const addThemeButton = useRef<View>(null);
-  const opener = useRef<React.RefObject<View | null>>(themeButton);
+  const menuButton = useRef<View>(null);
   const wasEditing = useRef(false);
-  const [focused, setFocused] = useState<"edit" | "add" | null>(null);
+  const wasMenuOpen = useRef(false);
+  const [focused, setFocused] = useState<"theme" | "menu" | null>(null);
+  const [rowHovered, setRowHovered] = useState(false);
+
   useEffect(() => {
     const restore = wasEditing.current && !editingThemes;
     wasEditing.current = editingThemes;
     if (!restore) return;
-    const frame = requestAnimationFrame(() => focusSongThemeControl(opener.current.current ?? themeButton.current));
-    return () => cancelAnimationFrame(frame);
+    if (typeof requestAnimationFrame === "function") {
+      const frame = requestAnimationFrame(() => focusSongThemeControl(themeButton.current));
+      return () => {
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+      };
+    }
+    focusSongThemeControl(themeButton.current);
+    return undefined;
   }, [editingThemes]);
+
+  useEffect(() => {
+    const restore = wasMenuOpen.current && !menuOpen && !editingThemes;
+    wasMenuOpen.current = menuOpen;
+    if (!restore) return;
+    if (typeof requestAnimationFrame === "function") {
+      const frame = requestAnimationFrame(() => focusSongThemeControl(menuButton.current));
+      return () => {
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+      };
+    }
+    focusSongThemeControl(menuButton.current);
+    return undefined;
+  }, [menuOpen, editingThemes]);
+
+  const tags = song.tags ?? [];
+  const hasTags = tags.length > 0;
   const selectionLabel = `${selected ? "Desmarcar" : "Selecionar"} ${song.title}`;
-  const showLinks = hasSongLinks(song);
-  const openThemes = (trigger: React.RefObject<View | null>) => {
-    opener.current = trigger;
+  const themeTooltip = hasTags ? `Etiquetas: ${tags.join(", ")}` : "Adicionar etiquetas";
+  const themeAccessibilityLabel = hasTags ? `Editar temas de ${song.title}` : `Adicionar tema a ${song.title}`;
+
+  const measureAndOpen = (
+    trigger: React.RefObject<View | null>,
+    callback?: (anchor: SongThemeAnchor | null) => void,
+  ) => {
+    if (!callback) return;
     if (Platform.OS !== "web" || compactLinkActions || !trigger.current) {
-      onEditThemes?.(null);
+      callback(null);
       return;
     }
     trigger.current.measureInWindow((x, y, width, height) => {
-      onEditThemes?.({ x, y, width, height });
+      callback({ x, y, width, height });
     });
   };
-  const themes = !song.tags?.length && onEditThemes ? (
-    <TouchableOpacity ref={addThemeButton} onPress={() => openThemes(addThemeButton)}
-      accessibilityRole="button" accessibilityLabel={`Adicionar tema a ${song.title}`}
-      accessibilityState={{ expanded: editingThemes }} aria-expanded={editingThemes}
-      onFocus={() => { if (Platform.OS === "web") setFocused("add"); }} onBlur={() => setFocused(null)}
-      style={[styles.addThemeButton, focused === "add" && styles.themeButtonFocused]}>
-      <SongThemeLabels tags={[]} />
+
+  const webHoverProps = Platform.OS === "web"
+    ? ({
+        onMouseEnter: () => setRowHovered(true),
+        onMouseLeave: () => setRowHovered(false),
+      } as Record<string, unknown>)
+    : {};
+
+  const circleVisual = (
+    <View style={[styles.tagCircle, hasTags ? styles.tagCircleFilled : styles.tagCircleEmpty]}>
+      {hasTags ? (
+        <Check color={colors.surface} size={iconSizes.s13} strokeWidth={3} />
+      ) : (
+        <Plus color={colors.muted} size={iconSizes.s13} strokeWidth={2.5} />
+      )}
+    </View>
+  );
+
+  const tagControl = onEditThemes ? (
+    <TouchableOpacity
+      ref={themeButton as unknown as React.RefObject<React.ComponentRef<typeof TouchableOpacity>>}
+      style={[
+        styles.tagTarget,
+        editingThemes && styles.actionTargetActive,
+        focused === "theme" && styles.actionTargetFocused,
+      ]}
+      testID={`song-tag-button-${song.id}`}
+      onPress={() => measureAndOpen(themeButton, onEditThemes)}
+      onFocus={(event) => {
+        if (isKeyboardFocusEvent(event)) setFocused("theme");
+      }}
+      onBlur={() => setFocused(null)}
+      accessibilityRole="button"
+      accessibilityLabel={themeAccessibilityLabel}
+      accessibilityState={{ expanded: editingThemes }}
+      aria-expanded={editingThemes}
+      {...(Platform.OS === "web" ? ({ title: themeTooltip } as Record<string, unknown>) : {})}
+    >
+      {circleVisual}
     </TouchableOpacity>
-  ) : <SongThemeLabels tags={song.tags} />;
+  ) : hasTags ? (
+    <View
+      style={styles.tagTarget}
+      accessible
+      accessibilityLabel={`Temas: ${tags.join(", ")}`}
+      {...(Platform.OS === "web" ? ({ title: themeTooltip } as Record<string, unknown>) : {})}
+    >
+      <View style={[styles.tagCircle, styles.tagCircleFilled]}>
+        <Check color={colors.surface} size={iconSizes.s13} strokeWidth={3} />
+      </View>
+    </View>
+  ) : !compactLinkActions ? (
+    <View style={styles.tagTarget} />
+  ) : null;
 
   return (
     <View
-      style={[styles.row, compactLinkActions && styles.rowCompact, !isLast && styles.rowBorder, selected && styles.rowSelected]}
+      style={[
+        styles.row,
+        compactLinkActions ? styles.rowCompact : styles.rowDesktop,
+        !compactLinkActions && (rowHovered || menuOpen) && styles.rowHover,
+        selected && styles.rowSelected,
+      ]}
       testID={`song-row-${song.id}`}
+      {...webHoverProps}
     >
       {selected ? <View style={styles.selectedRail} /> : null}
       <View style={styles.headline}>
@@ -88,113 +182,251 @@ export function SongListRow({
           accessibilityState={selectionMode ? { checked: selected } : undefined}
           aria-checked={selectionMode ? selected : undefined}
         >
-          {selectionMode ? (
+          {!compactLinkActions ? (
+            <View style={styles.indexColumn}>
+              {selectionMode ? (
+                <View style={[styles.check, selected && styles.checkSelected]}>
+                  {selected ? <Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /> : null}
+                </View>
+              ) : rowHovered && Platform.OS === "web" ? (
+                <Music2 color={colors.primary} size={iconSizes.s15} />
+              ) : (
+                <Text style={styles.indexText}>{rowNumber ?? ""}</Text>
+              )}
+            </View>
+          ) : selectionMode ? (
             <View style={[styles.check, selected && styles.checkSelected]}>
               {selected ? <Check color={colors.surface} size={iconSizes.s15} strokeWidth={2.8} /> : null}
             </View>
           ) : null}
+
           {song.artist.imageUrl ? (
-            <Image source={{ uri: song.artist.imageUrl }} style={styles.avatar} />
+            <Image
+              source={{ uri: song.artist.imageUrl }}
+              style={compactLinkActions ? styles.avatarMobile : styles.avatarDesktop}
+            />
           ) : (
-            <View style={styles.avatarPlaceholder}><UserRound color={colors.primary} size={iconSizes.s19} /></View>
+            <View style={[styles.avatarPlaceholder, !compactLinkActions && styles.avatarDesktop]}>
+              <UserRound color={colors.primary} size={compactLinkActions ? iconSizes.s19 : iconSizes.s18} />
+            </View>
           )}
+
           <View style={styles.info} testID={`song-info-${song.id}`}>
             <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {song.artist.name} · Tom {song.originalKey}{song.bpm ? ` · ${song.bpm} BPM` : ""}
-            </Text>
+            <Text style={styles.meta} numberOfLines={1}>{song.artist.name}</Text>
           </View>
         </TouchableOpacity>
-        {!compactLinkActions ? <View style={styles.desktopThemes}>{themes}</View> : null}
-        {showLinks || onEditThemes ? (
-          <View style={styles.actions} testID={`song-actions-${song.id}`}>
-            {onEditThemes ? (
-              <TouchableOpacity
-                ref={themeButton}
-                style={[styles.themeButton, editingThemes && styles.themeButtonActive, focused === "edit" && styles.themeButtonFocused]}
-                onPress={() => openThemes(themeButton)}
-                onFocus={() => { if (Platform.OS === "web") setFocused("edit"); }}
-                onBlur={() => setFocused(null)}
-                accessibilityRole="button"
-                accessibilityLabel={`Editar temas de ${song.title}`}
-                accessibilityState={{ expanded: editingThemes }}
-                aria-expanded={editingThemes}
-              >
-                <Tag color={colors.primary} size={iconSizes.s16} />
-              </TouchableOpacity>
+
+        {tagControl || onOpenMenu ? (
+          <View
+            style={[styles.actions, !compactLinkActions && styles.desktopActions]}
+            testID={`song-actions-${song.id}`}
+          >
+            {compactLinkActions ? tagControl : tagControl ? (
+              <View style={styles.desktopTagCell}>{tagControl}</View>
             ) : null}
-            {showLinks ? (
-              <SongLinkButtons links={song} compact collapseMultiple={compactLinkActions} onOpenMultiple={onOpenLinks} />
+            {onOpenMenu ? (
+              <View style={!compactLinkActions ? styles.desktopMenuCell : undefined}>
+                <TouchableOpacity
+                  ref={menuButton as unknown as React.RefObject<React.ComponentRef<typeof TouchableOpacity>>}
+                  style={[
+                    styles.menuTarget,
+                    !compactLinkActions && !rowHovered && !menuOpen && focused !== "menu" && styles.menuTargetResting,
+                    menuOpen && styles.actionTargetActive,
+                    focused === "menu" && styles.actionTargetFocused,
+                  ]}
+                  testID={`song-menu-button-${song.id}`}
+                  onPress={() => measureAndOpen(menuButton, onOpenMenu)}
+                  onFocus={(event) => {
+                    if (isKeyboardFocusEvent(event)) setFocused("menu");
+                  }}
+                  onBlur={() => setFocused(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mais ações de ${song.title}`}
+                  accessibilityState={{ expanded: menuOpen }}
+                  aria-expanded={menuOpen}
+                >
+                  {compactLinkActions ? (
+                    <MoreVertical color={colors.muted} size={iconSizes.s19} />
+                  ) : (
+                    <MoreHorizontal color={rowHovered || menuOpen ? colors.ink : colors.muted} size={iconSizes.s19} />
+                  )}
+                </TouchableOpacity>
+              </View>
             ) : null}
           </View>
         ) : null}
       </View>
-      {compactLinkActions && Boolean(song.tags?.length) ? (
-        <View style={[styles.mobileThemes, selectionMode && styles.mobileThemesSelected]}>{themes}</View>
-      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 66,
     justifyContent: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.control,
-    backgroundColor: colors.surface,
+    backgroundColor: "transparent",
     position: "relative",
   },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
-  rowCompact: {
-    minHeight: 76,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+  rowDesktop: {
+    minHeight: 56,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radii.md,
   },
-  rowSelected: { backgroundColor: colors.primarySoft },
+  rowCompact: {
+    minHeight: 60,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.xs,
+    paddingVertical: 6,
+    borderRadius: 0,
+  },
+  rowHover: {
+    backgroundColor: colors.surface,
+  },
+  rowSelected: {
+    backgroundColor: colors.primarySoft,
+  },
   selectedRail: {
     position: "absolute",
     left: 0,
-    top: 0,
-    bottom: 0,
+    top: 6,
+    bottom: 6,
     width: 3,
+    borderRadius: 2,
     backgroundColor: colors.primary,
   },
-  headline: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  identity: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  desktopIdentity: { minWidth: 144 },
-  avatar: { width: controlSizes.medium, height: controlSizes.medium, borderRadius: radiusValues.r20, backgroundColor: colors.surfaceMuted },
-  avatarPlaceholder: {
+  headline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  identity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  desktopIdentity: {
+    minWidth: 144,
+  },
+  indexColumn: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  indexText: {
+    color: colors.muted,
+    fontSize: fontSizes.s13,
+    fontWeight: fontWeights.medium,
+    fontVariant: ["tabular-nums"],
+  },
+  avatarMobile: {
+    width: controlSizes.default,
+    height: controlSizes.default,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
+  },
+  avatarDesktop: {
     width: controlSizes.medium,
     height: controlSizes.medium,
-    borderRadius: radiusValues.r20,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
+  },
+  avatarPlaceholder: {
+    width: controlSizes.default,
+    height: controlSizes.default,
+    borderRadius: radii.md,
     backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  info: { flex: 1, minWidth: 0 },
-  desktopThemes: { flexShrink: 1, maxWidth: "48%" },
-  mobileThemes: { marginLeft: controlSizes.medium + spacing.sm },
-  mobileThemesSelected: { marginLeft: controlSizes.medium + 20 + 2 * spacing.sm },
-  actions: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  themeButton: {
-    width: controlSizes.default, height: controlSizes.default, borderRadius: radiusValues.r4, borderWidth: 1,
-    borderColor: colors.line, alignItems: "center", justifyContent: "center",
+  info: {
+    flex: 1,
+    minWidth: 0,
   },
-  themeButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  themeButtonFocused: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  addThemeButton: { minWidth: controlSizes.default, minHeight: controlSizes.default, justifyContent: "center", borderWidth: 1, borderColor: "transparent", borderRadius: radiusValues.r4 },
-  songTitle: { color: colors.ink, fontSize: fontSizes.s15, fontWeight: fontWeights.bold },
-  meta: { color: colors.muted, fontSize: fontSizes.s12, marginTop: spacing.micro },
+  songTitle: {
+    color: colors.ink,
+    fontSize: fontSizes.s15,
+    fontWeight: fontWeights.semibold,
+  },
+  meta: {
+    color: colors.muted,
+    fontSize: fontSizes.s13,
+    marginTop: spacing.xxs,
+  },
+  actions: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xxs,
+  },
+  desktopActions: {
+    gap: spacing.xs,
+  },
+  desktopTagCell: {
+    width: 64,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  desktopMenuCell: {
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagTarget: {
+    width: controlSizes.default,
+    height: controlSizes.default,
+    borderRadius: radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagCircleFilled: {
+    backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  tagCircleEmpty: {
+    backgroundColor: "transparent",
+    borderWidth: 1.75,
+    borderColor: colors.lineStrong,
+  },
+  menuTarget: {
+    width: controlSizes.default,
+    height: controlSizes.default,
+    borderRadius: radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuTargetResting: {
+    opacity: 0.55,
+  },
+  actionTargetActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  actionTargetFocused: {
+    backgroundColor: colors.primarySoft,
+    opacity: 1,
+  },
   check: {
     width: 20,
     height: 20,
-    borderRadius: radiusValues.r2,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.muted,
     alignItems: "center",
     justifyContent: "center",
   },
-  checkSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
 });

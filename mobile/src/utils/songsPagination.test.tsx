@@ -3,6 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import SongsScreen from "../../app/(tabs)/songs";
 import { SongBulkThemeEditor } from "../components/songs/SongBulkThemeEditor";
+import { StagingDockClearance } from "../navigation/stagingDockClearance";
 import { musicService, SongsUnavailableClientError } from "../services/musicService";
 import { useMusicStore } from "../store/musicStore";
 import { Song } from "../types";
@@ -54,9 +55,14 @@ jest.mock("react-native", () => {
     Image: create("Image"),
     Modal: ({ children, visible, ...props }: any) => visible ? React.createElement("Modal", props, children) : null,
     Platform: { OS: "web", select: (values: any) => values.web ?? values.default },
+    Pressable: create("Pressable"),
     RefreshControl: create("RefreshControl"),
     ScrollView: ({ children, ...props }: any) => React.createElement("ScrollView", props, children),
-    StyleSheet: { create: (styles: any) => styles },
+    StyleSheet: {
+      absoluteFillObject: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
+      create: (styles: any) => styles,
+      flatten: (style: any) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)),
+    },
     Text: create("Text"),
     TextInput: create("TextInput"),
     TouchableOpacity: create("TouchableOpacity"),
@@ -89,7 +95,7 @@ jest.mock("expo-router", () => ({
 jest.mock("lucide-react-native", () => {
   const React = require("react");
   const Icon = (props: any) => React.createElement("Icon", props);
-  return { Check: Icon, ChevronDown: Icon, ChevronUp: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Link: Icon, MicVocal: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, Tag: Icon, UserRound: Icon, X: Icon };
+  return { ArrowUpDown: Icon, BookOpen: Icon, Check: Icon, CheckSquare: Icon, ChevronDown: Icon, ChevronUp: Icon, Download: Icon, ExternalLink: Icon, FileText: Icon, Guitar: Icon, Headphones: Icon, Link: Icon, Link2: Icon, Mic: Icon, MicVocal: Icon, MoreHorizontal: Icon, MoreVertical: Icon, Music2: Icon, Pencil: Icon, Play: Icon, Plus: Icon, Search: Icon, Settings2: Icon, SlidersHorizontal: Icon, Square: Icon, Tag: Icon, UserRound: Icon, X: Icon };
 });
 
 jest.mock("../services/musicService", () => ({
@@ -278,9 +284,9 @@ describe("SongsScreen pagination", () => {
       .some((node: TestNode) => node.props.accessibilityLabel === "Limpar pesquisa de músicas")).toBe(false);
   });
 
-  it("exibe ponto entre artista, tom e BPM sem mostrar escape unicode", async () => {
+  it("mantém a linha limpa apenas com título e artista e exibe tom e BPM no menu contextual", async () => {
     jest.mocked(musicService.listSongs).mockResolvedValueOnce({
-      items: [{ ...baseSong, bpm: 120 }],
+      items: [{ ...baseSong, bpm: 120, cifraUrl: "https://cifraclub.com.br", videoUrl: "https://youtube.com" }],
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
     });
 
@@ -290,11 +296,98 @@ describe("SongsScreen pagination", () => {
       await Promise.resolve();
     });
 
-    const metadata = renderer!.root.findAllByType(Text)
-      .map((node: TestNode) => [node.props.children].flat(Infinity).join(""))
-      .find((text) => text.includes("· Tom"));
-    expect(metadata).toBe("Artista · Tom C · 120 BPM");
-    expect(metadata).not.toContain("\\u00b7");
+    const rowInfo = renderer!.root.findByProps({ testID: "song-info-song-1" });
+    const rowTexts = rowInfo.findAllByType(Text).map((node: TestNode) => [node.props.children].flat(Infinity).join(""));
+    expect(rowTexts).toEqual(["Musica 1", "Artista"]);
+
+    const menuButton = renderer!.root.findByProps({ testID: "song-menu-button-song-1" });
+    await act(async () => {
+      menuButton.props.onPress();
+      await Promise.resolve();
+    });
+
+    const menu = renderer!.root.findByProps({ testID: "song-action-menu" });
+    const menuContent = nodeText(menu);
+    expect(menuContent).toContain("Tom C");
+    expect(menuContent).toContain("120 BPM");
+    expect(menuContent).toContain("Abrir cifra");
+    expect(menuContent).toContain("Editar temas");
+    expect(menuContent).toContain("Selecionar música");
+    expect(menuContent).toContain("Editar música");
+    expect(menuContent).toContain("Exportar PDF da cifra");
+    expect(menuContent).toContain("Cifra");
+    expect(menuContent).toContain("Vídeo");
+    expect(menuContent).not.toContain("\\u00b7");
+  });
+
+  it("exibe pesquisa e botão de filtro apenas com ícone lado a lado", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const searchRow = renderer!.root.findByProps({ testID: "songs-search-row" });
+    expect(flattenStyle(searchRow.props.style).flexDirection).toBe("row");
+
+    const filterButton = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Abrir filtros de músicas")!;
+    expect(filterButton).toBeTruthy();
+    expect(nodeText(filterButton).trim()).toBe("");
+
+    const header = renderer!.root.findByProps({ testID: "songs-header" });
+    const headerActions = renderer!.root.findByProps({ testID: "songs-header-actions" });
+    expect(flattenStyle(header.props.style).flexWrap).toBe("nowrap");
+    expect(flattenStyle(headerActions.props.style).flexWrap).toBe("nowrap");
+
+    const artistsBtn = renderer!.root.findByProps({ testID: "songs-artists-button" });
+    const newSongBtn = renderer!.root.findByProps({ testID: "songs-new-button" });
+    expect(flattenStyle(artistsBtn.props.style).height).toBe(36);
+    expect(flattenStyle(newSongBtn.props.style).height).toBe(36);
+
+    const listContainer = renderer!.root.findByProps({ testID: "songs-list-container" });
+    const listStyle = flattenStyle(listContainer.props.style);
+    expect(listStyle.borderWidth ?? 0).toBe(0);
+    expect(listStyle.backgroundColor).toBe("transparent");
+  });
+
+  it("aciona editor rápido pelo botão circular de etiquetas e seleciona pelo menu contextual", async () => {
+    jest.mocked(musicService.listSongs).mockResolvedValueOnce({
+      items: [
+        { ...baseSong, id: "song-1", title: "Musica 1", tags: [] },
+        { ...baseSong, id: "song-2", title: "Musica 2", tags: ["Adoração"] },
+      ],
+      pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+    });
+
+    await act(async () => {
+      renderer = TestRenderer.create(<SongsScreen />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const emptyTagBtn = renderer!.root.findByProps({ testID: "song-tag-button-song-1" });
+    const filledTagBtn = renderer!.root.findByProps({ testID: "song-tag-button-song-2" });
+    expect(emptyTagBtn.props.accessibilityLabel).toBe("Adicionar tema a Musica 1");
+    expect(filledTagBtn.props.accessibilityLabel).toBe("Editar temas de Musica 2");
+
+    await act(async () => {
+      emptyTagBtn.props.onPress();
+      await Promise.resolve();
+    });
+    expect(renderer!.root.findAllByProps({ accessibilityRole: "menu", accessibilityLabel: "Temas" }).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      renderer!.root.findByProps({ testID: "song-menu-button-song-2" }).props.onPress();
+      await Promise.resolve();
+    });
+    const selectFromMenu = renderer!.root.findAllByType(TouchableOpacity)
+      .find((node: TestNode) => node.props.accessibilityLabel === "Selecionar música")!;
+    await act(async () => {
+      selectFromMenu.props.onPress();
+      await Promise.resolve();
+    });
+    expect(renderer!.root.findAllByType(Text).some((node: TestNode) => nodeText(node).includes("1 selecionada"))).toBe(true);
   });
 
   it("mantém os temas selecionados junto com o filtro Sem tema", async () => {
@@ -492,5 +585,27 @@ describe("SongsScreen pagination", () => {
       .filter((node) => node.props.accessibilityRole === "checkbox")).toHaveLength(0);
     const apply = renderer!.root.findAllByType(TouchableOpacity).find((node) => node.props.accessibilityLabel === "Aplicar temas a 1 música")!;
     expect(apply.props.accessibilityState.disabled).toBe(true);
+  });
+
+  it("aplica desfoque inferior a partir de 1/3 da navbar e encerra a rolagem mobile rente à paginação", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <StagingDockClearance.Provider value={76}>
+          <SongsScreen />
+        </StagingDockClearance.Provider>
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const blur = renderer!.root.findByProps({ testID: "songs-bottom-blur" });
+    expect(blur.props.height).toBe(54);
+    expect(blur.props.position).toBe("bottom");
+
+    const scroll = renderer!.root.findByProps({ testID: "song-catalog-scroll" });
+    expect(flattenStyle(scroll.props.contentContainerStyle).paddingBottom).toBe(spacing.sm + 76);
+
+    const pagination = renderer!.root.findByProps({ testID: "songs-pagination" });
+    expect(flattenStyle(pagination.props.style).paddingBottom).toBe(spacing.xs);
   });
 });
