@@ -105,6 +105,7 @@ Desktop.ini
 .idea/
 
 # Temporary files
+/.tmp/security-runtime-bundle.json
 .lauda-publisher/
 *.tmp
 *.temp

@@ -2,7 +2,7 @@
 
 Versao: 1.0
 Data: 2026-07-16
-Status: modelo tecnico; nomeacao nominal pendente
+Status: titulares da plataforma registrados em 2026-11-10. Substitutos pendentes.
 Aprovadores: Direcao/Operacao TBD; Engenharia TBD; Juridico/Privacidade TBD
 Proxima revisao: 2026-08-16
 
@@ -15,7 +15,19 @@ Proxima revisao: 2026-08-16
 | Security Owner | Politica de acesso, ameacas, controles, incidentes, excecoes e recertificacao privilegiada | Mantem threat model, access review e resposta tecnica | Data Owner juridico/operacional |
 | Encarregado/DPO | Governanca de privacidade e canal com titulares/autoridade quando aplicavel | Orienta, monitora e escala temas de privacidade | Controlador/operador; Data Owner; System Owner |
 
+## Titulares da plataforma
+
+Nomeação confirmada por `@kacarlos23` em 2026-11-10.
+
+| Papel | Titular | Escopo | Substituto |
+|---|---|---|---|
+| Data Owner | `@kacarlos23` | Decisões do Lauda sobre finalidade, acesso, compartilhamento e retenção de dados nos domínios da plataforma | Pendente para dados de produção |
+| System Owner | `@kacarlos23` | Arquitetura, operação e disponibilidade de backend, mobile, web e infraestrutura | Pendente |
+| Security Owner | `@kacarlos23` | Controles de segurança, incidentes, exceções e revisão de acesso privilegiado | Pendente para incidentes e revisão de acesso |
+
 ## Matriz inicial de ownership
+
+A matriz abaixo registra a distribuição inicial dos domínios entre áreas. As nomeações acima registram os titulares em exercício na plataforma. As nomeações por tenant ou cliente se aplicam quando o domínio exigir um responsável específico.
 
 | Dominio | Dados/operacoes | Data Owner | System Owner | Security Owner | Status |
 |---|---|---|---|---|---|
@@ -53,7 +65,7 @@ Proxima revisao: 2026-08-16
 
 | ID | Decisao necessaria | Papel responsavel por decidir | Bloqueio provocado | Etapa limite |
 |---|---|---|---|---|
-| OWN-01 | Nomear Data Owners por dominio e, quando aplicavel, por tenant/cliente. | Direcao/Operacao; nomes/grupos TBD. | Finalidades, acessos, retencoes e riscos nao podem ser aprovados; bloqueia dados reais. | Etapa 0, antes de producao com dados reais. |
-| OWN-02 | Nomear System Owners de backend, mobile/web e infra. | Engenharia/Infra; nomes/grupos TBD. | Implementacao, operacao e evidencias ficam sem accountable nominal; bloqueia producao. | Etapa 0, antes de producao. |
-| OWN-03 | Nomear Security Owner e substituto para incidentes/access review. | Direcao/Seguranca; nomes TBD. | Incidentes e acessos privilegiados ficam sem aprovador; bloqueia painel global com dados reais. | Etapa 0, antes de acesso privilegiado produtivo. |
+| OWN-01 | Registrar aprovador substituto para dados de produção e titulares por tenant ou cliente quando aplicável. | Data Owner da plataforma `@kacarlos23` | A suplência para aprovações de dados reais permanece pendente. | Etapa 0, antes de producao com dados reais. |
+| OWN-02 | Registrar substituto de Sistema para backend, mobile, web e infraestrutura. | System Owner da plataforma `@kacarlos23` | A suplência para operação e mudanças do sistema permanece pendente. | Etapa 0, antes de producao. |
+| OWN-03 | Registrar substituto de Segurança para incidentes e revisão de acesso. | Security Owner da plataforma `@kacarlos23` | A suplência para decisões de incidentes e acesso privilegiado permanece pendente. | Etapa 0, antes de acesso privilegiado produtivo. |
 | OWN-04 | Definir aprovadores e substitutos para mudancas emergenciais. | Direcao/Operacao/Juridico; nomes TBD. | Mudancas emergenciais e suporte ficam sem segregacao/aprovacao; bloqueia suporte produtivo. | Etapa 0, antes de suporte produtivo. |

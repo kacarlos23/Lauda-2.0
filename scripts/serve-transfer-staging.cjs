@@ -6,6 +6,7 @@ const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const express = require("express");
+const { rateLimit } = require("express-rate-limit");
 const root = path.resolve(__dirname, "..");
 const stagingRoot = process.env.LAUDA_STAGING_ROOT || path.join(process.env.USERPROFILE, ".codex/worktrees/public-test-environment/Lauda 2.0");
 const { childEnvironment } = require(path.join(stagingRoot, "scripts/public-test-config.cjs"));
@@ -52,6 +53,8 @@ app.use((req, res, next) => {
   req.pipe(upstream);
 });
 const rewrites = require("./worship-test.serve.json").rewrites.filter(rule => rule.source.includes(":id(")).map(rule => ({ pattern: new RegExp("^" + rule.source.replace(/:id\(([^)]+)\)/g, "($1)") + "/?$"), file: rule.destination.slice(1) }));
+const stagingRateLimit = rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false });
+app.use(stagingRateLimit);
 app.use((req, res, next) => {
   if (!["GET", "HEAD"].includes(req.method)) return next();
   const match = rewrites.find(rule => rule.pattern.test(new URL(req.url, "http://localhost").pathname));
@@ -59,7 +62,22 @@ app.use((req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   res.sendFile(match.file, { root: output });
 });
-app.use(express.static(output, { extensions: ["html"], setHeaders(res, file) { res.setHeader("Cache-Control", /\.(html|json)$/.test(file) ? "no-store" : "public, max-age=3600"); } }));
+app.use(express.static(output, {
+  extensions: ["html"],
+  setHeaders(res, file) {
+    const base = path.basename(file);
+    if (base === "sw.js") {
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Service-Worker-Allowed", "/");
+      return;
+    }
+    if (base === "sw-manifest.json" || base === "apk-release.json") {
+      res.setHeader("Cache-Control", "no-cache");
+      return;
+    }
+    res.setHeader("Cache-Control", /\.(html|json)$/.test(file) ? "no-store" : "public, max-age=3600");
+  },
+}));
 // Already-open tabs can still fetch assets from the preceding staging release.
 app.use("/_expo", express.static(path.join(oldOutput, "_expo")));
 app.use("/assets", express.static(path.join(oldOutput, "assets")));

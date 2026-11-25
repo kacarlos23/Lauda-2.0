@@ -13,6 +13,10 @@ export function canManageInstrumentCatalog(subject?: Pick<User, "role" | "permis
   return can(subject, "instrument:create") || can(subject, "instrument:edit") || can(subject, "instrument:delete");
 }
 
+export function canViewInstrumentCatalog(subject?: Pick<User, "role" | "permissions"> | Role | string | null): boolean {
+  return can(subject, "instrument:view") || canManageInstrumentCatalog(subject);
+}
+
 export function normalizeInstrumentName(name: string): string {
   return name.trim();
 }

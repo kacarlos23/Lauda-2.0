@@ -2,17 +2,26 @@ import { uiPatterns } from "../../src/components/ui/patterns";
 import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Settings2 } from "lucide-react-native";
+import { Compass, Settings2 } from "lucide-react-native";
 import { Screen, SectionHeader } from "../../src/components/ui";
+import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
+import { useOnboardingStore } from "../../src/features/onboarding/onboardingStore";
 import { useAuthStore } from "../../src/store/authStore";
 import { colors, controlSizes, iconSizes, radii, spacing, typography } from "../../src/theme";
 import { formatRoleLabel } from "../../src/utils/permissions";
 import { hrefForNavigationItem, navigationItemsFor } from "../../src/navigation/manifest";
+import { nav } from "../../src/navigation/routes";
 
 export default function MoreScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const startReview = useOnboardingStore((state) => state.startReview);
   const shortcuts = useMemo(() => navigationItemsFor("mobile-more", user), [user]);
+
+  const handleReviewTutorial = () => {
+    startReview(user);
+    router.push(nav.home);
+  };
 
   return (
     <Screen scroll testID="more-screen">
@@ -25,6 +34,8 @@ export default function MoreScreen() {
           <Text style={styles.roleText}>{formatRoleLabel(user?.role)}</Text>
         </View>
       </View>
+
+      <InstallAppPanel variant="card" testIDPrefix="more-install" />
 
       <View style={styles.section}>
         <SectionHeader title="Atalhos" subtitle="Tudo que existe no desktop e precisa ficar acessível no mobile." />
@@ -46,6 +57,23 @@ export default function MoreScreen() {
               </View>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={styles.card}
+            onPress={handleReviewTutorial}
+            accessibilityRole="button"
+            accessibilityLabel="Rever tutorial"
+            testID="more-review-tutorial"
+          >
+            <View style={styles.iconBox}>
+              <Compass color={colors.primary} size={iconSizes.s22} strokeWidth={2.4} />
+            </View>
+            <View style={styles.copy}>
+              <Text style={styles.cardTitle}>Rever tutorial</Text>
+              <Text style={styles.cardDescription}>
+                Reveja as abas disponíveis e como vincular seu instrumento ou cargo.
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
     </Screen>

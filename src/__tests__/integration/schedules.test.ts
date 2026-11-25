@@ -1178,6 +1178,56 @@ describe("Schedule assignments", () => {
       },
     });
   });
+
+  it("GET /api/schedules/me?summary=true&limit=1 limita resultados e omite músicas", async () => {
+    const tenant = await registerTenant("my-schedules-summary");
+    const ministry = await createMinistry(tenant.token, "Louvor");
+    const member = await createUserAndLogin("my-schedules-summary-user", tenant.tenant.id);
+    const song = await createSong(tenant.tenant.id, "Canção omitida");
+
+    const scheduleOne = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto 1",
+        date: "2026-06-07T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [song.id],
+      })
+      .expect(201);
+
+    const scheduleTwo = await request(app)
+      .post("/api/schedules")
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({
+        title: "Culto 2",
+        date: "2026-06-14T13:00:00.000Z",
+        ministryId: ministry.id,
+        songIds: [song.id],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/schedules/${scheduleOne.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: member.user.id, role: "Vocal" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/schedules/${scheduleTwo.body.data.id}/assignments`)
+      .set("Authorization", `Bearer ${tenant.token}`)
+      .send({ userId: member.user.id, role: "Vocal" })
+      .expect(201);
+
+    const response = await request(app)
+      .get("/api/schedules/me?summary=true&limit=1")
+      .set("Authorization", `Bearer ${member.token}`)
+      .expect(200);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].schedule.title).toBe("Culto 1");
+    expect(response.body.data[0].schedule.songs).toBeUndefined();
+  });
 });
 
 

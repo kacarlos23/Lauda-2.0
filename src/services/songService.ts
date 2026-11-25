@@ -15,15 +15,22 @@ export class SongService {
   ) {}
 
   async list(input: SongListInput) {
-    const result = await this.repository.list(input);
+    const scope = input.includeTagCounts && typeof this.repository.resolveScope === "function"
+      ? await this.repository.resolveScope(input)
+      : undefined;
+    const [result, tagCounts] = await Promise.all([
+      this.repository.list(input, scope),
+      input.includeTagCounts ? this.repository.listTags(input, scope) : Promise.resolve(undefined),
+    ]);
     return {
-      items: result.items.map(normalizeSongContent),
+      items: result.items,
       pagination: {
         page: input.page,
         limit: input.limit,
         total: result.total,
         totalPages: Math.ceil(result.total / input.limit),
       },
+      ...(tagCounts ? { tagCounts } : {}),
     };
   }
 
@@ -70,7 +77,6 @@ export class SongService {
   }
 
   async update(id: string, input: UpdateSongInput) {
-    await this.get(id);
     if (input.artistId) await this.requireArtist(input.artistId);
     const title = input.title === undefined ? undefined : cleanCatalogText(input.title);
     try {

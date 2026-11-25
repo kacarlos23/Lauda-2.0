@@ -2,6 +2,22 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/songs/new",
+      "destination": "/songs/new.html"
+    },
+    {
+      "source": "/schedules/new",
+      "destination": "/schedules/new.html"
+    },
+    {
+      "source": "/schedules/worship-order",
+      "destination": "/schedules/worship-order.html"
+    },
+    {
+      "source": "/ministries/assign",
+      "destination": "/ministries/assign.html"
+    },
+    {
       "source": "/schedules/:id([0-9a-fA-F-]{36})/edit",
       "destination": "/schedules/[id]/edit.html"
     },
@@ -20,6 +36,33 @@
     {
       "source": "/songs/:id([0-9a-fA-F-]{36})",
       "destination": "/songs/[id].html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/sw-manifest.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/apk-release.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "**/*.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ]
 }

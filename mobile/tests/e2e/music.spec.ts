@@ -111,7 +111,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await mockMusicApi(page);
     await page.goto("/songs/new");
     await page.getByTestId("artist-search-input").fill("Oficina");
-    await page.getByText("Oficina G3", { exact: true }).click();
+    await page.getByTestId(`artist-option-${artist.id}`).click();
     await page.getByTestId("song-title-input").fill("Canção colada");
     await page.getByTestId("song-next-button").click();
     await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();
@@ -146,7 +146,7 @@ test("admin cria e edita cifra sem recarregar lista, edita artista e baixa PDF",
 
   await page.getByLabel("Nova música").click();
   await page.getByTestId("artist-search-input").fill("Oficina");
-  await page.getByText("Oficina G3", { exact: true }).click();
+  await page.getByTestId(`artist-option-${artist.id}`).click();
   await page.getByTestId("song-title-input").fill("Nova canção");
   await page.getByTestId("song-next-button").click();
   await page.getByRole("tab", { name: "Texto ChordPro", exact: true }).click();

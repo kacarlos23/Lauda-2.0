@@ -1,11 +1,12 @@
 import { InputControl as TextInput } from "../../src/components/ui/InputControl";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   CalendarClock,
   Church,
   ClipboardList,
+  Guitar,
   Music2,
   Plus,
   UserPlus,
@@ -21,6 +22,9 @@ import {
   Screen,
   SectionHeader,
 } from "../../src/components/ui";
+import { onboardingScopeKeyFor } from "../../src/features/onboarding/onboardingStorage";
+import { useOnboardingStore } from "../../src/features/onboarding/onboardingStore";
+import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../src/store/authStore";
 import { useMemberStore } from "../../src/store/memberStore";
 import { useScheduleStore } from "../../src/store/scheduleStore";
@@ -41,6 +45,7 @@ import {
   can,
   canAccessChurchAdmin,
   canAccessGlobalAdminArea,
+  canAccessMinistries,
   canManageMembers,
   canViewMembers,
   formatRoleLabel,
@@ -82,8 +87,11 @@ const TEXT = {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { isMobile } = useResponsiveLayout();
   const { user, tenant } = useAuthStore();
-  const { schedules, loading, error, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const { schedules, loading, error, lastFetchedAt, loadMySchedules, updateScheduleStatus } = useScheduleStore();
+  const lastFetchedAtRef = useRef(lastFetchedAt);
+  lastFetchedAtRef.current = lastFetchedAt;
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [declineAssignment, setDeclineAssignment] = useState<ScheduleAssignment | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -96,6 +104,7 @@ export default function DashboardScreen() {
   const membersWithoutMinistry = members.filter((member) => !member.ministries?.length);
   const membersWithoutInstrument = members.filter((member) => !member.instruments?.length);
   const canSeeMembers = canViewMembers(user);
+  const canSeeMinistries = canAccessMinistries(user);
   const canCreateMembers = canManageMembers(user);
   const canCreateSchedules = canCreateSchedule(user);
   const canCreateSongs = canManageMusic(user, "song:create");
@@ -104,9 +113,25 @@ export default function DashboardScreen() {
   const canManageInstruments = canManageInstrumentCatalog(user);
   const canOpenChurchAdmin = canAccessChurchAdmin(user);
   const canOpenGlobalAdmin = canAccessGlobalAdminArea(user);
+  const dismissedScopes = useOnboardingStore((state) => state.dismissedScopes);
+  const onboardingScopeKey = user ? onboardingScopeKeyFor(user) : null;
+  const onboardingDismissed = Boolean(
+    user?.onboarding?.status === "dismissed" ||
+      (onboardingScopeKey && dismissedScopes[onboardingScopeKey])
+  );
+  const showInstrumentReminder = Boolean(
+    user?.tenantId &&
+      onboardingDismissed &&
+      Array.isArray(user?.instruments) &&
+      user.instruments.length === 0
+  );
 
   useEffect(() => {
-    void loadMySchedules();
+    const fetchedAt = lastFetchedAtRef.current;
+    if (!fetchedAt || Date.now() - fetchedAt > 30_000) {
+      const dateFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      void loadMySchedules({ params: { summary: true, limit: 20, dateFrom }, persistParams: false });
+    }
   }, [loadMySchedules]);
 
   useEffect(() => {
@@ -238,14 +263,36 @@ export default function DashboardScreen() {
             variant="secondary"
             size="sm"
             style={styles.retryButton}
-            onPress={() => void loadMySchedules({ refresh: true })}
+            onPress={() => void loadMySchedules({ refresh: true, params: { summary: true, limit: 20 }, persistParams: false })}
             accessibilityLabel="Tentar carregar dashboard novamente"
           />
         ) : null}
       />
 
-      <View style={styles.heroLayout}>
-        <View style={styles.nextPanel}>
+      {showInstrumentReminder ? (
+        <View style={styles.instrumentReminder} testID="home-instruments-reminder">
+          <View style={styles.instrumentReminderIcon}>
+            <Guitar color={colors.primary} size={iconSizes.s18} strokeWidth={2.2} />
+          </View>
+          <View style={styles.instrumentReminderCopy}>
+            <Text style={styles.instrumentReminderTitle}>Vincule seu instrumento ou cargo</Text>
+            <Text style={styles.instrumentReminderText}>
+              Para ser escalado em uma função, vincule ao seu perfil o instrumento ou cargo correspondente.
+            </Text>
+          </View>
+          <Button
+            title="Vincular instrumento ou cargo"
+            variant="secondary"
+            size="sm"
+            onPress={() => router.push(nav.profileSection("instruments"))}
+            accessibilityLabel="Vincular instrumento ou cargo"
+            testID="home-link-instruments-button"
+          />
+        </View>
+      ) : null}
+
+      <View style={[styles.heroLayout, isMobile && styles.columnStack]}>
+        <View style={[styles.nextPanel, isMobile && styles.fullWidthPanel]}>
           <Text style={styles.nextKicker}>{TEXT.nextSchedule}</Text>
           {loading && schedules.length === 0 ? (
             <LoadingState centered={false} style={styles.heroLoading} />
@@ -281,19 +328,19 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        <View style={styles.metricRail}>
+        <View style={[styles.metricRail, isMobile && styles.fullWidthPanel]}>
           <Metric
             label="Pendências"
             value={pendingCount}
             detail={pendingCount ? "aguardando resposta" : "tudo em dia"}
             accent
-            style={styles.metric}
+            style={[styles.metric, isMobile && styles.metricMobile]}
           />
           <Metric
             label="Escalas"
             value={schedules.length}
             detail="carregadas para você"
-            style={styles.metric}
+            style={[styles.metric, isMobile && styles.metricMobile]}
           />
         </View>
       </View>
@@ -310,7 +357,7 @@ export default function DashboardScreen() {
             {quickActions.map((action, index) => action ? (
               <TouchableOpacity
                 key={action.title}
-                style={styles.actionButton}
+                style={[styles.actionButton, isMobile && styles.actionButtonMobile]}
                 activeOpacity={0.72}
                 onPress={action.onPress}
                 accessibilityRole="button"
@@ -327,8 +374,8 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      <View style={styles.infoColumns}>
-        <View style={styles.listPanel}>
+      <View style={[styles.infoColumns, isMobile && styles.columnStack]}>
+        <View style={[styles.listPanel, isMobile && styles.fullWidthPanel]}>
           <SectionHeader
             variant="section"
             title="Escalas pendentes"
@@ -379,7 +426,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.listPanel}>
+        <View style={[styles.listPanel, isMobile && styles.fullWidthPanel]}>
           <SectionHeader
             variant="section"
             title="Atividade recente"
@@ -445,21 +492,23 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.ministriesBar}
-        onPress={() => router.push(nav.ministries)}
-        activeOpacity={0.76}
-        accessibilityRole="link"
-        accessibilityLabel="Abrir ministérios"
-      >
-        <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
-        <View style={styles.ministryCopy}>
-          <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
-          <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
-          <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
-        </View>
-        <Text style={styles.ministryArrow}>›</Text>
-      </TouchableOpacity>
+      {canSeeMinistries ? (
+        <TouchableOpacity
+          style={styles.ministriesBar}
+          onPress={() => router.push(nav.ministries)}
+          activeOpacity={0.76}
+          accessibilityRole="link"
+          accessibilityLabel="Abrir ministérios"
+        >
+          <View style={styles.ministryIcon}><Church color={colors.primary} size={iconSizes.s20} strokeWidth={2.1} /></View>
+          <View style={styles.ministryCopy}>
+            <Text style={styles.ministryKicker}>{TEXT.ministries}</Text>
+            <Text style={styles.ministryTitle}>Acompanhe suas equipes</Text>
+            <Text style={styles.body}>{TEXT.ministriesDescription}</Text>
+          </View>
+          <Text style={styles.ministryArrow}>›</Text>
+        </TouchableOpacity>
+      ) : null}
     </Screen>
     </>
   );
@@ -488,6 +537,39 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   errorBanner: { marginBottom: spacing.sm },
+  instrumentReminder: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  instrumentReminderIcon: {
+    width: controlSizes.compact,
+    height: controlSizes.compact,
+    borderRadius: radii.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  instrumentReminderCopy: {
+    flex: 1,
+    minWidth: 200,
+  },
+  instrumentReminderTitle: {
+    ...typography.label,
+    color: colors.ink,
+  },
+  instrumentReminderText: {
+    ...typography.metadata,
+    color: colors.muted,
+    marginTop: spacing.xxs,
+  },
   retryButton: { alignSelf: "flex-start", marginBottom: spacing.lg },
   heroLayout: {
     flexDirection: "row",
@@ -562,10 +644,29 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   metric: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: "auto",
     justifyContent: "center",
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
+  },
+  metricMobile: {
+    flexGrow: 0,
+  },
+  columnStack: {
+    flexDirection: "column",
+  },
+  fullWidthPanel: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "auto",
+    width: "100%",
+    minWidth: 0,
+  },
+  actionButtonMobile: {
+    minWidth: 148,
+    flexBasis: 148,
   },
   section: {
     marginBottom: spacing.xl,
@@ -686,9 +787,12 @@ const styles = StyleSheet.create({
   attentionMetrics: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: spacing.sm,
   },
   attentionMetric: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 152,
   },
   ministriesBar: {
     minHeight: 112,

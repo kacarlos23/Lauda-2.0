@@ -35,4 +35,12 @@ describe("rich text comments", () => {
   it("rejects markup amplification", () => {
     expect(() => richTextCommentsSchema.parse(`<strong>${"a".repeat(30_001)}</strong>`)).toThrow();
   });
+
+  it("strips nested or obfuscated markup in plain text while keeping block line breaks", () => {
+    const plain = richTextToPlainText(
+      "<div>Linha 1<br>Linha 2</div><p>Parágrafo<scr<script>ipt>alert(1)</script></p><ul><li>Item</li></ul>"
+    );
+    expect(plain).toBe("Linha 1\nLinha 2\nParágrafoipt>alert(1)\nItem");
+    expect(plain).not.toContain("<script");
+  });
 });

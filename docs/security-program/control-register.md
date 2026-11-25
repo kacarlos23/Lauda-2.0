@@ -12,7 +12,7 @@ Os estados tecnicos abaixo descrevem o working tree inspecionado em 2026-07-16. 
 |---|---|---|---|---|---|
 | PRV-01 Data Map | Baseline tecnico v1 | Data Owners TBD; System Owner Engenharia TBD | Inventario por operacao, entidades Prisma, clientes, scripts, fornecedores e infra conhecida | `data-map.md` | Validar owners, bases, retencoes e classificacao religiosa. |
 | PRV-02 ROPA | Baseline tecnico v1 | Juridico/Data Owners TBD | Registro de operacoes por finalidade com papel controlador/operador a validar | `ropa.md` | Aprovar bases e papeis por operacao. |
-| GOV-01 Ownership | Modelo criado; nomeacao pendente | Direcao/Operacao/Engenharia TBD | Modelo Data Owner/System Owner/Security Owner | `ownership-model.md` | Nomear pessoas/grupos e substitutos. |
+| GOV-01 Ownership | Titulares da plataforma registrados. Substitutos pendentes. | `@kacarlos23` | Modelo Data Owner/System Owner/Security Owner | `ownership-model.md` | Registrar os substitutos. |
 | PRV-06 Publico etario | Criterio documentado; decisao pendente | Produto/Juridico TBD | ADR de idade e acesso provavel | `adr-age-audience.md` | Definir idade minima e politica para adolescentes. |
 | PRV-07 Controlador/operador | Matriz tecnica; decisao pendente | Juridico/Negocio TBD | ADR separado por operacao | `adr-controller-processor.md` | Aprovar contratos/instrucoes/subprocessadores. |
 | PRV-08 Encarregado | Modelo criado; nomeacao pendente | Direcao/Juridico TBD | Governanca do encarregado separada de controlador/operador | `dpo-governance.md` | Nomear DPO/canal/substituto. |

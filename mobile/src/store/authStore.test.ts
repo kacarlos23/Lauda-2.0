@@ -21,6 +21,7 @@ jest.mock("../services/memberService", () => ({
 
 jest.mock("./invalidation", () => ({
   invalidateRelatedData: jest.fn(() => Promise.resolve()),
+  resetAllDomainStores: jest.fn(),
 }));
 
 jest.mock("../services/sessionStorage", () => ({
@@ -36,6 +37,7 @@ jest.mock("../services/sessionStorage", () => ({
 }));
 
 const { useAuthStore } = require("./authStore") as typeof import("./authStore");
+const { invalidateRelatedData, resetAllDomainStores } = require("./invalidation") as typeof import("./invalidation");
 const { api } = require("../services/api") as typeof import("../services/api");
 const { memberService } = require("../services/memberService") as typeof import("../services/memberService");
 const { getSessionItem } = require("../services/sessionStorage") as typeof import("../services/sessionStorage");
@@ -51,7 +53,7 @@ const user = {
 
 const tenant = { id: "tenant-1", name: "Igreja Central" };
 
-function authResponse(overrides: Partial<typeof user> = {}) {
+function authResponse(overrides: Partial<typeof user & { avatarUrl?: string | null }> = {}) {
   return {
     data: {
       data: {
@@ -68,6 +70,8 @@ describe("authStore session", () => {
   beforeEach(() => {
     mockStorage.clear();
     mockReplace.mockClear();
+    jest.mocked(invalidateRelatedData).mockReset().mockResolvedValue(undefined);
+    jest.mocked(resetAllDomainStores).mockReset();
     jest.mocked(api.get).mockReset();
     jest.mocked(api.post).mockReset();
     jest.mocked(memberService.getCurrentMember).mockReset();
@@ -230,6 +234,7 @@ describe("authStore session", () => {
     await useAuthStore.getState().refreshCurrentUser();
 
     expect(api.get).toHaveBeenCalledWith("/auth/me");
+    expect(invalidateRelatedData).not.toHaveBeenCalled();
     expect(useAuthStore.getState().tenant).toEqual(tenant);
     expect(useAuthStore.getState().user?.name).toBe("Ana Atualizada");
     expect(useAuthStore.getState().user?.permissions).toEqual(["song:create"]);
@@ -259,5 +264,34 @@ describe("authStore session", () => {
 
     expect(useAuthStore.getState().user).toEqual(user);
     expect(JSON.parse(mockStorage.get("auth_user") ?? "{}").name).toBe(user.name);
+  });
+
+  it("chama resetAllDomainStores em logout, logoutAll e troca de usuário", async () => {
+    useAuthStore.setState({ user, tenant, accessToken: "token-1", token: "token-1" });
+    jest.mocked(api.post).mockResolvedValueOnce({});
+
+    await useAuthStore.getState().logout();
+    expect(resetAllDomainStores).toHaveBeenCalledTimes(1);
+
+    jest.mocked(resetAllDomainStores).mockReset();
+    jest.mocked(api.post).mockResolvedValueOnce(authResponse({ id: "user-2", tenantId: "tenant-2" }));
+    await useAuthStore.getState().login("outro@example.com", "secret123");
+    expect(resetAllDomainStores).toHaveBeenCalledTimes(1);
+
+    jest.mocked(resetAllDomainStores).mockReset();
+    jest.mocked(api.post).mockResolvedValueOnce({});
+    await useAuthStore.getState().logoutAll();
+    expect(resetAllDomainStores).toHaveBeenCalledTimes(1);
+  });
+
+  it("remove avatarUrl Base64 de auth_user persistido mantendo em memória", async () => {
+    const heavyAvatar = `data:image/jpeg;base64,${"A".repeat(4096)}`;
+    jest.mocked(api.post).mockResolvedValueOnce(authResponse({ avatarUrl: heavyAvatar }));
+
+    await useAuthStore.getState().login("ana@example.com", "secret123");
+
+    expect(useAuthStore.getState().user?.avatarUrl).toBe(heavyAvatar);
+    const persistedUser = JSON.parse(mockStorage.get("auth_user") ?? "{}");
+    expect(persistedUser.avatarUrl).toBeUndefined();
   });
 });

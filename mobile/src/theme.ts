@@ -94,6 +94,8 @@ export const lightOverlays = {
   inverseIconBorder: "rgba(248, 250, 246, 0.24)",
   inverseIconSurface: "rgba(248, 250, 246, 0.08)",
   mobileTabSelection: "rgba(255, 253, 248, 0.14)",
+  dockSurface: "rgba(248, 250, 246, 0.96)",
+  dockBorder: "rgba(16, 40, 32, 0.12)",
   activeNavigation: "rgba(31, 111, 85, 0.38)",
   dangerSurface: "rgba(183, 71, 58, 0.12)",
   modal: "rgba(16, 32, 26, 0.46)",
@@ -103,6 +105,7 @@ export const lightOverlays = {
   modalBrand: "rgba(16, 40, 32, 0.46)",
   modalCool: "rgba(15, 23, 42, 0.46)",
   modalNeutral: "rgba(23, 33, 26, 0.42)",
+  bottomEdgeFade: "rgba(16, 40, 32, 0.24)",
 } as const;
 
 // Existing native and production builds retain their original colors.

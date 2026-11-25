@@ -52,6 +52,7 @@ export const ROUTES = defineRoutes({
 export type RouteKey = keyof typeof ROUTES;
 export type StaticRouteKey = Exclude<RouteKey, "scheduleEdit" | "ministryDetail" | "ministryMembers" | "songDetail" | "songEdit">;
 export type InstrumentReturnTo = typeof ROUTES.profile.path | typeof ROUTES.church.path;
+export type ProfileSection = "instruments" | "app";
 
 export const GROUP_HREFS = {
   auth: "/(auth)/login",
@@ -90,6 +91,7 @@ export const nav = {
     ? { pathname: ROUTES.instruments.path, params: { returnTo } }
     : ROUTES.instruments.path,
   profile: ROUTES.profile.path,
+  profileSection: (section: ProfileSection): Href => ({ pathname: ROUTES.profile.path, params: { section } }),
 } as const;
 
 export const TAB_ROUTE_KEYS = (Object.keys(ROUTES) as RouteKey[]).filter(

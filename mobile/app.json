@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/brand/png/icon-512.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "lauda",
     "splash": {
@@ -23,7 +23,8 @@
         "backgroundColor": "#164C3C"
       },
       "package": "com.lauda.app",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +32,15 @@
       "favicon": "./assets/brand/png/favicon-48.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true,
+            "default": "development"
+          }
+        }
+      ],
       "expo-secure-store",
       [
         "expo-notifications",
@@ -44,6 +53,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ba27fc5e-f4ed-46b8-bd7e-1331b219bbc8"
+      }
+    },
+    "owner": "kacarlos23"
   }
 }

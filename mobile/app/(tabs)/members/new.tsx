@@ -1,13 +1,14 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { Check, Save, UserPlus } from "lucide-react-native";
-import { memberService } from "../../../src/services/memberService";
-import { ministryApi } from "../../../src/services/ministryApi";
+import { useMemberStore } from "../../../src/store/memberStore";
+import { useMinistryStore } from "../../../src/store/ministryStore";
 import { useAuthStore } from "../../../src/store/authStore";
-import { Ministry, Role } from "../../../src/types";
+import { Role } from "../../../src/types";
 import {
   colors,
   controlSizes,
@@ -44,22 +45,19 @@ const emptyForm = {
 };
 
 export default function NewMemberScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const { user } = useAuthStore();
+  const { createMember } = useMemberStore();
+  const { ministries, loading: ministriesLoading, fetchMinistries } = useMinistryStore();
   const [form, setForm] = useState(emptyForm);
-  const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [ministriesLoading, setMinistriesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    ministryApi
-      .getMinistries()
-      .then(setMinistries)
-      .catch(() => setMinistries([]))
-      .finally(() => setMinistriesLoading(false));
-  }, []);
+    void fetchMinistries();
+  }, [fetchMinistries]);
 
   if (!canManageMembers(user)) {
     return <Redirect href={GROUP_HREFS.tabs} />;
@@ -92,21 +90,16 @@ export default function NewMemberScreen() {
     setSuccess(null);
 
     try {
-      const member = await memberService.createMember({
+      await createMember({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim() || undefined,
         password: form.password,
         role: form.role,
         comments: form.comments || null,
+        ministryId: form.ministryId || undefined,
+        isLeader: form.ministryId ? form.isLeader : false,
       });
-
-      if (form.ministryId) {
-        await memberService.addMinistry(member.id, {
-          ministryId: form.ministryId,
-          isLeader: form.isLeader,
-        });
-      }
 
       setForm(emptyForm);
       setSuccess("Membro cadastrado com sucesso.");
@@ -126,7 +119,7 @@ export default function NewMemberScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={withDockClearance(styles.scroll)} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>
           <View style={styles.back}><AppBackButton href={nav.members} /></View>
 

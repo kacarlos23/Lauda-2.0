@@ -554,7 +554,9 @@ test("anima a seleção entre a sidebar e as abas móveis", async ({ page }) => 
   await login(page);
 
   const activeRail = page.getByTestId("sidebar-active-rail");
+  const activeBackdrop = page.getByTestId("staging-sidebar-active-backdrop");
   await expect(activeRail).toBeVisible();
+  await expect(activeBackdrop).toBeVisible();
   const initialRailPosition = await activeRail.boundingBox();
 
   await page.getByTestId("sidebar-nav-ministries").click();
@@ -564,90 +566,45 @@ test("anima a seleção entre a sidebar e as abas móveis", async ({ page }) => 
     .not.toBe(initialRailPosition?.y);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  const bubbles = page.locator('[data-testid="mobile-tab-bubble"]:visible');
-  const bubble = bubbles.first();
-  const bubbleCenterDistance = async (tabName: string) => {
-    const tab = page.getByRole("tab", { name: tabName }).first();
-    const [bubbleBox, tabBox] = await Promise.all([
-      bubble.boundingBox(),
+  const dock = page.getByTestId("staging-dock-surface");
+  const indicator = page.getByTestId("staging-dock-indicator");
+  const dockTabAlignment = async (tabId: string) => {
+    const tab = page.getByTestId(`staging-dock-tab-${tabId}`);
+    const [indicatorBox, tabBox] = await Promise.all([
+      indicator.boundingBox(),
       tab.boundingBox(),
     ]);
-    if (!bubbleBox || !tabBox) return Number.POSITIVE_INFINITY;
-    return Math.abs(
-      bubbleBox.x + bubbleBox.width / 2
-      - (tabBox.x + tabBox.width / 2)
+    if (!indicatorBox || !tabBox) return Number.POSITIVE_INFINITY;
+    return Math.max(
+      Math.abs(indicatorBox.x - tabBox.x),
+      Math.abs(indicatorBox.width - tabBox.width),
+      Math.abs(indicatorBox.y - tabBox.y),
+      Math.abs(indicatorBox.height - tabBox.height)
     );
   };
 
-  await expect(bubble).toBeVisible();
-  await expect(bubbles).toHaveCount(1);
-  await expect.poll(() => bubbleCenterDistance("Ministérios")).toBeLessThanOrEqual(1);
-  await expect.poll(async () => {
-    const box = await bubble.boundingBox();
-    return Math.abs((box?.width ?? 0) - 68) + Math.abs((box?.height ?? 0) - 68);
-  }).toBeLessThanOrEqual(1);
+  await expect(dock).toBeVisible();
+  await expect(indicator).toBeVisible();
+  await expect(page.getByTestId("staging-dock-tab-ministries")).toHaveCount(0);
+  await expect(page.getByTestId("staging-dock-tab-more")).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => dockTabAlignment("more")).toBeLessThanOrEqual(2);
 
-  const ministriesSelection = page.locator(
-    '[data-testid="mobile-tab-selection-ministries"]:visible'
-  ).first();
-  const ministriesLabel = page.locator(
-    '[data-testid="mobile-tab-label-selection-ministries"]:visible'
-  ).first();
-  await expect(ministriesSelection).toHaveCSS("opacity", "1");
-  await expect(ministriesLabel).toHaveText("Ministérios");
-  await expect.poll(() => ministriesLabel.evaluate(
-    (element) => element.scrollWidth - element.clientWidth
-  )).toBeLessThanOrEqual(0);
+  await page.getByTestId("staging-dock-tab-home").click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("staging-dock-tab-home")).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => dockTabAlignment("home")).toBeLessThanOrEqual(2);
 
-  await page.getByRole("tab", { name: "Início" }).first().click();
-  await expect.poll(() => bubbleCenterDistance("Início")).toBeLessThanOrEqual(1);
-  await expect(
-    page.locator('[data-testid="mobile-tab-selection-home"]:visible').first()
-  ).toHaveCSS("opacity", "1");
-
-  await page.getByRole("tab", { name: "Escalas" }).first().click();
-  await page.getByRole("tab", { name: "Músicas" }).first().click();
+  await page.getByTestId("staging-dock-tab-schedules").click();
+  await page.getByTestId("staging-dock-tab-songs").click();
   await expect(page).toHaveURL(/\/songs$/);
-  await expect.poll(() => bubbleCenterDistance("Músicas")).toBeLessThanOrEqual(1);
-  await expect(bubbles).toHaveCount(1);
-  await expect(
-    page.locator('[data-testid="mobile-tab-selection-songs"]:visible').first()
-  ).toHaveCSS("opacity", "1");
-  const songsIcon = page.locator(
-    '[data-testid="mobile-tab-selection-songs"]:visible'
-  ).first();
-  const songsLabel = page.locator(
-    '[data-testid="mobile-tab-label-selection-songs"]:visible'
-  ).first();
-  await expect.poll(async () => {
-    const [bubbleBox, iconBox, labelBox] = await Promise.all([
-      bubble.boundingBox(),
-      songsIcon.boundingBox(),
-      songsLabel.boundingBox(),
-    ]);
-    if (!bubbleBox || !iconBox || !labelBox) return Number.POSITIVE_INFINITY;
-    const bubbleRight = bubbleBox.x + bubbleBox.width;
-    const bubbleBottom = bubbleBox.y + bubbleBox.height;
-    return Math.max(
-      0,
-      bubbleBox.x - iconBox.x,
-      iconBox.x + iconBox.width - bubbleRight,
-      bubbleBox.y - iconBox.y,
-      iconBox.y + iconBox.height - bubbleBottom,
-      bubbleBox.x - labelBox.x,
-      labelBox.x + labelBox.width - bubbleRight,
-      bubbleBox.y - labelBox.y,
-      labelBox.y + labelBox.height - bubbleBottom
-    );
-  }).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: "test-results/mobile-tab-bubble.png" });
+  await expect(page.getByTestId("staging-dock-tab-songs")).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => dockTabAlignment("songs")).toBeLessThanOrEqual(2);
 
   await page.setViewportSize({ width: 320, height: 844 });
-  await expect.poll(() => bubbleCenterDistance("Músicas")).toBeLessThanOrEqual(1);
-  await expect(ministriesLabel).toHaveText("Ministérios");
+  await expect.poll(() => dockTabAlignment("songs")).toBeLessThanOrEqual(2);
 
   await page.setViewportSize({ width: 1200, height: 820 });
-  await expect(page.getByTestId("mobile-tab-bubble")).toBeHidden();
+  await expect(dock).toHaveCount(0);
 });
 
 test("admin global vê perfil, home e aba global com lista de igrejas", async ({ page }) => {
@@ -1076,7 +1033,8 @@ test("edita dados do perfil pelo acesso no cabeçalho", async ({ page }) => {
 
   await expect.poll(() => payload?.name).toBe("Ana Atualizada");
   expect(payload?.phone).toBe("11999990000");
-  expect(payload?.avatarUrl).toMatch(/^data:image\/png;base64,/);
+  expect(payload?.avatarUrl).toMatch(/^data:image\/(?:webp|jpeg);base64,/);
+  expect(payload?.avatarUrl?.length).toBeLessThanOrEqual(70_000);
   await expect(page.getByTestId("header-profile-button").last()).toBeVisible();
 });
 

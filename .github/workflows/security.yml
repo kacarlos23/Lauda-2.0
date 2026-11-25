@@ -62,7 +62,19 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             mobile/package-lock.json
+      - name: Install Expo dependencies for bundle audit
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+      - name: Verify picomatch is absent from production runtime bundles
+        id: runtime-audit
+        env:
+          EXPO_APP_DIR: mobile
+          AUDIT_PLATFORMS: all
+        run: npm run security:runtime-bundle
       - name: Generate separated reports and enforce graduated gate
+        if: ${{ !cancelled() }}
+        env:
+          RUNTIME_AUDIT_STEP_OUTCOME: ${{ steps.runtime-audit.outcome }}
         run: npm run security:dependencies -- --gate
       - name: Upload dependency reports
         if: always()

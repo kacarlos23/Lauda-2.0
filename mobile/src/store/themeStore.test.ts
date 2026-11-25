@@ -70,4 +70,11 @@ describe("web theme preferences", () => {
     (globalThis as any).document = undefined;
     expect(applyWebTheme("system", true)).toBe("dark");
   });
+  it("escapes unsafe inline-script characters in the bootstrap payload", () => {
+    const script = themeBootstrapScript();
+    const payload = script.match(/var d=(.*?)\[m\];/)?.[1];
+    expect(payload).toBeTruthy();
+    expect(payload).not.toMatch(/[<>&]|[\u2028\u2029]/);
+    expect(script.toLowerCase()).not.toContain("</script");
+  });
 });

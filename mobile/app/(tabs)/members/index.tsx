@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
 import { useCallback, useState } from "react";
@@ -17,8 +18,9 @@ import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Copy, Edit3, RefreshCw, Plus, Save, Users, X } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { MemberInvite, memberService } from "../../../src/services/memberService";
-import { ministryApi } from "../../../src/services/ministryApi";
 import { useAuthStore } from "../../../src/store/authStore";
+import { useMemberStore } from "../../../src/store/memberStore";
+import { useMinistryStore } from "../../../src/store/ministryStore";
 import { Member, Ministry, Role } from "../../../src/types";
 import { AppInput, Button, Card, Chip, EmptyState, ErrorBanner, FilterButton, FilterPanel, FilterSection, InviteStatusBadge, LoadingState, PermissionStatusBadge, RichCommentEditor, RichCommentView, RoleBadge, Screen, SectionHeader } from "../../../src/components/ui";
 import {
@@ -112,15 +114,23 @@ function buildPermissionDraft(member: Member, ministries: Ministry[]): Permissio
 }
 
 export default function MembersScreen() {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const { user } = useAuthStore();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    members,
+    loading,
+    error: memberStoreError,
+    loadMembers: fetchMembers,
+    updateMember,
+    updatePermissions,
+  } = useMemberStore();
+  const { ministries, fetchMinistries } = useMinistryStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const error = memberStoreError ?? inviteError;
   const [invite, setInvite] = useState<MemberInvite | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [selectedMinistryId, setSelectedMinistryId] = useState<string>("");
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [permissionDraft, setPermissionDraft] = useState<PermissionDraft | null>(null);
@@ -142,27 +152,24 @@ export default function MembersScreen() {
   const instrumentFilterOptions = uniqueMemberInstruments(members);
   const filteredMembers = filterMembers(members, filters);
 
-  const loadMembers = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await memberService.listMembers();
-      setMembers(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar os membros.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const canViewMembersList = canViewMembers(user);
+
+  const loadMembers = useCallback(async (force = false) => {
+    if (!canViewMembersList) return;
+    setInviteError(null);
+    await fetchMembers(force ? { force: true } : undefined);
+  }, [canViewMembersList, fetchMembers]);
 
   const loadInvite = useCallback(async (ministryId = selectedMinistryId) => {
     if (!canInviteMember) return;
 
     try {
       setInviteLoading(true);
+      setInviteError(null);
       const data = await memberService.getMemberInvite(ministryId || undefined);
       setInvite(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar o convite.");
+      setInviteError(err instanceof Error ? err.message : "Não foi possível carregar o convite.");
     } finally {
       setInviteLoading(false);
     }
@@ -170,28 +177,26 @@ export default function MembersScreen() {
 
   const loadMinistries = useCallback(async () => {
     if (!canLoadManagementData) return;
-
-    try {
-      const data = await ministryApi.getMinistries();
-      setMinistries(data);
-    } catch {
-      setMinistries([]);
-    }
-  }, [canLoadManagementData]);
+    await fetchMinistries();
+  }, [canLoadManagementData, fetchMinistries]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!canViewMembersList) {
+        setRefreshing(false);
+        return;
+      }
       void loadMembers();
       if (canLoadManagementData) {
         void loadMinistries();
         void loadInvite();
       }
-    }, [canLoadManagementData, loadInvite, loadMembers, loadMinistries])
+    }, [canLoadManagementData, canViewMembersList, loadInvite, loadMembers, loadMinistries])
   );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadMembers();
+    await loadMembers(true);
     if (canLoadManagementData) {
       await loadMinistries();
       await loadInvite();
@@ -309,11 +314,10 @@ export default function MembersScreen() {
 
     try {
       setSavingPermissions(true);
-      const updated = await memberService.updatePermissions(editingMember.id, {
+      await updatePermissions(editingMember.id, {
         role: permissionDraft.role,
         ministries: selectedMinistries,
       });
-      setMembers((current) => current.map((member) => member.id === updated.id ? updated : member));
       setEditingMember(null);
       setPermissionDraft(null);
       Alert.alert("Acesso atualizado", "O acesso e os vínculos do membro foram alterados.");
@@ -333,8 +337,7 @@ export default function MembersScreen() {
     if (!commentMember) return;
     try {
       setSavingComment(true);
-      const updated = await memberService.updateMember(commentMember.id, { comments: commentDraft || null });
-      setMembers((current) => current.map((member) => member.id === updated.id ? { ...member, ...updated } : member));
+      await updateMember(commentMember.id, { comments: commentDraft || null });
       setCommentMember(null);
       setCommentDraft("");
     } catch (reason) {
@@ -503,7 +506,7 @@ export default function MembersScreen() {
         data={filteredMembers}
         keyExtractor={(item) => item.id}
         style={styles.listScroller}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={withDockClearance(styles.list)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} />
         }

@@ -25,6 +25,7 @@ export const darkOverlays: Record<string, string> = {
   modalStrong: "rgba(0, 0, 0, 0.72)", modalSoft: "rgba(0, 0, 0, 0.48)",
   modalWarm: "rgba(0, 0, 0, 0.58)", modalBrand: "rgba(0, 0, 0, 0.62)",
   modalCool: "rgba(0, 0, 0, 0.62)", modalNeutral: "rgba(0, 0, 0, 0.62)",
+  bottomEdgeFade: "rgba(0, 0, 0, 0.48)",
 };
 
 export function isThemePreference(value: unknown): value is ThemePreference {

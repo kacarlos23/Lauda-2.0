@@ -6,6 +6,7 @@ import { useAuthStore } from "../../src/store/authStore";
 import { authErrorMessage } from "../../src/services/authError";
 import { AuthShell } from "../../src/components/AuthShell";
 import { AppInput, Button, ErrorBanner } from "../../src/components/ui";
+import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
 import { colors, controlSizes, iconSizes, spacing, typography } from "../../src/theme";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 
@@ -146,6 +147,8 @@ export default function LoginScreen() {
           Sua igreja ainda não usa o Lauda? <Text style={styles.linkText}>Criar conta</Text>
         </Text>
       </TouchableOpacity>
+
+      <InstallAppPanel variant="compact" testIDPrefix="login-install" />
     </AuthShell>
   );
 }

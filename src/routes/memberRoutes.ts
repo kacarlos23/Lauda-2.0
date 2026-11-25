@@ -2,15 +2,19 @@ import { Router } from "express";
 import { MemberController } from "../controllers/MemberController";
 import { MinistryController } from "../controllers/MinistryController";
 import { authMiddleware, requirePermission, requireSelfOrPermission } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const ctrl = new MemberController();
 const ministryCtrl = new MinistryController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 
 router.get("/me/ministries", (req, res) => ministryCtrl.getMyAssignments(req, res));
 router.get("/me", (req, res) => ctrl.getMe(req, res));
+router.get("/me/onboarding", (req, res) => ctrl.getMyOnboarding(req, res));
+router.patch("/me/onboarding", (req, res) => ctrl.updateMyOnboarding(req, res));
 router.patch("/me/profile", (req, res) => ctrl.updateMyProfile(req, res));
 router.patch("/me/instruments", (req, res) => ctrl.updateMyInstruments(req, res));
 router.get("/", requirePermission("member:view"), (req, res) => ctrl.list(req, res));

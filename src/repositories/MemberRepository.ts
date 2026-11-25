@@ -1,7 +1,14 @@
 import { prisma } from "./prismaClient";
 import { basePrisma } from "../config/prisma";
+import { NotFoundError } from "../errors/AppError";
 import { revokeUserSessionsInTransaction } from "../services/authSessionService";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
+import {
+  CURRENT_ONBOARDING_VERSION,
+  PrismaOnboardingStatusValue,
+  toOnboardingStateView,
+  type UserOnboardingRecordLike,
+} from "../constants/onboarding";
 import { CreateMemberInput, UpdateMemberInput } from "../validators/member.schema";
 
 const userInstrumentInclude = {
@@ -10,6 +17,19 @@ const userInstrumentInclude = {
   },
 };
 
+function memberOnboardingInclude(tenantId: string) {
+  return {
+    where: { tenantId, version: CURRENT_ONBOARDING_VERSION },
+    select: {
+      version: true,
+      status: true,
+      completedAt: true,
+      dismissedAt: true,
+      updatedAt: true,
+    },
+  };
+}
+
 function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }> }>(
   member: T
 ) {
@@ -17,6 +37,19 @@ function mapMemberInstruments<T extends { instruments?: Array<{ instrument: { id
   return {
     ...rest,
     instruments: instruments.map((item) => item.instrument),
+  };
+}
+
+function mapMemberDetails<
+  T extends {
+    instruments?: Array<{ instrument: { id: string; name: string; colorHex: string | null; iconKey?: string | null } }>;
+    onboardings?: UserOnboardingRecordLike[];
+  },
+>(member: T) {
+  const { onboardings = [], ...withoutOnboarding } = member;
+  return {
+    ...mapMemberInstruments(withoutOnboarding),
+    onboarding: toOnboardingStateView(onboardings[0] ?? null),
   };
 }
 
@@ -29,7 +62,6 @@ export class MemberRepository {
       select: {
         id: true,
         name: true,
-        avatarUrl: true,
         comments: true,
         role: true,
         tenantId: true,
@@ -67,10 +99,11 @@ export class MemberRepository {
           },
         },
         instruments: userInstrumentInclude,
+        onboardings: memberOnboardingInclude(this.tenantId),
       },
     });
 
-    return member ? mapMemberInstruments(member) : null;
+    return member ? mapMemberDetails(member) : null;
   }
 
   findByEmail(email: string) {
@@ -84,29 +117,93 @@ export class MemberRepository {
     });
   }
 
-  create(data: CreateMemberInput & { password: string }) {
-    const { name, email, phone, role, password, comments } = data;
-    return prisma.user.create({
-      data: {
-        name,
-        email,
-        phone: phone ?? null,
-        role,
-        comments: comments ?? null,
-        password,
+  create(data: CreateMemberInput & { password: string; ministries?: Array<{ ministryId: string; isLeader: boolean }> }) {
+    const { name, email, phone, role, password, comments, ministries = [] } = data;
+    const select = {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      avatarUrl: true,
+      comments: true,
+      role: true,
+      tenantId: true,
+      createdAt: true,
+      ministries: {
+        include: {
+          ministry: { select: { id: true, name: true } },
+        },
+        orderBy: { ministry: { name: "asc" as const } },
+      },
+      instruments: userInstrumentInclude,
+      onboardings: memberOnboardingInclude(this.tenantId),
+    };
+
+    const onboardingCreate = {
+      create: {
         tenantId: this.tenantId,
+        version: CURRENT_ONBOARDING_VERSION,
+        status: "NOT_STARTED" as const,
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        avatarUrl: true,
-        comments: true,
-        role: true,
-        tenantId: true,
-        createdAt: true,
-      },
+    };
+
+    if (ministries.length === 0) {
+      return prisma.user.create({
+        data: {
+          name,
+          email,
+          phone: phone ?? null,
+          role,
+          comments: comments ?? null,
+          password,
+          tenantId: this.tenantId,
+          onboardings: onboardingCreate,
+        },
+        select,
+      }).then(mapMemberDetails);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const ministryIds = ministries.map((item) => item.ministryId);
+      const found = await tx.ministry.findMany({
+        where: { id: { in: ministryIds }, tenantId: this.tenantId },
+        select: { id: true },
+      });
+      if (found.length !== ministryIds.length) {
+        throw new NotFoundError("Ministério não encontrado.");
+      }
+
+      const created = await tx.user.create({
+        data: {
+          name,
+          email,
+          phone: phone ?? null,
+          role,
+          comments: comments ?? null,
+          password,
+          tenantId: this.tenantId,
+          onboardings: onboardingCreate,
+        },
+        select: { id: true },
+      });
+
+      await tx.ministryMember.createMany({
+        data: ministries.map((item) => ({
+          userId: created.id,
+          ministryId: item.ministryId,
+          isLeader: item.isLeader,
+          tenantId: this.tenantId,
+          status: "ACTIVE",
+        })),
+        skipDuplicates: true,
+      });
+
+      const hydrated = await tx.user.findFirstOrThrow({
+        where: { id: created.id, tenantId: this.tenantId },
+        select,
+      });
+
+      return mapMemberDetails(hydrated);
     });
   }
 
@@ -153,12 +250,19 @@ export class MemberRepository {
   }
 
   async deactivateMember(userId: string) {
+    const now = new Date();
     return basePrisma.$transaction(async (tx) => {
       const result = await tx.user.updateMany({
         where: { id: userId, tenantId: this.tenantId, isActive: true, deletedAt: null },
-        data: { isActive: false, deletedAt: new Date() },
+        data: { isActive: false, deletedAt: now },
       });
-      if (result.count) await revokeUserSessionsInTransaction(tx, userId, "user_deactivated");
+      if (result.count) {
+        await tx.ministryMember.updateMany({
+          where: { userId, tenantId: this.tenantId, deletedAt: null },
+          data: { status: "INACTIVE", isActive: false, isLeader: false, deletedAt: now },
+        });
+        await revokeUserSessionsInTransaction(tx, userId, "user_deactivated");
+      }
       return result.count;
     });
   }
@@ -292,8 +396,111 @@ export class MemberRepository {
             orderBy: { ministry: { name: "asc" } },
           },
           instruments: userInstrumentInclude,
+          onboardings: memberOnboardingInclude(this.tenantId),
         },
       });
-    }).then((member) => (member ? mapMemberInstruments(member) : null));
+    }).then((member) => (member ? mapMemberDetails(member) : null));
+  }
+
+  async findMyOnboarding(userId: string, version: string) {
+    const record = await prisma.userOnboarding.findFirst({
+      where: { tenantId: this.tenantId, userId, version },
+      select: {
+        version: true,
+        status: true,
+        completedAt: true,
+        dismissedAt: true,
+        updatedAt: true,
+      },
+    });
+    return toOnboardingStateView(record, version);
+  }
+
+  async upsertMyOnboarding(userId: string, version: string, nextStatus: PrismaOnboardingStatusValue) {
+    const apply = async () => prisma.$transaction(async (tx) => {
+      const existing = await tx.userOnboarding.findFirst({
+        where: { tenantId: this.tenantId, userId, version },
+        select: {
+          id: true,
+          version: true,
+          status: true,
+          startedAt: true,
+          dismissedAt: true,
+          completedAt: true,
+          updatedAt: true,
+        },
+      });
+      const now = new Date();
+
+      if (!existing) {
+        const created = await tx.userOnboarding.create({
+          data: {
+            userId,
+            tenantId: this.tenantId,
+            version,
+            status: nextStatus,
+            startedAt: now,
+            dismissedAt: nextStatus === "DISMISSED" ? now : null,
+            completedAt: nextStatus === "COMPLETED" ? now : null,
+          },
+          select: {
+            version: true,
+            status: true,
+            completedAt: true,
+            dismissedAt: true,
+            updatedAt: true,
+          },
+        });
+        return toOnboardingStateView(created, version);
+      }
+
+      if (existing.status === "COMPLETED") {
+        return toOnboardingStateView(existing, version);
+      }
+      if (existing.status === "DISMISSED" && nextStatus === "NOT_STARTED") {
+        return toOnboardingStateView(existing, version);
+      }
+      if (existing.status === nextStatus) {
+        return toOnboardingStateView(existing, version);
+      }
+
+      const allowedPreviousStatuses: PrismaOnboardingStatusValue[] =
+        nextStatus === "COMPLETED" ? ["NOT_STARTED", "DISMISSED"] : ["NOT_STARTED"];
+
+      await tx.userOnboarding.updateMany({
+        where: {
+          id: existing.id,
+          tenantId: this.tenantId,
+          status: { in: allowedPreviousStatuses },
+        },
+        data: {
+          status: nextStatus,
+          startedAt: existing.startedAt ?? now,
+          ...(nextStatus === "DISMISSED" ? { dismissedAt: now } : {}),
+          ...(nextStatus === "COMPLETED" ? { completedAt: now } : {}),
+        },
+      });
+
+      const current = await tx.userOnboarding.findFirstOrThrow({
+        where: { id: existing.id, tenantId: this.tenantId },
+        select: {
+          version: true,
+          status: true,
+          completedAt: true,
+          dismissedAt: true,
+          updatedAt: true,
+        },
+      });
+      return toOnboardingStateView(current, version);
+    });
+
+    try {
+      return await apply();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return apply();
+      }
+      throw error;
+    }
   }
 }

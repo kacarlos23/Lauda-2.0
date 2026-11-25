@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../src/components/instruments/InstrumentBadge";
@@ -6,11 +7,13 @@ import { AppearancePreferences } from "../../src/components/ThemeControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera, Check, Pencil, Globe2, LogOut, Plus, Save, Settings2, Trash2, User, X } from "lucide-react-native";
 import { GROUP_HREFS, nav } from "../../src/navigation/routes";
 import { Button, EmptyState, ErrorBanner, LoadingState, RoleBadge } from "../../src/components/ui";
+import { InstallAppPanel } from "../../src/features/install/InstallAppPanel";
+import { useResponsiveLayout } from "../../src/hooks/useResponsiveLayout";
 import { useAuthStore } from "../../src/store/authStore";
 import { instrumentService } from "../../src/services/instrumentService";
 import { memberService } from "../../src/services/memberService";
@@ -40,6 +43,58 @@ import { Instrument } from "../../src/types";
 
 const emptyInstrumentForm = { name: "", colorHex: "", iconKey: "" };
 
+const MAX_AVATAR_DIMENSION = 256;
+const MAX_AVATAR_DATA_URL_LENGTH = 70_000;
+
+async function compressAvatarOnWeb(sourceUri: string): Promise<string | null> {
+  if (Platform.OS !== "web" || typeof document === "undefined") {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const ImageConstructor = (globalThis as { Image?: new () => HTMLImageElement }).Image;
+    if (!ImageConstructor) {
+      resolve(null);
+      return;
+    }
+
+    const image = new ImageConstructor();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      try {
+        const width = image.naturalWidth || image.width || MAX_AVATAR_DIMENSION;
+        const height = image.naturalHeight || image.height || MAX_AVATAR_DIMENSION;
+        const scale = Math.min(1, MAX_AVATAR_DIMENSION / Math.max(width, height));
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(null);
+          return;
+        }
+        context.drawImage(image, 0, 0, targetWidth, targetHeight);
+        for (const mime of ["image/webp", "image/jpeg"]) {
+          for (const quality of [0.75, 0.55, 0.35]) {
+            const candidate = canvas.toDataURL(mime, quality);
+            if (candidate.startsWith(`data:${mime};base64,`) && candidate.length <= MAX_AVATAR_DATA_URL_LENGTH) {
+              resolve(candidate);
+              return;
+            }
+          }
+        }
+        resolve(canvas.toDataURL("image/jpeg", 0.3));
+      } catch {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = sourceUri;
+  });
+}
+
 function getInstrumentIds(instruments?: Instrument[]): string[] {
   return instruments?.map((item) => item.id) ?? [];
 }
@@ -52,12 +107,15 @@ function sortInstruments(instruments: Instrument[]): Instrument[] {
 
 
 export default function ProfileScreen() {
+  const withDockClearance = useDockContentClearance();
   const { user, logout, applyCurrentUser, refreshCurrentUser } = useAuthStore();
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const [availableInstruments, setAvailableInstruments] = useState<Instrument[]>([]);
   const [selectedInstruments, setSelectedInstruments] = useState<Instrument[]>(() => user?.instruments ?? []);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => getInstrumentIds(user?.instruments));
   const [instrumentsLoading, setInstrumentsLoading] = useState(true);
+  const [instrumentsSaving, setInstrumentsSaving] = useState(false);
   const [profileRefreshing, setProfileRefreshing] = useState(false);
   const [instrumentsError, setInstrumentsError] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -69,7 +127,14 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const instrumentsSectionYRef = useRef<number | null>(null);
+  const appSectionYRef = useRef<number | null>(null);
+  const handledInstrumentsFocusRef = useRef(false);
+  const handledAppFocusRef = useRef(false);
   const hasLoadedProfileDataRef = useRef(false);
+  const inFlightProfileRefreshRef = useRef<Promise<void> | null>(null);
+  const { isMobile } = useResponsiveLayout();
   const canManageInstruments = canManageInstrumentCatalog(user);
   const hasGlobalAccess = isGlobalAdmin(user);
 
@@ -88,47 +153,96 @@ export default function ProfileScreen() {
   }, [user?.id, user?.name, user?.phone, user?.avatarUrl]);
 
   const refreshProfileData = useCallback(async (options?: { initial?: boolean }) => {
-    try {
-      setInstrumentsError(null);
-      if (options?.initial && !hasLoadedProfileDataRef.current) {
-        setInstrumentsLoading(true);
-      } else {
-        setProfileRefreshing(true);
+    if (inFlightProfileRefreshRef.current) {
+      return inFlightProfileRefreshRef.current;
+    }
+
+    const request = (async () => {
+      try {
+        setInstrumentsError(null);
+        if (options?.initial && !hasLoadedProfileDataRef.current) {
+          setInstrumentsLoading(true);
+        } else {
+          setProfileRefreshing(true);
+        }
+        const [instruments, currentMember] = await Promise.all([
+          instrumentService.getInstruments(),
+          memberService.getCurrentMember(),
+        ]);
+        const currentInstruments = currentMember.instruments ?? [];
+        const currentIds = getInstrumentIds(currentInstruments);
+        setAvailableInstruments(sortInstruments(instruments));
+        setSelectedInstruments(currentInstruments);
+        setSelectedIds(currentIds);
+        hasLoadedProfileDataRef.current = true;
+        await applyCurrentUser({
+          id: currentMember.id,
+          name: currentMember.name,
+          email: currentMember.email,
+          role: currentMember.role,
+          tenantId: currentMember.tenantId,
+          instruments: currentInstruments,
+          phone: currentMember.phone,
+          avatarUrl: currentMember.avatarUrl,
+        });
+      } catch (error) {
+        setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
+      } finally {
+        setInstrumentsLoading(false);
+        setProfileRefreshing(false);
       }
-      const [instruments, currentMember] = await Promise.all([
-        instrumentService.getInstruments(),
-        memberService.getCurrentMember(),
-      ]);
-      const currentInstruments = currentMember.instruments ?? [];
-      const currentIds = getInstrumentIds(currentInstruments);
-      setAvailableInstruments(sortInstruments(instruments));
-      setSelectedInstruments(currentInstruments);
-      setSelectedIds(currentIds);
-      await applyCurrentUser({
-        id: currentMember.id,
-        name: currentMember.name,
-        email: currentMember.email,
-        role: currentMember.role,
-        tenantId: currentMember.tenantId,
-        instruments: currentInstruments,
-        phone: currentMember.phone,
-        avatarUrl: currentMember.avatarUrl,
-      });
-    } catch (error) {
-      setInstrumentsError(error instanceof Error ? error.message : "Não foi possível carregar instrumentos.");
+    })();
+
+    inFlightProfileRefreshRef.current = request;
+    try {
+      await request;
     } finally {
-      setInstrumentsLoading(false);
-      setProfileRefreshing(false);
+      if (inFlightProfileRefreshRef.current === request) inFlightProfileRefreshRef.current = null;
     }
   }, [applyCurrentUser]);
 
-  useEffect(() => {
-    void refreshProfileData({ initial: true });
-  }, [refreshProfileData]);
-
   useFocusEffect(useCallback(() => {
-    void refreshProfileData();
+    handledInstrumentsFocusRef.current = false;
+    handledAppFocusRef.current = false;
+    void refreshProfileData({ initial: !hasLoadedProfileDataRef.current });
+    return () => {
+      handledInstrumentsFocusRef.current = false;
+      handledAppFocusRef.current = false;
+    };
   }, [refreshProfileData]));
+
+  useEffect(() => {
+    if (section !== "instruments") {
+      handledInstrumentsFocusRef.current = false;
+      return;
+    }
+    if (instrumentsLoading || instrumentsError || handledInstrumentsFocusRef.current) {
+      return;
+    }
+    handledInstrumentsFocusRef.current = true;
+    setPickerVisible(true);
+    if (instrumentsSectionYRef.current !== null) {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, instrumentsSectionYRef.current - spacing.lg),
+        animated: true,
+      });
+    }
+  }, [section, instrumentsLoading, instrumentsError]);
+
+  useEffect(() => {
+    if (section !== "app" || isMobile) {
+      handledAppFocusRef.current = false;
+      return;
+    }
+    if (handledAppFocusRef.current || appSectionYRef.current === null) {
+      return;
+    }
+    handledAppFocusRef.current = true;
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(0, appSectionYRef.current - spacing.lg),
+      animated: true,
+    });
+  }, [section, isMobile]);
 
   const performLogout = async () => {
     await logout();
@@ -170,6 +284,7 @@ export default function ProfileScreen() {
 
     setSelectedIds(nextIds);
     setSelectedInstruments(optimisticInstruments);
+    setInstrumentsSaving(true);
 
     try {
       const result = await instrumentService.updateMyInstruments(nextIds);
@@ -181,6 +296,8 @@ export default function ProfileScreen() {
       setSelectedIds(previousIds);
       setSelectedInstruments(previousInstruments);
       showInstrumentError(error instanceof Error ? error.message : "Não foi possível atualizar instrumentos.");
+    } finally {
+      setInstrumentsSaving(false);
     }
   };
 
@@ -195,16 +312,18 @@ export default function ProfileScreen() {
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.45,
+      quality: 0.3,
       base64: true,
     });
     if (result.canceled) return;
     const asset = result.assets[0];
-    if (!asset.base64) {
+    const rawDataUri = asset.base64 ? `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}` : null;
+    const compressedWeb = await compressAvatarOnWeb(asset.uri || rawDataUri || "");
+    const nextAvatar = compressedWeb ?? rawDataUri;
+    if (!nextAvatar) {
       setProfileError("Não foi possível processar a imagem selecionada.");
       return;
     }
-    const nextAvatar = `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`;
     if (nextAvatar.length > 3_000_000) {
       setProfileError("A imagem é muito grande. Escolha uma foto menor.");
       return;
@@ -269,7 +388,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={withDockClearance(styles.container)}>
         <View style={styles.profileCard}>
           <TouchableOpacity style={styles.avatarButton} onPress={() => void pickAvatar()} accessibilityLabel="Alterar foto de perfil" testID="profile-avatar-picker">
             {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <View style={styles.avatarCircle}><User color={colors.surface} size={iconSizes.s38} strokeWidth={2.4} /></View>}
@@ -327,7 +446,13 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          testID="profile-instruments-section"
+          onLayout={(event) => {
+            instrumentsSectionYRef.current = event.nativeEvent.layout.y;
+          }}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Meus instrumentos/cargos</Text>
             {!instrumentsLoading && !instrumentsError ? (
@@ -395,7 +520,11 @@ export default function ProfileScreen() {
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleGroup}>
                   <Text style={styles.modalTitle}>Selecionar instrumentos/cargos</Text>
-                  <Text style={styles.modalSubtitle}>Toque nas opções para atualizar o seu perfil.</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {instrumentsSaving
+                      ? "Salvando vínculo no servidor..."
+                      : "Toque nas opções para atualizar o seu perfil."}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={styles.closeButton}
@@ -486,6 +615,24 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         ) : null}
 
+        {!isMobile ? (
+          <View
+            testID="profile-app-section"
+            onLayout={(event) => {
+              appSectionYRef.current = event.nativeEvent.layout.y;
+              if (section === "app" && !handledAppFocusRef.current) {
+                handledAppFocusRef.current = true;
+                scrollViewRef.current?.scrollTo({
+                  y: Math.max(0, event.nativeEvent.layout.y - spacing.lg),
+                  animated: true,
+                });
+              }
+            }}
+          >
+            <InstallAppPanel variant="card" testIDPrefix="profile-install" />
+          </View>
+        ) : null}
+
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} testID="logout-submit">
           <LogOut color={colors.danger} size={iconSizes.s18} strokeWidth={2.6} />
           <Text style={styles.logoutText}>Sair da conta</Text>
@@ -505,7 +652,7 @@ const styles = StyleSheet.create({
     paddingBottom: screen.contentBottomPadding,
   },
   profileCard: { ...uiPatterns.section, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.lg, marginBottom: spacing.lg },
-  profileIdentity: { flex: 1, minWidth: 220, alignItems: "flex-start" },
+  profileIdentity: { flexGrow: 1, flexShrink: 1, flexBasis: 200, minWidth: 200, alignItems: "flex-start" },
   avatarCircle: {
     width: 92,
     height: 92,

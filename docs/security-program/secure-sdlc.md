@@ -3,7 +3,8 @@
 Versão: 1.0  
 Data: 2026-07-20  
 Technical owner: repository maintainer (`@kacarlos23`)  
-Security/System/Data Owners formais: **TBD — bloqueiam release produtivo**  
+Titulares de Segurança, Sistema e Dados da plataforma: `@kacarlos23`.  
+Substitutos: **pendentes — bloqueiam release produtivo**. [Registro de responsabilidades](ownership-model.md)  
 Próxima revisão: 2026-10-20 ou antes por gatilho de mudança
 
 ## Diagnóstico inicial
@@ -20,7 +21,7 @@ Sessões persistidas/refresh rotation, revogação, tenant context, RBAC, `GLOBA
 | Multi-tenancy estabilizado | Técnico: atendido | `privilegedAccess.test.ts`, `tenantIsolation.test.ts`, evidência da Etapa 3. |
 | Staging isolado | Não atendido | ZAP fica fail-closed e não executa sem environment/allowlist. |
 | Dados sintéticos DAST | Não atendido | `SYNTHETIC_DATASET_ID` deve começar por `synthetic-`; produção deve declarar `false`. |
-| Owners | Parcial | CODEOWNER técnico existe; nomeações organizacionais continuam TBD. |
+| Owners | Parcial | Titulares registrados. Substitutos pendentes. Veja o [registro de responsabilidades](ownership-model.md). |
 | Exceções | Atendido tecnicamente | `.security/exceptions.yml`, campos obrigatórios e expiração. |
 | Critérios runtime/dev/infra | Atendido | Relatórios e gates separados. |
 

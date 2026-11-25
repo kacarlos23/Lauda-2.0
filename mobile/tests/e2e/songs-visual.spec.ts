@@ -122,8 +122,18 @@ test("valida visualmente o separador e a busca em tempo real", async ({ page }) 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });
   await expect(search).toBeVisible();
   await expect(page.getByLabel("Abrir filtros de músicas")).toBeVisible();
-  await expect(page.getByText("Diante do Trono · Tom A", { exact: true })).toBeVisible();
-  await expect(page.getByText("Aline Barros · Tom G · 120 BPM", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-1").getByText("Diante do Trono", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-4").getByText("Aline Barros", { exact: true })).toBeVisible();
+  await page.getByTestId("song-menu-button-song-4").click();
+  const actionMenu = page.getByTestId("song-action-menu");
+  await expect(actionMenu.getByText("Tom G", { exact: true })).toBeVisible();
+  await expect(actionMenu.getByText("120 BPM", { exact: true })).toBeVisible();
+  if (desktopViewport) {
+    await page.keyboard.press("Escape");
+  } else {
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  }
+  await expect(actionMenu).toHaveCount(0);
   await expect(page.getByText(/\\u00b7/)).toHaveCount(0);
   await captureViewport(page, `${screenshotDirectory}/songs-list.png`);
 
@@ -182,7 +192,7 @@ test("mostra temas e aplica ações em lote com a barra fixa no desktop", async 
 
   const search = page.getByRole("textbox", { name: "Buscar músicas" });
   await expect(search).toHaveAttribute("placeholder", "Música, artista ou #tema");
-  await expect(page.getByTestId("song-row-song-1").getByText("+1", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("song-row-song-1").getByTestId("song-tag-button-song-1")).toBeVisible();
   await page.getByRole("button", { name: "Adoração, 2 músicas" }).click();
   await expect(page.getByText("2 músicas encontradas", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Sem tema, 4 músicas" }).click();
@@ -202,9 +212,10 @@ test("mostra temas e aplica ações em lote com a barra fixa no desktop", async 
   expect((await bar.boundingBox())!.y).toBe(initialY);
 
   await bar.getByRole("button", { name: "Adicionar tema" }).click();
-  await page.getByRole("checkbox", { name: "Gratidão", exact: true }).click();
+  const editor = page.getByTestId("song-theme-popover");
+  await editor.getByRole("checkbox", { name: "Gratidão · 1 de 2", exact: true }).click();
   const batch = page.waitForRequest((request) => request.method() === "PATCH" && new URL(request.url()).pathname === "/api/songs/tags/batch");
-  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await editor.getByRole("button", { name: "Aplicar temas a 2 músicas", exact: true }).click();
   expect((await batch).postDataJSON()).toMatchObject({ songIds: ["song-1", "song-3"], operation: "add", tagIds: ["theme-3"] });
   await expect(page.getByText("Temas atualizados em 2 músicas.")).toBeVisible();
   await expect(bar).toContainText("2 selecionadas");

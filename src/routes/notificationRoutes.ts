@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { NotificationController } from "../controllers/NotificationController";
 import { authMiddleware } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 
 const router = Router();
 const controller = new NotificationController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 router.get("/", (req, res) => controller.list(req, res));
 router.post("/read-all", (req, res) => controller.markAllRead(req, res));

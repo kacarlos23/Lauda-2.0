@@ -1,8 +1,9 @@
+import { useDockContentClearance } from "../../../src/navigation/stagingDockClearance";
 import { uiPatterns } from "../../../src/components/ui/patterns";
 import { InputControl as TextInput } from "../../../src/components/ui/InputControl";
 import { InstrumentBadge } from "../../../src/components/instruments/InstrumentBadge";
 import { InstrumentAppearanceEditor } from "../../../src/components/instruments/InstrumentAppearanceEditor";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { Edit3, Plus, Save, Trash2, X } from "lucide-react-native";
@@ -12,6 +13,7 @@ import { useAuthStore } from "../../../src/store/authStore";
 import { useInstrumentStore } from "../../../src/store/instrumentStore";
 import {
   canManageInstrumentCatalog,
+  canViewInstrumentCatalog,
   buildDeleteInstrumentConfirmation,
   normalizeColorHex,
   normalizeInstrumentName,
@@ -37,6 +39,7 @@ import { nav } from "../../../src/navigation/routes";
 const emptyForm = { name: "", colorHex: "", iconKey: "" };
 
 export default function InstrumentCatalogScreen() {
+  const withDockClearance = useDockContentClearance();
   const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = safeReturnTo(params.returnTo, [nav.profile, nav.church] as const, nav.profile);
   const { user } = useAuthStore();
@@ -59,17 +62,19 @@ export default function InstrumentCatalogScreen() {
   const [filters, setFilters] = useState<InstrumentListFilters>(emptyInstrumentFilters);
   const [draftFilters, setDraftFilters] = useState<InstrumentListFilters>(emptyInstrumentFilters);
   const [showFilters, setShowFilters] = useState(false);
+  const canView = canViewInstrumentCatalog(user);
+  const canManage = canManageInstrumentCatalog(user);
   const activeFilters = hasActiveFilters(filters);
   const canApplyFilters = hasActiveFilters(draftFilters);
   const filteredInstruments = filterInstruments(instruments, filters);
 
   useEffect(() => {
-    if (canManageInstrumentCatalog(user)) {
+    if (canView) {
       void loadInstruments();
     }
-  }, [loadInstruments, user]);
+  }, [canView, loadInstruments]);
 
-  if (!canManageInstrumentCatalog(user)) {
+  if (!canView) {
     return <Redirect href={nav.profile} />;
   }
 
@@ -103,14 +108,17 @@ export default function InstrumentCatalogScreen() {
       iconKey: form.iconKey || null,
     };
 
-    if (editingId) {
-      await updateInstrument(editingId, payload);
-    } else {
-      await createInstrument(payload);
-    }
-
-    if (!showStoreError()) {
+    try {
+      if (editingId) {
+        await updateInstrument(editingId, payload);
+      } else {
+        await createInstrument(payload);
+      }
       resetForm();
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Não foi possível salvar o instrumento.";
+      setFormError(message);
+      Alert.alert("Erro", message);
     }
   };
 
@@ -128,10 +136,14 @@ export default function InstrumentCatalogScreen() {
 
   const handleDelete = (instrument: Instrument) => {
     const confirmation = buildDeleteInstrumentConfirmation(async () => {
-      await deleteInstrument(instrument.id);
-      showStoreError();
-      if (editingId === instrument.id) {
-        resetForm();
+      try {
+        await deleteInstrument(instrument.id);
+        if (editingId === instrument.id) {
+          resetForm();
+        }
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : "Não foi possível excluir o instrumento.";
+        Alert.alert("Erro", message);
       }
     });
 
@@ -178,59 +190,65 @@ export default function InstrumentCatalogScreen() {
           accessibilityLabel="Buscar instrumentos e cargos"
         />
       </FilterPanel>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={withDockClearance(styles.container)} keyboardShouldPersistTaps="handled">
         <View style={styles.backRow}><AppBackButton href={returnTo} /></View>
         <View style={styles.header}>
           <Text style={styles.title}>Instrumentos/Cargos</Text>
-          <Text style={styles.subtitle}>Gerencie o catálogo usado nos perfis e na lista de membros.</Text>
+          <Text style={styles.subtitle}>
+            {canManage
+              ? "Gerencie o catálogo usado nos perfis e na lista de membros."
+              : "Consulte os instrumentos e cargos usados nos perfis e escalas."}
+          </Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{editingId ? "Editar instrumento/cargo" : "Novo instrumento/cargo"}</Text>
-          <TextInput
-            style={styles.input}
-            value={form.name}
-            onChangeText={(name) => setForm((current) => ({ ...current, name }))}
-            accessibilityLabel="Nome do instrumento/cargo"
-            maxLength={50}
-            placeholder="Nome"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="words"
-            testID="instrument-name-input"
-          />
-          <InstrumentAppearanceEditor key={editingId ?? "new"} value={form} onChange={setForm} />
-          {editingId ? <Text style={styles.subtitle}>O visual deste instrumento será atualizado em todos os perfis que o utilizam.</Text> : null}
-          <ErrorBanner message={formError} style={styles.formError} />
-          <View style={styles.formActions}>
-            <TouchableOpacity
-              style={[styles.primaryButton, saving && styles.disabledButton]}
-              onPress={() => void handleSubmit()}
-              disabled={saving}
-              accessibilityRole="button"
-              testID="instrument-save-button"
-            >
-              {saving ? (
-                <ActivityIndicator color={colors.surface} />
-              ) : editingId ? (
-                <Save color={colors.surface} size={iconSizes.s17} />
-              ) : (
-                <Plus color={colors.surface} size={iconSizes.s17} />
-              )}
-              <Text style={styles.primaryButtonText}>{editingId ? "Salvar" : "Criar"}</Text>
-            </TouchableOpacity>
-            {editingId ? (
+        {canManage ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{editingId ? "Editar instrumento/cargo" : "Novo instrumento/cargo"}</Text>
+            <TextInput
+              style={styles.input}
+              value={form.name}
+              onChangeText={(name) => setForm((current) => ({ ...current, name }))}
+              accessibilityLabel="Nome do instrumento/cargo"
+              maxLength={50}
+              placeholder="Nome"
+              placeholderTextColor={colors.muted}
+              autoCapitalize="words"
+              testID="instrument-name-input"
+            />
+            <InstrumentAppearanceEditor key={editingId ?? "new"} value={form} onChange={setForm} />
+            {editingId ? <Text style={styles.subtitle}>O visual deste instrumento será atualizado em todos os perfis que o utilizam.</Text> : null}
+            <ErrorBanner message={formError} style={styles.formError} />
+            <View style={styles.formActions}>
               <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={resetForm}
+                style={[styles.primaryButton, saving && styles.disabledButton]}
+                onPress={() => void handleSubmit()}
+                disabled={saving}
                 accessibilityRole="button"
-                testID="instrument-cancel-edit-button"
+                testID="instrument-save-button"
               >
-                <X color={colors.primary} size={iconSizes.s17} />
-                <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                {saving ? (
+                  <ActivityIndicator color={colors.surface} />
+                ) : editingId ? (
+                  <Save color={colors.surface} size={iconSizes.s17} />
+                ) : (
+                  <Plus color={colors.surface} size={iconSizes.s17} />
+                )}
+                <Text style={styles.primaryButtonText}>{editingId ? "Salvar" : "Criar"}</Text>
               </TouchableOpacity>
-            ) : null}
+              {editingId ? (
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={resetForm}
+                  accessibilityRole="button"
+                  testID="instrument-cancel-edit-button"
+                >
+                  <X color={colors.primary} size={iconSizes.s17} />
+                  <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <View style={styles.section}>
           <View style={styles.listHeader}>
@@ -263,7 +281,11 @@ export default function InstrumentCatalogScreen() {
           ) : !error && filteredInstruments.length === 0 ? (
             <EmptyState
               title={activeFilters ? "Nenhum instrumento encontrado" : "Nenhum instrumento cadastrado"}
-              description={activeFilters ? "Ajuste ou limpe os filtros para ver outros instrumentos e cargos." : "Crie instrumentos ou cargos para organizar perfis, membros e escalas."}
+              description={activeFilters
+                ? "Ajuste ou limpe os filtros para ver outros instrumentos e cargos."
+                : canManage
+                  ? "Crie instrumentos ou cargos para organizar perfis, membros e escalas."
+                  : "Nenhum instrumento ou cargo cadastrado até o momento."}
               action={activeFilters ? (
                 <TouchableOpacity style={styles.secondaryButton} onPress={clearFilters} accessibilityRole="button" accessibilityLabel="Limpar filtros de instrumentos">
                   <Text style={styles.secondaryButtonText}>Limpar filtros</Text>
@@ -277,26 +299,30 @@ export default function InstrumentCatalogScreen() {
                 return (
                   <View key={instrument.id} style={styles.instrumentRow}>
                     <View style={styles.instrumentInfo}><InstrumentBadge instrument={instrument} /></View>
-                    <TouchableOpacity
-                      style={styles.iconButton}
-                      onPress={() => handleEdit(instrument)}
-                      disabled={isDeleting}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Editar ${instrument.name}`}
-                      testID={`instrument-edit-${instrument.id}`}
-                    >
-                      <Edit3 color={colors.primary} size={iconSizes.s18} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.iconButton, styles.dangerButton]}
-                      onPress={() => handleDelete(instrument)}
-                      disabled={isDeleting}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Excluir ${instrument.name}`}
-                      testID={`instrument-delete-${instrument.id}`}
-                    >
-                      {isDeleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={iconSizes.s18} />}
-                    </TouchableOpacity>
+                    {canManage ? (
+                      <>
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => handleEdit(instrument)}
+                          disabled={isDeleting}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Editar ${instrument.name}`}
+                          testID={`instrument-edit-${instrument.id}`}
+                        >
+                          <Edit3 color={colors.primary} size={iconSizes.s18} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.iconButton, styles.dangerButton]}
+                          onPress={() => handleDelete(instrument)}
+                          disabled={isDeleting}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Excluir ${instrument.name}`}
+                          testID={`instrument-delete-${instrument.id}`}
+                        >
+                          {isDeleting ? <ActivityIndicator color={colors.danger} /> : <Trash2 color={colors.danger} size={iconSizes.s18} />}
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
                   </View>
                 );
               })}

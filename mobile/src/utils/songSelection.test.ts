@@ -73,4 +73,17 @@ describe("songSelection", () => {
     });
     expect(reconcileSongSelection(reconciled, [updated])).toBe(reconciled);
   });
+
+  it("preserva os temas carregados entre páginas e atualiza alterações de temas", () => {
+    const original = song(1, { tags: ["Adoração"] });
+    const snapshot = songSelectionSnapshot(original);
+    original.tags!.push("Natal");
+    expect(snapshot.tags).toEqual(["Adoração"]);
+    const selected = new Map([[original.id, snapshot]]);
+    expect(reconcileSongSelection(selected, [song(2)])).toBe(selected);
+    const updated = song(1, { tags: ["Comunhão"] });
+    const reconciled = reconcileSongSelection(selected, [updated]);
+    expect(reconciled.get(original.id)?.tags).toEqual(["Comunhão"]);
+    expect(reconcileSongSelection(reconciled, [updated])).toBe(reconciled);
+  });
 });

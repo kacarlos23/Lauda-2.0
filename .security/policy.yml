@@ -2,7 +2,7 @@ version: 1
 effective_date: 2026-07-20
 review_date: 2026-10-20
 technical_owner: "Repository maintainer (@kacarlos23)"
-organizational_owners_status: "TBD - production/release blocker"
+organizational_owners_status: "Primary owners recorded in ownership-model.md. Deputies pending (production/release blocker)."
 
 severity:
   critical: "Active exploitation, confirmed secret, auth/tenant bypass, or material data exposure"

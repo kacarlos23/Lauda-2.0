@@ -53,6 +53,8 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
   const selectedMinistry = useMemo(() => ministries.find((item) => item.id === ministryId) ?? null, [ministries, ministryId]);
   const readyCount = preview ? preview.counts.CREATE + (preview.counts.UPDATE ?? 0) + preview.counts.LINK + preview.counts.RESTORE : 0;
   const issueCount = preview ? preview.counts.CONFLICT + preview.counts.INVALID : 0;
+  const clearsThemes = existingMode === "update" && fields.includes("tags")
+    && preview?.items.some((item) => item.status === "UPDATE" && document?.songs[item.index]?.tags?.length === 0);
   const reviewItems = preview?.items.filter((item) => filter === "all" || (filter === "ready" ? isReady(item.status) : ["CONFLICT", "INVALID"].includes(item.status))) ?? [];
   const close = () => { if (!locked.current) onClose(); };
 
@@ -129,7 +131,11 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
       const result = await musicService.commitSongData(ministryId, document, preview.documentHash, { fields, existing: existingMode });
       if (currentOperation !== operation.current) return;
       const pending = result.conflicts + result.invalid;
-      onImported(`${result.created} músicas criadas; ${result.updated ?? 0} atualizadas; ${result.linked} vínculos adicionados; ${result.restored} restauradas. ${result.alreadyLinked} já vinculadas; ${result.skipped ?? 0} ignoradas${pending ? `; ${pending} não importadas por pendências` : ""}.`);
+      // In update mode, restored is a subset of updated, not an additional total.
+      const changes = existingMode === "update"
+        ? `${result.updated ?? 0} atualizadas (${result.restored} delas reativadas)`
+        : `${result.updated ?? 0} atualizadas; ${result.restored} restauradas`;
+      onImported(`${result.created} músicas criadas; ${changes}; ${result.linked} vínculos adicionados. ${result.alreadyLinked} já vinculadas; ${result.skipped ?? 0} ignoradas${pending ? `; ${pending} não importadas por pendências` : ""}.`);
       setDocument(null);
       setPreview(null);
       setConfirmVisible(false);
@@ -273,7 +279,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
           );
         })}
       </View>
-      <Text style={styles.meta}>Criar novas preserva a cifra e só vincula. Atualizar grava os campos marcados. Pular não altera as que já existem.</Text>
+      <Text style={styles.meta}>Criar novas preserva a cifra e só vincula. Atualizar grava os campos marcados; temas vazios no arquivo removem os temas atuais quando Temas está marcado. Pular não altera as que já existem.</Text>
 
       <View style={styles.actions}>
         {canImport ? (
@@ -288,7 +294,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
           <View style={styles.actionCard}>
             <Download color={colors.primary} size={iconSizes.s19} />
             <Text style={styles.cardTitle}>Exportar repertório</Text>
-            <Text style={styles.meta}>Salve o JSON com os campos marcados. Sem opções na API, o arquivo antigo continua igual.</Text>
+            <Text style={styles.meta}>Salve o JSON com os campos marcados. Temas marcados sempre entram, mesmo quando a lista está vazia.</Text>
             <Button title="Exportar JSON" accessibilityLabel="Exportar músicas do ministério" size="sm" style={styles.compactButton} variant="secondary" disabled={!selectedMinistry || ministriesLoading || busy} loading={activity === "export"} onPress={() => void exportData()} />
           </View>
         ) : null}
@@ -306,6 +312,7 @@ export function SongDataTransferPanel({ visible, canImport, canExport, onClose, 
             ))}
           </View>
           <Text style={styles.meta}>{preview.counts.CREATE} novas · {preview.counts.UPDATE ?? 0} para atualizar · {preview.counts.LINK} para vincular · {preview.counts.RESTORE} para restaurar · {preview.counts.SKIPPED ?? 0} para pular</Text>
+          {clearsThemes ? <Text style={styles.issue}>As músicas com lista de temas vazia no arquivo terão os temas removidos.</Text> : null}
           {issueCount ? <Text style={styles.issue}>Conflitos e itens inválidos serão ignorados. As cifras já cadastradas serão preservadas.</Text> : null}
           <View style={styles.filters}>
             {([{ id: "all", label: "Todas" }, { id: "ready", label: "Prontas" }, { id: "issues", label: "Pendências" }] as const).map((tab) => (

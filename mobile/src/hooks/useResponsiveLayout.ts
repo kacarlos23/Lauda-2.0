@@ -1,13 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWindowDimensions } from "react-native";
 import { breakpoints, motion } from "../theme";
 
 export function useResponsiveLayout() {
-  const { width, height } = useWindowDimensions();
+  const dimensions = typeof useWindowDimensions === "function"
+    ? useWindowDimensions()
+    : { width: 1280, height: 800 };
+  const { width, height } = dimensions;
   const [screenSize, setScreenSize] = useState({ width, height });
+  const lastApplied = useRef({ width, height });
 
   useEffect(() => {
+    if (lastApplied.current.width === width && lastApplied.current.height === height) {
+      return undefined;
+    }
     const timer = setTimeout(() => {
+      lastApplied.current = { width, height };
       setScreenSize({ width, height });
     }, motion.resizeDebounceMs);
 

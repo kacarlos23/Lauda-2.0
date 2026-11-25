@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Bell } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useSafeInsets } from "../hooks/useSafeInsets";
 import { useNotificationStore } from "../store/notificationStore";
 import { colors, fontSizes, fontWeights, iconSizes, radii, shadow, spacing } from "../theme";
 import { nav } from "../navigation/routes";
@@ -9,6 +10,7 @@ import { requestFormNavigation } from "../navigation/formExitGuard";
 
 export function NotificationToast() {
   const router = useRouter();
+  const insets = useSafeInsets();
   const notification = useNotificationStore((state) => state.latestRealtime);
   const clear = useNotificationStore((state) => state.clearLatestRealtime);
   const [visibleId, setVisibleId] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export function NotificationToast() {
 
   if (!notification || visibleId !== notification.id) return null;
   return (
-    <View style={styles.host} pointerEvents="box-none">
+    <View style={[styles.host, Platform.OS !== "web" && { top: spacing.lg + insets.top }]} pointerEvents="box-none">
       <TouchableOpacity
         style={styles.toast}
         onPress={() => {

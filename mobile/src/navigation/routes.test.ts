@@ -79,6 +79,11 @@ describe("catálogo de rotas", () => {
       pathname: "/instruments",
       params: { returnTo: "/profile" },
     });
+    expect(nav.profile).toBe("/profile");
+    expect(nav.profileSection("instruments")).toEqual({
+      pathname: "/profile",
+      params: { section: "instruments" },
+    });
   });
 
   it("mantém catálogo, arquivos Expo e rewrites dinâmicos sincronizados", () => {
@@ -93,13 +98,19 @@ describe("catálogo de rotas", () => {
     }
 
     const serveConfig = JSON.parse(fs.readFileSync(path.resolve("serve.json"), "utf8")) as {
-      rewrites: Array<{ destination: string }>;
+      rewrites: Array<{ source: string; destination: string }>;
     };
     const expectedDynamicDestinations = routeEntries
       .filter(([, route]) => route.path.includes("[id]"))
       .map(([, route]) => `/${route.expoScreen}.html`)
       .sort();
-    expect(serveConfig.rewrites.map((rewrite) => rewrite.destination).sort()).toEqual(expectedDynamicDestinations);
+    const dynamicDestinations = serveConfig.rewrites
+      .filter((rewrite) => rewrite.source.includes(":id("))
+      .map((rewrite) => rewrite.destination)
+      .sort();
+    expect(dynamicDestinations).toEqual(expectedDynamicDestinations);
+    // A catch-all rewrite would replace the HTML exported for individual routes.
+    expect(serveConfig.rewrites.map((rewrite) => rewrite.source)).not.toContain("**");
 
     for (const [key, route] of routeEntries) {
       expect(routeForPathname(materializeRoutePath(key, SAMPLE_ID))?.key).toBe(key);
@@ -116,19 +127,28 @@ describe("manifesto de navegação por papel", () => {
   ) as Record<Role, { role: Role; permissions: (typeof rolePermissionMap)[Role] }>;
 
   it.each([
-    ["GLOBAL_ADMIN", ["home", "schedules", "ministries", "songs", "members", "church", "profile"]],
-    ["TENANT_ADMIN", ["home", "schedules", "ministries", "songs", "members", "church", "profile"]],
-    ["MINISTRY_LEADER", ["home", "schedules", "ministries", "songs", "profile"]],
-    ["MEMBER", ["home", "schedules", "ministries", "songs", "profile"]],
+    ["GLOBAL_ADMIN", ["home", "schedules", "songs", "more"]],
+    ["TENANT_ADMIN", ["home", "schedules", "songs", "more"]],
+    ["MINISTRY_LEADER", ["home", "schedules", "songs", "more"]],
+    ["MEMBER", ["home", "schedules", "songs", "more"]],
+  ] as const)("mantém a barra mobile de %s com Início, Escalas, Músicas e Mais", (role, expectedRoutes) => {
+    expect(navigationItemsFor("mobile-tab", subjects[role]).map((item) => item.route)).toEqual(expectedRoutes);
+  });
+
+  it.each([
+    ["GLOBAL_ADMIN", ["home", "schedules", "ministries", "songs", "members", "artists", "instruments", "church", "profile"]],
+    ["TENANT_ADMIN", ["home", "schedules", "ministries", "songs", "members", "artists", "instruments", "church", "profile"]],
+    ["MINISTRY_LEADER", ["home", "schedules", "ministries", "songs", "artists", "instruments", "profile"]],
+    ["MEMBER", ["home", "schedules", "songs", "artists", "instruments", "profile"]],
   ] as const)("preserva a sidebar de %s", (role, expectedRoutes) => {
     expect(navigationItemsFor("desktop-sidebar", subjects[role]).map((item) => item.route)).toEqual(expectedRoutes);
   });
 
   it.each([
-    ["GLOBAL_ADMIN", ["profile", "members", "artists", "instruments", "church", "globalAdmin"]],
-    ["TENANT_ADMIN", ["profile", "members", "artists", "instruments", "church"]],
-    ["MINISTRY_LEADER", ["profile", "artists"]],
-    ["MEMBER", ["profile"]],
+    ["GLOBAL_ADMIN", ["profile", "ministries", "members", "artists", "instruments", "church", "globalAdmin"]],
+    ["TENANT_ADMIN", ["profile", "ministries", "members", "artists", "instruments", "church"]],
+    ["MINISTRY_LEADER", ["profile", "ministries", "artists", "instruments"]],
+    ["MEMBER", ["profile", "artists", "instruments"]],
   ] as const)("preserva os atalhos Mais de %s", (role, expectedRoutes) => {
     expect(navigationItemsFor("mobile-more", subjects[role]).map((item) => item.route)).toEqual(expectedRoutes);
   });
@@ -143,9 +163,21 @@ describe("manifesto de navegação por papel", () => {
 
     expect(selectedId("/songs/song-1")).toBe("songs");
     expect(selectedId("/schedules/schedule-1/edit")).toBe("schedules");
-    expect(selectedId("/ministries/ministry-1/members")).toBe("ministries");
+    expect(selectedId("/ministries/ministry-1/members")).toBe("more");
     expect(selectedId("/profile")).toBe("more");
     expect(selectedId("/members/new")).toBe("more");
     expect(selectedId("/rota-inexistente")).toBeUndefined();
+
+    const member = subjects.MEMBER;
+    const memberTabs = navigationItemsFor("mobile-tab", member);
+    const memberMore = navigationItemsFor("mobile-more", member);
+    const memberSelectedId = (pathname: string) => memberTabs[
+      activeMobileTabIndex(pathname, memberTabs, memberMore)
+    ]?.id;
+
+    expect(memberSelectedId("/artists")).toBe("more");
+    expect(memberSelectedId("/instruments")).toBe("more");
+    expect(memberSelectedId("/ministries")).toBeUndefined();
+    expect(memberSelectedId("/members")).toBeUndefined();
   });
 });

@@ -308,4 +308,18 @@ describe("musicStore", () => {
     expect(useMusicStore.getState().error).toBe("Falha na lista");
     expect(useMusicStore.getState().detailError).toBeNull();
   });
+
+  it("incrementa themeVersion ao alterar músicas ou temas e zera no reset", async () => {
+    expect(useMusicStore.getState().themeVersion).toBe(0);
+    mockedService.createSong.mockResolvedValueOnce(song);
+
+    await useMusicStore.getState().createSong({ title: song.title, artistId: "a1", originalKey: "C", content: "[C]" });
+    expect(useMusicStore.getState().themeVersion).toBe(1);
+
+    useMusicStore.getState().applySongThemes([{ id: song.id, tags: ["Louvor"] }]);
+    expect(useMusicStore.getState().themeVersion).toBe(2);
+
+    useMusicStore.getState().reset();
+    expect(useMusicStore.getState().themeVersion).toBe(0);
+  });
 });

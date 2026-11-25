@@ -1,3 +1,4 @@
+import { useDockContentClearance } from "../navigation/stagingDockClearance";
 import { uiPatterns } from "./ui/patterns";
 import { InputControl as TextInput } from "./ui/InputControl";
 import React, { useEffect, useMemo, useState } from "react";
@@ -39,6 +40,7 @@ type Props = {
 };
 
 export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
+  const withDockClearance = useDockContentClearance();
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(initial ? 2 : 1);
   const [artist, setArtist] = useState<Artist | null>(initial ? { ...initial.artist, createdAt: "", updatedAt: "" } : null);
@@ -277,7 +279,7 @@ export function SongForm({ initial, saving, error, onSave, backHref }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, step === 2 && styles.editorContainer]} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={withDockClearance([styles.container, step === 2 && styles.editorContainer])} keyboardShouldPersistTaps="handled">
       {formExit.dialog}
       <Modal visible={cifraClubModalVisible} transparent animationType="fade" onRequestClose={closeCifraClubModal}>
         <View style={styles.modalBackdrop}>

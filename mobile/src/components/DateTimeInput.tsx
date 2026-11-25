@@ -61,6 +61,17 @@ export function DateTimeInput({
   const selectedDate = type === "date" ? parseDisplayDate(value) : null;
   const calendarDays = Array.from({ length: new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 0).getDate() }, (_, index) => new Date(pickerMonth.getFullYear(), pickerMonth.getMonth(), index + 1));
   const calendarPadding = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth(), 1).getDay();
+  const calendarCells: Array<Date | null> = [
+    ...Array(calendarPadding).fill(null),
+    ...calendarDays,
+  ];
+  while (calendarCells.length % 7 !== 0) {
+    calendarCells.push(null);
+  }
+  const calendarWeeks: Array<Array<Date | null>> = [];
+  for (let index = 0; index < calendarCells.length; index += 7) {
+    calendarWeeks.push(calendarCells.slice(index, index + 7));
+  }
   const timeOptions = Array.from({ length: 36 }, (_, index) => {
     const totalMinutes = 6 * 60 + index * 30;
     const hour = Math.floor(totalMinutes / 60);
@@ -165,15 +176,21 @@ export function DateTimeInput({
                 </View>
                 <View style={styles.weekRow}>{["D", "S", "T", "Q", "Q", "S", "S"].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekday}>{day}</Text>)}</View>
                 <View style={styles.calendarGrid}>
-                  {Array.from({ length: calendarPadding }).map((_, index) => <View key={`empty-${index}`} style={styles.calendarDay} />)}
-                  {calendarDays.map((day) => {
-                    const selected = selectedDate?.getFullYear() === day.getFullYear() && selectedDate.getMonth() === day.getMonth() && selectedDate.getDate() === day.getDate();
-                    return (
-                      <TouchableOpacity key={day.toISOString()} style={[styles.calendarDay, selected && styles.calendarDaySelected]} onPress={() => selectDate(day)} accessibilityRole="button" accessibilityLabel={`Selecionar dia ${day.getDate()}`}>
-                        <Text style={[styles.calendarDayText, selected && styles.calendarDayTextSelected]}>{day.getDate()}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {calendarWeeks.map((week, weekIndex) => (
+                    <View key={`week-${weekIndex}`} style={styles.weekGridRow}>
+                      {week.map((day, dayIndex) => {
+                        if (!day) {
+                          return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.calendarDay} />;
+                        }
+                        const selected = selectedDate?.getFullYear() === day.getFullYear() && selectedDate.getMonth() === day.getMonth() && selectedDate.getDate() === day.getDate();
+                        return (
+                          <TouchableOpacity key={day.toISOString()} style={[styles.calendarDay, selected && styles.calendarDaySelected]} onPress={() => selectDate(day)} accessibilityRole="button" accessibilityLabel={`Selecionar dia ${day.getDate()}`}>
+                            <Text style={[styles.calendarDayText, selected && styles.calendarDayTextSelected]}>{day.getDate()}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
               </>
             ) : (
@@ -301,12 +318,14 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extrabold,
   },
   calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     marginTop: spacing.xs,
+    gap: spacing.xxs,
+  },
+  weekGridRow: {
+    flexDirection: "row",
   },
   calendarDay: {
-    width: `${100 / 7}%`,
+    flex: 1,
     height: 34,
     alignItems: "center",
     justifyContent: "center",

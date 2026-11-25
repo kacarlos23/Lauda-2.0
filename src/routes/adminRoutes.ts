@@ -3,12 +3,14 @@ import { Role } from "@prisma/client";
 import { AdminController } from "../controllers/AdminController";
 import { authMiddleware, requireRole } from "../middlewares/authMiddleware";
 import { requireRecentStepUp } from "../middlewares/authMiddleware";
+import { apiRateLimit } from "../middlewares/rateLimitMiddleware";
 import { PrivilegedAccessController } from "../controllers/PrivilegedAccessController";
 
 const router = Router();
 const ctrl = new AdminController();
 const privilegedCtrl = new PrivilegedAccessController();
 
+router.use(apiRateLimit);
 router.use(authMiddleware);
 router.use(requireRole(Role.GLOBAL_ADMIN));
 

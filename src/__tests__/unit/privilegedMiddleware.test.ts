@@ -2,6 +2,7 @@ import { Request } from "express";
 import { Role } from "@prisma/client";
 import { config } from "../../config/unifiedConfig";
 import { requireRecentStepUp } from "../../middlewares/authMiddleware";
+import { requireSupportAccess } from "../../middlewares/supportAccessMiddleware";
 
 const user = (overrides: Partial<NonNullable<Request["user"]>> = {}): NonNullable<Request["user"]> => ({
   id: "user-1",
@@ -34,5 +35,31 @@ describe("privileged step-up middleware", () => {
       requireRecentStepUp({ user: requestUser } as Request, {} as any, next);
       expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
     }
+  });
+});
+
+describe("support access middleware", () => {
+  it("rejects missing or malformed x-support-access-id with 403", async () => {
+    for (const grantId of [undefined, "not-a-uuid"]) {
+      const next = jest.fn();
+      const req = {
+        user: user({ role: Role.MEMBER }),
+        header: (name: string) => (name.toLowerCase() === "x-support-access-id" ? grantId : undefined),
+        params: { resource: "songs" },
+      } as unknown as Request;
+      await requireSupportAccess("read")(req, {} as any, next);
+      expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    }
+  });
+
+  it("rejects invalid support resource with 400", async () => {
+    const next = jest.fn();
+    const req = {
+      user: user({ role: Role.MEMBER }),
+      header: (name: string) => (name.toLowerCase() === "x-support-access-id" ? "11111111-1111-4111-8111-111111111111" : undefined),
+      params: { resource: "invalid-resource" },
+    } as unknown as Request;
+    await requireSupportAccess("read")(req, {} as any, next);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 400 });
   });
 });

@@ -4,6 +4,7 @@ import { Bell, CheckCheck, ChevronRight, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useNotificationStore } from "../store/notificationStore";
 import { enablePushNotifications } from "../services/pushNotificationService";
+import { useSafeInsets } from "../hooks/useSafeInsets";
 import { colors, fontSizes, fontWeights, iconSizes, lineHeights, overlays, radii, shadow, spacing } from "../theme";
 import { nav } from "../navigation/routes";
 import { AppNotification } from "../types";
@@ -14,6 +15,7 @@ const formatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "sho
 export function NotificationBell() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const insets = useSafeInsets();
   const [open, setOpen] = useState(false);
   const [enablingPush, setEnablingPush] = useState(false);
   const { notifications, unreadCount, nextCursor, loading, error, connectionState, load, markRead, markAllRead } = useNotificationStore();
@@ -47,10 +49,16 @@ export function NotificationBell() {
         <Bell color={colors.primaryDark} size={iconSizes.s22} />
         {unreadCount ? <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? "99+" : unreadCount}</Text></View> : null}
       </TouchableOpacity>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent statusBarTranslucent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={styles.backdrop}>
           <TouchableOpacity style={styles.dismissArea} onPress={() => setOpen(false)} accessibilityLabel="Fechar notificações" />
-          <View style={[styles.panel, width < 600 && styles.panelMobile]}>
+          <View
+            style={[
+              styles.panel,
+              width < 600 && styles.panelMobile,
+              Platform.OS !== "web" && { paddingTop: insets.top, paddingBottom: insets.bottom },
+            ]}
+          >
             <View style={styles.header}>
               <View>
                 <Text style={styles.title}>Notificações</Text>

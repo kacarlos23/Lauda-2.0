@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   LogOut,
+  Smartphone,
 } from "lucide-react-native";
 import {
   colors,
@@ -37,9 +39,11 @@ import {
   routeMatches,
   SIDEBAR_GROUPS,
 } from "../navigation/manifest";
-import { nav } from "../navigation/routes";
+import { nav, ROUTES } from "../navigation/routes";
+import { desktopIndicatorEasing, stagingTransitionMs } from "../tokens/stagingNavigation";
 import { BrandLogo } from "./BrandLogo";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useInstallStore } from "../features/install/installStore";
 
 export const SIDEBAR_COLLAPSED_WIDTH = 72;
 export const SIDEBAR_EXPANDED_WIDTH = 248;
@@ -53,6 +57,7 @@ type SidebarNavigationProps = {
   isCollapsed: boolean;
   onToggle: () => void;
   currentRoute: string;
+  indicatorStyle?: boolean;
 };
 
 function getInitials(name?: string): string {
@@ -60,8 +65,15 @@ function getInitials(name?: string): string {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U";
 }
 
-function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: SidebarNavigationProps) {
+function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute, indicatorStyle = false }: SidebarNavigationProps) {
   const { user, logout } = useAuthStore();
+  const apkRelease = useInstallStore((state) => state.apkRelease);
+  const deviceClass = useInstallStore((state) => state.deviceClass);
+  const isNativeApp = useInstallStore((state) => state.isNativeApp);
+  const updateAvailable = useInstallStore((state) => state.updateAvailable);
+  const showApkShortcut = Boolean(
+    deviceClass !== "ios" && ((!isNativeApp && apkRelease) || (isNativeApp && updateAvailable))
+  );
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [activeRailVisible, setActiveRailVisible] = useState(false);
@@ -75,10 +87,12 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
   useEffect(() => {
     Animated.timing(labelOpacity, {
       toValue: isCollapsed ? 0 : 1,
-      duration: SIDEBAR_ANIMATION_MS,
-      useNativeDriver: true,
+      duration: indicatorStyle
+        ? (reducedMotion ? motion.reducedMs : stagingTransitionMs.sidebarWidth)
+        : SIDEBAR_ANIMATION_MS,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
-  }, [isCollapsed, labelOpacity]);
+  }, [indicatorStyle, isCollapsed, labelOpacity, reducedMotion]);
 
   const visibleItems = useMemo(
     () => navigationItemsFor("desktop-sidebar", user),
@@ -121,9 +135,13 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
 
     const animation = Animated.timing(activeRailY, {
       toValue: nextPosition,
-      duration: reducedMotion ? motion.reducedMs : motion.navigationSelectionMs,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      duration: reducedMotion
+        ? motion.reducedMs
+        : indicatorStyle
+          ? stagingTransitionMs.sidebarIndicator
+          : motion.navigationSelectionMs,
+      easing: indicatorStyle ? Easing.bezier(...desktopIndicatorEasing) : Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
 
@@ -132,40 +150,57 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
     activeItem?.id,
     activeItem?.sidebarGroup,
     activeRailY,
+    indicatorStyle,
     isCollapsed,
     layoutVersion,
     reducedMotion,
   ]);
 
   return (
-    <View style={[styles.sidebar, { width }]} accessibilityLabel="Menu principal">
-      <View style={[styles.header, isCollapsed && styles.headerCollapsed]}>
+    <View
+      style={[styles.sidebar, indicatorStyle && styles.indicatorSidebar, { width }]}
+      accessibilityLabel="Menu principal"
+      testID={indicatorStyle ? "staging-indicator-sidebar" : undefined}
+    >
+      <View style={[styles.header, isCollapsed && styles.headerCollapsed, indicatorStyle && styles.indicatorBorder]}>
         <BrandLogo
           variant={isCollapsed ? "symbol" : "horizontal"}
-          tone="light"
+          tone={indicatorStyle ? undefined : "light"}
           width={isCollapsed ? 34 : 132}
         />
         <Pressable
           onPress={onToggle}
           hitSlop={8}
-          style={({ pressed }) => [styles.toggleButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.toggleButton, indicatorStyle && styles.indicatorBorder, pressed && styles.pressed]}
+          testID={indicatorStyle ? "staging-indicator-sidebar-toggle" : undefined}
           accessibilityRole="button"
           accessibilityLabel={isCollapsed ? "Expandir menu" : "Recolher menu"}
         >
           {isCollapsed ? (
-            <ChevronsRight color={colors.inverse} size={iconSizes.s18} strokeWidth={2} />
+            <ChevronsRight color={indicatorStyle ? colors.ink : colors.inverse} size={iconSizes.s18} strokeWidth={2} />
           ) : (
-            <ChevronsLeft color={colors.inverse} size={iconSizes.s18} strokeWidth={2} />
+            <ChevronsLeft color={indicatorStyle ? colors.ink : colors.inverse} size={iconSizes.s18} strokeWidth={2} />
           )}
         </Pressable>
       </View>
 
       <View style={styles.navList}>
+        {activeRailVisible && indicatorStyle ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.indicatorActiveBackdrop,
+              { transform: [{ translateY: activeRailY }] },
+            ]}
+            testID="staging-sidebar-active-backdrop"
+          />
+        ) : null}
         {activeRailVisible ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.activeRail,
+              indicatorStyle && styles.indicatorRail,
               { transform: [{ translateY: activeRailY }] },
             ]}
             testID="sidebar-active-rail"
@@ -177,21 +212,23 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           return (
             <View
               key={group}
-              style={styles.group}
+              style={[styles.group, indicatorStyle && styles.indicatorGroup]}
               onLayout={(event) => rememberOffset(groupOffsets.current, group, event)}
             >
               {isCollapsed ? (
-                <View style={styles.groupDivider} />
+                <View style={[styles.groupDivider, indicatorStyle && styles.indicatorDivider]} />
               ) : (
-                <Animated.Text style={[styles.groupLabel, { opacity: labelOpacity }]}>
+                <Animated.Text style={[styles.groupLabel, indicatorStyle && styles.indicatorMuted, { opacity: labelOpacity }]}>
                   {group}
                 </Animated.Text>
               )}
               {groupItems.map((item) => {
                 const href = hrefForNavigationItem(item);
-                const hrefText = String(href);
+                const hrefText = ROUTES[item.route].path;
                 const active = routeMatches(currentRoute, item.route);
-                const iconColor = active ? colors.inverse : colors.inverseMuted;
+                const iconColor = indicatorStyle
+                  ? active ? colors.primary : colors.muted
+                  : active ? colors.inverse : colors.inverseMuted;
                 return (
                   <View
                     key={item.id}
@@ -205,8 +242,8 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                       style={(state) => [
                         styles.navItem,
                         isCollapsed && styles.navItemCollapsed,
-                        active && styles.navItemActive,
-                        hoveredLabel === item.label && !active && styles.navItemHover,
+                        active && (indicatorStyle ? !activeRailVisible && styles.indicatorItemActive : styles.navItemActive),
+                        hoveredLabel === item.label && !active && (indicatorStyle ? styles.indicatorItemHover : styles.navItemHover),
                         state.pressed && styles.pressed,
                       ]}
                       accessibilityRole="link"
@@ -216,7 +253,12 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
                     >
                       <item.Icon color={iconColor} size={iconSizes.s20} strokeWidth={2} />
                       {!isCollapsed ? (
-                        <Animated.Text style={[styles.navLabel, active && styles.navLabelActive, { opacity: labelOpacity }]}>
+                        <Animated.Text style={[
+                          styles.navLabel,
+                          active && styles.navLabelActive,
+                          indicatorStyle && (active ? styles.indicatorLabelActive : styles.indicatorMuted),
+                          { opacity: labelOpacity },
+                        ]}>
                           {item.label}
                         </Animated.Text>
                       ) : null}
@@ -234,7 +276,50 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
         })}
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, indicatorStyle && styles.indicatorBorder]}>
+        {showApkShortcut ? (
+          <View style={styles.itemWrapper}>
+            <Pressable
+              onPress={() => requestFormNavigation(() => router.push(nav.profileSection("app")))}
+              onHoverIn={() => setHoveredLabel("__apk")}
+              onHoverOut={() => setHoveredLabel(null)}
+              style={({ pressed }) => [
+                styles.navItem,
+                isCollapsed && styles.navItemCollapsed,
+                hoveredLabel === "__apk" && (indicatorStyle ? styles.indicatorItemHover : styles.navItemHover),
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={updateAvailable ? "Atualizar aplicativo" : "App Android (APK)"}
+              testID="sidebar-apk-download"
+            >
+              <Smartphone
+                color={updateAvailable ? colors.accent : indicatorStyle ? colors.primary : colors.inverseMuted}
+                size={iconSizes.s20}
+                strokeWidth={2}
+              />
+              {!isCollapsed ? (
+                <Animated.Text
+                  style={[
+                    styles.navLabel,
+                    indicatorStyle && styles.indicatorMuted,
+                    { opacity: labelOpacity },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {updateAvailable ? "Atualizar app" : "App Android (APK)"}
+                </Animated.Text>
+              ) : null}
+            </Pressable>
+            {isCollapsed && hoveredLabel === "__apk" ? (
+              <View style={styles.tooltip} pointerEvents="none">
+                <Text style={styles.tooltipText}>
+                  {updateAvailable ? "Atualizar aplicativo" : "App Android (APK)"}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <Pressable
           onPress={() => requestFormNavigation(() => router.push(nav.profile))}
           onHoverIn={() => setHoveredLabel("__profile")}
@@ -242,7 +327,7 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           style={({ pressed }) => [
             styles.profileButton,
             isCollapsed && styles.profileButtonCollapsed,
-            hoveredLabel === "__profile" && styles.navItemHover,
+            hoveredLabel === "__profile" && (indicatorStyle ? styles.indicatorItemHover : styles.navItemHover),
             pressed && styles.pressed,
           ]}
           accessibilityRole="link"
@@ -257,8 +342,8 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           )}
           {!isCollapsed ? (
             <Animated.View style={[styles.userCopy, { opacity: labelOpacity }]}>
-              <Text style={styles.userName} numberOfLines={1}>{user?.name ?? "Usuário"}</Text>
-              <Text style={styles.userRole} numberOfLines={1}>{formatRoleLabel(user?.role)}</Text>
+              <Text style={[styles.userName, indicatorStyle && styles.indicatorInk]} numberOfLines={1}>{user?.name ?? "Usuário"}</Text>
+              <Text style={[styles.userRole, indicatorStyle && styles.indicatorMuted]} numberOfLines={1}>{formatRoleLabel(user?.role)}</Text>
             </Animated.View>
           ) : null}
         </Pressable>
@@ -275,9 +360,9 @@ function SidebarNavigationComponent({ isCollapsed, onToggle, currentRoute }: Sid
           accessibilityRole="button"
           accessibilityLabel="Sair da conta"
         >
-          <LogOut color={colors.dangerOnDark} size={iconSizes.s20} strokeWidth={2} />
+          <LogOut color={indicatorStyle ? colors.danger : colors.dangerOnDark} size={iconSizes.s20} strokeWidth={2} />
           {!isCollapsed ? (
-            <Animated.Text style={[styles.logoutText, { opacity: labelOpacity }]}>Sair</Animated.Text>
+            <Animated.Text style={[styles.logoutText, indicatorStyle && styles.indicatorDanger, { opacity: labelOpacity }]}>Sair</Animated.Text>
           ) : null}
         </Pressable>
       </View>
@@ -451,5 +536,31 @@ const styles = StyleSheet.create({
     backgroundColor: overlays.dangerSurface,
   },
   logoutText: { color: colors.dangerOnDark, fontSize: fontSizes.s13, fontWeight: fontWeights.semibold },
+  indicatorSidebar: { backgroundColor: colors.surface, borderRightColor: colors.line },
+  indicatorGroup: { paddingVertical: spacing.xs },
+  indicatorBorder: { borderColor: colors.line },
+  indicatorDivider: { backgroundColor: colors.line },
+  indicatorInk: { color: colors.ink },
+  indicatorMuted: { color: colors.muted },
+  indicatorDanger: { color: colors.danger },
+  indicatorItemActive: { backgroundColor: colors.primarySoft },
+  indicatorActiveBackdrop: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    height: controlSizes.default,
+    backgroundColor: colors.primarySoft,
+  },
+  indicatorItemHover: { backgroundColor: colors.surfaceMuted },
+  indicatorLabelActive: { color: colors.primary },
+  indicatorRail: {
+    top: 4,
+    width: 3.5,
+    height: controlSizes.default - 8,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: colors.primary,
+  },
   pressed: { opacity: 0.7 },
 });
